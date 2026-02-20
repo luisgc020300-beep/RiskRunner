@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1097151479835",
+    "project_id": "runnerriskapp",
+    "storage_bucket": "runnerriskapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1097151479835:android:8bef796f69e933a229f8be",
+        "android_client_info": {
+          "package_name": "com.example.mi_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwKim5ZD0xTPqkWdcXXJRi2sAD8BoHA44"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
