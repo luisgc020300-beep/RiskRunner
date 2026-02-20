@@ -5,6 +5,7 @@ load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 ENV['FLUTTER_ROOT'] = File.expand_path('..', File.dirname(File.realpath(__FILE__)))
 
 platform :ios, '15.0'
+install! 'cocoapods', :generate_multiple_pod_projects => true
 
 target 'Runner' do
   use_frameworks!
