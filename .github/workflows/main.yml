@@ -12,10 +12,14 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Setup CocoaPods
+      - name: Clean and Setup CocoaPods
         run: |
+          flutter clean
+          flutter pub get
           cd ios
-          pod install || true
+          rm -rf Pods
+          rm -rf Podfile.lock
+          pod install --repo-update
 
       - name: Build iOS
         run: flutter build ios --release --no-codesign
