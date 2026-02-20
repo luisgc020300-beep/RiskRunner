@@ -12,15 +12,12 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Clean and Setup CocoaPods
+      - name: Setup CocoaPods
         run: |
-          flutter clean
           flutter pub get
           cd ios
-          # Borramos rastro de instalaciones viejas
           rm -rf Pods
           rm -rf Podfile.lock
-          # Forzamos la creación de la configuración de Flutter
           flutter build ios --config-only --no-codesign
           pod install --repo-update
 
