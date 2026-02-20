@@ -3,7 +3,7 @@ load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 platform :ios, '15.0'
 
 target 'Runner' do
-  use_frameworks! :linkage => :static
+  use_frameworks!
   use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
@@ -12,12 +12,10 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
-    
-    # ESTE BLOQUE ES NUEVO: Fuerza a Xcode a encontrar los módulos
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-      config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -framework "cloud_firestore"'
+      # Esto ayuda a Xcode a ver los módulos importados manualmente
+      config.build_settings['SWIFT_INCLUDE_PATHS'] = '$(inherited) $(SRCROOT)/Pods/Headers/Public'
     end
   end
 end
