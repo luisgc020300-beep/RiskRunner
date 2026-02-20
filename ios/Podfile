@@ -3,9 +3,7 @@ load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 platform :ios, '15.0'
 
 target 'Runner' do
-  # Cambiamos esto para que Firestore sea más fácil de encontrar por Xcode
   use_frameworks! :linkage => :static
-  
   use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
@@ -14,9 +12,12 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    
+    # ESTE BLOQUE ES NUEVO: Fuerza a Xcode a encontrar los módulos
     target.build_configurations.each do |config|
-      # Aseguramos que TODO sea iOS 15
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      config.build_settings['OTHER_LDFLAGS'] = '$(inherited) -framework "cloud_firestore"'
     end
   end
 end
