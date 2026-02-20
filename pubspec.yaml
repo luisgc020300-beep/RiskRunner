@@ -1,0 +1,29 @@
+name: RunnerRisk
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0' # Flexibilidad para el SDK
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: any
+  firebase_auth: any
+  cloud_firestore: any
+  firebase_core_web: any  # Añadimos esto para que lo gestione bien
+  
+  flutter_map: ^8.2.2
+  latlong2: ^0.9.1
+  geolocator: ^14.0.2
+  custom_timer: ^0.2.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0 # Bajado para evitar conflictos
+
+flutter:
+  uses-material-design: true
