@@ -17,8 +17,11 @@ jobs:
           flutter clean
           flutter pub get
           cd ios
+          # Borramos TODO rastro anterior
           rm -rf Pods
           rm -rf Podfile.lock
+          rm -rf Flutter/Generated.xcconfig
+          rm -rf Flutter/flutter_export_environment.sh
           pod install --repo-update
 
       - name: Build iOS
