@@ -1,9 +1,13 @@
+# Esta línea es la que faltaba para que entienda los comandos de Flutter
+target_ios_revision = File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'Generated.xcconfig')
+
 platform :ios, '15.0'
 
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
+  # Este bloque es el estándar para cargar los plugins de Flutter
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
