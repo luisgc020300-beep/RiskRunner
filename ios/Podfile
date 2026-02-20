@@ -1,4 +1,11 @@
-target_ios_revision = File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'Generated.xcconfig')
+# 1. Cargamos manualmente el script de Flutter que define las funciones
+flutter_install_all_ios_pods_file = File.join(File.dirname(File.realpath(__FILE__)), '.symlinks', 'plugins', 'flutter_plugin_loader', 'ios', 'podhelper.rb')
+if File.exist?(flutter_install_all_ios_pods_file)
+  load flutter_install_all_ios_pods_file
+else
+  # Si la ruta anterior falla, intentamos la ruta estándar de Flutter
+  load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+end
 
 platform :ios, '15.0'
 
@@ -6,7 +13,7 @@ target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # Esto es lo que permite que Xcode encuentre 'cloud_firestore'
+  # Ahora que cargamos el archivo arriba, esta función YA debería existir
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
