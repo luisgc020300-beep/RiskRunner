@@ -9,14 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: 3.1.1
-  firebase_auth: 5.1.1
-  cloud_firestore: 5.0.2
-  firebase_core_web: 2.17.2  # Actualizado de 2.17.1 a 2.17.2
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  cloud_firestore: ^6.1.2
+  firebase_core_web: ^3.4.0
   
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
-  geolocator: ^14.0.2
+  geolocator: ^14.0.2  # Versión compatible con Firebase
   custom_timer: ^0.2.1
   cupertino_icons: ^1.0.8
 
