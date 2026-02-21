@@ -3,7 +3,7 @@ load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 platform :ios, '15.0'
 
 target 'Runner' do
-  use_frameworks! :linkage => :static
+  # CAMBIO CLAVE: Quitamos use_frameworks! y usamos headers modulares
   use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
@@ -14,7 +14,8 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-      config.build_settings['DEFINES_MODULE'] = 'YES'
+      # Forzamos a Xcode a buscar los archivos de Firebase en todas las carpetas
+      config.build_settings['HEADER_SEARCH_PATHS'] = '$(inherited) ${PODS_ROOT}/Headers/Public/**'
     end
   end
 end

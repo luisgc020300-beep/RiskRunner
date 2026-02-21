@@ -1,25 +1,36 @@
 name: Build iOS
 on: [push]
+
 jobs:
   build:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
       
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Setup CocoaPods
+      - name: Clean Xcode Cache
         run: |
-          flutter pub get
           cd ios
+          # Borramos carpetas de compilación y dependencias previas
+          rm -rf build
           rm -rf Pods
           rm -rf Podfile.lock
-          flutter build ios --config-only --no-codesign
+          # Desvinculamos CocoaPods completamente para forzar una instalación limpia
+          pod deintegrate
+          # Instalamos los Pods desde cero actualizando repositorios
           pod install --repo-update
+
+      - name: Setup Flutter Config
+        run: |
+          # Generamos los archivos .xcconfig necesarios para el Podfile
+          flutter build ios --config-only --no-codesign
 
       - name: Build iOS
         run: flutter build ios --release --no-codesign
