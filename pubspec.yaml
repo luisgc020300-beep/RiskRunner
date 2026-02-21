@@ -9,10 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: any
-  firebase_auth: any
-  cloud_firestore: any
-  firebase_core_web: any  # Añadimos esto para que lo gestione bien
+  firebase_core: 3.1.1
+  firebase_auth: 5.1.1
+  cloud_firestore: 5.0.2
+  firebase_core_web: 2.17.1
   
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
