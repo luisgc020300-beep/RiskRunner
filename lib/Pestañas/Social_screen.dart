@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'resumen_screen.dart';
+import 'Resumen_screen.dart';
+import '../Widgets/custom_navbar.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key});
@@ -10,240 +12,197 @@ class SocialScreen extends StatefulWidget {
   State<SocialScreen> createState() => _SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen> {
+class _SocialScreenState extends State<SocialScreen>
+    with SingleTickerProviderStateMixin {
   final String currentUserId = FirebaseAuth.instance.currentUser!.uid;
   final TextEditingController _searchController = TextEditingController();
-  
+  late TabController _tabController;
+
   Map<String, dynamic>? _userEncontrado;
   String? _userEncontradoId;
   bool _yaSonAmigos = false;
   bool _solicitudPendiente = false;
   int? _rangoEncontrado;
+  String? _mensajeError;
 
-  // --- TU LÓGICA ORIGINAL (SIN TOCAR) ---
-void _buscarUsuario() async {
-  final query = _searchController.text.trim();
-  if (query.isEmpty) return;
+  // Conteo de solicitudes pendientes para el badge
+  int _solicitudesPendientes = 0;
 
-  final result = await FirebaseFirestore.instance
-      .collection('players')
-      .where('nickname', isEqualTo: query)
-      .get();
-
-  if (result.docs.isEmpty) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Usuario no encontrado")));
-    setState(() { _userEncontrado = null; });
-    return;
-  }
-
-  final userData = result.docs.first;
-  final targetId = userData.id;
-  final targetMonedas = userData.data()['monedas'] ?? 0;
-
-  // --- LÓGICA PARA EL RANGO ---
-  // Contamos cuántos jugadores tienen más monedas que el usuario buscado
-  final rankQuery = await FirebaseFirestore.instance
-      .collection('players')
-      .where('monedas', isGreaterThan: targetMonedas)
-      .count()
-      .get();
-  
-  final int puesto = (rankQuery.count ?? 0) + 1;
-
-  // Verificar si ya son amigos o hay solicitud
-  final friendshipCheck = await FirebaseFirestore.instance
-    .collection('friendships')
-    .where('senderId', whereIn: [currentUserId, targetId])
-    .get();
-
-  String relacion = "ninguna";
-  for (var doc in friendshipCheck.docs) {
-    final data = doc.data();
-    if ((data['senderId'] == currentUserId && data['receiverId'] == targetId) ||
-        (data['senderId'] == targetId && data['receiverId'] == currentUserId)) {
-      relacion = data['status'];
-      break;
-    }
-  }
-
-  setState(() {
-    _userEncontrado = userData.data();
-    _userEncontradoId = targetId;
-    _rangoEncontrado = puesto; // Guardamos el puesto para la UI
-    _yaSonAmigos = (relacion == 'accepted');
-    _solicitudPendiente = (relacion == 'pending');
-  });
-}
-
-  Future<void> _enviarSolicitud() async {
-    if (_userEncontradoId == null || _solicitudPendiente || _yaSonAmigos) return;
-    
-    await FirebaseFirestore.instance.collection('friendships').add({
-      'senderId': currentUserId,
-      'receiverId': _userEncontradoId,
-      'status': 'pending',
-      'timestamp': FieldValue.serverTimestamp(),
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          _searchController.clear();
+          _userEncontrado = null;
+          _userEncontradoId = null;
+          _mensajeError = null;
+          _rangoEncontrado = null;
+        });
+      }
     });
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Solicitud enviada")));
-      setState(() {
-        _userEncontrado = null;
-        _solicitudPendiente = false;
-      });
-      _searchController.clear();
+    _escucharSolicitudes();
+  }
+
+  void _escucharSolicitudes() {
+    FirebaseFirestore.instance
+        .collection('friendships')
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snap) {
+      if (mounted) {
+        setState(() => _solicitudesPendientes = snap.docs.length);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _buscarUsuario() async {
+    final query = _searchController.text.trim();
+    setState(() {
+      _userEncontrado = null;
+      _mensajeError = null;
+    });
+    if (query.isEmpty) return;
+
+    final result = await FirebaseFirestore.instance
+        .collection('players')
+        .where('nickname', isEqualTo: query)
+        .get();
+
+    if (result.docs.isEmpty) {
+      setState(() => _mensajeError = "Usuario no encontrado");
+      return;
     }
+
+    final userData = result.docs.first;
+    final targetId = userData.id;
+
+    final friendshipCheck = await FirebaseFirestore.instance
+        .collection('friendships')
+        .where('senderId', whereIn: [currentUserId, targetId]).get();
+
+    String relacion = "ninguna";
+    bool meHaMandadoSolicitud = false;
+
+    for (var doc in friendshipCheck.docs) {
+      final data = doc.data();
+      if ((data['senderId'] == currentUserId &&
+              data['receiverId'] == targetId) ||
+          (data['senderId'] == targetId &&
+              data['receiverId'] == currentUserId)) {
+        relacion = data['status'];
+        if (data['receiverId'] == currentUserId &&
+            data['status'] == 'pending') {
+          meHaMandadoSolicitud = true;
+        }
+        break;
+      }
+    }
+
+    if (_tabController.index == 1 && relacion != 'accepted') {
+      setState(() => _mensajeError = "Usuario no encontrado");
+      return;
+    }
+    if (_tabController.index == 2 && !meHaMandadoSolicitud) {
+      setState(() => _mensajeError = "Usuario no encontrado");
+      return;
+    }
+
+    final targetMonedas = userData.data()['monedas'] ?? 0;
+    final rankQuery = await FirebaseFirestore.instance
+        .collection('players')
+        .where('monedas', isGreaterThan: targetMonedas)
+        .count()
+        .get();
+
+    setState(() {
+      _userEncontrado = userData.data();
+      _userEncontradoId = targetId;
+      _rangoEncontrado = (rankQuery.count ?? 0) + 1;
+      _yaSonAmigos = (relacion == 'accepted');
+      _solicitudPendiente = (relacion == 'pending');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3, // Aumentamos a 3 para incluir el Ranking
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
         backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: const Text("Comunidad", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-          bottom: TabBar(
-            indicatorColor: Colors.orange,
-            labelColor: Colors.orange,
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              const Tab(text: "Ranking"), // Nueva pestaña
-              const Tab(text: "Amigos"),
-              Tab(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('friendships')
-                      .where('receiverId', isEqualTo: currentUserId)
-                      .where('status', isEqualTo: 'pending')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return Badge(
-                      isLabelVisible: count > 0,
-                      label: Text(count.toString()),
-                      backgroundColor: Colors.red,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Text("Solicitudes"),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
-            _buildSearchBox(),
-            if (_userEncontrado != null) _buildUserPreview(),
-            const Divider(color: Colors.white10, thickness: 1),
-            Expanded(
-              child: TabBarView(
+        title: const Text("Social",
+            style: TextStyle(
+                color: Colors.orange, fontWeight: FontWeight.bold)),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.orange,
+          tabs: [
+            const Tab(text: "Ranking"),
+            const Tab(text: "Amigos"),
+            // Tab "Solicitudes" con badge rojo
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildGlobalRanking(), // Nueva vista
-                  _buildFriendsList(),
-                  _buildRequestsList(),
+                  const Text("Solicitudes"),
+                  if (_solicitudesPendientes > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _solicitudesPendientes > 9
+                            ? '9+'
+                            : _solicitudesPendientes.toString(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: const Color(0xFF1A1A1A),
-          selectedItemColor: Colors.orange,
-          unselectedItemColor: Colors.white54,
-          currentIndex: 3,
-          type: BottomNavigationBarType.fixed,
-          onTap: (index) {
-            if (index == 3) return;
-            if (index == 0) Navigator.pushReplacementNamed(context, '/home');
-            if (index == 1) Navigator.pushReplacementNamed(context, '/correr');
-            if (index == 2) Navigator.pushReplacementNamed(context, '/resumen');
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.map_rounded), label: 'Correr'),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Resumen'),
-            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Social'),
-          ],
-        ),
       ),
+      body: Column(
+        children: [
+          _buildSearchBox(),
+          if (_mensajeError != null) _buildErrorBox(),
+          if (_userEncontrado != null) _buildUserPreview(),
+          const Divider(color: Colors.white10, thickness: 1),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildGlobalRanking(),
+                _buildFriendsList(),
+                _buildRequestsList(),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: const CustomBottomNavbar(currentIndex: 3),
     );
   }
 
-  // --- WIDGET NUEVO: RANKING GLOBAL ---
-  Widget _buildGlobalRanking() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('players')
-          .orderBy('monedas', descending: true)
-          .limit(20)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.orange));
-        
-        final docs = snapshot.data!.docs;
-
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 10),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final user = docs[index].data() as Map<String, dynamic>;
-            final String nickname = user['nickname'] ?? "Anónimo";
-            final int monedas = user['monedas'] ?? 0;
-            final bool esYo = docs[index].id == currentUserId;
-
-            // Lógica decorativa para el podio
-            Color rankColor = Colors.white24;
-            double fontSize = 16;
-            if (index == 0) rankColor = const Color(0xFFFFD700); // Oro
-            if (index == 1) rankColor = const Color(0xFFC0C0C0); // Plata
-            if (index == 2) rankColor = const Color(0xFFCD7F32); // Bronce
-
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: esYo ? Colors.orange.withOpacity(0.1) : Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: esYo ? Border.all(color: Colors.orange.withOpacity(0.5)) : null,
-              ),
-              child: ListTile(
-                leading: SizedBox(
-                  width: 40,
-                  child: Center(
-                    child: Text(
-                      "${index + 1}",
-                      style: TextStyle(color: rankColor, fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                  ),
-                ),
-                title: Text(
-                  nickname + (esYo ? " (Tú)" : ""),
-                  style: TextStyle(color: esYo ? Colors.orange : Colors.white, fontWeight: esYo ? FontWeight.bold : FontWeight.normal),
-                ),
-                subtitle: Text("Nivel ${user['nivel'] ?? 1}", style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text("$monedas", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.monetization_on, color: Colors.orange, size: 16),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // --- TUS WIDGETS ORIGINALES (SIN TOCAR) ---
   Widget _buildSearchBox() {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -251,12 +210,14 @@ void _buscarUsuario() async {
         controller: _searchController,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: "Nickname exacto...",
+          hintText: "Buscar...",
           hintStyle: const TextStyle(color: Colors.white54),
           prefixIcon: const Icon(Icons.search, color: Colors.orange),
           filled: true,
           fillColor: Colors.white10,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none),
           suffixIcon: IconButton(
             icon: const Icon(Icons.send, color: Colors.orange),
             onPressed: _buscarUsuario,
@@ -266,62 +227,204 @@ void _buscarUsuario() async {
     );
   }
 
- Widget _buildUserPreview() {
+  Widget _buildUserPreview() {
+    int nivel = _userEncontrado!['nivel'] ?? 1;
+    Color borderColor = nivel >= 10
+        ? Colors.grey[400]!
+        : Colors.orange.withValues(alpha: 0.5);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1.5),
+        border: Border.all(color: borderColor, width: 1.5),
       ),
       child: Row(
         children: [
-          // Muestra el Ranking del usuario buscado
           SizedBox(
-            width: 50,
-            child: Text(
-              "#${_rangoEncontrado ?? '?'}",
-              style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ),
+              width: 50,
+              child: Text("#${_rangoEncontrado ?? '?'}",
+                  style: TextStyle(
+                      color: borderColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18))),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(_userEncontrado!['nickname'] ?? "Usuario",
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18)),
                 Text(
-                  _userEncontrado!['nickname'] ?? "Usuario",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                Text(
-                  "Nivel ${_userEncontrado!['nivel'] ?? 1} • ${_userEncontrado!['monedas'] ?? 0} Monedas",
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
+                    "Nivel $nivel • ${_userEncontrado!['monedas'] ?? 0} Monedas",
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13)),
               ],
             ),
           ),
-          _buildActionButton(), // Ahora esta función sí existe abajo
+          _buildActionButton(),
         ],
       ),
     );
   }
 
-  // Esta es la función que te faltaba y causaba el error
   Widget _buildActionButton() {
     if (_yaSonAmigos) {
-      return const Icon(Icons.check_circle, color: Colors.green);
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.green)),
+        child: const Text("Amigo",
+            style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+                fontSize: 12)),
+      );
     }
     if (_solicitudPendiente) {
-      return const Text("Pendiente", style: TextStyle(color: Colors.orange, fontSize: 12));
+      return const Text("Pendiente",
+          style: TextStyle(color: Colors.orange, fontSize: 12));
     }
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.orange,
-        minimumSize: const Size(80, 35),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+          backgroundColor: Colors.orange,
+          minimumSize: const Size(80, 35),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10))),
       onPressed: _enviarSolicitud,
-      child: const Text("Agregar", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
+      child: const Text("Agregar",
+          style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 12)),
+    );
+  }
+
+  Widget _buildUserTile({
+    required String name,
+    required int nivel,
+    String? fotoBase64,
+    String? rank,
+    Widget? trailing,
+    bool esYo = false,
+    bool mostrarFoto = false,
+  }) {
+    Color borderColor = nivel >= 10
+        ? Colors.grey[400]!
+        : Colors.orange.withValues(alpha: 0.5);
+    if (esYo) borderColor = Colors.orange;
+
+    Widget avatarChild;
+    if (mostrarFoto && fotoBase64 != null) {
+      avatarChild = ClipOval(
+        child: Image.memory(base64Decode(fotoBase64),
+            fit: BoxFit.cover, width: 40, height: 40),
+      );
+    } else if (rank != null) {
+      avatarChild = Text(rank,
+          style: TextStyle(
+              color: borderColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 14));
+    } else {
+      avatarChild = Icon(Icons.person, color: borderColor);
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: borderColor.withValues(alpha: 0.2),
+          child: avatarChild,
+        ),
+        title: Text(name + (esYo ? " (Tú)" : ""),
+            style: TextStyle(
+                color: esYo ? Colors.orange : Colors.white,
+                fontWeight: FontWeight.bold)),
+        subtitle: Text("Nivel $nivel",
+            style: TextStyle(
+                color: borderColor.withValues(alpha: 0.8), fontSize: 12)),
+        trailing: trailing,
+      ),
+    );
+  }
+
+  Widget _buildErrorBox() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 22, 22, 22).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: const Color.fromARGB(255, 56, 56, 55)
+                .withValues(alpha: 0.3)),
+      ),
+      child: Center(
+        child: Text(_mensajeError!,
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+                fontStyle: FontStyle.italic)),
+      ),
+    );
+  }
+
+  Future<void> _enviarSolicitud() async {
+    if (_userEncontradoId == null ||
+        _solicitudPendiente ||
+        _yaSonAmigos) return;
+    await FirebaseFirestore.instance.collection('friendships').add({
+      'senderId': currentUserId,
+      'receiverId': _userEncontradoId,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    setState(() => _userEncontrado = null);
+    _searchController.clear();
+  }
+
+  Widget _buildGlobalRanking() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('players')
+          .orderBy('monedas', descending: true)
+          .limit(20)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.orange));
+        final docs = snapshot.data!.docs;
+        return ListView.builder(
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final user = docs[index].data() as Map<String, dynamic>;
+            final bool esYo = docs[index].id == currentUserId;
+            return _buildUserTile(
+              name: user['nickname'],
+              nivel: user['nivel'] ?? 1,
+              rank: "#${index + 1}",
+              esYo: esYo,
+              mostrarFoto: false,
+              trailing: Text("${user['monedas']} 🪙",
+                  style: const TextStyle(
+                      color: Colors.orange, fontWeight: FontWeight.bold)),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -332,48 +435,52 @@ void _buscarUsuario() async {
           .where('status', isEqualTo: 'accepted')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.orange));
-        
-        final misAmigosDocs = snapshot.data!.docs.where((doc) => 
-          doc['senderId'] == currentUserId || doc['receiverId'] == currentUserId
-        ).toList();
-
-        if (misAmigosDocs.isEmpty) return const Center(child: Text("Aún no tienes amigos", style: TextStyle(color: Colors.white54)));
-
+        if (!snapshot.hasData)
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.orange));
+        final misAmigos = snapshot.data!.docs
+            .where((doc) =>
+                doc['senderId'] == currentUserId ||
+                doc['receiverId'] == currentUserId)
+            .toList();
+        if (misAmigos.isEmpty)
+          return const Center(
+              child: Text("Aún no tienes amigos",
+                  style: TextStyle(color: Colors.white54)));
         return ListView.builder(
-          itemCount: misAmigosDocs.length,
+          itemCount: misAmigos.length,
           itemBuilder: (context, index) {
-            final dataFriendship = misAmigosDocs[index].data() as Map<String, dynamic>;
-            final friendId = dataFriendship['senderId'] == currentUserId 
-                ? dataFriendship['receiverId'] 
-                : dataFriendship['senderId'];
-
+            final friendId = misAmigos[index]['senderId'] == currentUserId
+                ? misAmigos[index]['receiverId']
+                : misAmigos[index]['senderId'];
             return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('players').doc(friendId).get(),
-              builder: (context, userSnap) {
-                if (!userSnap.hasData) return const SizedBox();
-                final data = userSnap.data!.data() as Map<String, dynamic>?;
-                if (data == null) return const SizedBox();
-                
-                return ListTile(
-                  leading: const CircleAvatar(backgroundColor: Colors.white10, child: Icon(Icons.person, color: Colors.orange)),
-                  title: Text(data['nickname'] ?? "Desconocido", style: const TextStyle(color: Colors.white)),
-                  subtitle: Text("Nivel ${data['nivel'] ?? 1}", style: const TextStyle(color: Colors.orange, fontSize: 12)),
-                  trailing: const Icon(Icons.bar_chart, color: Colors.white24),
-                  onTap: () {
-                    Navigator.push(
-                      context, 
+              future: FirebaseFirestore.instance
+                  .collection('players')
+                  .doc(friendId)
+                  .get(),
+              builder: (context, s) {
+                if (!s.hasData) return const SizedBox();
+                final data = s.data!.data() as Map<String, dynamic>;
+                return _buildUserTile(
+                  name: data['nickname'],
+                  nivel: data['nivel'] ?? 1,
+                  fotoBase64: data['foto_base64'] as String?,
+                  mostrarFoto: true,
+                  trailing: IconButton(
+                    icon: const Icon(Icons.bar_chart, color: Colors.white54),
+                    onPressed: () => Navigator.push(
+                      context,
                       MaterialPageRoute(
                         builder: (context) => ResumenScreen(
                           targetUserId: friendId,
                           targetNickname: data['nickname'],
-                          distancia: 0.0,
+                          distancia: 0,
                           tiempo: Duration.zero,
                           ruta: const [],
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 );
               },
             );
@@ -385,35 +492,69 @@ void _buscarUsuario() async {
 
   Widget _buildRequestsList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('friendships')
+      stream: FirebaseFirestore.instance
+          .collection('friendships')
           .where('receiverId', isEqualTo: currentUserId)
           .where('status', isEqualTo: 'pending')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.orange));
-        if (snapshot.data!.docs.isEmpty) return const Center(child: Text("No hay solicitudes", style: TextStyle(color: Colors.white54)));
-        
+        if (!snapshot.hasData)
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.orange));
+        final solicitudes = snapshot.data!.docs;
+        if (solicitudes.isEmpty)
+          return const Center(
+              child: Text("No tienes solicitudes aún",
+                  style: TextStyle(color: Colors.white54)));
         return ListView.builder(
-          itemCount: snapshot.data!.docs.length,
+          itemCount: solicitudes.length,
           itemBuilder: (context, index) {
-            final doc = snapshot.data!.docs[index];
-            final senderId = doc['senderId'];
-
+            final doc = solicitudes[index];
             return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('players').doc(senderId).get(),
-              builder: (context, userSnap) {
-                if (!userSnap.hasData) return const SizedBox();
-                final userData = userSnap.data!.data() as Map<String, dynamic>?;
-                final name = userData?['nickname'] ?? "Usuario";
-
-                return ListTile(
-                  leading: const Icon(Icons.person_add, color: Colors.orange),
-                  title: Text(name, style: const TextStyle(color: Colors.white)),
-                  subtitle: const Text("Quiere ser tu amigo", style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  trailing: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    onPressed: () => FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'}),
-                    child: const Text("Aceptar", style: TextStyle(color: Colors.white)),
+              future: FirebaseFirestore.instance
+                  .collection('players')
+                  .doc(doc['senderId'])
+                  .get(),
+              builder: (context, s) {
+                if (!s.hasData) return const SizedBox();
+                final data = s.data!.data() as Map<String, dynamic>;
+                return _buildUserTile(
+                  name: data['nickname'],
+                  nivel: data['nivel'] ?? 1,
+                  fotoBase64: data['foto_base64'] as String?,
+                  mostrarFoto: true,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: Colors.redAccent),
+                        onPressed: () async {
+                          await FirebaseFirestore.instance
+                              .collection('friendships')
+                              .doc(doc.id)
+                              .delete();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        onPressed: () => FirebaseFirestore.instance
+                            .collection('friendships')
+                            .doc(doc.id)
+                            .update({'status': 'accepted'}),
+                        child: const Text("Aceptar",
+                            style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12)),
+                      ),
+                    ],
                   ),
                 );
               },

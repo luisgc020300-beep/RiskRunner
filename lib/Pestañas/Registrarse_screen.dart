@@ -10,20 +10,17 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controladores para capturar lo que escribe el usuario
   final TextEditingController _nicknameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // Función principal de Registro
   Future<void> _register() async {
     final String nickname = _nicknameController.text.trim();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
     final String confirmPass = _confirmPasswordController.text.trim();
 
-    // 1. Validaciones básicas antes de llamar a Firebase
     if (nickname.isEmpty || email.isEmpty || password.isEmpty) {
       _showError("Comandante, rellene todos los campos.");
       return;
@@ -40,26 +37,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      // 2. Crear el usuario en Firebase Authentication
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // 3. Crear el documento del jugador en Cloud Firestore
-      // Usamos el UID único que Firebase le asignó al crear la cuenta
       await FirebaseFirestore.instance.collection('players').doc(userCredential.user!.uid).set({
         'nickname': nickname,
         'email': email,
         'victorias': 0,
         'nivel': 1,
         'monedas': 100,
-        'fecha_registro': FieldValue.serverTimestamp(), // Fecha exacta del servidor
+        'fecha_registro': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
-      // Éxito: Volver al Login
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("¡Registro completado! Bienvenido a la batalla."), backgroundColor: Colors.green),
       );
@@ -67,13 +60,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     } on FirebaseAuthException catch (e) {
       String errorMsg = "Ocurrió un error en el registro.";
-      
-      if (e.code == 'email-already-in-use') {
-        errorMsg = "Este correo ya está registrado.";
-      } else if (e.code == 'invalid-email') {
-        errorMsg = "El formato del correo no es válido.";
-      }
-      
+      if (e.code == 'email-already-in-use') errorMsg = "Este correo ya está registrado.";
+      if (e.code == 'invalid-email') errorMsg = "El formato del correo no es válido.";
       _showError(errorMsg);
     } catch (e) {
       _showError("Error inesperado: $e");
@@ -89,93 +77,134 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("ALTA DE COMANDANTE"),
-        backgroundColor: Colors.redAccent,
-        elevation: 0,
-      ),
+      backgroundColor: Colors.black,
+      // Usamos un Stack para poner un botón de volver personalizado arriba a la izquierda
       body: Container(
+        width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.redAccent, Colors.orangeAccent],
+            colors: [Colors.black, Colors.grey.shade900],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
         ),
-        padding: const EdgeInsets.all(24),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const Icon(Icons.shield, size: 80, color: Colors.white),
-              const SizedBox(height: 20),
-              
-              // CAMPO NICKNAME
-              TextField(
-                controller: _nicknameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputStyle("Nombre de Guerrero (Nickname)", Icons.person),
-              ),
-              const SizedBox(height: 16),
-
-              // CAMPO EMAIL
-              TextField(
-                controller: _emailController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputStyle("Correo Electrónico", Icons.email),
-              ),
-              const SizedBox(height: 16),
-
-              // CAMPO PASSWORD
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputStyle("Contraseña", Icons.lock),
-              ),
-              const SizedBox(height: 16),
-
-              // CAMPO CONFIRMAR PASSWORD
-              TextField(
-                controller: _confirmPasswordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputStyle("Confirmar Contraseña", Icons.lock_outline),
-              ),
-              const SizedBox(height: 30),
-
-              ElevatedButton(
-                onPressed: _register,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.redAccent,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios, color: Colors.orange),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
-                child: const Text("UNIRSE A LA BATALLA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ],
+                const Icon(Icons.shield_moon_outlined, color: Colors.orange, size: 70),
+                const SizedBox(height: 20),
+                const Text(
+                  "NUEVO RECLUTA",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const Text(
+                  "RELLENA TUS DATOS DE COMBATE",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                
+                _buildTextField(
+                  controller: _nicknameController,
+                  label: "Nombre de Guerrero (Nickname)",
+                  icon: Icons.person_outline,
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  controller: _emailController,
+                  label: "Correo Electrónico",
+                  icon: Icons.email_outlined,
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  controller: _passwordController,
+                  label: "Contraseña",
+                  icon: Icons.lock_outline,
+                  isPassword: true,
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  controller: _confirmPasswordController,
+                  label: "Confirmar Contraseña",
+                  icon: Icons.lock_reset_outlined,
+                  isPassword: true,
+                ),
+                const SizedBox(height: 40),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: _register,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      elevation: 5,
+                      shadowColor: Colors.orange.withOpacity(0.4),
+                    ),
+                    child: const Text(
+                      "UNIRSE A LA BATALLA",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Estilo reutilizable para los campos de texto
-  InputDecoration _inputStyle(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: Colors.white),
-      prefixIcon: Icon(icon, color: Colors.white),
-      filled: true,
-      fillColor: Colors.white.withOpacity(0.2),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white30),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.white),
+  // Mantenemos el mismo estilo de TextField que en el Login para coherencia total
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: isPassword,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
+        prefixIcon: Icon(icon, color: Colors.orange, size: 22),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
       ),
     );
   }
