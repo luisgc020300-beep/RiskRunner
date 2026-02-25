@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
-// Asegúrate de que las rutas de importación sean las correctas en tu proyecto
 import 'Pestañas/Home_screen.dart';
 import 'Pestañas/social_screen.dart';
 import 'Pestañas/Resumen_screen.dart';
@@ -16,40 +15,53 @@ class MainWrapper extends StatefulWidget {
 class _MainWrapperState extends State<MainWrapper> {
   int _currentIndex = 0;
 
-  // Estas variables guardan los datos para pasárselos al Resumen
+  // Datos de la actividad
   double ultimaDistancia = 0.0;
   Duration ultimoTiempo = Duration.zero;
   List<LatLng> ultimaRuta = [];
 
+  // Contador para forzar el refresco
+  int _resumenKeyCounter = 0;
+
+  // CORRECCIÓN: Guardado como variable, no calculado en cada build
+  int _lastFinishTimestamp = 0;
+
+  void _finalizarActividad(double distancia, Duration tiempo, List<LatLng> ruta) {
+    setState(() {
+      ultimaDistancia = distancia;
+      ultimoTiempo = tiempo;
+      ultimaRuta = ruta;
+      _resumenKeyCounter++;
+      _lastFinishTimestamp = DateTime.now().millisecondsSinceEpoch; // CORRECCIÓN
+      _currentIndex = 2;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("¡Carrera finalizada con éxito!", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Definimos las pantallas aquí dentro para que se reconstruyan con los nuevos datos
-    final List<Widget> _screens = [
-      const HomeScreen(),
-      LiveActivityScreen(
-        onFinish: (distancia, tiempo, ruta) {
-          // ESTO ES LO QUE TE REDIRIGE AUTOMÁTICAMENTE
-          setState(() {
-            ultimaDistancia = distancia;
-            ultimoTiempo = tiempo;
-            ultimaRuta = ruta;
-            _currentIndex = 2; // Cambia a la pestaña de Resumen (índice 2)
-          });
-        },
-      ),
-      ResumenScreen(
-        distancia: ultimaDistancia,
-        tiempo: ultimoTiempo,
-        ruta: ultimaRuta,
-      ),
-      const SocialScreen(),
-    ];
-
     return Scaffold(
-      // Usamos IndexedStack para mantener el estado de las pantallas
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: [
+          const HomeScreen(),
+          LiveActivityScreen(onFinish: _finalizarActividad),
+          ResumenScreen(
+            key: ValueKey('resumen_$_resumenKeyCounter'), // CORRECCIÓN: key simple y limpio
+            distancia: ultimaDistancia,
+            tiempo: ultimoTiempo,
+            ruta: ultimaRuta,
+            timestamp: _lastFinishTimestamp, // CORRECCIÓN: variable guardada, no recalculada
+          ),
+          const SocialScreen(),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF1A1A1A),

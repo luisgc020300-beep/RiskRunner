@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0' # Flexibilidad para el SDK
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -16,14 +16,18 @@ dependencies:
   
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
-  geolocator: ^14.0.2  # Versión compatible con Firebase
+  geolocator: ^14.0.2
   custom_timer: ^0.2.1
   cupertino_icons: ^1.0.8
+  image_picker: ^1.0.7
+  flutter_image_compress: ^2.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0 # Bajado para evitar conflictos
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/Mapa_risk.png
