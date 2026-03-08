@@ -1,7 +1,10 @@
+// lib/services/territory_service.dart
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'league_service.dart';
 
 /// Cuántos días sin visitar antes de que un territorio se deteriore visualmente
 const int kDiasParaDeterioroVisual = 5;
@@ -30,19 +33,14 @@ class TerritoryData {
     this.ultimaVisita,
   });
 
-  /// Días desde la última visita (null = nunca visitado desde que existe el campo)
   int get diasSinVisitar {
     if (ultimaVisita == null) return 0;
     return DateTime.now().difference(ultimaVisita!).inDays;
   }
 
-  /// Deterioro visual: semitransparente si llevas más de 5 días sin visitar
   bool get estaDeterirado => diasSinVisitar >= kDiasParaDeterioroVisual;
-
-  /// Deterioro funcional: conquistable sin pasar exactamente por encima
   bool get esConquistableSinPasar => diasSinVisitar >= kDiasParaDeterioroFuncional;
 
-  /// Opacidad visual según el deterioro
   double get opacidadRelleno {
     if (diasSinVisitar >= kDiasParaDeterioroFuncional) return 0.12;
     if (diasSinVisitar >= kDiasParaDeterioroVisual) return 0.22;
@@ -64,7 +62,6 @@ class TerritoryService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
-    // 1. Mis amigos
     final friendsSnap = await _db
         .collection('friendships')
         .where('status', isEqualTo: 'accepted')
@@ -80,14 +77,10 @@ class TerritoryService {
       }
     }
 
-    // 2. IDs a cargar: yo + amigos
     final List<String> todosIds = [user.uid, ...amigoIds];
-
-    // 3. Para cada usuario, cargamos color, nickname y territorios
     final List<TerritoryData> resultado = [];
 
     for (final uid in todosIds) {
-      // Datos del jugador
       Color color = uid == user.uid ? Colors.orange : Colors.blue;
       String nickname = '';
       try {
@@ -100,7 +93,6 @@ class TerritoryService {
         }
       } catch (_) {}
 
-      // Territorios del jugador
       final territoriosSnap = await _db
           .collection('territories')
           .where('userId', isEqualTo: uid)
@@ -119,15 +111,14 @@ class TerritoryService {
           );
         }).toList();
 
-        final double latC = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
-        final double lngC = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
+        final double latC =
+            puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
+        final double lngC =
+            puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
 
-        // Última visita
         DateTime? ultimaVisita;
         final tsRaw = data['ultima_visita'];
-        if (tsRaw is Timestamp) {
-          ultimaVisita = tsRaw.toDate();
-        }
+        if (tsRaw is Timestamp) ultimaVisita = tsRaw.toDate();
 
         resultado.add(TerritoryData(
           docId: doc.id,
@@ -145,7 +136,7 @@ class TerritoryService {
     return resultado;
   }
 
-  // ── Actualizar última visita cuando el usuario pasa por su territorio ─────
+  // ── Actualizar última visita ──────────────────────────────────────────────
   static Future<void> actualizarUltimaVisita(String docId) async {
     try {
       await _db.collection('territories').doc(docId).update({
@@ -181,6 +172,29 @@ class TerritoryService {
     return intersecciones % 2 == 1;
   }
 
+  // ── Comprobar si se puede robar un territorio ─────────────────────────────
+  /// Llama a este método ANTES de ejecutar cualquier robo de territorio.
+  ///
+  /// Ejemplo de uso en tu lógica de conquista:
+  ///   final result = await TerritoryService.puedeRobarTerritorio(
+  ///     atacanteId: user.uid,
+  ///     defensorId: territorio.ownerId,
+  ///   );
+  ///   if (!result.permitido) {
+  ///     // Mostrar mensaje según result.razon
+  ///     return;
+  ///   }
+  ///   // ... ejecutar el robo
+  static Future<RoboResult> puedeRobarTerritorio({
+    required String atacanteId,
+    required String defensorId,
+  }) async {
+    return LeagueService.puedeRobarTerritorio(
+      atacanteId: atacanteId,
+      defensorId: defensorId,
+    );
+  }
+
   // ── Crear notificación de invasión ────────────────────────────────────────
   static Future<void> crearNotificacionInvasion({
     required String toUserId,
@@ -188,8 +202,6 @@ class TerritoryService {
     required String territoryId,
   }) async {
     try {
-      // Evitar spam: solo crear si no hay una notificación de invasión
-      // del mismo usuario en los últimos 10 minutos
       final hace10min = Timestamp.fromDate(
           DateTime.now().subtract(const Duration(minutes: 10)));
 
@@ -200,12 +212,13 @@ class TerritoryService {
           .where('timestamp', isGreaterThan: hace10min)
           .get();
 
-      if (recientes.docs.isNotEmpty) return; // Ya hay una reciente, no spameamos
+      if (recientes.docs.isNotEmpty) return;
 
       await FirebaseFirestore.instance.collection('notifications').add({
         'toUserId': toUserId,
         'type': 'territory_invasion',
-        'message': '⚔️ $fromNickname está invadiendo tu territorio AHORA MISMO. ¡Sal a defenderlo!',
+        'message':
+            '⚔️ $fromNickname está invadiendo tu territorio AHORA MISMO. ¡Sal a defenderlo!',
         'fromNickname': fromNickname,
         'territoryId': territoryId,
         'read': false,

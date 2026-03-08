@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'Registrarse_screen.dart';
+import 'runner_risk_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -118,18 +119,22 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     ),
                   ),
 
-                  // Overlay oscuro sobre el mapa para que el texto respire
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x55000000), // arriba: leve oscuridad
-                          Color(0xCC000000), // medio
-                          Colors.black,      // abajo: funde con el fondo
-                        ],
-                        stops: [0.0, 0.6, 1.0],
+                  // Degradado negro suave en la parte inferior del mapa
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      height: mapHeight * 0.45,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Color(0x66000000), // negro al 40% de opacidad
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -141,23 +146,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Icono con glow naranja
-                          Container(
-                            decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.orange.withOpacity(0.7),
-                                  blurRadius: 30,
-                                  spreadRadius: 5,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.bolt_rounded,
-                              color: Colors.orange,
-                              size: 70,
-                            ),
-                          ),
+                          // ✅ Logo hexágono con espadas (reemplaza el rayo)
+                          const RunnerRiskLogo(size: 70),
                           const SizedBox(height: 8),
 
                           // RISK con glow

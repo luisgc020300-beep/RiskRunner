@@ -3,6 +3,9 @@
         android:label="RunnerRisk"
         android:name="${applicationName}"
         android:icon="flutter_launcher_icons">
+       <meta-data
+  android:name="com.mapbox.token"
+  android:value="Tpk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1keTI1bjkwN25qMm9zNzFlOXZkeG9wIn0.l186BxbIhi6-vAXtBjIzsw"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
