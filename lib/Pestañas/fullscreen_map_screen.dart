@@ -4,6 +4,12 @@ import 'package:latlong2/latlong.dart';
 
 import '../services/territory_service.dart';
 
+// ── Pon aquí tu token de Mapbox ───────────────────────────────────────────────
+const String _kMapboxToken = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1keTI1bjkwN25qMm9zNzFlOXZkeG9wIn0.l186BxbIhi6-vAXtBjIzsw';
+const String _kMapboxUrl =
+    'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
+    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+
 class FullscreenMapScreen extends StatefulWidget {
   final List<TerritoryData> territorios;
   final Color colorTerritorio;
@@ -65,10 +71,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen> {
               },
             ),
             children: [
+              // ── MAPA ACUARELA MAPBOX (mismo estilo que LiveActivity) ──────
               TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
+                tileSize: 256,
               ),
 
               // ── Polígonos con color/opacidad real de TerritoryData ────────

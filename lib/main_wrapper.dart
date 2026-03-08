@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart';  // ← mismo tipo que LiveActivityScreen y ResumenScreen
+
 import 'Pestañas/Home_screen.dart';
 import 'Pestañas/social_screen.dart';
 import 'Pestañas/Resumen_screen.dart';
@@ -15,15 +16,11 @@ class MainWrapper extends StatefulWidget {
 class _MainWrapperState extends State<MainWrapper> {
   int _currentIndex = 0;
 
-  // Datos de la actividad
   double ultimaDistancia = 0.0;
   Duration ultimoTiempo = Duration.zero;
-  List<LatLng> ultimaRuta = [];
+  List<LatLng> ultimaRuta = []; // latlong2 LatLng — igual que LiveActivityScreen y ResumenScreen
 
-  // Contador para forzar el refresco
   int _resumenKeyCounter = 0;
-
-  // CORRECCIÓN: Guardado como variable, no calculado en cada build
   int _lastFinishTimestamp = 0;
 
   void _finalizarActividad(double distancia, Duration tiempo, List<LatLng> ruta) {
@@ -32,13 +29,14 @@ class _MainWrapperState extends State<MainWrapper> {
       ultimoTiempo = tiempo;
       ultimaRuta = ruta;
       _resumenKeyCounter++;
-      _lastFinishTimestamp = DateTime.now().millisecondsSinceEpoch; // CORRECCIÓN
+      _lastFinishTimestamp = DateTime.now().millisecondsSinceEpoch;
       _currentIndex = 2;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("¡Carrera finalizada con éxito!", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text("¡Carrera finalizada con éxito!",
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.orange,
         behavior: SnackBarBehavior.floating,
       ),
@@ -54,11 +52,11 @@ class _MainWrapperState extends State<MainWrapper> {
           const HomeScreen(),
           LiveActivityScreen(onFinish: _finalizarActividad),
           ResumenScreen(
-            key: ValueKey('resumen_$_resumenKeyCounter'), // CORRECCIÓN: key simple y limpio
+            key: ValueKey('resumen_$_resumenKeyCounter'),
             distancia: ultimaDistancia,
             tiempo: ultimoTiempo,
-            ruta: ultimaRuta,
-            timestamp: _lastFinishTimestamp, // CORRECCIÓN: variable guardada, no recalculada
+            ruta: ultimaRuta, // ya es latlong2 — sin conversión
+            timestamp: _lastFinishTimestamp,
           ),
           const SocialScreen(),
         ],
@@ -69,11 +67,7 @@ class _MainWrapperState extends State<MainWrapper> {
         unselectedItemColor: Colors.white54,
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _currentIndex = index),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.directions_run), label: 'Correr'),

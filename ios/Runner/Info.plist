@@ -51,5 +51,7 @@
 	<string>Necesitamos tu ubicación para seguir rastreando tu carrera.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>El GPS es necesario para calcular la distancia de tu actividad.</string>
+	<key>MBXAccessToken</key>
+	<string>pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1keTI1bjkwN25qMm9zNzFlOXZkeG9wIn0.l186BxbIhi6-vAXtBjIzsw</string>
 </dict>
 </plist>

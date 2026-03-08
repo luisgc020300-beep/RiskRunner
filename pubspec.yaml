@@ -9,11 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  mapbox_maps_flutter: ^2.1.0   # ← bajar versión
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
   firebase_core_web: ^3.4.0
-  
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   geolocator: ^14.0.2
@@ -21,6 +21,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.0.7
   flutter_image_compress: ^2.1.0
+  google_fonts: ^6.2.1
+  path_provider: ^2.1.2
+  share_plus: 12.0.1
 
 dev_dependencies:
   flutter_test:
@@ -31,3 +34,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/Mapa_risk.png
+    - assets/avatars/
+    - assets/avatars/base/
+    - assets/avatars/base/
+    - assets/avatars/hair/
+    - assets/avatars/eyes/
+    - assets/avatars/jacket/
+    - assets/avatars/pants/
+    - assets/avatars/shoes/

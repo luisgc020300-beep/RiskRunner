@@ -1,3 +1,5 @@
+// lib/screens/register_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -37,31 +39,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      UserCredential userCredential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      await FirebaseFirestore.instance.collection('players').doc(userCredential.user!.uid).set({
+      await FirebaseFirestore.instance
+          .collection('players')
+          .doc(userCredential.user!.uid)
+          .set({
         'nickname': nickname,
         'email': email,
         'victorias': 0,
         'nivel': 1,
         'monedas': 100,
         'fecha_registro': FieldValue.serverTimestamp(),
+        // Protección de 7 días: el territorio no puede ser robado
+        'proteccion_hasta': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)),
+        ),
+        // Liga inicial: todos empiezan en bronce con 0 puntos
+        // ★ minúsculas para coincidir con LeagueSystem
+        'liga': 'bronce',
+        'puntos_liga': 0,
       });
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("¡Registro completado! Bienvenido a la batalla."), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text("¡Registro completado! Bienvenido a la batalla."),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.pop(context);
-
     } on FirebaseAuthException catch (e) {
       String errorMsg = "Ocurrió un error en el registro.";
-      if (e.code == 'email-already-in-use') errorMsg = "Este correo ya está registrado.";
-      if (e.code == 'invalid-email') errorMsg = "El formato del correo no es válido.";
+      if (e.code == 'email-already-in-use') {
+        errorMsg = "Este correo ya está registrado.";
+      }
+      if (e.code == 'invalid-email') {
+        errorMsg = "El formato del correo no es válido.";
+      }
       _showError(errorMsg);
     } catch (e) {
       _showError("Error inesperado: $e");
@@ -70,7 +90,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _showError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensaje), backgroundColor: Colors.redAccent),
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.redAccent,
+      ),
     );
   }
 
@@ -78,7 +101,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      // Usamos un Stack para poner un botón de volver personalizado arriba a la izquierda
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -101,7 +123,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: () => Navigator.pop(context),
                   ),
                 ),
-                const Icon(Icons.shield_moon_outlined, color: Colors.orange, size: 70),
+                const Icon(Icons.shield_moon_outlined,
+                    color: Colors.orange, size: 70),
                 const SizedBox(height: 20),
                 const Text(
                   "NUEVO RECLUTA",
@@ -122,7 +145,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                
                 _buildTextField(
                   controller: _nicknameController,
                   label: "Nombre de Guerrero (Nickname)",
@@ -149,7 +171,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   isPassword: true,
                 ),
                 const SizedBox(height: 40),
-
                 SizedBox(
                   width: double.infinity,
                   height: 55,
@@ -162,11 +183,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                       elevation: 5,
-                      shadowColor: Colors.orange.withOpacity(0.4),
+                      shadowColor: Colors.orange.withValues(alpha: 0.4),
                     ),
                     child: const Text(
                       "UNIRSE A LA BATALLA",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -179,7 +203,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Mantenemos el mismo estilo de TextField que en el Login para coherencia total
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -195,10 +218,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
         prefixIcon: Icon(icon, color: Colors.orange, size: 22),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
