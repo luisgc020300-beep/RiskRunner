@@ -173,18 +173,6 @@ class TerritoryService {
   }
 
   // ── Comprobar si se puede robar un territorio ─────────────────────────────
-  /// Llama a este método ANTES de ejecutar cualquier robo de territorio.
-  ///
-  /// Ejemplo de uso en tu lógica de conquista:
-  ///   final result = await TerritoryService.puedeRobarTerritorio(
-  ///     atacanteId: user.uid,
-  ///     defensorId: territorio.ownerId,
-  ///   );
-  ///   if (!result.permitido) {
-  ///     // Mostrar mensaje según result.razon
-  ///     return;
-  ///   }
-  ///   // ... ejecutar el robo
   static Future<RoboResult> puedeRobarTerritorio({
     required String atacanteId,
     required String defensorId,
@@ -195,7 +183,38 @@ class TerritoryService {
     );
   }
 
-  // ── Crear notificación de invasión ────────────────────────────────────────
+  // ── CONQUISTAR territorio ─────────────────────────────────────────────────
+  // Actualiza Firestore — Cloud Functions detecta el cambio y envía la push
+  // automáticamente al dueño anterior.
+  static Future<void> conquistarTerritorio({
+    required String docId,
+    required String duenoAnteriorId,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // No hacer nada si el territorio ya es nuestro
+    if (duenoAnteriorId == user.uid) {
+      await actualizarUltimaVisita(docId);
+      return;
+    }
+
+    try {
+      await _db.collection('territories').doc(docId).update({
+        'userId': user.uid,
+        'ultima_visita': FieldValue.serverTimestamp(),
+        'conquistado_por': user.uid,
+        'fecha_conquista': FieldValue.serverTimestamp(),
+      });
+      // La Cloud Function 'notificarConquista' detecta el cambio de userId
+      // y envía la push notification al dueño anterior automáticamente.
+      debugPrint('✅ Territorio $docId conquistado — Cloud Function notificará al dueño anterior');
+    } catch (e) {
+      debugPrint('❌ Error conquistando territorio: $e');
+    }
+  }
+
+  // ── Crear notificación de invasión en app (centro de notificaciones) ───────
   static Future<void> crearNotificacionInvasion({
     required String toUserId,
     required String fromNickname,
@@ -205,7 +224,7 @@ class TerritoryService {
       final hace10min = Timestamp.fromDate(
           DateTime.now().subtract(const Duration(minutes: 10)));
 
-      final recientes = await FirebaseFirestore.instance
+      final recientes = await _db
           .collection('notifications')
           .where('toUserId', isEqualTo: toUserId)
           .where('type', isEqualTo: 'territory_invasion')
@@ -214,7 +233,7 @@ class TerritoryService {
 
       if (recientes.docs.isNotEmpty) return;
 
-      await FirebaseFirestore.instance.collection('notifications').add({
+      await _db.collection('notifications').add({
         'toUserId': toUserId,
         'type': 'territory_invasion',
         'message':
