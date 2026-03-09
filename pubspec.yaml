@@ -24,6 +24,8 @@ dependencies:
   google_fonts: ^6.2.1
   path_provider: ^2.1.2
   share_plus: 12.0.1
+  firebase_messaging: ^16.1.2
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -36,9 +38,8 @@ flutter:
     - assets/images/Mapa_risk.png
     - assets/avatars/
     - assets/avatars/base/
-    - assets/avatars/base/
     - assets/avatars/hair/
-    - assets/avatars/eyes/
-    - assets/avatars/jacket/
-    - assets/avatars/pants/
-    - assets/avatars/shoes/
+    # - assets/avatars/eyes/      ← comentadas hasta tener contenido
+    # - assets/avatars/jacket/
+    # - assets/avatars/pants/
+    # - assets/avatars/shoes/

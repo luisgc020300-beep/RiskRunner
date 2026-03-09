@@ -1,8 +1,12 @@
-import 'package:RunnerRisk/Pesta%C3%B1as/onboarding_slides_screen.dart';
+// lib/main.dart
+
+import 'package:RunnerRisk/Pestañas/onboarding_slides_screen.dart';
 import 'package:RunnerRisk/services/onboarding_service.dart';
+import 'package:RunnerRisk/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'Pestañas/notifications_screen.dart';
 import 'Pestañas/Logging.dart';
@@ -12,10 +16,20 @@ import 'Pestañas/Resumen_screen.dart';
 import 'Pestañas/LiveActivity_screen.dart';
 import 'Pestañas/perfil_screen.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Registrar handler para notificaciones cuando la app está cerrada
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Inicializar notificaciones cuando el usuario esté logado
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null) {
+      NotificationService.inicializar();
+    }
+  });
+
   runApp(const MyApp());
 }
 
@@ -39,7 +53,6 @@ class MyApp extends StatelessWidget {
             return const _SplashLoading();
           }
           if (snapshot.hasData) {
-            // Usuario logado → decidir si mostrar onboarding o home
             return const _OnboardingGate();
           }
           return const LoginScreen();
@@ -68,7 +81,7 @@ class MyApp extends StatelessWidget {
 }
 
 // =============================================================================
-// SPLASH de carga (mientras firebase inicializa)
+// SPLASH de carga
 // =============================================================================
 class _SplashLoading extends StatelessWidget {
   const _SplashLoading();
@@ -129,7 +142,7 @@ class _AnimatedLogoState extends State<_AnimatedLogo>
 }
 
 // =============================================================================
-// GATE: decide si mostrar slides, o home directamente
+// GATE: decide si mostrar slides o home
 // =============================================================================
 class _OnboardingGate extends StatefulWidget {
   const _OnboardingGate();
@@ -166,13 +179,9 @@ class _OnboardingGateState extends State<_OnboardingGate> {
   @override
   Widget build(BuildContext context) {
     if (_loading || _state == null) return const _SplashLoading();
-
-    // ¿Nunca vio los slides? → mostrar slides
     if (!_state!.slidesVistos) {
       return OnboardingSlidesScreen(onComplete: _onSlidesCompleto);
     }
-
-    // Ya vio slides → ir a Home normalmente
     return const HomeScreen();
   }
 }

@@ -104,19 +104,19 @@ class _PerfilScreenState extends State<PerfilScreen>
   bool _colorPanelExpandido = false;
 
   // Colores estilo Risk — oscuros, serios, de tablero de guerra
-  static const List<_RiskColor> _coloresDisponibles = [
-    _RiskColor(Color(0xFF8B1A1A), 'Rojo Imperio'),
-    _RiskColor(Color(0xFF1A3A6B), 'Azul Atlántico'),
-    _RiskColor(Color(0xFF2D5A1B), 'Verde Ejército'),
-    _RiskColor(Color(0xFF7A5C1E), 'Ocre Sahara'),
-    _RiskColor(Color(0xFF4A1A6B), 'Violeta Regio'),
-    _RiskColor(Color(0xFF1A5A5A), 'Teal Glaciar'),
-    _RiskColor(Color(0xFF5A3010), 'Marrón Fortaleza'),
-    _RiskColor(Color(0xFF3A3A3A), 'Gris Acero'),
-    _RiskColor(Color(0xFF6B3A1A), 'Bronce Asedio'),
-    _RiskColor(Color(0xFF1A4A3A), 'Verde Selva'),
-    _RiskColor(Color(0xFF5A1A3A), 'Granate Real'),
-    _RiskColor(Color(0xFF2A2A5A), 'Azul Noche'),
+    static const List<_RiskColor> _coloresDisponibles = [
+    _RiskColor(Color(0xFFD63B3B), 'Rojo Imperio'),       // era #8B1A1A → +40%
+    _RiskColor(Color(0xFF3B6BBF), 'Azul Atlántico'),     // era #1A3A6B → +40%
+    _RiskColor(Color(0xFF4FA830), 'Verde Ejército'),     // era #2D5A1B → +40%
+    _RiskColor(Color(0xFFC49430), 'Ocre Sáhara'),        // era #7A5C1E → +40%
+    _RiskColor(Color(0xFF8B35CC), 'Violeta Regio'),      // era #4A1A6B → +40%
+    _RiskColor(Color(0xFF2EAAAA), 'Teal Glaciar'),       // era #1A5A5A → +40%
+    _RiskColor(Color(0xFFA85820), 'Marrón Fortaleza'),   // era #5A3010 → +40%
+    _RiskColor(Color(0xFF7A8A96), 'Gris Acero'),         // era #3A3A3A → +40%
+    _RiskColor(Color(0xFFC46830), 'Bronce Asedio'),      // era #6B3A1A → +40%
+    _RiskColor(Color(0xFF2A9470), 'Verde Selva'),        // era #1A4A3A → +40%
+    _RiskColor(Color(0xFFB03070), 'Granate Real'),       // era #5A1A3A → +40%
+    _RiskColor(Color(0xFF5050B0), 'Azul Noche'),         // era #2A2A5A → +40%
   ];
 
   // ── Amistad ───────────────────────────────────────────────

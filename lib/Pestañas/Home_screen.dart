@@ -26,30 +26,50 @@ const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
-// DESIGN TOKENS
+// DESIGN TOKENS — PARCH DARK
 // =============================================================================
 class _RR {
-  static const bg0 = Color(0xFF040507);
-  static const bg1 = Color(0xFF080A0E);
-  static const bg2 = Color(0xFF0D1017);
-  static const bg3 = Color(0xFF131720);
-  static const fire = Color(0xFFFF6B00);
-  static const fireGlow = Color(0xFFFF8C00);
-  static const fireDim = Color(0xFF3D1800);
-  static const cyan = Color(0xFF00D4FF);
-  static const cyanDim = Color(0xFF003340);
-  static const danger = Color(0xFFFF2D55);
-  static const warn = Color(0xFFFFCC00);
-  static const safe = Color(0xFF00FF88);
-  static const t1 = Color(0xFFEEF0F5);
-  static const t2 = Color(0xFF8A90A0);
-  static const t3 = Color(0xFF3D4252);
-  static const border = Color(0xFF1A1E2A);
-  static const borderHot = Color(0xFF2A2E3A);
+  // Fondos
+  static const bg0 = Color(0xFF090807); // --void
+  static const bg1 = Color(0xFF100D08); // --surf
+  static const bg2 = Color(0xFF161209); // --surf2
+  static const bg3 = Color(0xFF1C1610); // un tono más claro
+
+  // Pergamino / dorado
+  static const parch  = Color(0xFFEAD9AA); // --parch
+  static const parchm = Color(0xFFCAAA6C); // --parchm  ← color de acento dorado
+  static const parchd = Color(0xFF8C7242); // --parchd
+  static const bronze = Color(0xFFCC7C3A); // --bronze
+  static const ivory  = Color(0xFFF3EDE1); // --ivory
+
+  // Rojo dinámico (se sobreescribe desde perfil)
+  static const red    = Color(0xFFE62E2E); // --red  (fallback)
+  static const redb   = Color(0xFFBF2626); // --redb
+  static const redd   = Color(0xFF5C0E0E); // --redd
+
+  // Otros acentos
+  static const cyan   = Color(0xFF9EB2C6); // --silver (frío, secundario)
+  static const gold   = Color(0xFFDECA46); // --gold
+  static const safe   = Color(0xFF6AAF6A); // verde apagado
+  static const warn   = Color(0xFFDECA46); // dorado
+
+  // Textos
+  static const t1 = Color(0xFFF3EDE1); // ivory
+  static const t2 = Color(0xFFCAAA6C); // parchm
+  static const t3 = Color(0xFF8C7242); // parchd
+
+  // Bordes
+  static const border    = Color(0x1FCAAA6C); // rgba(202,170,108,0.12)
+  static const borderHot = Color(0x3FCAAA6C); // rgba(202,170,108,0.25)
+
+  // Danger (rojo) — getter estático para compat. con código existente
+  static const danger = red;
+  static const fire   = bronze;
+  static const fireGlow = parch;
 }
 
 // =============================================================================
-// MODELO FEED POST
+// MODELO FEED POST  (sin cambios)
 // =============================================================================
 class FeedPost {
   final String id;
@@ -146,7 +166,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  // ── getter dinámico para userId siempre actualizado
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   // ── Perfil
@@ -156,6 +175,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int nivel = 1;
   String? fotoBase64;
   bool isLoading = true;
+
+  // ── Color dinámico (configurado desde perfil)
+  Color _accentColor = _RR.red;
 
   // ── Retos / logros
   List<QueryDocumentSnapshot> _dailyChallenges = [];
@@ -187,18 +209,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
   final List<Color> _paletaColores = [
-    _RR.fire,
-    _RR.cyan,
-    const Color(0xFFFF2D8A),
-    const Color(0xFF00FF88),
-    const Color(0xFFAA55FF),
-    const Color(0xFF00CCFF),
+    _RR.bronze,
+    _RR.parch,
+    const Color(0xFFCC9966),
+    const Color(0xFF9EB2C6),
+    const Color(0xFFDECA46),
+    const Color(0xFFB88040),
   ];
 
   // ── Tab activa
   String _tabActiva = 'feed';
 
-  // ── listener de auth para esperar a que el usuario esté disponible
   StreamSubscription<User?>? _authListener;
 
   // ── Animaciones
@@ -228,7 +249,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     _getUserLocation();
 
-    // FIX: Si ya hay usuario logueado, inicializar directamente sin esperar al stream
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       _initializeData();
@@ -236,7 +256,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _escucharConteoNotificaciones();
       _escucharFeed();
     } else {
-      // Solo usar el listener si no hay usuario aún (ej: login reciente)
       _authListener = FirebaseAuth.instance.authStateChanges().listen((user) {
         if (user != null && mounted) {
           _initializeData();
@@ -277,13 +296,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  // ── Feed (FIXED)
+  // ── Feed
   void _escucharFeed() {
     if (userId == null) return;
     if (mounted) setState(() => _loadingFeed = true);
     _feedListener?.cancel();
 
-    // Timeout de seguridad: si en 10s no llega nada, quita el loading
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted && _loadingFeed) {
         debugPrint("⚠️ Feed timeout: forzando loadingFeed=false");
@@ -359,15 +377,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             backgroundColor: Colors.transparent,
             elevation: 0,
             content: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: _RR.bg3,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _RR.fire.withOpacity(0.5)),
+                color: _RR.bg2,
+                border: Border.all(color: _RR.parchd.withOpacity(0.5)),
                 boxShadow: [
                   BoxShadow(
-                      color: _RR.fire.withOpacity(0.2),
+                      color: _RR.parchm.withOpacity(0.15),
                       blurRadius: 16,
                       spreadRadius: 2)
                 ],
@@ -383,10 +399,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(width: 10),
                   const Text('RUTA GUARDADA',
                       style: TextStyle(
-                          color: _RR.t1,
+                          color: _RR.parch,
                           fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 1.5)),
+                          fontSize: 11,
+                          letterSpacing: 2)),
                 ],
               ),
             ),
@@ -499,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!grupos.containsKey(ownerId)) {
           String ownerNick = ownerId == myUid ? nickname : ownerId;
           int ownerNivel = 1;
-          Color ownerColor = ownerId == myUid ? _RR.fire : _RR.cyan;
+          Color ownerColor = ownerId == myUid ? _accentColor : _RR.cyan;
           try {
             final playerDoc = await FirebaseFirestore.instance
                 .collection('players')
@@ -651,7 +667,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     Color colorEstado = _RR.safe;
     if (det.diasSinVisitar != null && det.diasSinVisitar! >= 10) {
       estadoDeterioro = 'CRÍTICO';
-      colorEstado = _RR.danger;
+      colorEstado = _accentColor;
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= 5) {
       estadoDeterioro = 'DESGASTE';
       colorEstado = _RR.warn;
@@ -669,7 +685,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.85),
+      barrierColor: Colors.black.withOpacity(0.88),
       builder: (context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -677,19 +693,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
           child: Container(
             decoration: BoxDecoration(
-              color: _RR.bg2,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color.withOpacity(0.4)),
+              color: _RR.bg1,
+              border: Border.all(color: color.withOpacity(0.35)),
               boxShadow: [
                 BoxShadow(
-                    color: color.withOpacity(0.2),
+                    color: color.withOpacity(0.15),
                     blurRadius: 32,
-                    spreadRadius: 4)
+                    spreadRadius: 2)
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Header con línea gradiente inferior
                 Container(
                   padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
                   decoration: BoxDecoration(
@@ -703,8 +719,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(6),
+                          color: color.withOpacity(0.10),
                           border: Border.all(
                               color: color.withOpacity(0.4), width: 1),
                         ),
@@ -719,59 +734,56 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       Expanded(
                           child: Text(ownerNickname.toUpperCase(),
                               style: const TextStyle(
-                                  color: _RR.t1,
+                                  color: _RR.ivory,
                                   fontWeight: FontWeight.w900,
                                   fontSize: 15,
                                   letterSpacing: 1.5))),
                       IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close_rounded,
-                              color: _RR.t3, size: 20)),
+                              color: _RR.parchd, size: 20)),
                     ],
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      height: 180,
-                      child: det.puntos.isEmpty
-                          ? Container(
-                              color: _RR.bg1,
-                              child: Center(
-                                  child: Text('SIN DATOS',
-                                      style: TextStyle(
-                                          color: _RR.t3,
-                                          fontSize: 11,
-                                          letterSpacing: 2))))
-                          : FlutterMap(
-                              options: MapOptions(
-                                  initialCenter: centro,
-                                  initialZoom: 15,
-                                  interactionOptions:
-                                      const InteractionOptions(
-                                          flags: InteractiveFlag.none)),
-                              children: [
-                                TileLayer(
-                                  urlTemplate: _kMapboxTileUrl,
-                                  userAgentPackageName:
-                                      'com.runner_risk.app',
-                                  tileSize: 256,
-                                  additionalOptions: const {
-                                    'accessToken': _kMapboxToken
-                                  },
-                                ),
-                                PolygonLayer(polygons: [
-                                  Polygon(
-                                      points: det.puntos,
-                                      color: color.withOpacity(0.3),
-                                      borderColor: color,
-                                      borderStrokeWidth: 2.5)
-                                ]),
-                              ],
-                            ),
-                    ),
+                  child: SizedBox(
+                    height: 180,
+                    child: det.puntos.isEmpty
+                        ? Container(
+                            color: _RR.bg0,
+                            child: Center(
+                                child: Text('SIN DATOS',
+                                    style: TextStyle(
+                                        color: _RR.parchd,
+                                        fontSize: 11,
+                                        letterSpacing: 2))))
+                        : FlutterMap(
+                            options: MapOptions(
+                                initialCenter: centro,
+                                initialZoom: 15,
+                                interactionOptions:
+                                    const InteractionOptions(
+                                        flags: InteractiveFlag.none)),
+                            children: [
+                              TileLayer(
+                                urlTemplate: _kMapboxTileUrl,
+                                userAgentPackageName:
+                                    'com.runner_risk.app',
+                                tileSize: 256,
+                                additionalOptions: const {
+                                  'accessToken': _kMapboxToken
+                                },
+                              ),
+                              PolygonLayer(polygons: [
+                                Polygon(
+                                    points: det.puntos,
+                                    color: color.withOpacity(0.3),
+                                    borderColor: color,
+                                    borderStrokeWidth: 2.5)
+                              ]),
+                            ],
+                          ),
                   ),
                 ),
                 Padding(
@@ -795,14 +807,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           value: det.diasSinVisitar != null
                               ? '${det.diasSinVisitar}d'
                               : '--',
-                          color: _RR.t2),
+                          color: _RR.parchd),
                       _dialogStatCard(
                           icon: Icons.flag_outlined,
                           title: 'CONQUISTADO',
                           value: det.fechaCreacion != null
                               ? _formatFecha(det.fechaCreacion!)
                               : '--',
-                          color: _RR.t2,
+                          color: _RR.parchd,
                           smallText: true),
                       _dialogStatCard(
                           icon: Icons.straighten_outlined,
@@ -810,19 +822,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           value: det.distanciaRecorrida != null
                               ? '${det.distanciaRecorrida!.toStringAsFixed(2)}km'
                               : '--',
-                          color: _RR.cyan),
+                          color: _RR.parchm),
                       _dialogStatCard(
                           icon: Icons.speed_outlined,
                           title: 'VEL. MEDIA',
                           value: det.velocidadMedia != null
                               ? '${det.velocidadMedia!.toStringAsFixed(1)}'
                               : '--',
-                          color: const Color(0xFFAA55FF)),
+                          color: _RR.bronze),
                       _dialogStatCard(
                           icon: Icons.timer_outlined,
                           title: 'TIEMPO',
                           value: tiempoFormateado ?? '--',
-                          color: _RR.fire),
+                          color: _RR.parch),
                     ],
                   ),
                 ),
@@ -832,14 +844,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                        color: _RR.bg1,
-                        borderRadius: BorderRadius.circular(10),
+                        color: _RR.bg0,
                         border: Border.all(color: _RR.border)),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(Icons.my_location_outlined,
-                            color: _RR.t3, size: 13),
+                            color: _RR.parchd, size: 13),
                         const SizedBox(width: 6),
                         Text(
                             'A ${det.distanciaAlCentroKm.toStringAsFixed(2)} km de tu posición',
@@ -870,7 +881,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
           color: color.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withOpacity(0.2))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title,
                 style: const TextStyle(
-                    color: _RR.t3,
+                    color: _RR.parchd,
                     fontSize: 8,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1)),
@@ -936,13 +946,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       content: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [Color(0xFF8B0000), Color(0xFFCC2200)]),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _RR.danger.withOpacity(0.6)),
+            color: _RR.redd.withOpacity(0.95),
+            border: Border.all(color: _accentColor.withOpacity(0.5)),
             boxShadow: [
               BoxShadow(
-                  color: _RR.danger.withOpacity(0.4), blurRadius: 16)
+                  color: _accentColor.withOpacity(0.35), blurRadius: 16)
             ]),
         child: Row(children: [
           const Text('⚔️', style: TextStyle(fontSize: 22)),
@@ -950,18 +958,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Expanded(
               child: Text(mensaje,
                   style: const TextStyle(
-                      color: _RR.t1,
+                      color: _RR.ivory,
                       fontWeight: FontWeight.w700,
-                      fontSize: 13))),
+                      fontSize: 13,
+                      letterSpacing: 0.5))),
           TextButton(
               onPressed: () =>
                   ScaffoldMessenger.of(context).hideCurrentSnackBar(),
-              child: const Text('DEFENDER',
+              child: Text('DEFENDER',
                   style: TextStyle(
-                      color: _RR.danger,
+                      color: _accentColor,
                       fontWeight: FontWeight.w900,
                       fontSize: 11,
-                      letterSpacing: 1))),
+                      letterSpacing: 1.5))),
         ]),
       ),
     ));
@@ -975,11 +984,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .get();
     if (userDoc.exists && mounted) {
       final data = userDoc.data()!;
+      final colorInt = (data['territorio_color'] as num?)?.toInt();
       setState(() {
         nickname = data['nickname'] ?? "Corredor";
         monedas = data['monedas'] ?? 0;
         nivel = data['nivel'] ?? 1;
         fotoBase64 = data['foto_base64'] as String?;
+        if (colorInt != null) _accentColor = Color(colorInt);
       });
     }
   }
@@ -1260,19 +1271,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         showDialog(
           context: context,
-          barrierColor: Colors.black.withOpacity(0.85),
+          barrierColor: Colors.black.withOpacity(0.88),
           builder: (ctx) => Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.symmetric(horizontal: 32),
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: _RR.bg2,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _RR.danger.withOpacity(0.4)),
+                color: _RR.bg1,
+                border: Border.all(color: _accentColor.withOpacity(0.4)),
                 boxShadow: [
                   BoxShadow(
-                      color: _RR.danger.withOpacity(0.15),
+                      color: _accentColor.withOpacity(0.12),
                       blurRadius: 24)
                 ],
               ),
@@ -1283,10 +1293,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 14),
                   const Text('CONQUISTA BLOQUEADA',
                       style: TextStyle(
-                          color: _RR.t1,
+                          color: _RR.ivory,
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2)),
+                          letterSpacing: 2.5)),
                   const SizedBox(height: 12),
                   Text(motivoBloqueo,
                       textAlign: TextAlign.center,
@@ -1299,18 +1309,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       decoration: BoxDecoration(
-                        color: _RR.danger.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
+                        color: _RR.redd.withOpacity(0.15),
                         border: Border.all(
-                            color: _RR.danger.withOpacity(0.4)),
+                            color: _accentColor.withOpacity(0.5)),
                       ),
-                      child: const Text('ENTENDIDO',
+                      child: Text('ENTENDIDO',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: _RR.danger,
+                              color: _accentColor,
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
-                              letterSpacing: 2)),
+                              letterSpacing: 2.5)),
                     ),
                   ),
                 ],
@@ -1443,19 +1452,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.88),
+      barrierColor: Colors.black.withOpacity(0.90),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 28),
         child: Container(
           decoration: BoxDecoration(
-            color: _RR.bg2,
-            borderRadius: BorderRadius.circular(22),
+            color: _RR.bg1,
             border: Border.all(color: color.withOpacity(0.35)),
             boxShadow: [
               BoxShadow(
-                  color: color.withOpacity(0.2),
+                  color: color.withOpacity(0.15),
                   blurRadius: 36,
                   spreadRadius: 2)
             ],
@@ -1463,6 +1471,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
                 child: Row(children: [
@@ -1480,7 +1489,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         children: [
                           Text(post.userNickname.toUpperCase(),
                               style: const TextStyle(
-                                  color: _RR.t1,
+                                  color: _RR.ivory,
                                   fontWeight: FontWeight.w900,
                                   fontSize: 13,
                                   letterSpacing: 1.5)),
@@ -1491,16 +1500,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     fontSize: 12)),
                           Text(_timeAgo(post.fecha),
                               style: const TextStyle(
-                                  color: _RR.t3, fontSize: 11)),
+                                  color: _RR.parchd, fontSize: 11)),
                         ]),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(ctx),
                     icon: const Icon(Icons.close_rounded,
-                        color: _RR.t3, size: 20),
+                        color: _RR.parchd, size: 20),
                   ),
                 ]),
               ),
+              // Stats
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
@@ -1508,7 +1518,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       vertical: 16, horizontal: 8),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: color.withOpacity(0.2)),
                   ),
                   child: Row(
@@ -1524,12 +1533,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           _popupStat(
                               value: tiempoStr,
                               unit: 'TIEMPO',
-                              color: _RR.cyan),
+                              color: _RR.parchm),
                         if (post.velocidadMedia != null)
                           _popupStat(
                               value: post.velocidadMedia!.toStringAsFixed(1),
                               unit: 'KM/H',
-                              color: const Color(0xFFAA55FF)),
+                              color: _RR.bronze),
                       ]),
                 ),
               ),
@@ -1537,60 +1546,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (centro != null && ruta != null && ruta.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: SizedBox(
-                      height: 200,
-                      child: FlutterMap(
-                        options: MapOptions(
-                          initialCenter: centro,
-                          initialZoom: 14,
-                          interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.pinchZoom |
-                                InteractiveFlag.drag,
-                          ),
+                  child: SizedBox(
+                    height: 200,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: centro,
+                        initialZoom: 14,
+                        interactionOptions: const InteractionOptions(
+                          flags: InteractiveFlag.pinchZoom |
+                              InteractiveFlag.drag,
                         ),
-                        children: [
-                          TileLayer(
-                            urlTemplate: _kMapboxTileUrl,
-                            userAgentPackageName: 'com.runner_risk.app',
-                            tileSize: 256,
-                            additionalOptions: const {
-                              'accessToken': _kMapboxToken
-                            },
-                          ),
-                          PolylineLayer(polylines: [
-                            Polyline(
-                                points: ruta,
-                                color: color,
-                                strokeWidth: 4),
-                          ]),
-                          MarkerLayer(markers: [
-                            Marker(
-                              point: ruta.first,
-                              width: 14,
-                              height: 14,
-                              child: Container(
-                                  decoration: BoxDecoration(
-                                      color: _RR.safe,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: Colors.white, width: 2.5))),
-                            ),
-                            Marker(
-                              point: ruta.last,
-                              width: 14,
-                              height: 14,
-                              child: Container(
-                                  decoration: BoxDecoration(
-                                      color: _RR.danger,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: Colors.white, width: 2.5))),
-                            ),
-                          ]),
-                        ],
                       ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: _kMapboxTileUrl,
+                          userAgentPackageName: 'com.runner_risk.app',
+                          tileSize: 256,
+                          additionalOptions: const {
+                            'accessToken': _kMapboxToken
+                          },
+                        ),
+                        PolylineLayer(polylines: [
+                          Polyline(
+                              points: ruta,
+                              color: color,
+                              strokeWidth: 4),
+                        ]),
+                        MarkerLayer(markers: [
+                          Marker(
+                            point: ruta.first,
+                            width: 14,
+                            height: 14,
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: _RR.safe,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2.5))),
+                          ),
+                          Marker(
+                            point: ruta.last,
+                            width: 14,
+                            height: 14,
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: _accentColor,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2.5))),
+                          ),
+                        ]),
+                      ],
                     ),
                   ),
                 ),
@@ -1601,8 +1607,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: _RR.bg1,
-                      borderRadius: BorderRadius.circular(10),
+                      color: _RR.bg0,
                       border: Border.all(color: _RR.border),
                     ),
                     child: Text(post.descripcion!,
@@ -1630,15 +1635,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 color: color,
                 fontSize: big ? 28 : 22,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -1,
+                letterSpacing: -0.5,
                 shadows: [
                   Shadow(
-                      color: color.withOpacity(0.5), blurRadius: 10)
+                      color: color.withOpacity(0.4), blurRadius: 8)
                 ])),
         const SizedBox(height: 2),
         Text(unit,
             style: const TextStyle(
-                color: _RR.t3,
+                color: _RR.parchd,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 2)),
@@ -1678,23 +1683,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: _RR.fire.withOpacity(0.3), width: 2),
+            border: Border.all(color: _RR.parchd.withOpacity(0.4), width: 1.5),
           ),
-          child: const CircularProgressIndicator(
-              color: _RR.fire, strokeWidth: 2),
+          child: CircularProgressIndicator(
+              color: _accentColor, strokeWidth: 1.5),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         const Text('INICIANDO',
             style: TextStyle(
-                color: _RR.t3,
-                fontSize: 11,
-                letterSpacing: 3,
+                color: _RR.parchd,
+                fontSize: 10,
+                letterSpacing: 4,
                 fontWeight: FontWeight.w700)),
       ]),
     );
   }
 
+  // =============================================================================
+  // APP BAR — Parch Dark
+  // =============================================================================
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: _RR.bg0,
@@ -1709,7 +1716,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             gradient: LinearGradient(
               colors: [
                 Colors.transparent,
-                _RR.border,
+                Color(0x3FCAAA6C),
                 Colors.transparent
               ],
             ),
@@ -1717,14 +1724,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
       title: Row(children: [
+        // Avatar con borde dorado y punto de estado
         Stack(children: [
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                    color: _RR.fire.withOpacity(0.35),
-                    blurRadius: 12,
+                    color: _accentColor.withOpacity(0.25),
+                    blurRadius: 10,
                     spreadRadius: 1)
               ],
             ),
@@ -1736,7 +1744,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ? Image.memory(base64Decode(fotoBase64!),
                         fit: BoxFit.cover, width: 38, height: 38)
                     : const Icon(Icons.person,
-                        color: _RR.t2, size: 18),
+                        color: _RR.parchd, size: 18),
               ),
             ),
           ),
@@ -1744,16 +1752,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             right: 0,
             bottom: 0,
             child: Container(
-              width: 12,
-              height: 12,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
                 color: _RR.safe,
                 shape: BoxShape.circle,
-                border: Border.all(color: _RR.bg0, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: _RR.safe.withOpacity(0.6), blurRadius: 4)
-                ],
+                border: Border.all(color: _RR.bg0, width: 1.5),
               ),
             ),
           ),
@@ -1765,43 +1769,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             Text(nickname.toUpperCase(),
                 style: const TextStyle(
-                    color: _RR.t1,
+                    color: _RR.parch,
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+                    letterSpacing: 2.5,
                     height: 1)),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             Row(children: [
+              // Badge nivel — estilo pergamino
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                    color: _RR.fire.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(4),
+                    color: _RR.parchd.withOpacity(0.12),
                     border: Border.all(
-                        color: _RR.fire.withOpacity(0.4), width: 1)),
+                        color: _RR.parchd.withOpacity(0.5), width: 1)),
                 child: Text('NIV.$nivel',
                     style: const TextStyle(
-                        color: _RR.fire,
+                        color: _RR.parchm,
                         fontSize: 9,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1)),
               ),
               const SizedBox(width: 8),
+              // Monedas
               Row(children: [
-                const Text('🪙', style: TextStyle(fontSize: 10)),
+                const Text('⬡', style: TextStyle(fontSize: 10, color: _RR.parchm)),
                 const SizedBox(width: 3),
                 Text('$monedas',
                     style: const TextStyle(
-                        color: _RR.fireGlow,
+                        color: _RR.parchm,
                         fontSize: 11,
-                        fontWeight: FontWeight.w700)),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
               ]),
             ]),
           ],
         ),
       ]),
       actions: [
+        // Notificaciones
         GestureDetector(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(
@@ -1811,7 +1818,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Stack(children: [
               const Icon(Icons.notifications_outlined,
-                  color: _RR.t2, size: 22),
+                  color: _RR.parchd, size: 22),
               if (_notifNoLeidas > 0)
                 Positioned(
                   right: 0,
@@ -1820,11 +1827,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: _RR.danger,
+                      color: _accentColor,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                            color: _RR.danger.withOpacity(0.6),
+                            color: _accentColor.withOpacity(0.5),
                             blurRadius: 4)
                       ],
                     ),
@@ -1833,13 +1840,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ]),
           ),
         ),
+        // Refresh
         GestureDetector(
           onTap: _initializeData,
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: const Icon(Icons.refresh_rounded,
-                color: _RR.t3, size: 20),
+                color: _RR.parchd, size: 20),
           ),
         ),
         _buildUserMenu(),
@@ -1849,7 +1857,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // =============================================================================
-  // STORIES HEADER
+  // STORIES HEADER — Parch Dark (círculos con borde dorado/rojo)
   // =============================================================================
   Widget _buildStoriesHeader() {
     final stories = [
@@ -1862,118 +1870,121 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ];
 
     return Container(
-      color: _RR.bg0,
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      // Línea ornamental inferior
+      decoration: const BoxDecoration(
+        color: _RR.bg0,
+        border: Border(
+          bottom: BorderSide(color: Color(0x1FCAAA6C), width: 1),
+        ),
+      ),
       child: SizedBox(
         height: 82,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: stories.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 14),
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (context, i) {
             final s = stories[i];
             final isMe = s['isMe'] as bool;
             final hasStory = s['hasStory'] as bool;
+            // "en vivo" = Carlos (index 1)
+            final isLive = i == 1;
+
             return GestureDetector(
               onTap: () {},
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    children: [
-                      AnimatedBuilder(
-                        animation: _pulseAnim,
-                        builder: (context, child) {
-                          return Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: hasStory
-                                  ? LinearGradient(
-                                      colors: [
-                                        _RR.fire.withOpacity(
-                                            isMe ? 1 : _pulseAnim.value),
-                                        const Color(0xFFFFAA00).withOpacity(
-                                            isMe ? 1 : _pulseAnim.value),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight)
-                                  : null,
-                              color: hasStory ? null : _RR.bg3,
-                              border: !hasStory
-                                  ? Border.all(
-                                      color: _RR.border, width: 1.5)
-                                  : null,
-                              boxShadow: hasStory
-                                  ? [
-                                      BoxShadow(
-                                          color: _RR.fire.withOpacity(
-                                              isMe
-                                                  ? 0.4
-                                                  : 0.2 * _pulseAnim.value),
-                                          blurRadius: 10,
-                                          spreadRadius: 1)
-                                    ]
-                                  : null,
-                            ),
-                            padding: const EdgeInsets.all(2.5),
-                            child: child,
-                          );
-                        },
-                        child: Container(
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle, color: _RR.bg2),
-                          child: isMe && fotoBase64 != null
-                              ? ClipOval(
-                                  child: Image.memory(
-                                      base64Decode(fotoBase64!),
-                                      fit: BoxFit.cover))
-                              : isMe
-                                  ? Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        const Icon(Icons.person,
-                                            color: _RR.t3, size: 24),
-                                        Positioned(
-                                          bottom: 5,
-                                          right: 5,
-                                          child: Container(
-                                            width: 14,
-                                            height: 14,
-                                            decoration: const BoxDecoration(
-                                                color: _RR.fire,
-                                                shape: BoxShape.circle),
-                                            child: const Icon(Icons.add,
-                                                color: Colors.black,
-                                                size: 10),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        (s['label'] as String)[0]
-                                            .toUpperCase(),
-                                        style: const TextStyle(
-                                            color: _RR.t1,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 19),
+                  AnimatedBuilder(
+                    animation: _pulseAnim,
+                    builder: (context, child) {
+                      final borderColor = isLive
+                          ? _accentColor.withOpacity(_pulseAnim.value)
+                          : hasStory
+                              ? _RR.parchm.withOpacity(0.7)
+                              : _RR.border;
+                      return Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: borderColor,
+                              width: isMe || isLive ? 2 : 1.5),
+                          boxShadow: (hasStory || isLive)
+                              ? [
+                                  BoxShadow(
+                                      color: (isLive
+                                              ? _accentColor
+                                              : _RR.parchm)
+                                          .withOpacity(
+                                              0.18 * _pulseAnim.value),
+                                      blurRadius: 8)
+                                ]
+                              : null,
+                        ),
+                        padding: const EdgeInsets.all(2.5),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      decoration: const BoxDecoration(
+                          shape: BoxShape.circle, color: _RR.bg2),
+                      child: isMe && fotoBase64 != null
+                          ? ClipOval(
+                              child: Image.memory(
+                                  base64Decode(fotoBase64!),
+                                  fit: BoxFit.cover))
+                          : isMe
+                              ? Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    const Icon(Icons.person,
+                                        color: _RR.parchd, size: 24),
+                                    Positioned(
+                                      bottom: 5,
+                                      right: 5,
+                                      child: Container(
+                                        width: 14,
+                                        height: 14,
+                                        decoration: BoxDecoration(
+                                            color: _accentColor,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                                color: _RR.bg0, width: 1.5)),
+                                        child: const Icon(Icons.add,
+                                            color: Colors.white,
+                                            size: 9),
                                       ),
                                     ),
-                        ),
-                      ),
-                    ],
+                                  ],
+                                )
+                              : Center(
+                                  child: Text(
+                                    (s['label'] as String)[0].toUpperCase(),
+                                    style: TextStyle(
+                                        color: isLive
+                                            ? _accentColor
+                                            : _RR.parch,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 19),
+                                  ),
+                                ),
+                    ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     s['label'] as String,
                     style: TextStyle(
-                        color: isMe ? _RR.fire : _RR.t3,
-                        fontSize: 10,
-                        fontWeight:
-                            isMe ? FontWeight.w800 : FontWeight.w500,
-                        letterSpacing: isMe ? 0.5 : 0),
+                        color: isMe
+                            ? _RR.parchm
+                            : isLive
+                                ? _accentColor
+                                : _RR.parchd,
+                        fontSize: 9,
+                        fontWeight: isMe ? FontWeight.w800 : FontWeight.w500,
+                        letterSpacing: 0.5),
                   ),
                 ],
               ),
@@ -1985,23 +1996,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // =============================================================================
-  // TAB BAR
+  // TAB BAR — Parch Dark (estilo pestañas rectangulares)
   // =============================================================================
   Widget _buildTabBar() {
     final tabs = [
       {'id': 'feed', 'label': 'FEED', 'icon': Icons.dynamic_feed_rounded},
       {'id': 'mapa', 'label': 'MAPA', 'icon': Icons.map_rounded},
       {'id': 'retos', 'label': 'RETOS', 'icon': Icons.bolt_rounded},
-      {'id': 'grabar', 'label': 'CORRER', 'icon': Icons.add_circle_rounded},
+      {'id': 'grabar', 'label': '● CORRER', 'icon': Icons.fiber_manual_record},
     ];
 
     return Container(
-      color: _RR.bg0,
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      decoration: const BoxDecoration(
+        color: _RR.bg1,
+        border: Border(
+          bottom: BorderSide(color: Color(0x1FCAAA6C), width: 1),
+        ),
+      ),
       child: Row(
         children: tabs.map((tab) {
           final isActive = _tabActiva == tab['id'];
           final isGrabar = tab['id'] == 'grabar';
+
           return Expanded(
             child: GestureDetector(
               onTap: () {
@@ -2012,47 +2028,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   setState(() => _tabActiva = id);
                 }
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: isGrabar
-                      ? _RR.fire.withOpacity(0.12)
-                      : isActive
-                          ? _RR.fire
+                  color: isActive && !isGrabar
+                      ? _RR.parchd.withOpacity(0.08)
+                      : Colors.transparent,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isActive && !isGrabar
+                          ? _accentColor
                           : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isGrabar
-                        ? _RR.fire.withOpacity(0.5)
-                        : isActive
-                            ? Colors.transparent
-                            : _RR.border,
-                    width: 1,
+                      width: 2,
+                    ),
                   ),
-                  boxShadow: isActive && !isGrabar
-                      ? [
-                          BoxShadow(
-                              color: _RR.fire.withOpacity(0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 3))
-                        ]
-                      : null,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      tab['icon'] as IconData,
-                      size: 16,
-                      color: isGrabar
-                          ? _RR.fire
-                          : isActive
-                              ? Colors.black
-                              : _RR.t3,
-                    ),
-                    const SizedBox(height: 3),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
@@ -2061,33 +2054,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           tab['label'] as String,
                           style: TextStyle(
                               color: isGrabar
-                                  ? _RR.fire
+                                  ? _accentColor
                                   : isActive
-                                      ? Colors.black
-                                      : _RR.t3,
+                                      ? _RR.parch
+                                      : _RR.parchd,
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 1),
+                              letterSpacing: 1.5),
                         ),
                         if (tab['id'] == 'retos' &&
                             _dailyChallenges.isNotEmpty)
                           Container(
-                            margin: const EdgeInsets.only(left: 4),
+                            margin: const EdgeInsets.only(left: 5),
                             width: 14,
                             height: 14,
                             decoration: BoxDecoration(
                               color: isActive
-                                  ? Colors.black.withOpacity(0.25)
-                                  : _RR.fire,
+                                  ? _RR.parchd.withOpacity(0.3)
+                                  : _accentColor,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
                               child: Text(
                                   '${_dailyChallenges.length}',
-                                  style: TextStyle(
-                                      color: isActive
-                                          ? Colors.black
-                                          : Colors.white,
+                                  style: const TextStyle(
+                                      color: Colors.white,
                                       fontSize: 8,
                                       fontWeight: FontWeight.w900)),
                             ),
@@ -2118,7 +2109,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // =============================================================================
-  // TAB: FEED (FIXED)
+  // TAB: FEED
   // =============================================================================
   Widget _buildFeedTab() {
     debugPrint("🔥 Feed state: loading=$_loadingFeed, posts=${_feedPosts.length}, userId=$userId");
@@ -2130,33 +2121,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: _RR.fire.withOpacity(0.2), width: 1.5),
+              border: Border.all(color: _RR.parchd.withOpacity(0.25), width: 1),
             ),
-            child: const CircularProgressIndicator(
-                color: _RR.fire, strokeWidth: 2),
+            child: CircularProgressIndicator(
+                color: _accentColor, strokeWidth: 1.5),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           const Text('CARGANDO FEED',
               style: TextStyle(
-                  color: _RR.t3,
+                  color: _RR.parchd,
                   fontSize: 10,
-                  letterSpacing: 2,
+                  letterSpacing: 3,
                   fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          const Text('Conectando con Firestore...',
-              style: TextStyle(color: _RR.t3, fontSize: 11)),
         ]),
       );
     }
     if (_feedPosts.isEmpty) return _buildFeedEmptyState();
     return RefreshIndicator(
       onRefresh: () async => _escucharFeed(),
-      color: _RR.fire,
+      color: _accentColor,
       backgroundColor: _RR.bg2,
-      strokeWidth: 2,
+      strokeWidth: 1.5,
       child: ListView.builder(
-        padding: const EdgeInsets.only(top: 6, bottom: 120),
+        padding: const EdgeInsets.only(top: 8, bottom: 120),
         itemCount: _feedPosts.length,
         itemBuilder: (context, index) =>
             _buildPostCard(_feedPosts[index], index),
@@ -2171,25 +2158,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _RR.fire.withOpacity(0.06),
+              color: _accentColor.withOpacity(0.05),
               border: Border.all(
-                  color: _RR.fire.withOpacity(0.2), width: 1.5)),
-          child: const Icon(Icons.directions_run_rounded,
-              color: _RR.fire, size: 36),
+                  color: _accentColor.withOpacity(0.25), width: 1.5)),
+          child: Icon(Icons.directions_run_rounded,
+              color: _accentColor, size: 36),
         ),
         const SizedBox(height: 18),
         const Text('SIN ACTIVIDAD',
             style: TextStyle(
-                color: _RR.t1,
-                fontSize: 15,
+                color: _RR.parch,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 3)),
+                letterSpacing: 4)),
         const SizedBox(height: 8),
         const Text(
             'Sé el primero en compartir\ntu carrera con la comunidad',
             textAlign: TextAlign.center,
-            style: TextStyle(color: _RR.t3, fontSize: 13, height: 1.5)),
+            style: TextStyle(
+                color: _RR.parchd, fontSize: 13, height: 1.5)),
         const SizedBox(height: 24),
         GestureDetector(
           onTap: _testSimularCarrera,
@@ -2197,182 +2184,174 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             padding:
                 const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
             decoration: BoxDecoration(
-                color: _RR.fire,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                      color: _RR.fire.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4))
-                ]),
-            child: const Text('INICIAR CARRERA',
+                color: _accentColor.withOpacity(0.12),
+                border: Border.all(
+                    color: _accentColor.withOpacity(0.5), width: 1)),
+            child: Text('INICIAR CARRERA',
                 style: TextStyle(
-                    color: Colors.black,
+                    color: _accentColor,
                     fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                    letterSpacing: 2)),
+                    fontSize: 12,
+                    letterSpacing: 2.5)),
           ),
         ),
       ]),
     );
   }
 
+  // =============================================================================
+  // POST CARD — Parch Dark
+  // =============================================================================
   Widget _buildPostCard(FeedPost post, int index) {
     final color = post.userColor;
     final isRun = post.tipo == 'run' || post.tipo == 'territorio';
 
-    // FIX: Flutter no permite borderRadius + Border() con colores distintos.
-    // Solución: Stack con barra lateral de acento posicionada encima.
     return Stack(
       children: [
-      Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: _RR.bg1,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _RR.border, width: 1),
-        boxShadow: [
-          BoxShadow(
-              color: color.withOpacity(0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 4)),
-          const BoxShadow(
-              color: Color(0x20000000),
-              blurRadius: 8,
-              offset: Offset(0, 2)),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child:
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
-          child: Row(children: [
-            GestureDetector(
-              onTap: () => _navegarAlPerfil(post),
-              child: _buildAvatar(post, color, radius: 18),
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          decoration: BoxDecoration(
+            color: _RR.bg1,
+            border: Border.all(color: _RR.border, width: 1),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withOpacity(0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 3)),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // ── Cabecera
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
+              child: Row(children: [
+                GestureDetector(
+                  onTap: () => _navegarAlPerfil(post),
+                  child: _buildAvatar(post, color, radius: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _navegarAlPerfil(post),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Text(post.userNickname.toUpperCase(),
+                                style: const TextStyle(
+                                    color: _RR.ivory,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12,
+                                    letterSpacing: 1.5)),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                  color: _RR.parchd.withOpacity(0.1),
+                                  border: Border.all(
+                                      color: _RR.parchd.withOpacity(0.3),
+                                      width: 1)),
+                              child: Text('NIV.${post.userNivel}',
+                                  style: const TextStyle(
+                                      color: _RR.parchm,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5)),
+                            ),
+                          ]),
+                          const SizedBox(height: 2),
+                          Text(_timeAgo(post.fecha),
+                              style: const TextStyle(
+                                  color: _RR.parchd, fontSize: 11)),
+                        ]),
+                  ),
+                ),
+                // Badge tipo
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: _RR.parchd.withOpacity(0.08),
+                      border: Border.all(
+                          color: _RR.parchd.withOpacity(0.25), width: 1)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_iconForTipo(post.tipo), color: _RR.parchm, size: 11),
+                    const SizedBox(width: 4),
+                    Text(_labelForTipo(post.tipo),
+                        style: const TextStyle(
+                            color: _RR.parchm,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1)),
+                  ]),
+                ),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {},
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(Icons.more_horiz, color: _RR.parchd, size: 18),
+                  ),
+                ),
+              ]),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => _navegarAlPerfil(post),
+            // ── Título / descripción
+            if (post.titulo != null || post.descripcion != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(children: [
-                        Text(post.userNickname.toUpperCase(),
+                      if (post.titulo != null)
+                        Text(post.titulo!,
                             style: const TextStyle(
-                                color: _RR.t1,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                                letterSpacing: 1)),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                              color: color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: color.withOpacity(0.3),
-                                  width: 1)),
-                          child: Text('NIV.${post.userNivel}',
-                              style: TextStyle(
-                                  color: color,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.5)),
+                                color: _RR.ivory,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                height: 1.3,
+                                letterSpacing: 0.5)),
+                      if (post.descripcion != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(post.descripcion!,
+                              style: const TextStyle(
+                                  color: _RR.t2,
+                                  fontSize: 13,
+                                  height: 1.4)),
                         ),
-                      ]),
-                      const SizedBox(height: 2),
-                      Text(_timeAgo(post.fecha),
-                          style: const TextStyle(
-                              color: _RR.t3, fontSize: 11)),
                     ]),
               ),
-            ),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                      color: color.withOpacity(0.3), width: 1)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(_iconForTipo(post.tipo), color: color, size: 11),
-                const SizedBox(width: 4),
-                Text(_labelForTipo(post.tipo),
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1)),
-              ]),
-            ),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () {},
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(Icons.more_horiz, color: _RR.t3, size: 18),
-              ),
-            ),
+            // ── Stats de carrera
+            if (isRun &&
+                (post.distanciaKm != null ||
+                    post.velocidadMedia != null ||
+                    post.tiempo != null))
+              _buildRunStatsBar(post, color),
+            // ── Media o mapa
+            if (post.mediaBase64 != null)
+              _buildMediaImage(post)
+            else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
+              _buildRouteMap(post, color)
+            else
+              const SizedBox(height: 4),
+            // ── Acciones
+            _buildPostActions(post, color),
           ]),
         ),
-        if (post.titulo != null || post.descripcion != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (post.titulo != null)
-                    Text(post.titulo!,
-                        style: const TextStyle(
-                            color: _RR.t1,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
-                            height: 1.3)),
-                  if (post.descripcion != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(post.descripcion!,
-                          style: const TextStyle(
-                              color: _RR.t2,
-                              fontSize: 13,
-                              height: 1.4)),
-                    ),
-                ]),
-          ),
-        if (isRun &&
-            (post.distanciaKm != null ||
-                post.velocidadMedia != null ||
-                post.tiempo != null))
-          _buildRunStatsBar(post, color),
-        if (post.mediaBase64 != null)
-          _buildMediaImage(post)
-        else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
-          _buildRouteMap(post, color)
-        else
-          const SizedBox(height: 4),
-        _buildPostActions(post, color),
-      ]),
-      ),
-      // Barra de acento lateral izquierda
-      Positioned(
-        left: 12, top: 0, bottom: 0,
-        child: Container(
-          width: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-            ),
+        // Barra lateral de acento (color del post)
+        Positioned(
+          left: 12,
+          top: 0,
+          bottom: 0,
+          child: Container(
+            width: 3,
+            color: color.withOpacity(0.6),
           ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   Widget _buildAvatar(FeedPost post, Color color, {double radius = 18}) {
@@ -2381,11 +2360,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       height: radius * 2 + 4,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: color.withOpacity(0.6), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: color.withOpacity(0.2), blurRadius: 8, spreadRadius: 1)
-        ],
+        border: Border.all(color: color.withOpacity(0.55), width: 1.5),
       ),
       child: ClipOval(
         child: post.userAvatarBase64 != null
@@ -2394,7 +2369,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 width: radius * 2,
                 height: radius * 2)
             : Container(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.08),
                 child: Center(
                   child: Text(
                       post.userNickname.isNotEmpty
@@ -2425,9 +2400,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       margin: const EdgeInsets.fromLTRB(14, 4, 14, 10),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 14),
       decoration: BoxDecoration(
-        color: _RR.bg2,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15)),
+        color: _RR.bg0,
+        border: Border.all(color: _RR.borderHot),
       ),
       child: Row(children: [
         if (post.distanciaKm != null)
@@ -2438,13 +2412,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               big: true),
         if (post.distanciaKm != null && tiempoStr != null) _statDivider(),
         if (tiempoStr != null)
-          _statItem(value: tiempoStr, unit: 'TIEMPO', color: _RR.cyan),
+          _statItem(value: tiempoStr, unit: 'TIEMPO', color: _RR.parchm),
         if (tiempoStr != null && post.velocidadMedia != null) _statDivider(),
         if (post.velocidadMedia != null)
           _statItem(
               value: post.velocidadMedia!.toStringAsFixed(1),
               unit: 'KM/H',
-              color: const Color(0xFFAA55FF)),
+              color: _RR.bronze),
       ]),
     );
   }
@@ -2461,17 +2435,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 color: color,
                 fontSize: big ? 26 : 21,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -1,
+                letterSpacing: -0.5,
                 shadows: [
-                  Shadow(color: color.withOpacity(0.4), blurRadius: 8)
+                  Shadow(color: color.withOpacity(0.3), blurRadius: 6)
                 ])),
         const SizedBox(height: 2),
         Text(unit,
             style: const TextStyle(
-                color: _RR.t3,
-                fontSize: 9,
+                color: _RR.parchd,
+                fontSize: 8,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.5)),
+                letterSpacing: 2)),
       ]),
     );
   }
@@ -2485,7 +2459,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
         color: _RR.bg0,
       ),
       child:
@@ -2504,7 +2477,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Stack(children: [
@@ -2525,30 +2497,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Polyline(
                   points: ruta,
                   color: color,
-                  strokeWidth: 3.5,
-                  gradientColors: [color.withOpacity(0.6), color])
+                  strokeWidth: 3,
+                  gradientColors: [color.withOpacity(0.5), color])
             ]),
             MarkerLayer(markers: [
               Marker(
                   point: ruta.first,
-                  width: 14,
-                  height: 14,
+                  width: 12,
+                  height: 12,
                   child: Container(
                       decoration: BoxDecoration(
                           color: _RR.safe,
                           shape: BoxShape.circle,
-                          border:
-                              Border.all(color: Colors.white, width: 2)))),
+                          border: Border.all(
+                              color: Colors.white, width: 2)))),
               Marker(
                   point: ruta.last,
-                  width: 14,
-                  height: 14,
+                  width: 12,
+                  height: 12,
                   child: Container(
                       decoration: BoxDecoration(
-                          color: _RR.danger,
+                          color: _accentColor,
                           shape: BoxShape.circle,
-                          border:
-                              Border.all(color: Colors.white, width: 2)))),
+                          border: Border.all(
+                              color: Colors.white, width: 2)))),
             ]),
           ],
         ),
@@ -2564,17 +2536,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(6),
+                    color: _RR.bg0.withOpacity(0.85),
                     border: Border.all(
-                        color: color.withOpacity(0.4), width: 1),
+                        color: _RR.parchd.withOpacity(0.4), width: 1),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bar_chart_rounded, color: color, size: 12),
+                    const Icon(Icons.bar_chart_rounded,
+                        color: _RR.parchm, size: 11),
                     const SizedBox(width: 4),
-                    Text('VER STATS',
+                    const Text('VER STATS',
                         style: TextStyle(
-                            color: color,
+                            color: _RR.parchm,
                             fontSize: 9,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1)),
@@ -2588,38 +2560,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // ── Acciones del post
   Widget _buildPostActions(FeedPost post, Color color) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0x0FCAAA6C), width: 1)),
+      ),
       child: Row(children: [
         _actionBtn(
           icon: post.likedByMe
               ? Icons.favorite_rounded
               : Icons.favorite_border_rounded,
           label: post.likes > 0 ? '${post.likes}' : null,
-          color: post.likedByMe ? _RR.danger : _RR.t3,
+          color: post.likedByMe ? _accentColor : _RR.parchd,
           active: post.likedByMe,
-          activeColor: _RR.danger,
+          activeColor: _accentColor,
           onTap: () => _toggleLike(post),
         ),
         const SizedBox(width: 4),
         _actionBtn(
           icon: Icons.chat_bubble_outline_rounded,
           label: post.comentarios > 0 ? '${post.comentarios}' : null,
-          color: _RR.t3,
+          color: _RR.parchd,
           onTap: () => _mostrarComentariosSheet(post),
         ),
         const SizedBox(width: 4),
         _actionBtn(
           icon: Icons.share_outlined,
-          color: _RR.t3,
+          color: _RR.parchd,
           onTap: () {},
         ),
         const Spacer(),
         if (post.ruta != null && post.ruta!.isNotEmpty)
           _actionBtn(
             icon: Icons.route_outlined,
-            color: color.withOpacity(0.7),
+            color: _RR.parchm,
             onTap: () => _guardarRuta(post),
           ),
         const SizedBox(width: 4),
@@ -2627,9 +2603,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           icon: post.savedByMe
               ? Icons.bookmark_rounded
               : Icons.bookmark_border_rounded,
-          color: post.savedByMe ? _RR.fire : _RR.t3,
+          color: post.savedByMe ? _RR.parchm : _RR.parchd,
           active: post.savedByMe,
-          activeColor: _RR.fire,
+          activeColor: _RR.parchm,
           onTap: () => _toggleSave(post),
         ),
       ]),
@@ -2641,7 +2617,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String? label,
     required Color color,
     bool active = false,
-    Color activeColor = _RR.fire,
+    Color activeColor = _RR.bronze,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -2651,7 +2627,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         decoration: active
             ? BoxDecoration(
                 color: activeColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(8),
               )
             : null,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2672,9 +2647,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _mostrarComentariosSheet(FeedPost post) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _RR.bg2,
+      backgroundColor: _RR.bg1,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(0))),
       isScrollControlled: true,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
@@ -2682,31 +2657,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         minChildSize: 0.4,
         maxChildSize: 0.95,
         builder: (_, scrollCtrl) => Column(children: [
+          // Handle
           Container(
               margin: const EdgeInsets.only(top: 10, bottom: 8),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: _RR.border,
-                  borderRadius: BorderRadius.circular(2))),
+              width: 32,
+              height: 3,
+              color: _RR.border),
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(children: [
               const Text('COMENTARIOS',
                   style: TextStyle(
-                      color: _RR.t1,
-                      fontSize: 13,
+                      color: _RR.parch,
+                      fontSize: 12,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 2)),
+                      letterSpacing: 2.5)),
               const Spacer(),
               GestureDetector(
                   onTap: () => Navigator.pop(ctx),
                   child: const Icon(Icons.close_rounded,
-                      color: _RR.t3, size: 20)),
+                      color: _RR.parchd, size: 20)),
             ]),
           ),
-          const Divider(color: _RR.border, height: 1),
+          const Divider(color: Color(0x1FCAAA6C), height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -2717,15 +2691,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   .snapshots(),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
+                  return Center(
                       child: CircularProgressIndicator(
-                          color: _RR.fire, strokeWidth: 2));
+                          color: _accentColor, strokeWidth: 1.5));
                 }
                 final docs = snap.data?.docs ?? [];
                 if (docs.isEmpty) {
                   return const Center(
                       child: Text('Sin comentarios todavía',
-                          style: TextStyle(color: _RR.t3, fontSize: 13)));
+                          style: TextStyle(
+                              color: _RR.parchd, fontSize: 13)));
                 }
                 return ListView.builder(
                   controller: scrollCtrl,
@@ -2753,14 +2728,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           height: 32,
           decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _RR.fire.withOpacity(0.1),
+              color: _RR.parchd.withOpacity(0.08),
               border: Border.all(
-                  color: _RR.fire.withOpacity(0.3), width: 1)),
+                  color: _RR.parchd.withOpacity(0.3), width: 1)),
           child: Center(
             child: Text(
                 (cd['nickname'] as String? ?? 'R')[0].toUpperCase(),
                 style: const TextStyle(
-                    color: _RR.fire,
+                    color: _RR.parchm,
                     fontWeight: FontWeight.w900,
                     fontSize: 13)),
           ),
@@ -2772,7 +2747,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 Text(cd['nickname'] ?? 'Runner',
                     style: const TextStyle(
-                        color: _RR.t1,
+                        color: _RR.parch,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                         letterSpacing: 0.5)),
@@ -2795,35 +2770,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           top: 10,
           bottom: MediaQuery.of(context).viewInsets.bottom + 14),
       decoration: const BoxDecoration(
-          color: _RR.bg3,
-          border: Border(top: BorderSide(color: _RR.border))),
+          color: _RR.bg2,
+          border: Border(
+              top: BorderSide(color: Color(0x1FCAAA6C), width: 1))),
       child: Row(children: [
         Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: _RR.fire.withOpacity(0.4))),
+              border: Border.all(color: _RR.parchd.withOpacity(0.4))),
           child: ClipOval(
             child: fotoBase64 != null
                 ? Image.memory(base64Decode(fotoBase64!),
                     fit: BoxFit.cover)
-                : const Icon(Icons.person, color: _RR.fire, size: 16),
+                : Icon(Icons.person, color: _accentColor, size: 16),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: TextField(
             controller: ctrl,
-            style: const TextStyle(color: _RR.t1, fontSize: 13),
+            style: const TextStyle(color: _RR.ivory, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Añadir comentario...',
-              hintStyle: const TextStyle(color: _RR.t3, fontSize: 13),
+              hintStyle: const TextStyle(color: _RR.parchd, fontSize: 13),
               filled: true,
-              fillColor: _RR.bg2,
+              fillColor: _RR.bg1,
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.zero,
+                  borderSide: const BorderSide(
+                      color: Color(0x1FCAAA6C), width: 1)),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.zero,
+                  borderSide: const BorderSide(
+                      color: Color(0x1FCAAA6C), width: 1)),
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14, vertical: 8),
             ),
@@ -2853,15 +2834,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
-                color: _RR.fire,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                      color: _RR.fire.withOpacity(0.35), blurRadius: 8)
-                ]),
+            color: _accentColor,
             child: const Icon(Icons.send_rounded,
-                color: Colors.black, size: 16),
+                color: Colors.white, size: 16),
           ),
         ),
       ]),
@@ -2874,7 +2849,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildMapaTab() {
     return RefreshIndicator(
       onRefresh: _initializeData,
-      color: _RR.fire,
+      color: _accentColor,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -2893,7 +2868,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   MaterialPageRoute(
                       builder: (_) => FullscreenMapScreen(
                           territorios: _territorios,
-                          colorTerritorio: _RR.fire,
+                          colorTerritorio: _accentColor,
                           centroInicial: _currentPosition != null
                               ? LatLng(_currentPosition!.latitude,
                                   _currentPosition!.longitude)
@@ -2957,20 +2932,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             MaterialPageRoute(
                 builder: (_) => FullscreenMapScreen(
                     territorios: _territorios,
-                    colorTerritorio: _RR.fire,
+                    colorTerritorio: _accentColor,
                     centroInicial: centro))),
         child: Container(
           height: 220,
           decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: _RR.border)),
           clipBehavior: Clip.antiAlias,
           child: _loadingTerritorios
               ? Container(
                   color: _RR.bg1,
-                  child: const Center(
+                  child: Center(
                       child: CircularProgressIndicator(
-                          color: _RR.fire, strokeWidth: 2)))
+                          color: _accentColor, strokeWidth: 1.5)))
               : Stack(children: [
                   FlutterMap(
                     mapController: _homeMapController,
@@ -2998,52 +2972,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     borderColor: t.color
                                         .withOpacity(t.opacidadBorde),
                                     borderStrokeWidth:
-                                        t.estaDeterirado ? 1.5 : 2.5))
+                                        t.estaDeterirado ? 1.5 : 2))
                                 .toList()),
                       if (_currentPosition != null)
                         MarkerLayer(markers: [
                           Marker(
                             point: LatLng(_currentPosition!.latitude,
                                 _currentPosition!.longitude),
-                            width: 16,
-                            height: 16,
+                            width: 14,
+                            height: 14,
                             child: Container(
                                 decoration: BoxDecoration(
-                                    color: _RR.cyan,
+                                    color: _RR.parch,
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                         color: Colors.white, width: 2),
                                     boxShadow: [
                                       BoxShadow(
                                           color:
-                                              _RR.cyan.withOpacity(0.5),
-                                          blurRadius: 8)
+                                              _RR.parch.withOpacity(0.4),
+                                          blurRadius: 6)
                                     ])),
                           ),
                         ]),
                     ],
                   ),
+                  // Icono fullscreen
                   Positioned(
                     top: 10,
                     right: 10,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: _RR.fire.withOpacity(0.3))),
+                      color: _RR.bg0.withOpacity(0.7),
                       child: const Icon(Icons.fullscreen,
-                          color: _RR.fire, size: 16),
+                          color: _RR.parchm, size: 15),
+                    ),
+                  ),
+                  // Label coordenadas
+                  Positioned(
+                    bottom: 8,
+                    left: 10,
+                    child: Text(
+                      'GRANADA · 37.18°N',
+                      style: const TextStyle(
+                          color: _RR.parchd,
+                          fontSize: 8,
+                          letterSpacing: 1.5,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ]),
         ),
       ),
-      const SizedBox(height: 12),
+      const SizedBox(height: 10),
       Row(children: [
         _buildTerritoryStatChip(
-            '$miosTotales', 'ZONAS', Icons.flag_rounded, _RR.fire),
+            '$miosTotales', 'ZONAS', Icons.flag_rounded, _RR.parchm),
         const SizedBox(width: 8),
         if (deteriorados > 0)
           _buildTerritoryStatChip('$deteriorados', 'DESGASTE',
@@ -3051,7 +3035,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (deteriorados > 0 && enPeligro > 0) const SizedBox(width: 8),
         if (enPeligro > 0)
           _buildTerritoryStatChip('$enPeligro', 'CRÍTICO',
-              Icons.dangerous_rounded, _RR.danger),
+              Icons.dangerous_rounded, _accentColor),
       ]),
       const SizedBox(height: 10),
       _buildBotonTerritoriosCercanos(),
@@ -3062,21 +3046,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-              color: _RR.danger.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _RR.danger.withOpacity(0.3))),
+              color: _accentColor.withOpacity(0.05),
+              border:
+                  Border.all(color: _accentColor.withOpacity(0.3))),
           child: Row(children: [
-            const Icon(Icons.shield_outlined, color: _RR.danger, size: 15),
+            Icon(Icons.shield_outlined, color: _accentColor, size: 14),
             const SizedBox(width: 10),
             Expanded(
                 child: Text(
               enPeligro > 0
-                  ? '⚠️ Tienes $enPeligro ${enPeligro == 1 ? 'territorio' : 'territorios'} que cualquiera puede conquistar.'
-                  : '⚠️ $deteriorados ${deteriorados == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos antes de perderlos.',
-              style: const TextStyle(
-                  color: _RR.danger,
+                  ? '⚔ Tienes $enPeligro ${enPeligro == 1 ? 'territorio' : 'territorios'} que cualquiera puede conquistar.'
+                  : '⚠ $deteriorados ${deteriorados == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos antes de perderlos.',
+              style: TextStyle(
+                  color: _accentColor,
                   fontSize: 12,
-                  fontWeight: FontWeight.w600),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3),
             )),
           ]),
         ),
@@ -3101,44 +3086,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
             color: _RR.bg1,
-            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: _RR.border)),
         child: Row(children: [
           AnimatedBuilder(
             animation: _pulseAnim,
             builder: (_, __) => Container(
-              width: 8,
-              height: 8,
+              width: 7,
+              height: 7,
               decoration: BoxDecoration(
-                  color: _RR.safe
-                      .withOpacity(0.5 + 0.5 * _pulseAnim.value),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                        color:
-                            _RR.safe.withOpacity(0.3 * _pulseAnim.value),
-                        blurRadius: 6)
-                  ]),
+                  color: _RR.safe.withOpacity(
+                      0.5 + 0.5 * _pulseAnim.value),
+                  shape: BoxShape.circle),
             ),
           ),
           const SizedBox(width: 10),
           _loadingCercanos
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
-                      color: _RR.fire, strokeWidth: 2))
+                      color: _accentColor, strokeWidth: 1.5))
               : Text(
                   _panelCercanosExpandido
                       ? 'TERRITORIOS EN ZONA (5KM) ▲'
                       : 'TERRITORIOS EN ZONA (5KM) ▼',
                   style: const TextStyle(
-                      color: _RR.t2,
-                      fontSize: 11,
+                      color: _RR.parchd,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 1)),
+                      letterSpacing: 1.5)),
           const Spacer(),
-          const Icon(Icons.people_alt_outlined, color: _RR.t3, size: 14),
+          const Icon(Icons.people_alt_outlined,
+              color: _RR.parchd, size: 13),
         ]),
       ),
     );
@@ -3147,20 +3126,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildPanelCercanos() {
     if (_gruposTerritoriosCercanos.isEmpty) {
       return Container(
-        margin: const EdgeInsets.only(top: 6),
+        margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
             color: _RR.bg1,
-            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: _RR.border)),
         child: const Text('No hay territorios en 5 km',
-            style: TextStyle(color: _RR.t3, fontSize: 12)));
+            style: TextStyle(color: _RR.parchd, fontSize: 12)));
     }
     return Container(
-      margin: const EdgeInsets.only(top: 6),
+      margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
           color: _RR.bg1,
-          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _RR.border)),
       child: Column(
         children:
@@ -3173,7 +3150,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               index == _gruposTerritoriosCercanos.length - 1;
           return Column(children: [
             InkWell(
-              borderRadius: BorderRadius.circular(12),
               onTap: () async {
                 if (isExpanded) {
                   setState(() => _userExpandido = null);
@@ -3187,10 +3163,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     horizontal: 14, vertical: 12),
                 child: Row(children: [
                   Container(
-                      width: 10,
-                      height: 10,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
-                          color: grupo.color, shape: BoxShape.circle)),
+                          color: grupo.color,
+                          shape: BoxShape.circle)),
                   const SizedBox(width: 10),
                   Expanded(
                       child: Text(
@@ -3198,35 +3175,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               ? '${grupo.nickname.toUpperCase()} (TÚ)'
                               : grupo.nickname.toUpperCase(),
                           style: TextStyle(
-                              color: grupo.esMio ? _RR.fire : _RR.t1,
+                              color:
+                                  grupo.esMio ? _RR.parch : _RR.ivory,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
-                              letterSpacing: 1))),
+                              letterSpacing: 1.5))),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                        horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                        color: grupo.color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        color: grupo.color.withOpacity(0.08),
                         border: Border.all(
                             color: grupo.color.withOpacity(0.3))),
                     child: Text('NIV.${grupo.nivel}',
                         style: TextStyle(
                             color: grupo.color,
-                            fontSize: 9,
+                            fontSize: 8,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5)),
                   ),
                   const SizedBox(width: 8),
                   Text('${grupo.territorios.length} 🏴',
                       style:
-                          const TextStyle(color: _RR.t2, fontSize: 11)),
+                          const TextStyle(color: _RR.parchd, fontSize: 11)),
                   const SizedBox(width: 6),
                   Icon(
                       isExpanded
                           ? Icons.keyboard_arrow_up_rounded
                           : Icons.keyboard_arrow_down_rounded,
-                      color: _RR.t3,
+                      color: _RR.parchd,
                       size: 18),
                 ]),
               ),
@@ -3237,19 +3214,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                     color: _RR.bg0,
-                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                         color: grupo.color.withOpacity(0.15))),
                 child: detalles == null
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                            padding: EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(8),
                             child: CircularProgressIndicator(
-                                color: _RR.fire, strokeWidth: 2)))
+                                color: _accentColor, strokeWidth: 1.5)))
                     : detalles.isEmpty
                         ? const Text('Sin territorios',
                             style:
-                                TextStyle(color: _RR.t3, fontSize: 12))
+                                TextStyle(color: _RR.parchd, fontSize: 12))
                         : Column(
                             children: detalles
                                 .asMap()
@@ -3261,7 +3237,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     grupo.esMio ? 'YO' : grupo.nickname))
                                 .toList()),
               ),
-            if (!isLast) Divider(color: _RR.border, height: 1),
+            if (!isLast)
+              const Divider(
+                  color: Color(0x1FCAAA6C), height: 1),
           ]);
         }).toList(),
       ),
@@ -3274,7 +3252,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     Color colorEstado = _RR.safe;
     if (det.diasSinVisitar != null && det.diasSinVisitar! >= 10) {
       estadoDeterioro = 'CRÍTICO';
-      colorEstado = _RR.danger;
+      colorEstado = _accentColor;
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= 5) {
       estadoDeterioro = 'DESGASTE';
       colorEstado = _RR.warn;
@@ -3287,10 +3265,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
             color: color.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: color.withOpacity(0.15))),
         child: Row(children: [
-          Icon(Icons.crop_square_rounded, color: color, size: 13),
+          Icon(Icons.crop_square_rounded, color: color, size: 12),
           const SizedBox(width: 8),
           Text('ZONA #${index + 1}',
               style: TextStyle(
@@ -3301,10 +3278,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const SizedBox(width: 8),
           Container(
             padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-                color: colorEstado.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4)),
+                const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            color: colorEstado.withOpacity(0.08),
             child: Text(estadoDeterioro,
                 style: TextStyle(
                     color: colorEstado,
@@ -3314,10 +3289,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const Spacer(),
           Text('${det.distanciaAlCentroKm.toStringAsFixed(1)}km',
-              style: const TextStyle(color: _RR.t3, fontSize: 10)),
+              style: const TextStyle(color: _RR.parchd, fontSize: 10)),
           const SizedBox(width: 6),
           Icon(Icons.chevron_right_rounded,
-              color: color.withOpacity(0.5), size: 14),
+              color: color.withOpacity(0.5), size: 13),
         ]),
       ),
     );
@@ -3366,18 +3341,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withOpacity(0.07),
           border: Border.all(color: color.withOpacity(0.25))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, color: color, size: 13),
+        Icon(icon, color: color, size: 12),
         const SizedBox(width: 6),
         Text('$valor $label',
             style: TextStyle(
                 color: color,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.5)),
+                letterSpacing: 1)),
       ]),
     );
   }
@@ -3385,28 +3359,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildSectionHeader(String title, IconData icon, String action,
       VoidCallback? onAction) {
     return Row(children: [
+      // Ornamento lateral dorado
       Container(
         width: 3,
-        height: 16,
-        decoration: BoxDecoration(
-            color: _RR.fire, borderRadius: BorderRadius.circular(2)),
+        height: 14,
+        color: _RR.parchm,
       ),
       const SizedBox(width: 10),
-      Icon(icon, color: _RR.fire, size: 14),
+      Icon(icon, color: _RR.parchm, size: 13),
       const SizedBox(width: 8),
       Text(title,
           style: const TextStyle(
-              color: _RR.t1,
-              fontSize: 11,
+              color: _RR.parch,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
-              letterSpacing: 2)),
+              letterSpacing: 2.5)),
       const Spacer(),
       if (action.isNotEmpty)
         GestureDetector(
           onTap: onAction,
           child: Text(action,
-              style: const TextStyle(
-                  color: _RR.fire,
+              style: TextStyle(
+                  color: _accentColor,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1)),
@@ -3427,18 +3401,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-          color: _RR.bg2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _RR.border)),
+          color: _RR.bg1,
+          border: Border.all(color: _RR.gold.withOpacity(0.2))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.timer_outlined, color: _RR.t3, size: 13),
+        const Icon(Icons.timer_outlined, color: _RR.parchd, size: 12),
         const SizedBox(width: 6),
         Text('RESET EN $h:$m:$s',
             style: const TextStyle(
-                color: _RR.t3,
+                color: _RR.gold,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
+                letterSpacing: 2,
                 fontFeatures: [FontFeature.tabularFigures()])),
       ]),
     );
@@ -3450,13 +3423,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
             color: _RR.bg1,
-            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _RR.border)),
         child: const Row(children: [
-          Icon(Icons.hourglass_empty_rounded, color: _RR.t3, size: 15),
+          Icon(Icons.hourglass_empty_rounded, color: _RR.parchd, size: 14),
           SizedBox(width: 10),
           Text('Ningún reto completado hoy todavía',
-              style: TextStyle(color: _RR.t3, fontSize: 13)),
+              style: TextStyle(color: _RR.parchd, fontSize: 13)),
         ]),
       );
     }
@@ -3471,42 +3443,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                       color: _RR.bg1,
-                      borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: _RR.warn.withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                            color: _RR.warn.withOpacity(0.04),
-                            blurRadius: 12)
-                      ]),
+                      border: Border.all(
+                          color: _RR.gold.withOpacity(0.2))),
                   child: Row(children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                          color: _RR.warn.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8)),
+                      color: _RR.gold.withOpacity(0.08),
                       child: const Icon(Icons.emoji_events_rounded,
-                          color: _RR.warn, size: 16),
+                          color: _RR.gold, size: 15),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                         child: Text(
                             data['titulo'] ?? 'Reto completado',
                             style: const TextStyle(
-                                color: _RR.t1, fontSize: 13))),
+                                color: _RR.ivory, fontSize: 13))),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                          color: _RR.fire.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
+                          color: _RR.parchd.withOpacity(0.1),
                           border: Border.all(
-                              color: _RR.fire.withOpacity(0.3))),
+                              color: _RR.parchd.withOpacity(0.3))),
                       child: Text('+${data['recompensa']}',
                           style: const TextStyle(
-                              color: _RR.fire,
+                              color: _RR.parchm,
                               fontWeight: FontWeight.w900,
-                              fontSize: 12)),
+                              fontSize: 12,
+                              letterSpacing: 0.5)),
                     ),
                   ]),
                 ))
@@ -3515,19 +3479,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildDailyChallengesList() {
     if (_loadingChallenges)
-      return const Center(
+      return Center(
           child: CircularProgressIndicator(
-              color: _RR.fire, strokeWidth: 2));
+              color: _accentColor, strokeWidth: 1.5));
     if (_dailyChallenges.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
             color: _RR.bg1,
-            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _RR.safe.withOpacity(0.2))),
         child: const Row(children: [
           Icon(Icons.check_circle_outline_rounded,
-              color: _RR.safe, size: 15),
+              color: _RR.safe, size: 14),
           SizedBox(width: 10),
           Text('¡Todos los desafíos completados!',
               style: TextStyle(color: _RR.safe, fontSize: 13)),
@@ -3548,61 +3511,65 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildMissionCard(String title, String desc, String reward) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: _RR.bg1,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _RR.border),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 8,
-                offset: Offset(0, 2))
-          ]),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: _RR.fire.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _RR.fire.withOpacity(0.3))),
-          child:
-              const Icon(Icons.bolt_rounded, color: _RR.fire, size: 20),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    color: _RR.t1,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14)),
-            const SizedBox(height: 3),
-            Text(desc,
-                style:
-                    const TextStyle(color: _RR.t3, fontSize: 12)),
-          ],
-        )),
-        const SizedBox(width: 10),
-        Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('+$reward',
-              style: const TextStyle(
-                  color: _RR.fire,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17)),
-          const SizedBox(height: 2),
-          const Text('pts',
-              style: TextStyle(
-                  color: _RR.t3,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5)),
-        ]),
-        const SizedBox(width: 4),
-        const Icon(Icons.chevron_right_rounded, color: _RR.t3, size: 18),
-      ]),
+          border: Border.all(color: _RR.border)),
+      child: Stack(
+        children: [
+          // Barra lateral
+          Positioned(
+            left: 0, top: 0, bottom: 0,
+            child: Container(width: 3, color: _RR.bronze.withOpacity(0.6)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                color: _RR.bronze.withOpacity(0.08),
+                child: const Icon(Icons.bolt_rounded,
+                    color: _RR.bronze, size: 18),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                  child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          color: _RR.ivory,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          letterSpacing: 0.3)),
+                  const SizedBox(height: 3),
+                  Text(desc,
+                      style:
+                          const TextStyle(color: _RR.parchd, fontSize: 12)),
+                ],
+              )),
+              const SizedBox(width: 10),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('+$reward',
+                    style: const TextStyle(
+                        color: _RR.bronze,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        letterSpacing: 0.3)),
+                const SizedBox(height: 1),
+                const Text('PTS',
+                    style: TextStyle(
+                        color: _RR.parchd,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5)),
+              ]),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded,
+                  color: _RR.parchd, size: 16),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3614,24 +3581,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onTap: _testSimularCarrera,
       child: Container(
         width: double.infinity,
-        padding:
-            const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
         decoration: BoxDecoration(
-            color: _RR.fire.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _RR.fire.withOpacity(0.3))),
+            color: _RR.parchd.withOpacity(0.06),
+            border: Border.all(color: _RR.parchd.withOpacity(0.3))),
         child: Row(children: [
-          const Text('🧪', style: TextStyle(fontSize: 16)),
+          const Text('🧪', style: TextStyle(fontSize: 15)),
           const SizedBox(width: 12),
           const Expanded(
             child: Text('TEST — Simular carrera y territorio',
                 style: TextStyle(
-                    color: _RR.fire,
+                    color: _RR.parchm,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13)),
+                    fontSize: 12,
+                    letterSpacing: 0.5)),
           ),
           const Icon(Icons.chevron_right_rounded,
-              color: _RR.fire, size: 18),
+              color: _RR.parchd, size: 16),
         ]),
       ),
     );
@@ -3642,35 +3608,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onTap: _testSimularConquista,
       child: Container(
         width: double.infinity,
-        padding:
-            const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
         decoration: BoxDecoration(
-            color: _RR.danger.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _RR.danger.withOpacity(0.3))),
+            color: _accentColor.withOpacity(0.05),
+            border: Border.all(color: _accentColor.withOpacity(0.3))),
         child: Row(children: [
-          const Text('⚔️', style: TextStyle(fontSize: 16)),
+          const Text('⚔️', style: TextStyle(fontSize: 15)),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text('TEST — Conquistar territorio de amigo',
                 style: TextStyle(
-                    color: _RR.danger,
+                    color: _accentColor,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13)),
+                    fontSize: 12,
+                    letterSpacing: 0.5)),
           ),
-          const Icon(Icons.chevron_right_rounded,
-              color: _RR.danger, size: 18),
+          Icon(Icons.chevron_right_rounded,
+              color: _accentColor, size: 16),
         ]),
       ),
     );
   }
 
   Widget _buildUserMenu() => PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: _RR.t3, size: 20),
-        color: _RR.bg2,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: _RR.border)),
+        icon: const Icon(Icons.more_vert, color: _RR.parchd, size: 20),
+        color: _RR.bg1,
+        shape: const RoundedRectangleBorder(
+            side: BorderSide(color: Color(0x1FCAAA6C))),
         onSelected: (value) async {
           if (value == 'logout') {
             try {
@@ -3684,20 +3648,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
         },
         itemBuilder: (context) => [
-          const PopupMenuItem(
+          PopupMenuItem(
               value: 'logout',
               child: Row(children: [
-                Icon(Icons.logout, color: _RR.danger, size: 18),
-                SizedBox(width: 10),
-                Text('Cerrar sesión',
-                    style: TextStyle(color: _RR.t2, fontSize: 13)),
+                Icon(Icons.logout, color: _accentColor, size: 17),
+                const SizedBox(width: 10),
+                const Text('Cerrar sesión',
+                    style: TextStyle(color: _RR.parchd, fontSize: 13)),
               ])),
         ],
       );
 }
 
 // =============================================================================
-// MODELOS AUXILIARES
+// MODELOS AUXILIARES  (sin cambios)
 // =============================================================================
 class _UserTerritoryGroup {
   final String ownerId;
