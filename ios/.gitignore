@@ -1,3 +1,29 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.g.dart
+
+# Firebase — claves sensibles
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# Entorno
+.env
+*.local
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Node
+node_modules/
+
+# iOS
 **/dgph
 *.mode1v3
 *.mode2v3
@@ -26,8 +52,6 @@ Flutter/flutter_assets/
 Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
-
-# Exceptions to above rules.
 !default.mode1v3
 !default.mode2v3
 !default.pbxuser
