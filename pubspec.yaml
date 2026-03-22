@@ -1,4 +1,4 @@
-name: RunnerRisk
+name: RiskRunner
 description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cloud_functions: 6.0.7  
   mapbox_maps_flutter: ^2.1.0   # ← bajar versión
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
@@ -26,6 +27,8 @@ dependencies:
   share_plus: 12.0.1
   firebase_messaging: ^16.1.2
   http: ^1.6.0
+  purchases_flutter: ^9.13.1  
+  purchases_ui_flutter: ^9.13.1
 
 dev_dependencies:
   flutter_test:

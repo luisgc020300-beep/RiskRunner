@@ -1,4 +1,4 @@
-import 'package:RunnerRisk/services/onboarding_service.dart';
+import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -161,9 +161,31 @@ class OnboardingTooltips {
       body: 'Los puntos se resetean cada semana. Todos empiezan desde cero. La batalla se reinicia cada lunes.',
       color: Color(0xFF22C55E),
     ),
+
+    // ── RETOS — nuevos ────────────────────────────────────────────
+    //
+    // 'retos_intro':      se muestra la primera vez que el usuario
+    //                     abre la tab de Retos en home_screen.
+    //
+    // 'reto_completado':  se muestra en resumen_screen cuando el
+    //                     usuario completa un reto por primera vez.
+    //
+    'retos_intro': OnboardingTooltipData(
+      id: 'retos_intro', tag: 'MISIONES',
+      title: 'Retos diarios', emoji: '⚡',
+      body: 'Cada día tienes misiones nuevas. Confirma un reto, sal a correr y el narrador te guiará en tiempo real hasta completarlo. Los puntos se suman solos al terminar.',
+      color: _kAccent,
+      position: TooltipPosition.center,
+    ),
+    'reto_completado': OnboardingTooltipData(
+      id: 'reto_completado', tag: '¡PRIMERA MISIÓN!',
+      title: 'Reto completado', emoji: '🏆',
+      body: 'Los puntos ya están en tu cuenta. Puedes seguir corriendo después de completar un reto — la carrera no para hasta que tú quieras.',
+      color: Color(0xFFD4A84C),
+      position: TooltipPosition.top,
+    ),
   };
 
-  /// Devuelve los tooltips que corresponden al run actual y no han sido vistos
   static List<OnboardingTooltipData> getPendientes(OnboardingState state) {
     return state.tooltipsPendientes
         .map((id) => catalogo[id])
@@ -173,12 +195,12 @@ class OnboardingTooltips {
 }
 
 // =============================================================================
-// WIDGET PRINCIPAL — envuelve cualquier pantalla y muestra tooltips encima
+// WIDGET PRINCIPAL
 // =============================================================================
 class OnboardingOverlayWrapper extends StatefulWidget {
   final Widget child;
   final OnboardingState onboardingState;
-  final List<String> tooltipIds; // qué tooltips mostrar en esta pantalla
+  final List<String> tooltipIds;
 
   const OnboardingOverlayWrapper({
     super.key,
@@ -220,7 +242,6 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
         .toList();
 
     if (_pending.isNotEmpty) {
-      // Pequeño delay para que la pantalla cargue primero
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) {
           setState(() => _visible = true);
@@ -239,7 +260,6 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
 
   Future<void> _siguiente() async {
     HapticFeedback.selectionClick();
-    // Marcar como visto
     await OnboardingService.marcarTooltipVisto(_pending[_currentIdx].id);
 
     if (_currentIdx < _pending.length - 1) {
@@ -272,7 +292,6 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
 
   Widget _buildOverlay(OnboardingTooltipData tooltip) {
     return GestureDetector(
-      // Tap fuera = saltar
       onTap: _saltarTodos,
       child: Container(
         color: Colors.black.withValues(alpha: 0.65),
@@ -294,7 +313,7 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
 
   Widget _posicionado(OnboardingTooltipData tooltip) {
     final card = GestureDetector(
-      onTap: () {}, // evita que el tap en la card cierre el overlay
+      onTap: () {},
       child: _TooltipCard(
         tooltip: tooltip,
         current: _currentIdx + 1,
@@ -357,7 +376,6 @@ class _TooltipCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min, children: [
 
-        // Header: emoji + tag + progreso
         Row(children: [
           Container(width: 48, height: 48,
             decoration: BoxDecoration(
@@ -372,12 +390,13 @@ class _TooltipCard extends StatelessWidget {
               children: [
             Text(tooltip.tag, style: TextStyle(
                 color: tooltip.color, fontSize: 9,
-                fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+                fontWeight: FontWeight.w900, letterSpacing: 2.5,
+                decoration: TextDecoration.none)),
             const SizedBox(height: 4),
             Text(tooltip.title, style: const TextStyle(
-                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800,
+                decoration: TextDecoration.none)),
           ])),
-          // Contador
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -386,13 +405,13 @@ class _TooltipCard extends StatelessWidget {
               border: Border.all(color: tooltip.color.withValues(alpha: 0.15)),
             ),
             child: Text('$current/$total', style: TextStyle(
-                color: tooltip.color, fontSize: 10, fontWeight: FontWeight.w900)),
+                color: tooltip.color, fontSize: 10, fontWeight: FontWeight.w900,
+                decoration: TextDecoration.none)),
           ),
         ]),
 
         const SizedBox(height: 16),
 
-        // Barra de progreso
         ClipRRect(borderRadius: BorderRadius.circular(2),
           child: LinearProgressIndicator(
             value: current / total,
@@ -403,20 +422,20 @@ class _TooltipCard extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // Cuerpo del tooltip
         Text(tooltip.body, style: const TextStyle(
-            color: _kDim, fontSize: 14, height: 1.55)),
+            color: _kDim, fontSize: 14, height: 1.55,
+            decoration: TextDecoration.none)),
 
         const SizedBox(height: 20),
 
-        // Botones
         Row(children: [
           if (onSkip != null && total > 1) ...[
             GestureDetector(
               onTap: onSkip,
               child: Text('SALTAR TODO', style: TextStyle(
                   color: _kDim, fontSize: 9,
-                  fontWeight: FontWeight.w800, letterSpacing: 2)),
+                  fontWeight: FontWeight.w800, letterSpacing: 2,
+                  decoration: TextDecoration.none)),
             ),
             const Spacer(),
           ] else const Spacer(),
@@ -435,7 +454,8 @@ class _TooltipCard extends StatelessWidget {
                 Text(
                   current == total ? 'ENTENDIDO' : 'SIGUIENTE',
                   style: const TextStyle(color: Colors.black, fontSize: 11,
-                      fontWeight: FontWeight.w900, letterSpacing: 2),
+                      fontWeight: FontWeight.w900, letterSpacing: 2,
+                      decoration: TextDecoration.none),
                 ),
                 const SizedBox(width: 6),
                 Icon(current == total
@@ -451,7 +471,7 @@ class _TooltipCard extends StatelessWidget {
 }
 
 // =============================================================================
-// HELPER: mostrar un tooltip suelto sin wrapper (para uso puntual)
+// HELPER: mostrar un tooltip suelto sin wrapper
 // =============================================================================
 Future<void> mostrarTooltipOnboarding({
   required BuildContext context,

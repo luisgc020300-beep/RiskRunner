@@ -94,7 +94,7 @@ class NotificationService {
   static Stream<QuerySnapshot> escucharNotificaciones(String userId) {
     return _db
         .collection('notifications')
-        .where('userId', isEqualTo: userId)
+        .where('toUserId', isEqualTo: userId)
         .orderBy('timestamp', descending: true)
         .limit(50)
         .snapshots();
@@ -105,7 +105,7 @@ class NotificationService {
   // ==========================================================================
   static Future<void> marcarLeida(String notifId) async {
     try {
-      await _db.collection('notifications').doc(notifId).update({'leida': true});
+    await _db.collection('notifications').doc(notifId).update({'read': true});
     } catch (e) {
       debugPrint('❌ Error marcando notificación como leída: $e');
     }
@@ -118,12 +118,12 @@ class NotificationService {
     try {
       final snap = await _db
           .collection('notifications')
-          .where('userId', isEqualTo: userId)
-          .where('leida', isEqualTo: false)
+          .where('toUserId', isEqualTo: userId)
+          .where('read', isEqualTo: false)
           .get();
       final batch = _db.batch();
       for (final doc in snap.docs) {
-        batch.update(doc.reference, {'leida': true});
+        batch.update(doc.reference, {'read': true});
       }
       await batch.commit();
     } catch (e) {
@@ -137,8 +137,8 @@ class NotificationService {
   static Stream<int> contarNoLeidas(String userId) {
     return _db
         .collection('notifications')
-        .where('userId', isEqualTo: userId)
-        .where('leida', isEqualTo: false)
+        .where('toUserId', isEqualTo: userId)
+        .where('read', isEqualTo: false)
         .snapshots()
         .map((snap) => snap.docs.length);
   }

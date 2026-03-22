@@ -1,8 +1,8 @@
+import 'package:RiskRunner/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // 1. IMPORTANTE: El nombre del paquete DEBE estar en minúsculas. 
 // Si tu proyecto se llama MI_APP, en el pubspec.yaml suele aparecer como mi_app.
-import 'package:RunnerRisk/main.dart';
 void main() {
   // Esta línea ayuda a que los tests no fallen con plugins de Firebase
   TestWidgetsFlutterBinding.ensureInitialized();

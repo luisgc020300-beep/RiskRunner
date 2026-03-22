@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mi App</string>
+    <string>Risk Runner</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>mi_app</string>
+    <string>riskrunner</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -51,7 +51,6 @@
 	<string>Necesitamos tu ubicación para seguir rastreando tu carrera.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>El GPS es necesario para calcular la distancia de tu actividad.</string>
-	<key>MBXAccessToken</key>
-	<string>pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1keTI1bjkwN25qMm9zNzFlOXZkeG9wIn0.l186BxbIhi6-vAXtBjIzsw</string>
+
 </dict>
 </plist>

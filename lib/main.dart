@@ -1,12 +1,17 @@
 // lib/main.dart
 
-import 'package:RunnerRisk/Pestañas/onboarding_slides_screen.dart';
-import 'package:RunnerRisk/services/onboarding_service.dart';
-import 'package:RunnerRisk/services/notification_service.dart';
+import 'package:RiskRunner/Pesta%C3%B1as/coin_shop_screen.dart';
+import 'package:RiskRunner/Pesta%C3%B1as/fullscreen_map_screen.dart';
+import 'package:RiskRunner/Pesta%C3%B1as/onboarding_slides_screen.dart';
+import 'package:RiskRunner/services/notification_service.dart';
+import 'package:RiskRunner/services/onboarding_service.dart';
+import 'package:RiskRunner/services/subscription_service.dart';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'Pestañas/notifications_screen.dart';
 import 'Pestañas/Logging.dart';
@@ -15,18 +20,23 @@ import 'Pestañas/social_screen.dart';
 import 'Pestañas/Resumen_screen.dart';
 import 'Pestañas/LiveActivity_screen.dart';
 import 'Pestañas/perfil_screen.dart';
+import 'package:latlong2/latlong.dart';
+import 'Pestañas/clan_screen.dart';
+import 'Pestañas/desafios_screen.dart';
+import 'services/desafios_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Registrar handler para notificaciones cuando la app está cerrada
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  // Inicializar notificaciones cuando el usuario esté logado
   FirebaseAuth.instance.authStateChanges().listen((user) {
     if (user != null) {
       NotificationService.inicializar();
+      SubscriptionService.inicializar(user.uid);
+      // Verificar desafíos expirados al arrancar la app
+      DesafiosService.verificarExpirados(user.uid);
     }
   });
 
@@ -38,13 +48,88 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final _rajdhaniBase = GoogleFonts.rajdhaniTextTheme(
+      ThemeData(brightness: Brightness.dark).textTheme,
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Runner Risk',
+      title: 'Risk Runner',
       theme: ThemeData(
         brightness: Brightness.dark,
         primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.black,
+        scaffoldBackgroundColor: const Color(0xFF090807),
+
+        textTheme: _rajdhaniBase.copyWith(
+          displayLarge: _rajdhaniBase.displayLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.0,
+          ),
+          displayMedium: _rajdhaniBase.displayMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+          headlineLarge: _rajdhaniBase.headlineLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.5,
+          ),
+          headlineMedium: _rajdhaniBase.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.0,
+          ),
+          headlineSmall: _rajdhaniBase.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
+          ),
+          bodyLarge: _rajdhaniBase.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
+          ),
+          bodyMedium: _rajdhaniBase.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w400,
+          ),
+          labelLarge: _rajdhaniBase.labelLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
+          ),
+          labelMedium: _rajdhaniBase.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+          labelSmall: _rajdhaniBase.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+          ),
+        ),
+
+        appBarTheme: AppBarTheme(
+          backgroundColor: const Color(0xFF090807),
+          elevation: 0,
+          titleTextStyle: GoogleFonts.rajdhani(
+            color: const Color(0xFFEAD9AA),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 3.0,
+          ),
+        ),
+
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            textStyle: GoogleFonts.rajdhani(
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
+
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            textStyle: GoogleFonts.rajdhani(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ),
       ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
@@ -58,30 +143,109 @@ class MyApp extends StatelessWidget {
           return const LoginScreen();
         },
       ),
-      routes: {
-        '/login':   (context) => const LoginScreen(),
-        '/home':    (context) => const HomeScreen(),
-        '/social':  (context) => const SocialScreen(),
-        '/correr':  (context) => const LiveActivityScreen(),
-        '/perfil':  (context) => const PerfilScreen(),
-        '/notificaciones': (context) => const NotificationsScreen(),
-        '/resumen': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments
-              as Map<String, dynamic>?;
-          return ResumenScreen(
-            distancia: (args?['distancia'] as double?)   ?? 0.0,
-            tiempo:    (args?['tiempo']    as Duration?)  ?? Duration.zero,
-            ruta:      (args?['ruta']      as List?)?.cast() ?? [],
-            esDesdeCarrera: (args?['esDesdeCarrera'] as bool?) ?? false,
-          );
-        },
+
+      // ── TODAS las rutas en onGenerateRoute para que los arguments
+      // lleguen correctamente a todos los widgets (settings: settings).
+      // Con routes: {} y onGenerateRoute juntos, popUntil y pushNamed
+      // pueden fallar porque Flutter no encuentra las rutas nombradas.
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+
+          case '/login':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const LoginScreen(),
+            );
+
+          case '/home':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const HomeScreen(),
+            );
+
+          case '/social':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const SocialScreen(),
+            );
+
+          case '/perfil':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const PerfilScreen(),
+            );
+
+          case '/notificaciones':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const NotificationsScreen(),
+            );
+
+          case '/clan':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const ClanScreen(),
+            );
+
+          case '/desafios':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => DesafiosScreen(
+                desafioId: args?['desafioId'] as String?,
+              ),
+            );
+
+          case '/correr':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const LiveActivityScreen(),
+            );
+
+          case '/resumen':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => ResumenScreen(
+                distancia:      (args?['distancia'] as double?)   ?? 0.0,
+                tiempo:         (args?['tiempo']    as Duration?)  ?? Duration.zero,
+                ruta:           (args?['ruta']      as List?)?.cast<LatLng>() ?? [],
+                esDesdeCarrera: (args?['esDesdeCarrera'] as bool?) ?? false,
+              ),
+            );
+
+          case '/mapa':
+            final args = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => FullscreenMapScreen(
+                territorios:     (args?['territorios']     as List?)?.cast() ?? [],
+                colorTerritorio: (args?['colorTerritorio'] as Color?)
+                    ?? const Color(0xFFD4722A),
+                centroInicial:   args?['centroInicial'] as LatLng?,
+                ruta:            (args?['ruta']         as List?)?.cast() ?? [],
+                mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
+              ),
+            );
+          case '/tienda':
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const CoinShopScreen(),
+            );
+
+          default:
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => const HomeScreen(),
+            );
+        }
       },
     );
   }
 }
 
 // =============================================================================
-// SPLASH de carga
+// SPLASH
 // =============================================================================
 class _SplashLoading extends StatelessWidget {
   const _SplashLoading();
@@ -89,17 +253,22 @@ class _SplashLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFF060608),
-      body: Center(child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _AnimatedLogo(),
-          SizedBox(height: 32),
-          SizedBox(width: 20, height: 20,
-            child: CircularProgressIndicator(
-              color: Color(0xFFFF7B1A), strokeWidth: 2)),
-        ],
-      )),
+      backgroundColor: Color(0xFF090807),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AnimatedLogo(),
+            SizedBox(height: 32),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                color: Color(0xFFCC7C3A), strokeWidth: 2),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -126,19 +295,27 @@ class _AnimatedLogoState extends State<_AnimatedLogo>
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _ctrl,
-    builder: (_, __) => Opacity(
-      opacity: _pulse.value,
-      child: const Text('RUNNER RISK', style: TextStyle(
-        color: Color(0xFFFF7B1A), fontSize: 22,
-        fontWeight: FontWeight.w900, letterSpacing: 5,
-      )),
-    ),
-  );
+        animation: _ctrl,
+        builder: (_, __) => Opacity(
+          opacity: _pulse.value,
+          child: Text(
+            'RISK RUNNER',
+            style: GoogleFonts.rajdhani(
+              color: const Color(0xFFCC7C3A),
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 6,
+            ),
+          ),
+        ),
+      );
 }
 
 // =============================================================================

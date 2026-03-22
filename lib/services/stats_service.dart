@@ -18,7 +18,7 @@ class CarreraStats {
   final DateTime fecha;
   final double distanciaKm;
   final int tiempoSeg;
-  final double ritmoMinKm;       // min/km
+  final double ritmoMinKm;
   final ZonaRitmo zona;
   final List<String> calles;
   final List<LatLng> ruta;
@@ -34,14 +34,12 @@ class CarreraStats {
     required this.ruta,
   });
 
-  /// Tiempo formateado: "42:30"
   String get tiempoStr {
     final m = tiempoSeg ~/ 60;
     final s = tiempoSeg % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  /// Ritmo formateado: "5'23\""
   String get ritmoStr {
     final min = ritmoMinKm.floor();
     final seg = ((ritmoMinKm - min) * 60).round();
@@ -73,7 +71,6 @@ extension ZonaRitmoX on ZonaRitmo {
     }
   }
 
-  /// Color hex para UI
   String get colorHex {
     switch (this) {
       case ZonaRitmo.recuperacion: return '#3b82f6';
@@ -85,12 +82,12 @@ extension ZonaRitmoX on ZonaRitmo {
   }
 }
 
-// ── Resultado del predictor ───────────────────────────────────────────────────
+// ── Predictor ─────────────────────────────────────────────────────────────────
 class PrediccionTiempo {
   final Duration tiempo5k;
   final Duration tiempo10k;
   final Duration tiempoMediaMaraton;
-  final double ritmoBase; // min/km usado para la predicción
+  final double ritmoBase;
 
   const PrediccionTiempo({
     required this.tiempo5k,
@@ -107,8 +104,8 @@ class PrediccionTiempo {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  String get str5k         => _formatDuration(tiempo5k);
-  String get str10k        => _formatDuration(tiempo10k);
+  String get str5k           => _formatDuration(tiempo5k);
+  String get str10k          => _formatDuration(tiempo10k);
   String get strMediaMaraton => _formatDuration(tiempoMediaMaraton);
 }
 
@@ -116,7 +113,7 @@ class PrediccionTiempo {
 class ComparativaRuta {
   final CarreraStats actual;
   final CarreraStats anterior;
-  final double deltaRitmoSeg;   // positivo = más lento, negativo = más rápido
+  final double deltaRitmoSeg;
   final double deltaDistanciaKm;
 
   const ComparativaRuta({
@@ -140,7 +137,7 @@ class ComparativaRuta {
 // ── Punto de tendencia semanal ────────────────────────────────────────────────
 class PuntoTendencia {
   final DateTime semana;
-  final double ritmoMedio;   // min/km
+  final double ritmoMedio;
   final double distanciaTotal;
   final int numCarreras;
 
@@ -152,21 +149,62 @@ class PuntoTendencia {
   });
 }
 
+// ── NUEVO: Comparativa semanal ────────────────────────────────────────────────
+class ComparativaSemanal {
+  final double kmEstaSemana;
+  final double kmSemanaAnterior;
+  final int minutosEstaSemana;
+  final int minutosSemanaAnterior;
+  final int carrerasEstaSemana;
+  final int carrerasSemanaAnterior;
+
+  const ComparativaSemanal({
+    required this.kmEstaSemana,
+    required this.kmSemanaAnterior,
+    required this.minutosEstaSemana,
+    required this.minutosSemanaAnterior,
+    required this.carrerasEstaSemana,
+    required this.carrerasSemanaAnterior,
+  });
+
+  double get deltaKm => kmEstaSemana - kmSemanaAnterior;
+  bool get mejorKm   => deltaKm >= 0;
+
+  /// Porcentaje de cambio en km
+  String get deltaKmStr {
+    if (kmSemanaAnterior == 0) return '+${kmEstaSemana.toStringAsFixed(1)} km';
+    final pct = ((deltaKm / kmSemanaAnterior) * 100).round();
+    return '${pct >= 0 ? '+' : ''}$pct%';
+  }
+
+  /// Próximo hito de km basado en el ritmo semanal actual
+  String get proximoHito {
+    if (kmEstaSemana <= 0) return '--';
+    // Hitos: 50, 100, 150, 200, 300, 500 km totales semanales acumulados
+    // Aquí usamos ritmo semanal para proyectar cuándo llegar al siguiente hito
+    final hitosSemanales = [10.0, 20.0, 30.0, 40.0, 50.0];
+    for (final hito in hitosSemanales) {
+      if (kmEstaSemana < hito) {
+        final faltan = hito - kmEstaSemana;
+        return '${faltan.toStringAsFixed(1)} km para ${hito.toInt()} km/sem';
+      }
+    }
+    return '🏆 +50 km/semana';
+  }
+}
+
 // =============================================================================
 // SERVICIO PRINCIPAL
 // =============================================================================
 
 class StatsService {
 
-  // ── Token Mapbox (mismo que usa la app) ──────────────────────────────────
-  // Se inyecta desde el exterior para no duplicar el secret
   static String mapboxToken = '';
 
   // ==========================================================================
   // CARGA DE CARRERAS
   // ==========================================================================
 
-  /// Carga las últimas [limite] carreras del usuario desde Firestore.
   static Future<List<CarreraStats>> cargarCarreras({int limite = 50}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return [];
@@ -181,23 +219,17 @@ class StatsService {
 
       final carreras = <CarreraStats>[];
       for (final doc in snap.docs) {
-        final data = doc.data();
+        final data      = doc.data();
         final distancia = (data['distancia'] as num?)?.toDouble() ?? 0;
         final tiempo    = (data['tiempo_segundos'] as num?)?.toInt() ?? 0;
         final ts        = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
 
         if (distancia <= 0 || tiempo <= 0) continue;
 
-        final ritmo = _calcularRitmo(distancia, tiempo);
-        final zona  = _calcularZona(ritmo);
-
-        // Calles guardadas en Firestore (si existen)
-        final callesRaw = data['calles'] as List<dynamic>? ?? [];
-        final calles    = callesRaw.cast<String>();
-
-        // Ruta guardada en Firestore (si existe)
-        final rutaRaw = data['ruta'] as List<dynamic>? ?? [];
-        final ruta    = rutaRaw
+        final ritmo  = _calcularRitmo(distancia, tiempo);
+        final zona   = _calcularZona(ritmo);
+        final calles = (data['calles'] as List<dynamic>? ?? []).cast<String>();
+        final ruta   = (data['ruta'] as List<dynamic>? ?? [])
             .map((p) => LatLng(
                   (p['lat'] as num).toDouble(),
                   (p['lng'] as num).toDouble(),
@@ -205,14 +237,14 @@ class StatsService {
             .toList();
 
         carreras.add(CarreraStats(
-          id:           doc.id,
-          fecha:        ts,
-          distanciaKm:  distancia,
-          tiempoSeg:    tiempo,
-          ritmoMinKm:   ritmo,
-          zona:         zona,
-          calles:       calles,
-          ruta:         ruta,
+          id:          doc.id,
+          fecha:       ts,
+          distanciaKm: distancia,
+          tiempoSeg:   tiempo,
+          ritmoMinKm:  ritmo,
+          zona:        zona,
+          calles:      calles,
+          ruta:        ruta,
         ));
       }
       return carreras;
@@ -223,15 +255,28 @@ class StatsService {
   }
 
   // ==========================================================================
-  // TENDENCIA 4 SEMANAS
+  // TENDENCIA 4 SEMANAS (existente)
   // ==========================================================================
 
   static List<PuntoTendencia> calcularTendencia4Semanas(
-      List<CarreraStats> carreras) {
+      List<CarreraStats> carreras) =>
+      _calcularTendencia(carreras, semanas: 4);
+
+  // ==========================================================================
+  // NUEVO: TENDENCIA 8 SEMANAS (premium)
+  // ==========================================================================
+
+  static List<PuntoTendencia> calcularTendencia8Semanas(
+      List<CarreraStats> carreras) =>
+      _calcularTendencia(carreras, semanas: 8);
+
+  /// Método base para calcular tendencia de N semanas
+  static List<PuntoTendencia> _calcularTendencia(
+      List<CarreraStats> carreras, {required int semanas}) {
     final ahora  = DateTime.now();
     final puntos = <PuntoTendencia>[];
 
-    for (int semana = 3; semana >= 0; semana--) {
+    for (int semana = semanas - 1; semana >= 0; semana--) {
       final inicio = ahora.subtract(Duration(days: (semana + 1) * 7));
       final fin    = ahora.subtract(Duration(days: semana * 7));
 
@@ -240,17 +285,20 @@ class StatsService {
 
       if (delaSemana.isEmpty) {
         puntos.add(PuntoTendencia(
-          semana:        inicio,
-          ritmoMedio:    0,
+          semana:         inicio,
+          ritmoMedio:     0,
           distanciaTotal: 0,
-          numCarreras:   0,
+          numCarreras:    0,
         ));
         continue;
       }
 
-      final ritmoMedio = delaSemana.map((c) => c.ritmoMinKm).reduce((a, b) => a + b)
-          / delaSemana.length;
-      final distTotal  = delaSemana.map((c) => c.distanciaKm).reduce((a, b) => a + b);
+      final ritmoMedio = delaSemana
+              .map((c) => c.ritmoMinKm)
+              .reduce((a, b) => a + b) /
+          delaSemana.length;
+      final distTotal =
+          delaSemana.map((c) => c.distanciaKm).reduce((a, b) => a + b);
 
       puntos.add(PuntoTendencia(
         semana:         inicio,
@@ -263,42 +311,127 @@ class StatsService {
   }
 
   // ==========================================================================
-  // PREDICTOR 5K / 10K
+  // NUEVO: COMPARATIVA SEMANAL (premium)
   // ==========================================================================
 
-  /// Usa la fórmula de Riegel: T2 = T1 × (D2/D1)^1.06
-  /// Toma las últimas 5 carreras para calcular el ritmo base.
-  static PrediccionTiempo? calcularPrediccion(List<CarreraStats> carreras) {
-    final recientes = carreras
-        .where((c) => c.distanciaKm >= 1.0)
-        .take(5)
+  /// Compara esta semana (lunes-hoy) con la semana anterior (lunes-domingo pasado)
+  static ComparativaSemanal calcularComparativaSemanal(
+      List<CarreraStats> carreras) {
+    final ahora = DateTime.now();
+
+    // Inicio de esta semana (lunes)
+    final diasDesdeLunes = ahora.weekday - 1; // weekday: 1=lun, 7=dom
+    final inicioEstaSemana = DateTime(
+        ahora.year, ahora.month, ahora.day - diasDesdeLunes);
+    final inicioSemanaAnterior =
+        inicioEstaSemana.subtract(const Duration(days: 7));
+    final finSemanaAnterior = inicioEstaSemana;
+
+    final estaSemana = carreras
+        .where((c) => c.fecha.isAfter(inicioEstaSemana))
+        .toList();
+    final semanaAnterior = carreras
+        .where((c) =>
+            c.fecha.isAfter(inicioSemanaAnterior) &&
+            c.fecha.isBefore(finSemanaAnterior))
         .toList();
 
+    double kmEsta = 0, kmAnterior = 0;
+    int minEsta = 0, minAnterior = 0;
+
+    for (final c in estaSemana) {
+      kmEsta  += c.distanciaKm;
+      minEsta += c.tiempoSeg ~/ 60;
+    }
+    for (final c in semanaAnterior) {
+      kmAnterior  += c.distanciaKm;
+      minAnterior += c.tiempoSeg ~/ 60;
+    }
+
+    return ComparativaSemanal(
+      kmEstaSemana:         kmEsta,
+      kmSemanaAnterior:     kmAnterior,
+      minutosEstaSemana:    minEsta,
+      minutosSemanaAnterior: minAnterior,
+      carrerasEstaSemana:   estaSemana.length,
+      carrerasSemanaAnterior: semanaAnterior.length,
+    );
+  }
+
+  // ==========================================================================
+  // NUEVO: GEOCODING DE TERRITORIOS (premium)
+  // Convierte los puntos de un territorio en nombres de calle/barrio
+  // ==========================================================================
+
+  /// Obtiene el nombre de zona/barrio para un territorio a partir de su centroide
+  static Future<String> obtenerNombreZona(LatLng centro) async {
+    if (mapboxToken.isEmpty) return 'Zona desconocida';
+    try {
+      final url = Uri.parse(
+        'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+        '${centro.longitude},${centro.latitude}.json'
+        '?types=neighborhood,locality,place'
+        '&language=es'
+        '&access_token=$mapboxToken',
+      );
+      final resp = await http.get(url).timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final data     = json.decode(resp.body);
+        final features = data['features'] as List<dynamic>?;
+        if (features != null && features.isNotEmpty) {
+          // Preferir neighborhood > locality > place
+          return features.first['text'] as String? ?? 'Zona desconocida';
+        }
+      }
+    } catch (e) {
+      debugPrint('geocoding error: $e');
+    }
+    return 'Zona desconocida';
+  }
+
+  /// Batch geocoding para múltiples territorios
+  /// Devuelve un mapa de índice → nombre de zona
+  static Future<Map<int, String>> geocodificarTerritorios(
+      List<LatLng> centroides) async {
+    final resultado = <int, String>{};
+    for (int i = 0; i < centroides.length; i++) {
+      resultado[i] = await obtenerNombreZona(centroides[i]);
+      // Pequeño delay para no saturar la API de Mapbox
+      if (i < centroides.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    return resultado;
+  }
+
+  // ==========================================================================
+  // PREDICTOR
+  // ==========================================================================
+
+  static PrediccionTiempo? calcularPrediccion(List<CarreraStats> carreras) {
+    final recientes =
+        carreras.where((c) => c.distanciaKm >= 1.0).take(5).toList();
     if (recientes.isEmpty) return null;
 
-    // Ritmo medio ponderado por distancia (las carreras largas pesan más)
-    double sumPeso = 0;
-    double sumRitmo = 0;
+    double sumPeso = 0, sumRitmo = 0;
     for (final c in recientes) {
       sumPeso  += c.distanciaKm;
       sumRitmo += c.ritmoMinKm * c.distanciaKm;
     }
-    final ritmoBase = sumRitmo / sumPeso; // min/km
-
-    // Distancia representativa (media de las últimas carreras)
-    final distRef = recientes.map((c) => c.distanciaKm).reduce((a, b) => a + b)
+    final ritmoBase = sumRitmo / sumPeso;
+    final distRef   = recientes.map((c) => c.distanciaKm).reduce((a, b) => a + b)
         / recientes.length;
     final tiempoRefSeg = (ritmoBase * 60 * distRef).round();
 
-    Duration _riegel(double distTarget) {
+    Duration riegel(double distTarget) {
       final secs = tiempoRefSeg * math.pow(distTarget / distRef, 1.06);
       return Duration(seconds: secs.round());
     }
 
     return PrediccionTiempo(
-      tiempo5k:           _riegel(5.0),
-      tiempo10k:          _riegel(10.0),
-      tiempoMediaMaraton: _riegel(21.0975),
+      tiempo5k:           riegel(5.0),
+      tiempo10k:          riegel(10.0),
+      tiempoMediaMaraton: riegel(21.0975),
       ritmoBase:          ritmoBase,
     );
   }
@@ -307,17 +440,12 @@ class StatsService {
   // ZONAS DE RITMO
   // ==========================================================================
 
-  /// Calcula las zonas personalizadas basadas en el ritmo base del corredor.
-  /// Las zonas se calculan como porcentajes del ritmo umbral estimado.
   static Map<ZonaRitmo, _RangoRitmo> calcularZonasPersonalizadas(
       List<CarreraStats> carreras) {
     if (carreras.isEmpty) return _zonasDefault();
-
-    // Ritmo umbral estimado: percentil 20 más rápido de las últimas 10 carreras
     final recientes = carreras.take(10).map((c) => c.ritmoMinKm).toList()
       ..sort();
     final umbral = recientes[(recientes.length * 0.2).floor()];
-
     return {
       ZonaRitmo.recuperacion: _RangoRitmo(umbral * 1.30, double.infinity),
       ZonaRitmo.facil:        _RangoRitmo(umbral * 1.15, umbral * 1.30),
@@ -339,12 +467,10 @@ class StatsService {
   // COMPARATIVA DE RUTA
   // ==========================================================================
 
-  /// Busca en el historial la carrera anterior que más se solape con la actual.
   static ComparativaRuta? compararConAnterior(
       CarreraStats actual, List<CarreraStats> historial) {
     if (historial.length < 2 || actual.ruta.isEmpty) return null;
 
-    // Buscar la carrera más similar por ruta (excluir la actual)
     CarreraStats? mejorMatch;
     double mejorScore = 0;
 
@@ -357,11 +483,9 @@ class StatsService {
       }
     }
 
-    // Si hay menos de 30% de solapamiento, no es la misma ruta
     if (mejorMatch == null || mejorScore < 0.30) return null;
 
-    final deltaRitmo = (actual.ritmoMinKm - mejorMatch.ritmoMinKm) * 60; // en segundos
-
+    final deltaRitmo = (actual.ritmoMinKm - mejorMatch.ritmoMinKm) * 60;
     return ComparativaRuta(
       actual:           actual,
       anterior:         mejorMatch,
@@ -370,17 +494,11 @@ class StatsService {
     );
   }
 
-  /// Calcula solapamiento geográfico entre dos rutas (0.0 → 1.0).
   static double _solapamientoRuta(List<LatLng> r1, List<LatLng> r2) {
     if (r1.isEmpty || r2.isEmpty) return 0;
-    const radioM = 50.0; // punto "cerca" si está a <50m
-    int cercanos = 0;
-
-    // Muestra aleatoria para no hacer O(n²) completo
-    final muestra = r1.length > 20
-        ? r1.where((_, ) => true).take(20).toList()
-        : r1;
-
+    const radioM  = 50.0;
+    int cercanos  = 0;
+    final muestra = r1.length > 20 ? r1.take(20).toList() : r1;
     for (final p1 in muestra) {
       for (final p2 in r2) {
         if (Geolocator.distanceBetween(
@@ -398,12 +516,8 @@ class StatsService {
   // GEOCODING — CALLES RECORRIDAS
   // ==========================================================================
 
-  /// Extrae los nombres de calles únicas de una ruta usando Mapbox Geocoding.
-  /// Hace una petición cada ~200m para no saturar la API.
   static Future<List<String>> extraerCalles(List<LatLng> ruta) async {
     if (ruta.isEmpty || mapboxToken.isEmpty) return [];
-
-    // Muestrear cada ~200m
     final muestras = _muestrearRuta(ruta, cadaMetros: 200);
     final calles   = <String>{};
 
@@ -416,7 +530,7 @@ class StatsService {
         );
         final resp = await http.get(url).timeout(const Duration(seconds: 4));
         if (resp.statusCode == 200) {
-          final data    = json.decode(resp.body);
+          final data     = json.decode(resp.body);
           final features = data['features'] as List<dynamic>?;
           if (features != null && features.isNotEmpty) {
             final text = features.first['text'] as String?;
@@ -425,17 +539,14 @@ class StatsService {
         }
       } catch (_) {}
     }
-
     return calles.toList();
   }
 
-  /// Muestrea puntos de la ruta cada [cadaMetros] metros aprox.
   static List<LatLng> _muestrearRuta(List<LatLng> ruta,
       {required double cadaMetros}) {
     if (ruta.isEmpty) return [];
     final resultado = <LatLng>[ruta.first];
     double acumulado = 0;
-
     for (int i = 1; i < ruta.length; i++) {
       acumulado += Geolocator.distanceBetween(
         ruta[i - 1].latitude, ruta[i - 1].longitude,
@@ -450,68 +561,59 @@ class StatsService {
   }
 
   // ==========================================================================
-  // GUARDAR CARRERA CON RUTA Y CALLES EN FIRESTORE
+  // GUARDAR CARRERA CON RUTA Y CALLES
   // ==========================================================================
 
-  /// Enriquece un activity_log existente con ruta y calles.
-  /// Llamar desde stopTracking() en LiveActivity tras guardar el log base.
   static Future<void> enriquecerLog({
     required String logId,
     required List<LatLng> ruta,
   }) async {
     try {
-      // Reducir ruta a máximo 500 puntos para no saturar Firestore
       final rutaReducida = _reducirRuta(ruta, maxPuntos: 500);
-      final rutaJson = rutaReducida
+      final rutaJson     = rutaReducida
           .map((p) => {'lat': p.latitude, 'lng': p.longitude})
           .toList();
-
-      // Extraer calles (async, no bloquea la UI)
       final calles = await extraerCalles(rutaReducida);
-
       await FirebaseFirestore.instance
           .collection('activity_logs')
           .doc(logId)
-          .update({
-        'ruta':   rutaJson,
-        'calles': calles,
-      });
+          .update({'ruta': rutaJson, 'calles': calles});
     } catch (e) {
       debugPrint('StatsService.enriquecerLog error: $e');
     }
   }
 
-  /// Reduce la ruta a [maxPuntos] usando muestreo uniforme.
-  static List<LatLng> _reducirRuta(List<LatLng> ruta, {required int maxPuntos}) {
+  static List<LatLng> _reducirRuta(List<LatLng> ruta,
+      {required int maxPuntos}) {
     if (ruta.length <= maxPuntos) return ruta;
     final paso      = ruta.length / maxPuntos;
     final resultado = <LatLng>[];
     for (int i = 0; i < maxPuntos; i++) {
-      resultado.add(ruta[(i * paso).round().clamp(0, ruta.length - 1)]);
+      resultado
+          .add(ruta[(i * paso).round().clamp(0, ruta.length - 1)]);
     }
     return resultado;
   }
 
   // ==========================================================================
-  // HELPERS INTERNOS
+  // HELPERS
   // ==========================================================================
 
   static double _calcularRitmo(double distanciaKm, int tiempoSeg) {
     if (distanciaKm <= 0) return 0;
-    return (tiempoSeg / 60) / distanciaKm; // min/km
+    return (tiempoSeg / 60) / distanciaKm;
   }
 
   static ZonaRitmo _calcularZona(double ritmoMinKm) {
-    if (ritmoMinKm <= 0)   return ZonaRitmo.recuperacion;
-    if (ritmoMinKm < 4.5)  return ZonaRitmo.competicion;
-    if (ritmoMinKm < 5.5)  return ZonaRitmo.umbral;
-    if (ritmoMinKm < 6.5)  return ZonaRitmo.moderado;
-    if (ritmoMinKm < 7.5)  return ZonaRitmo.facil;
+    if (ritmoMinKm <= 0)  return ZonaRitmo.recuperacion;
+    if (ritmoMinKm < 4.5) return ZonaRitmo.competicion;
+    if (ritmoMinKm < 5.5) return ZonaRitmo.umbral;
+    if (ritmoMinKm < 6.5) return ZonaRitmo.moderado;
+    if (ritmoMinKm < 7.5) return ZonaRitmo.facil;
     return ZonaRitmo.recuperacion;
   }
 }
 
-// ── Rango interno ─────────────────────────────────────────────────────────────
 class _RangoRitmo {
   final double min;
   final double max;
