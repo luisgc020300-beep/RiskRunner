@@ -19,8 +19,8 @@ import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 // =============================================================================
 
 class _RCConfig {
-  static const String apiKeyAndroid      = 'TU_KEY_ANDROID_AQUI';
-  static const String apiKeyIOS          = 'TU_KEY_IOS_AQUI';
+  static const String apiKeyAndroid = 'test_uPkAErvOEhdfmFYunHaZuAVyn1c';
+  static const String apiKeyIOS     = 'test_uPkAErvOEhdfmFYunHaZuAVyn1c';
   static const String entitlementPremium = 'premium';
 }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:RiskRunner/Pesta%C3%B1as/create_post_screen.dart';
 import 'package:RiskRunner/Pesta%C3%B1as/paywall_screen.dart';
 import 'package:RiskRunner/services/league_service.dart';
 import 'package:flutter/foundation.dart';
@@ -28,7 +29,7 @@ import '../widgets/conquista_overlay.dart';
 // =============================================================================
 // MAPBOX
 // =============================================================================
-const _kMapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
+const _kMapboxToken = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
@@ -487,23 +488,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadAmigos() async {
     if (userId == null) return;
     try {
-      // ── OPTIMIZACIÓN: 2 queries filtradas en paralelo en vez de
-      // descargar TODAS las amistades de la app y filtrar en cliente.
-      final snaps = await Future.wait([
-        FirebaseFirestore.instance
-            .collection('friendships')
-            .where('senderId', isEqualTo: userId)
-            .where('status', isEqualTo: 'accepted')
-            .get(),
-        FirebaseFirestore.instance
-            .collection('friendships')
-            .where('receiverId', isEqualTo: userId)
-            .where('status', isEqualTo: 'accepted')
-            .get(),
-      ]);
+      final snap = await FirebaseFirestore.instance
+          .collection('friendships')
+          .where('status', isEqualTo: 'accepted')
+          .get();
 
-      // Set elimina duplicados si un doc aparece en ambas queries (no debería, pero por seguridad)
-      final misFriendships = {...snaps[0].docs, ...snaps[1].docs}.toList();
+      final misFriendships = snap.docs.where((doc) =>
+          doc['senderId'] == userId || doc['receiverId'] == userId).toList();
 
       final futures = misFriendships.map((doc) {
         final friendId = doc['senderId'] == userId
@@ -556,19 +547,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (mounted) setState(() => _loadingCercanos = true);
     final bool usarFiltroDistancia = !kIsWeb && _currentPosition != null;
     try {
-      // ── OPTIMIZACIÓN: reutilizar _territorios ya cargado en memoria.
-      // Antes hacía .collection('territories').get() sin filtro — descargaba
-      // TODOS los territorios de TODOS los usuarios de la app.
-      // Ahora reutiliza la lista que _cargarTerritorios() ya tiene en memoria,
-      // con 0 lecturas adicionales de Firestore.
-      if (_territorios.isEmpty) await _cargarTerritorios();
-
+      final snap = await FirebaseFirestore.instance.collection('territories').get();
       final Map<String, _UserTerritoryGroup> grupos = {};
       final myUid = userId!;
 
-      for (final t in _territorios) {
-        final double latC = t.centro.latitude;
-        final double lngC = t.centro.longitude;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final rawPuntos = data['puntos'] as List<dynamic>?;
+        if (rawPuntos == null || rawPuntos.isEmpty) continue;
+
+        final List<LatLng> puntos = rawPuntos.map((p) {
+          final map = p as Map<String, dynamic>;
+          return LatLng((map['lat'] as num).toDouble(), (map['lng'] as num).toDouble());
+        }).toList();
+
+        final double latC = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
+        final double lngC = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
 
         double distMetros = 0;
         if (_currentPosition != null) {
@@ -577,24 +571,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
         if (usarFiltroDistancia && distMetros > 5000) continue;
 
-        final String ownerId = t.ownerId;
+        final String ownerId = data['userId'] as String? ?? '';
         if (ownerId.isEmpty) continue;
 
         if (!grupos.containsKey(ownerId)) {
+          String ownerNick = ownerId == myUid ? nickname : ownerId;
+          int ownerNivel = 1;
+          try {
+            final playerDoc = await FirebaseFirestore.instance
+                .collection('players').doc(ownerId).get();
+            if (playerDoc.exists) {
+              final pd = playerDoc.data()!;
+              ownerNick = pd['nickname'] ?? ownerNick;
+              ownerNivel = pd['nivel'] ?? 1;
+            }
+          } catch (_) {}
           grupos[ownerId] = _UserTerritoryGroup(
-            ownerId:     ownerId,
-            nickname:    t.ownerNickname.isNotEmpty ? t.ownerNickname : ownerId,
-            nivel:       1,
-            esMio:       ownerId == myUid,
-            territorios: [],
-          );
+            ownerId: ownerId, nickname: ownerNick, nivel: ownerNivel,
+            esMio: ownerId == myUid, territorios: []);
         }
 
         grupos[ownerId]!.territorios.add(_TerritoryDetail(
-          docId:               t.docId,
-          distanciaAlCentroKm: distMetros / 1000,
-          puntos:              t.puntos,
-        ));
+            docId: doc.id,
+            distanciaAlCentroKm: distMetros / 1000,
+            puntos: puntos));
       }
 
       final lista = grupos.values.toList()
@@ -1434,6 +1434,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // Recarga solo las historias sin recargar todo el Home
+  Future<void> _recargarHistorias() async {
+    try {
+      final misHistorias = await StoryService.fetchMyActiveStories(
+          defaultColor: _accentColor);
+      final amigoIds = _amigos.map((a) => a['id'] as String).toList();
+      final storiesPorAmigo = await StoryService.fetchActiveStoriesForUsers(
+          amigoIds, defaultColor: _accentColor);
+      if (mounted) {
+        setState(() {
+          _misHistorias = misHistorias;
+          _storiesPorAmigo = storiesPorAmigo;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error recargando historias: $e');
+    }
+  }
+
   void _openStoryViewer({
     required bool isMe,
     required Map<String, dynamic> item,
@@ -1442,7 +1461,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     if (isMe) {
       if (_misHistorias.isEmpty) {
-        CustomBottomNavbar.abrirCrearPost(context);
+        // Abrir CreatePost y recargar historias al volver
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const CreatePostScreen(),
+          ),
+        ).then((_) {
+          if (mounted) _recargarHistorias();
+        });
         return;
       }
       Navigator.push(context, PageRouteBuilder(
@@ -1453,7 +1481,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           initialGroupIndex: 0,
         ),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-      ));
+      )).then((_) {
+        // Recargar para actualizar el estado "visto"
+        if (mounted) _recargarHistorias();
+      });
       return;
     }
 

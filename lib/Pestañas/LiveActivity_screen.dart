@@ -200,7 +200,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     super.initState();
     _modoNoche = _esHoraNoche();
 
-    StatsService.mapboxToken = const String.fromEnvironment('MAPBOX_TOKEN');
+    StatsService.mapboxToken = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
 
     _cuentaAtrasAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
