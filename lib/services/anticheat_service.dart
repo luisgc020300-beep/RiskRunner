@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -177,16 +178,18 @@ class AntiCheatService {
   // ==========================================================================
 
   AntiCheatResultado _checkMockLocation(Position pos) {
-    // Geolocator expone isMocked en Android
-    if (pos.isMocked) {
-      return AntiCheatResultado(
-        veredicto: AntiCheatVeredicto.mockLocation,
-        esValido: false,
-        detalle: 'Mock location detectada (Android)',
-      );
-    }
-    return AntiCheatResultado.valido;
+  // isMocked solo funciona en Android — en iOS siempre es false
+  // La protección en iOS la dan los checks de velocidad y teletransporte
+  if (!Platform.isAndroid) return AntiCheatResultado.valido;
+  if (pos.isMocked) {
+    return AntiCheatResultado(
+      veredicto: AntiCheatVeredicto.mockLocation,
+      esValido: false,
+      detalle: 'Mock location detectada (Android)',
+    );
   }
+  return AntiCheatResultado.valido;
+}
 
   AntiCheatResultado _checkPrecision(Position pos) {
     if (pos.accuracy > AntiCheatConfig.precisionMinM) {

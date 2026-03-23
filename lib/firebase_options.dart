@@ -72,7 +72,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1097151479835',
     projectId: 'runnerriskapp',
     storageBucket: 'runnerriskapp.firebasestorage.app',
-    iosBundleId: 'com.example.miApp',
+    iosBundleId: 'com.riskrunner.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
