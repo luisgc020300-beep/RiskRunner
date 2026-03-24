@@ -3,6 +3,10 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Sistema de Suscripción Premium
 //  purchases_flutter ^9.x
+//
+//  CAMBIOS v3:
+//    - Las claves se leen desde lib/config/env.dart (no hardcodeadas)
+//    - env.dart está en .gitignore y nunca se sube al repo
 // ══════════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
@@ -14,15 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 
-// =============================================================================
-// CONFIGURACIÓN
-// =============================================================================
-
-class _RCConfig {
-  static const String apiKeyAndroid = 'test_uPkAErvOEhdfmFYunHaZuAVyn1c';
-  static const String apiKeyIOS     = 'test_uPkAErvOEhdfmFYunHaZuAVyn1c';
-  static const String entitlementPremium = 'premium';
-}
+import '../config/env.dart';
 
 // =============================================================================
 // MODELO DE ESTADO
@@ -68,22 +64,13 @@ class SubscriptionStatus {
 // =============================================================================
 
 class PremiumFeatures {
-  /// Radio del radar: 300m free / 500m premium
   static const double radioRadarFreeM    = 300.0;
   static const double radioRadarPremiumM = 500.0;
-
-  /// Historial de carreras: 30 free / 200 premium
   static const int limitHistorialFree    = 30;
   static const int limitHistorialPremium = 200;
-
-  /// Rutas guardadas: 5 free / ilimitadas premium
   static const int rutasGuardadasFree    = 5;
   static const int rutasGuardadasPremium = 9999;
-
-  /// Días de escudo de bienvenida al suscribirse
   static const int diasEscudoBienvenida  = 7;
-
-  /// Monedas de bienvenida al suscribirse
   static const int monedasBienvenida     = 500;
 }
 
@@ -134,11 +121,16 @@ class SubscriptionService {
 
   static Future<void> inicializar(String userId) async {
     try {
-      await rc.Purchases.setLogLevel(rc.LogLevel.error);
+      await rc.Purchases.setLogLevel(
+        Env.isDebug ? rc.LogLevel.debug : rc.LogLevel.error,
+      );
 
-      final configuration = rc.PurchasesConfiguration(
-        Platform.isAndroid ? _RCConfig.apiKeyAndroid : _RCConfig.apiKeyIOS,
-      )..appUserID = userId;
+      final apiKey = Platform.isAndroid
+          ? Env.revenueCatAndroid
+          : Env.revenueCatIOS;
+
+      final configuration = rc.PurchasesConfiguration(apiKey)
+        ..appUserID = userId;
 
       await rc.Purchases.configure(configuration);
       rc.Purchases.addCustomerInfoUpdateListener(_onCustomerInfoUpdated);
@@ -158,7 +150,6 @@ class SubscriptionService {
     _currentStatus = status;
     _statusController.add(status);
     _sincronizarConFirestore(status);
-    debugPrint('🔄 CustomerInfo actualizado — Premium: ${status.isPremium}');
   }
 
   // ── REFRESCAR ─────────────────────────────────────────────────────────────
@@ -242,7 +233,7 @@ class SubscriptionService {
 
   static SubscriptionStatus _parseCustomerInfo(rc.CustomerInfo info) {
     final entitlement =
-        info.entitlements.active[_RCConfig.entitlementPremium];
+        info.entitlements.active[Env.entitlementPremium];
 
     if (entitlement == null) return SubscriptionStatus.free;
 
@@ -299,16 +290,12 @@ class SubscriptionService {
         'premium_retos_extra':         true,
         'premium_animacion_conquista': true,
       });
-      debugPrint('✅ Features Premium activadas en Firestore');
     } catch (e) {
       debugPrint('Error activando features premium: $e');
     }
   }
 
   // ── RECOMPENSA BIENVENIDA ─────────────────────────────────────────────────
-  // FIX: ahora escribe escudo_activo + escudo_expira que son los campos
-  // que lee el juego en home_screen para verificar si el territorio
-  // está protegido. Antes escribía 'proteccion_hasta' que nadie leía.
 
   static Future<void> _darRecompensaBienvenida() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -319,17 +306,11 @@ class SubscriptionService {
       if (yaRecibio) return;
 
       final escudoExpira = DateTime.now()
-          .add(Duration(days: PremiumFeatures.diasEscudoBienvenida));
+          .add(const Duration(days: PremiumFeatures.diasEscudoBienvenida));
 
       await _db.collection('players').doc(uid).update({
-        // Monedas de bienvenida
-        'monedas':                FieldValue.increment(
-            PremiumFeatures.monedasBienvenida),
-        // Flag para no dar la recompensa dos veces
+        'monedas':                FieldValue.increment(PremiumFeatures.monedasBienvenida),
         'premium_welcome_reward': true,
-        // ── Escudo: campos que lee el juego ──────────────────────────────
-        // home_screen.dart lee escudo_activo + escudo_expira
-        // NO el campo 'proteccion_hasta' que había antes
         'escudo_activo':          true,
         'escudo_expira':          Timestamp.fromDate(escudoExpira),
       });
@@ -344,9 +325,6 @@ class SubscriptionService {
         'read':      false,
         'timestamp': FieldValue.serverTimestamp(),
       });
-
-      debugPrint('✅ Recompensa de bienvenida premium entregada — '
-          'escudo hasta: $escudoExpira');
     } catch (e) {
       debugPrint('Error entregando recompensa premium: $e');
     }
