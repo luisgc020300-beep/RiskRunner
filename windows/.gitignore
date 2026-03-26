@@ -1,17 +1,48 @@
-flutter/ephemeral/
+# ── Claves y archivos sensibles — NUNCA subir ─────────────────
+lib/config/env.dart
+google-services.json
+GoogleService-Info.plist
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/google-services.json
+ios/GoogleService-Info.plist
 
-# Visual Studio user-specific files.
+# ── Flutter / Dart ────────────────────────────────────────────
+flutter/ephemeral/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+pubspec.lock
+
+# ── Android ──────────────────────────────────────────────────
+android/local.properties
+
+# ── iOS ───────────────────────────────────────────────────────
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+
+# ── Visual Studio ─────────────────────────────────────────────
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
-
-# Visual Studio build-related files.
 x64/
 x86/
-
-# Visual Studio cache files
-# files ending in .cache can be ignored
 *.[Cc]ache
-# but keep track of directories ending in .cache
 !*.[Cc]ache/
+
+# ── IDEs ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# ── macOS ─────────────────────────────────────────────────────
+.DS_Store

@@ -7,10 +7,12 @@
  *   firebase deploy --only functions
  *
  * FUNCIONES:
- *   1. resolverDesafioExpirado   — se activa sola cada hora (scheduled)
- *   2. onDesafioActualizado      — se activa cuando cambia un desafío (trigger)
- *   3. acumularPuntosDesafio     — llamada desde el cliente al terminar carrera
- *   4. cerrarTemporada           — llamada desde admin para cerrar la temporada
+ *   1. resolverDesafioExpirado     — se activa sola cada hora (scheduled)
+ *   2. onDesafioActualizado        — se activa cuando cambia un desafío (trigger)
+ *   3. acumularPuntosDesafio       — llamada desde el cliente al terminar carrera
+ *   4. cerrarTemporada             — llamada desde admin para cerrar la temporada
+ *   5. conquistarTerritorio        — llamada desde el cliente para conquistar un territorio
+ *   6. renombrarTerritorio         — llamada desde el cliente para poner nombre a un territorio
  */
 
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
@@ -25,21 +27,11 @@ const db = getFirestore();
 // =============================================================================
 // 1. RESOLVER DESAFÍOS EXPIRADOS — se ejecuta cada hora automáticamente
 // =============================================================================
-// Antes: el cliente llamaba a verificarExpirados() al abrir la app.
-//   → Problema: si los dos jugadores tienen la app cerrada, el desafío
-//     nunca se resuelve. Además, dos clientes podían resolver el mismo
-//     desafío a la vez (race condition).
-//
-// Ahora: esta función se ejecuta cada hora en el servidor.
-//   → El desafío siempre se resuelve a tiempo.
-//   → La transacción de Firestore garantiza que solo se resuelve UNA vez.
-
 exports.resolverDesafiosExpirados = onSchedule(
   { schedule: 'every 60 minutes', region: 'europe-west1' },
   async () => {
     const ahora = Timestamp.now();
 
-    // Buscar todos los desafíos activos que ya pasaron su fecha de fin
     const snap = await db.collection('desafios')
       .where('estado', '==', 'activo')
       .where('fin', '<=', ahora)
@@ -52,7 +44,6 @@ exports.resolverDesafiosExpirados = onSchedule(
 
     console.log(`Resolviendo ${snap.docs.length} desafíos expirados...`);
 
-    // Resolver cada uno en paralelo (cada uno con su propia transacción)
     const promesas = snap.docs.map(doc => _resolverDesafio(doc.id));
     const resultados = await Promise.allSettled(promesas);
 
@@ -63,21 +54,16 @@ exports.resolverDesafiosExpirados = onSchedule(
 );
 
 // =============================================================================
-// 2. TRIGGER — cuando un desafío pasa a 'activo', programar su resolución
+// 2. TRIGGER — cuando un desafío pasa a 'activo', comprobar si ya expiró
 // =============================================================================
-// Esto es un respaldo extra: si por alguna razón el scheduler falla,
-// este trigger comprueba al momento de aceptar si el desafío ya expiró.
-
 exports.onDesafioActualizado = onDocumentUpdated(
   { document: 'desafios/{desafioId}', region: 'europe-west1' },
   async (event) => {
-    const antes  = event.data.before.data();
+    const antes   = event.data.before.data();
     const despues = event.data.after.data();
 
-    // Solo nos importa cuando pasa de 'pendiente' a 'activo'
     if (antes.estado !== 'pendiente' || despues.estado !== 'activo') return;
 
-    // Si la fecha de fin ya pasó en el momento de activarse, resolver directamente
     const fin = despues.fin;
     if (fin && fin.toDate() <= new Date()) {
       console.log(`Desafío ${event.params.desafioId} expirado al activarse. Resolviendo...`);
@@ -89,25 +75,9 @@ exports.onDesafioActualizado = onDocumentUpdated(
 // =============================================================================
 // 3. ACUMULAR PUNTOS — llamada desde Flutter al terminar una carrera
 // =============================================================================
-// Antes: el cliente escribía directamente en Firestore con FieldValue.increment.
-//   → Problema: un cliente malicioso podía enviar distanciaKm = 9999.
-//
-// Ahora: el servidor valida los datos antes de acumular.
-//   → Límites razonables: máx 50km por carrera, máx 100 territorios.
-//   → Si el desafío ya expiró, lo resuelve en vez de sumar puntos.
-//
-// LLAMADA DESDE FLUTTER:
-//   final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
-//       .httpsCallable('acumularPuntosDesafio');
-//   await callable.call({
-//     'distanciaKm': 5.2,
-//     'territoriosConquistados': 3,
-//   });
-
 exports.acumularPuntosDesafio = onCall(
   { region: 'europe-west1' },
   async (request) => {
-    // Autenticación obligatoria
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'Usuario no autenticado.');
     }
@@ -115,7 +85,6 @@ exports.acumularPuntosDesafio = onCall(
     const uid = request.auth.uid;
     const { distanciaKm, territoriosConquistados } = request.data;
 
-    // Validación de datos
     if (typeof distanciaKm !== 'number' || distanciaKm < 0 || distanciaKm > 100) {
       throw new HttpsError('invalid-argument', 'distanciaKm inválida.');
     }
@@ -127,7 +96,6 @@ exports.acumularPuntosDesafio = onCall(
     const puntos = Math.round(territoriosConquistados * 10 + distanciaKm * 5);
     if (puntos === 0) return { puntosAcumulados: 0, desafiosActualizados: 0 };
 
-    // Buscar desafíos activos del usuario (2 queries en paralelo)
     const [snapRetador, snapRetado] = await Promise.all([
       db.collection('desafios')
         .where('retadorId', '==', uid)
@@ -139,7 +107,6 @@ exports.acumularPuntosDesafio = onCall(
         .get(),
     ]);
 
-    // Merge sin duplicados
     const docsMap = new Map();
     [...snapRetador.docs, ...snapRetado.docs].forEach(d => docsMap.set(d.id, d));
     const docs = Array.from(docsMap.values());
@@ -152,7 +119,6 @@ exports.acumularPuntosDesafio = onCall(
       const data = doc.data();
       const fin  = data.fin;
 
-      // Si ya expiró, resolver en vez de sumar
       if (fin && fin.toDate() <= new Date()) {
         await _resolverDesafio(doc.id);
         return;
@@ -172,24 +138,9 @@ exports.acumularPuntosDesafio = onCall(
 // =============================================================================
 // 4. CERRAR TEMPORADA — llamada desde panel de admin
 // =============================================================================
-// Antes: cerrarTemporada() se ejecutaba desde el cliente (zona_service.dart).
-//   → Problema: hace N queries en loop (una por zona) + batch con todas
-//     las operaciones. Podía tardar minutos y fallar a la mitad sin rollback.
-//
-// Ahora: se ejecuta en el servidor con timeout extendido (540s).
-//   → Solo usuarios admin pueden llamarla (comprueba custom claim).
-//   → Si falla, no deja la temporada en estado inconsistente.
-//
-// LLAMADA DESDE FLUTTER (solo desde panel admin):
-//   final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
-//       .httpsCallable('cerrarTemporada');
-//   final result = await callable.call({'temporadaId': 'abc123'});
-//   print('Títulos otorgados: ${result.data['titulosOtorgados']}');
-
 exports.cerrarTemporada = onCall(
   { region: 'europe-west1', timeoutSeconds: 540 },
   async (request) => {
-    // Solo admins
     if (!request.auth || !request.auth.token.admin) {
       throw new HttpsError('permission-denied', 'Solo administradores.');
     }
@@ -199,7 +150,6 @@ exports.cerrarTemporada = onCall(
       throw new HttpsError('invalid-argument', 'temporadaId requerido.');
     }
 
-    // Leer la temporada
     const temporadaDoc = await db.collection('temporadas').doc(temporadaId).get();
     if (!temporadaDoc.exists) {
       throw new HttpsError('not-found', 'Temporada no encontrada.');
@@ -209,19 +159,14 @@ exports.cerrarTemporada = onCall(
       throw new HttpsError('failed-precondition', 'La temporada ya está cerrada.');
     }
 
-    // Obtener todas las zonas
-    const zonasSnap = await db.collection('zonas').orderBy('nombre').get();
-    const zonas = zonasSnap.docs;
-
-    // Obtener todos los territorios (una sola query)
+    const zonasSnap      = await db.collection('zonas').orderBy('nombre').get();
+    const zonas          = zonasSnap.docs;
     const territoriosSnap = await db.collection('territories').get();
 
-    // Calcular dominio por zona en memoria (sin más queries)
-    // Para cada zona: Map<userId, areaM2>
-    const dominioMap = new Map(); // zonaId → Map<userId, areaM2>
+    const dominioMap = new Map();
 
     for (const terDoc of territoriosSnap.docs) {
-      const t = terDoc.data();
+      const t   = terDoc.data();
       const uid = t.userId;
       if (!uid || !t.puntos || t.puntos.length < 3) continue;
 
@@ -241,7 +186,6 @@ exports.cerrarTemporada = onCall(
       }
     }
 
-    // Preparar batch (máx 500 ops por batch — dividimos si hay muchas zonas)
     let titulosOtorgados = 0;
     let batch = db.batch();
     let opsEnBatch = 0;
@@ -254,9 +198,8 @@ exports.cerrarTemporada = onCall(
       }
     };
 
-    // Cargar nicks de players que ganaron (en paralelo, solo los ganadores)
     const ganadorIds = new Set();
-    for (const [zonaId, userMap] of dominioMap.entries()) {
+    for (const [, userMap] of dominioMap.entries()) {
       if (userMap.size === 0) continue;
       const [ganadorId] = [...userMap.entries()].reduce((a, b) => a[1] >= b[1] ? a : b);
       const areaDominada = userMap.get(ganadorId);
@@ -268,9 +211,8 @@ exports.cerrarTemporada = onCall(
     );
     const playerMap = new Map(playerDocs.map(d => [d.id, d.data()]));
 
-    // Procesar cada zona
     for (const zonaDoc of zonas) {
-      const zona = zonaDoc.data();
+      const zona    = zonaDoc.data();
       const userMap = dominioMap.get(zonaDoc.id);
       if (!userMap || userMap.size === 0) continue;
 
@@ -285,7 +227,6 @@ exports.cerrarTemporada = onCall(
       const nick    = playerData.nickname || 'Runner';
       const monedas = temporada.monedas_base || 500;
 
-      // Título histórico
       const tituloRef = db.collection('titulos_rey').doc();
       batch.set(tituloRef, {
         userId:             ganadorId,
@@ -301,33 +242,30 @@ exports.cerrarTemporada = onCall(
       });
       opsEnBatch++;
 
-      // Actualizar zona
       batch.update(db.collection('zonas').doc(zonaDoc.id), {
-        rey_actual_id:   ganadorId,
-        rey_actual_nick: nick,
+        rey_actual_id:    ganadorId,
+        rey_actual_nick:  nick,
         temporada_actual: temporada.numero,
       });
       opsEnBatch++;
 
-      // Monedas al ganador
       batch.update(db.collection('players').doc(ganadorId), {
         monedas: FieldValue.increment(monedas),
         'avatar_config.coronaDesbloqueada': true,
       });
       opsEnBatch++;
 
-      // Notificación
       const notifRef = db.collection('notifications').doc();
       batch.set(notifRef, {
-        toUserId:         ganadorId,
-        type:             'titulo_rey',
-        zonaId:           zonaDoc.id,
-        zonaNombre:       zona.nombre_corto || zona.nombre,
-        temporada:        temporada.numero,
+        toUserId:          ganadorId,
+        type:              'titulo_rey',
+        zonaId:            zonaDoc.id,
+        zonaNombre:        zona.nombre_corto || zona.nombre,
+        temporada:         temporada.numero,
         monedasRecompensa: monedas,
-        message:          `👑 ¡Eres el Rey de ${zona.nombre_corto || zona.nombre} en la T${temporada.numero}! +${monedas} 🪙`,
-        read:             false,
-        timestamp:        FieldValue.serverTimestamp(),
+        message:           `👑 ¡Eres el Rey de ${zona.nombre_corto || zona.nombre} en la T${temporada.numero}! +${monedas} 🪙`,
+        read:              false,
+        timestamp:         FieldValue.serverTimestamp(),
       });
       opsEnBatch++;
 
@@ -335,7 +273,6 @@ exports.cerrarTemporada = onCall(
       await _commitBatchSiLleno();
     }
 
-    // Cerrar temporada
     batch.update(db.collection('temporadas').doc(temporadaId), {
       activa:       false,
       fecha_cierre: FieldValue.serverTimestamp(),
@@ -349,11 +286,243 @@ exports.cerrarTemporada = onCall(
 );
 
 // =============================================================================
+// 5. CONQUISTAR TERRITORIO — llamada desde Flutter cuando el usuario conquista
+// =============================================================================
+//
+// Valida en el servidor:
+//   1. El territorio existe
+//   2. El atacante no es el dueño actual (si lo es, solo registra visita)
+//   3. El territorio lleva >= 10 días sin visita
+//   4. El usuario está físicamente a <= 200 m del centro del territorio
+//
+// Todo dentro de una transacción atómica — imposible doble conquista.
+//
+// LLAMADA DESDE FLUTTER:
+//   final callable = FirebaseFunctions.instance.httpsCallable('conquistarTerritorio');
+//   final result   = await callable.call({
+//     'docId':      territorio.docId,
+//     'latUsuario': posicion.latitude,
+//     'lngUsuario': posicion.longitude,
+//   });
+
+exports.conquistarTerritorio = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+  }
+
+  const uid = request.auth.uid;
+  const { docId, latUsuario, lngUsuario } = request.data;
+
+  if (!docId || typeof docId !== 'string') {
+    throw new HttpsError('invalid-argument', 'docId inválido.');
+  }
+  if (typeof latUsuario !== 'number' || typeof lngUsuario !== 'number') {
+    throw new HttpsError('invalid-argument', 'Coordenadas inválidas.');
+  }
+
+  const territorioRef = db.collection('territories').doc(docId);
+  const playerRef     = db.collection('players').doc(uid);
+
+  try {
+    const resultado = await db.runTransaction(async (tx) => {
+      const [territorioSnap, playerSnap] = await Promise.all([
+        tx.get(territorioRef),
+        tx.get(playerRef),
+      ]);
+
+      if (!territorioSnap.exists) {
+        throw new HttpsError('not-found', 'El territorio no existe.');
+      }
+
+      const t         = territorioSnap.data();
+      const duenoId   = t.userId;
+      const nuevoNick = playerSnap.exists ? (playerSnap.data().nickname ?? 'Alguien') : 'Alguien';
+
+      // Si es nuestro propio territorio → solo visita
+      if (duenoId === uid) {
+        tx.update(territorioRef, {
+          ultima_visita: FieldValue.serverTimestamp(),
+        });
+        return { accion: 'visita' };
+      }
+
+      // Validar deterioro >= 10 días
+      const ultimaVisita  = t.ultima_visita ? t.ultima_visita.toMillis() : 0;
+      const diasSinVisita = (Date.now() - ultimaVisita) / (1000 * 60 * 60 * 24);
+
+      if (diasSinVisita < 10) {
+        throw new HttpsError(
+          'failed-precondition',
+          `El territorio solo lleva ${Math.floor(diasSinVisita)} días sin visita. Necesita 10.`
+        );
+      }
+
+      // Validar proximidad <= 200 m
+      const latC       = t.centroLat ?? (t.centro?.lat ?? 0);
+      const lngC       = t.centroLng ?? (t.centro?.lng ?? 0);
+      const distanciaM = _haversineMetros(latUsuario, lngUsuario, latC, lngC);
+
+      if (distanciaM > 200) {
+        throw new HttpsError(
+          'failed-precondition',
+          `Debes estar a menos de 200 m del territorio (estás a ${Math.round(distanciaM)} m).`
+        );
+      }
+
+      const reyAnteriorId   = t.rey_id       ?? null;
+      const reyAnteriorNick = t.rey_nickname  ?? null;
+
+      tx.update(territorioRef, {
+        userId:            uid,
+        nickname:          nuevoNick,
+        ultima_visita:     FieldValue.serverTimestamp(),
+        conquistado_por:   uid,
+        fecha_conquista:   FieldValue.serverTimestamp(),
+        fecha_desde_dueno: FieldValue.serverTimestamp(),
+        rey_id:            null,
+        rey_nickname:      null,
+        rey_desde:         null,
+      });
+
+      return {
+        accion:          'conquista',
+        duenoAnteriorId: duenoId,
+        reyAnteriorId,
+        reyAnteriorNick,
+        nuevoNick,
+        clanId: playerSnap.exists ? (playerSnap.data().clanId ?? null) : null,
+      };
+    });
+
+    // Post-transacción: notificaciones y puntos clan
+    if (resultado.accion === 'conquista') {
+      const batch = db.batch();
+
+      batch.set(db.collection('notifications').doc(), {
+        toUserId:  resultado.duenoAnteriorId,
+        type:      'territory_lost',
+        message:   `⚔️ ${resultado.nuevoNick} ha conquistado uno de tus territorios.`,
+        read:      false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+
+      if (resultado.reyAnteriorId && resultado.reyAnteriorId !== '') {
+        batch.set(db.collection('notifications').doc(), {
+          toUserId:  resultado.reyAnteriorId,
+          type:      'territory_king_lost',
+          message:   `👑💀 ${resultado.nuevoNick} te ha arrebatado el reinado. Ya no eres Rey de ese territorio.`,
+          read:      false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      if (resultado.clanId) {
+        try {
+          await db.collection('clans').doc(resultado.clanId).update({
+            puntos: FieldValue.increment(25),
+          });
+        } catch (e) {
+          console.error('Error sumando puntos al clan:', e);
+        }
+      }
+    }
+
+    return { ok: true, accion: resultado.accion };
+
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    console.error('conquistarTerritorio error:', e);
+    throw new HttpsError('internal', 'Error interno al conquistar territorio.');
+  }
+});
+
+// =============================================================================
+// 6. RENOMBRAR TERRITORIO — llamada desde Flutter cuando el dueño pone nombre
+// =============================================================================
+//
+// Valida en el servidor:
+//   1. El usuario es el dueño actual del territorio
+//   2. El nombre no está vacío y tiene <= 30 caracteres
+//   3. Solo contiene caracteres permitidos (letras, números, espacios, - ' . ,)
+//   4. No contiene palabras de la lista negra
+//
+// LLAMADA DESDE FLUTTER:
+//   final callable = FirebaseFunctions.instance.httpsCallable('renombrarTerritorio');
+//   await callable.call({ 'docId': territorio.docId, 'nombre': 'Mi nombre' });
+
+exports.renombrarTerritorio = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+  }
+
+  const uid    = request.auth.uid;
+  const { docId, nombre } = request.data;
+
+  // 1. Validar parámetros
+  if (!docId || typeof docId !== 'string') {
+    throw new HttpsError('invalid-argument', 'docId inválido.');
+  }
+  if (typeof nombre !== 'string') {
+    throw new HttpsError('invalid-argument', 'El nombre debe ser texto.');
+  }
+
+  const nombreLimpio = nombre.trim();
+
+  // 2. Longitud
+  if (nombreLimpio.length === 0) {
+    throw new HttpsError('invalid-argument', 'El nombre no puede estar vacío.');
+  }
+  if (nombreLimpio.length > 30) {
+    throw new HttpsError('invalid-argument', 'El nombre no puede superar los 30 caracteres.');
+  }
+
+  // 3. Caracteres permitidos: letras (con acentos/ñ), números, espacios, - ' . ,
+  const formatoValido = /^[\p{L}\p{N} \-'.,!?áéíóúàèìòùäëïöüñçÁÉÍÓÚÀÈÌÒÙÄËÏÖÜÑÇ]+$/u;
+  if (!formatoValido.test(nombreLimpio)) {
+    throw new HttpsError('invalid-argument', 'El nombre contiene caracteres no permitidos.');
+  }
+
+  // 4. Lista negra — palabras prohibidas (insensible a mayúsculas y acentos)
+  const _normalizar = (s) => s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const LISTA_NEGRA = [
+    'puta','puto','polla','coño','joder','hostia','mierda','gilipollas',
+    'capullo','imbecil','idiota','subnormal','maricón','maricon','zorra',
+    'pendejo','culero','cabron','cabrón','hijo de puta','hdp',
+    'fuck','shit','bitch','asshole','cunt','dick','cock','pussy',
+    'nazi','hitler','kkk','isis','terrorista','violacion','violación',
+    'pedo','pedofil','pedofilo',
+  ];
+
+  const nombreNorm = _normalizar(nombreLimpio);
+  const palabraProhibida = LISTA_NEGRA.find(p => nombreNorm.includes(_normalizar(p)));
+  if (palabraProhibida) {
+    throw new HttpsError('invalid-argument', 'El nombre contiene contenido no permitido.');
+  }
+
+  // 5. Comprobar que el usuario es el dueño
+  const territorioRef = db.collection('territories').doc(docId);
+  const territorioSnap = await territorioRef.get();
+
+  if (!territorioSnap.exists) {
+    throw new HttpsError('not-found', 'El territorio no existe.');
+  }
+  if (territorioSnap.data().userId !== uid) {
+    throw new HttpsError('permission-denied', 'Solo el dueño puede renombrar su territorio.');
+  }
+
+  // 6. Guardar
+  await territorioRef.update({ nombre_territorio: nombreLimpio });
+
+  return { ok: true, nombre: nombreLimpio };
+});
+
+// =============================================================================
 // HELPER PRIVADO: resolver un desafío con transacción
 // =============================================================================
-// Usamos transacción para garantizar que aunque dos Cloud Functions
-// intenten resolver el mismo desafío a la vez, solo una lo hace.
-
 async function _resolverDesafio(desafioId) {
   return db.runTransaction(async (tx) => {
     const ref  = db.collection('desafios').doc(desafioId);
@@ -363,33 +532,29 @@ async function _resolverDesafio(desafioId) {
 
     const data   = snap.data();
     const estado = data.estado;
-    if (estado !== 'activo') return; // Ya resuelto por otra instancia
+    if (estado !== 'activo') return;
 
     const pRetador = data.puntosRetador || 0;
     const pRetado  = data.puntosRetado  || 0;
 
-    const ganadorId   = pRetador >= pRetado ? data.retadorId  : data.retadoId;
-    const perdedorId  = pRetador >= pRetado ? data.retadoId   : data.retadorId;
-    const ganadorNick = pRetador >= pRetado ? data.retadorNick : data.retadoNick;
-    const perdedorNick = pRetador >= pRetado ? data.retadoNick : data.retadorNick;
-    const premio = (data.apuesta || 0) * 2;
+    const ganadorId    = pRetador >= pRetado ? data.retadorId   : data.retadoId;
+    const perdedorId   = pRetador >= pRetado ? data.retadoId    : data.retadorId;
+    const ganadorNick  = pRetador >= pRetado ? data.retadorNick : data.retadoNick;
+    const perdedorNick = pRetador >= pRetado ? data.retadoNick  : data.retadorNick;
+    const premio       = (data.apuesta || 0) * 2;
 
-    // Marcar como finalizado
     tx.update(ref, {
       estado:     'finalizado',
       ganadorId,
       resolvedAt: FieldValue.serverTimestamp(),
     });
 
-    // Dar monedas al ganador
     if (premio > 0) {
       tx.update(db.collection('players').doc(ganadorId), {
         monedas: FieldValue.increment(premio),
       });
     }
 
-    // Las notificaciones van fuera de la transacción (no son críticas)
-    // Se escriben después de que la transacción confirme
     setImmediate(() => _enviarNotificacionesDesafio({
       desafioId, ganadorId, perdedorId,
       ganadorNick, perdedorNick, premio,
@@ -428,10 +593,23 @@ async function _enviarNotificacionesDesafio({
 }
 
 // =============================================================================
+// HELPER PRIVADO: distancia Haversine en metros
+// =============================================================================
+function _haversineMetros(lat1, lng1, lat2, lng2) {
+  const R    = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a    =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// =============================================================================
 // HELPER PRIVADO: calcular área de intersección entre dos polígonos (Sutherland-Hodgman)
 // =============================================================================
-// Misma lógica que zona_service.dart pero en JS, para el servidor.
-
 function _calcularAreaInterseccion(subject, clip) {
   const interseccion = _sutherlandHodgman(subject, clip);
   if (interseccion.length < 3) return 0;
@@ -444,10 +622,10 @@ function _sutherlandHodgman(subject, clip) {
 
   for (let i = 0; i < clip.length; i++) {
     if (output.length === 0) return [];
-    const input = [...output];
-    output = [];
-    const edgeStart = clip[i];
-    const edgeEnd   = clip[(i + 1) % clip.length];
+    const input      = [...output];
+    output           = [];
+    const edgeStart  = clip[i];
+    const edgeEnd    = clip[(i + 1) % clip.length];
 
     for (let j = 0; j < input.length; j++) {
       const current  = input[j];

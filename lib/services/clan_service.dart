@@ -295,11 +295,9 @@ class ClanService {
   }) async {
     if (myUid == null) return null;
 
-    // Verificar que no esté en otro clan
     final existing = await miClan();
     if (existing != null) throw Exception('Ya perteneces a un clan');
 
-    // Verificar tag único
     final tagSnap = await _db.collection('clans')
         .where('tag', isEqualTo: tag.toUpperCase()).limit(1).get();
     if (tagSnap.docs.isNotEmpty) throw Exception('El tag [$tag] ya está en uso');
@@ -325,7 +323,6 @@ class ClanService {
         'miembros':    [miembro.toMap()],
         'createdAt':   FieldValue.serverTimestamp(),
       });
-      // Actualizar jugador
       await _db.collection('players').doc(myUid).update({
         'clanId':     ref.id,
         'clanNombre': nombre,
@@ -348,11 +345,9 @@ class ClanService {
   }) async {
     if (myUid == null) return;
 
-    // Verificar que no esté ya en el clan
     if (clan.miembros.any((m) => m.uid == targetUid))
       throw Exception('Este jugador ya está en el clan');
 
-    // Verificar que no haya invitación pendiente
     final existing = await _db.collection('clan_invites')
         .where('clanId', isEqualTo: clan.clanId)
         .where('toUid', isEqualTo: targetUid)
@@ -372,7 +367,6 @@ class ClanService {
       'timestamp':   FieldValue.serverTimestamp(),
     });
 
-    // Notificación
     await _db.collection('notifications').add({
       'toUserId':    targetUid,
       'type':        'clan_invite',
@@ -405,12 +399,10 @@ class ClanService {
 
     final batch = _db.batch();
 
-    // Añadir al clan
     batch.update(_db.collection('clans').doc(invite.clanId), {
       'miembros': FieldValue.arrayUnion([nuevoMiembro.toMap()]),
     });
 
-    // Actualizar jugador
     batch.update(_db.collection('players').doc(myUid), {
       'clanId':     invite.clanId,
       'clanNombre': invite.clanNombre,
@@ -418,7 +410,6 @@ class ClanService {
       'clanRol':    'miembro',
     });
 
-    // Marcar invitación como aceptada
     batch.update(_db.collection('clan_invites').doc(invite.inviteId), {
       'estado': 'accepted',
     });
@@ -443,7 +434,6 @@ class ClanService {
     final batch = _db.batch();
 
     if (clan.miembros.length == 1) {
-      // Último miembro — disolver el clan
       batch.delete(_db.collection('clans').doc(clan.clanId));
     } else {
       batch.update(_db.collection('clans').doc(clan.clanId), {
@@ -496,7 +486,6 @@ class ClanService {
     final yo = clan.miembro(myUid!);
     if (yo?.rol != ClanRol.lider) throw Exception('Solo el líder puede promover');
 
-    // Construir lista actualizada
     final nuevaLista = clan.miembros.map((m) {
       if (m.uid == miembro.uid) return m.copyWith(rol: nuevoRol);
       return m;
@@ -511,7 +500,7 @@ class ClanService {
     });
   }
 
-  // ── Sumar puntos al clan (llamado al conquistar territorio) ──
+  // ── Sumar puntos al clan ──────────────────────────────────
   static Future<void> sumarPuntosAlClan({
     required String clanId,
     required String uid,
@@ -538,7 +527,7 @@ class ClanService {
   static Future<String?> declararGuerra({
     required ClanData miClan,
     required ClanData rivalClan,
-    required String tipo,        // 'conquista' | 'asedio' | 'resistencia'
+    required String tipo,
     required Duration duracion,
   }) async {
     if (myUid == null) return null;
@@ -546,7 +535,6 @@ class ClanService {
     if (yo == null || yo.rol == ClanRol.miembro)
       throw Exception('Solo líderes y capitanes pueden declarar guerra');
 
-    // Verificar que no haya guerra activa entre estos clanes
     final existing = await _db.collection('clan_wars')
         .where('estado', isEqualTo: 'activa')
         .get();
@@ -560,9 +548,9 @@ class ClanService {
       }
     }
 
-    final now   = DateTime.now();
-    final fin   = now.add(duracion);
-    final ref   = _db.collection('clan_wars').doc();
+    final now = DateTime.now();
+    final fin = now.add(duracion);
+    final ref = _db.collection('clan_wars').doc();
 
     await ref.set({
       'warId': ref.id,
@@ -583,7 +571,6 @@ class ClanService {
       'createdAt':  FieldValue.serverTimestamp(),
     });
 
-    // Notificar a miembros del rival
     for (final m in rivalClan.miembros) {
       await _db.collection('notifications').add({
         'toUserId':   m.uid,
@@ -599,7 +586,7 @@ class ClanService {
     return ref.id;
   }
 
-  // ── Sumar punto en guerra (al conquistar territorio en zona) ──
+  // ── Sumar punto en guerra ─────────────────────────────────
   static Future<void> puntoClanEnGuerra({
     required String warId,
     required String clanId,
@@ -616,7 +603,6 @@ class ClanService {
         key: FieldValue.increment(1),
       });
 
-      // Comprobar fin de guerra si es tiempo
       if (DateTime.now().isAfter(war.fin)) {
         await _finalizarGuerra(warId);
       }
@@ -644,7 +630,6 @@ class ClanService {
     });
 
     if (ganadorId != null) {
-      // Sumar victorias/derrotas
       final perdedorId = ganadorId == war.clanA['id']
           ? war.clanB['id'] as String
           : war.clanA['id'] as String;
@@ -704,6 +689,8 @@ class ClanService {
           .map((snap) => snap.docs.map(ClanData.fromDoc).toList());
 
   // ── Editar clan (solo líder) ──────────────────────────────
+  // CORRECCIÓN: ya no hace query sobre players (bloqueada por reglas).
+  // Solo actualiza el documento del propio líder.
   static Future<void> editarClan({
     required String clanId,
     String? nombre,
@@ -717,16 +704,14 @@ class ClanService {
     if (color       != null) updates['color']       = color;
     if (emoji       != null) updates['emoji']       = emoji;
     if (updates.isEmpty) return;
+
     await _db.collection('clans').doc(clanId).update(updates);
-    // Actualizar clanNombre en players si cambió el nombre
-    if (nombre != null) {
-      final snap = await _db.collection('players')
-          .where('clanId', isEqualTo: clanId).get();
-      final batch = _db.batch();
-      for (final doc in snap.docs) {
-        batch.update(doc.reference, {'clanNombre': nombre});
-      }
-      await batch.commit();
+
+    // Solo actualiza el clanNombre del propio líder
+    if (nombre != null && myUid != null) {
+      await _db.collection('players').doc(myUid).update({
+        'clanNombre': nombre,
+      });
     }
   }
 }

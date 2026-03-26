@@ -210,8 +210,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
 
-  // ── Tab activa
-  String _tabActiva = 'feed';
+  // ── Tab activa — ahora por índice para sincronizar con PageView
+  // 0 = FEED, 1 = RETOS  (CORRER no tiene página, solo abre modal)
+  int _tabIndex = 0;
+  late PageController _pageController;
 
   StreamSubscription<User?>? _authListener;
 
@@ -228,6 +230,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
+    // ── PageController para swipe entre tabs ──────────────────────────────
+    _pageController = PageController(initialPage: 0);
 
     _entradaCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1100));
@@ -275,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _pageController.dispose();          // ← nuevo
     _dailyResetTimer?.cancel();
     _entradaCtrl.dispose();
     _loopCtrl.dispose();
@@ -997,9 +1003,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final esPremium = SubscriptionService.currentStatus.isPremium;
 
-      // Retos normales (accesibles por nivel)
-      // Nota: filtramos es_premium client-side para que funcione aunque
-      // el campo no exista en documentos antiguos (es_premium ausente = false)
       final challengesSnap = await FirebaseFirestore.instance
           .collection('daily_challenges')
           .where('rango_requerido', isLessThanOrEqualTo: nivel)
@@ -1013,15 +1016,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final disponibles = challengesSnap.docs
           .where((doc) {
             final d = doc.data() as Map<String, dynamic>;
-            // Excluir retos premium de la lista normal
-            // Si el campo no existe, se trata como false (compatible con docs antiguos)
             final esPrem = d['es_premium'] as bool? ?? false;
             return !completedIds.contains(doc.id) && !esPrem;
           })
           .toList()..shuffle();
 
-      // Los premium reciben 5 retos (3 normales + 2 exclusivos)
-      // Los free reciben 3 retos normales
       final retosNormales = disponibles.take(3).toList();
       List<QueryDocumentSnapshot> retosPremium = [];
 
@@ -1038,7 +1037,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       if (mounted) {
         setState(() {
-          // Los retos premium van primero para que destaquen
           _dailyChallenges = [...retosPremium, ...retosNormales];
           _loadingChallenges = false;
         });
@@ -1049,7 +1047,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ── Tooltip onboarding: primera vez que abre la tab de Retos ───────────────
   Future<void> _mostrarTooltipRetosIntro() async {
     final state = await OnboardingService.cargarEstado();
     if (!mounted) return;
@@ -1060,9 +1057,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // NUEVO: Diálogo de confirmación antes de iniciar un reto
-  // ──────────────────────────────────────────────────────────────────────────
   void _confirmarInicioReto({
     required String id,
     required String titulo,
@@ -1087,7 +1081,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // ── Icono
             Container(
               width: 56, height: 56,
               decoration: BoxDecoration(
@@ -1097,29 +1090,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: const Center(child: Text('⚡', style: TextStyle(fontSize: 26))),
             ),
             const SizedBox(height: 16),
-
-            // ── Etiqueta
             Text('INICIAR MISIÓN',
                 style: _raj(9, FontWeight.w900, _T.red, spacing: 3)),
             const SizedBox(height: 8),
-
-            // ── Pregunta
             Text(
               '¿Vas a iniciar el reto de\n"$titulo"?\n¿Estás seguro?',
               textAlign: TextAlign.center,
               style: _raj(15, FontWeight.w700, _T.white, height: 1.4),
             ),
             const SizedBox(height: 8),
-
-            // ── Descripción
             Text(
               desc,
               textAlign: TextAlign.center,
               style: _raj(12, FontWeight.w500, _T.sub, height: 1.4),
             ),
             const SizedBox(height: 16),
-
-            // ── Premio + objetivo
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
@@ -1150,10 +1135,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             const SizedBox(height: 20),
-
-            // ── Botones NO / SÍ
             Row(children: [
-              // NO — cancelar
               Expanded(
                 child: GestureDetector(
                   onTap: () => Navigator.pop(ctx),
@@ -1172,15 +1154,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               const SizedBox(width: 10),
-              // SÍ — ir al LiveActivity con el reto activo
               Expanded(
                 flex: 2,
                 child: GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
-                    // Igual que CustomBottomNavbar.confirmarInicioCarrera
-                    // pero pasando los datos del reto como arguments.
-                    // La ruta /correr es la misma que usa el navbar.
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       '/correr',
@@ -1434,7 +1412,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // Recarga solo las historias sin recargar todo el Home
   Future<void> _recargarHistorias() async {
     try {
       final misHistorias = await StoryService.fetchMyActiveStories(
@@ -1461,7 +1438,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     if (isMe) {
       if (_misHistorias.isEmpty) {
-        // Abrir CreatePost y recargar historias al volver
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -1482,7 +1458,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
       )).then((_) {
-        // Recargar para actualizar el estado "visto"
         if (mounted) _recargarHistorias();
       });
       return;
@@ -1666,7 +1641,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   position: _slideB,
                   child: FadeTransition(
                     opacity: _fadeB,
-                    child: _buildTabContent(),
+                    // ── PageView reemplaza el switch anterior ──────────────
+                    child: PageView(
+                      controller: _pageController,
+                      // Solo 2 páginas reales: FEED y RETOS.
+                      // CORRER abre un modal, no tiene página propia.
+                      physics: const BouncingScrollPhysics(),
+                      onPageChanged: (index) {
+                        setState(() => _tabIndex = index);
+                        if (index == 1) _mostrarTooltipRetosIntro();
+                      },
+                      children: [
+                        _buildFeedTab(),
+                        _buildRetosTab(),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1722,7 +1711,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ]),
       actions: [
-        // ── Monedas tappable → tienda ──────────────────────────────────────
         GestureDetector(
           onTap: () => CoinShopScreen.mostrar(context),
           child: Container(
@@ -1904,13 +1892,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   // =============================================================================
-  // TAB BAR
+  // TAB BAR  — sincronizado con PageView
   // =============================================================================
   Widget _buildTabBar() {
+    // Definición de tabs: id, label, icono, índice en PageView (-1 = modal)
     final tabs = [
-      {'id': 'feed',   'label': 'FEED',    'icon': Icons.dynamic_feed_outlined},
-      {'id': 'retos',  'label': 'RETOS',   'icon': Icons.bolt_outlined},
-      {'id': 'correr', 'label': '● CORRER','icon': Icons.play_arrow_rounded},
+      {'id': 'feed',   'label': 'FEED',     'icon': Icons.dynamic_feed_outlined,  'page': 0},
+      {'id': 'retos',  'label': 'RETOS',    'icon': Icons.bolt_outlined,           'page': 1},
+      {'id': 'correr', 'label': '● CORRER', 'icon': Icons.play_arrow_rounded,      'page': -1},
     ];
 
     return Container(
@@ -1923,30 +1912,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: Row(
         children: tabs.map((tab) {
-          final isActive = _tabActiva == tab['id'];
-          final isCorrer = tab['id'] == 'correr';
+          final pageIdx  = tab['page'] as int;
+          final isCorrer = pageIdx == -1;
+          final isActive = !isCorrer && _tabIndex == pageIdx;
+
           return Expanded(
             child: GestureDetector(
               onTap: () {
                 if (isCorrer) {
+                  // CORRER siempre abre el modal, nunca cambia de página
                   CustomBottomNavbar.abrirCrearPost(context);
-                } else {
-                  setState(() => _tabActiva = tab['id'] as String);
-                  // Tooltip la primera vez que abre la tab de Retos
-                  if (tab['id'] == 'retos') {
-                    _mostrarTooltipRetosIntro();
-                  }
+                  return;
                 }
+                setState(() => _tabIndex = pageIdx);
+                _pageController.animateToPage(
+                  pageIdx,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                );
+                if (tab['id'] == 'retos') _mostrarTooltipRetosIntro();
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: isActive && !isCorrer ? _T.bg2 : Colors.transparent,
+                  color: isActive ? _T.bg2 : Colors.transparent,
                   borderRadius: BorderRadius.circular(4),
-                  border: isActive && !isCorrer
-                      ? Border.all(color: _T.border2)
-                      : null,
+                  border: isActive ? Border.all(color: _T.border2) : null,
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(tab['icon'] as IconData,
@@ -1980,14 +1972,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }).toList(),
       ),
     );
-  }
-
-  Widget _buildTabContent() {
-    switch (_tabActiva) {
-      case 'feed':   return _buildFeedTab();
-      case 'retos':  return _buildRetosTab();
-      default:       return _buildFeedTab();
-    }
   }
 
   // =============================================================================
@@ -2592,9 +2576,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     )).toList());
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // NUEVO: Lista de retos con diálogo de confirmación
-  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildDailyChallengesList() {
     if (_loadingChallenges) {
       return Center(child: CircularProgressIndicator(color: _T.red, strokeWidth: 1.5));
@@ -2639,7 +2620,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildMissionCard(String title, String desc, String reward,
       {bool esPremium = false}) {
-    // Los retos premium tienen borde y acento dorado
     const goldColor = Color(0xFFD4A017);
     final borderColor = esPremium ? goldColor : _T.red;
     final iconBg      = esPremium
@@ -2653,9 +2633,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: esPremium
-            ? goldColor.withOpacity(0.04)
-            : _T.bg1,
+        color: esPremium ? goldColor.withOpacity(0.04) : _T.bg1,
         border: Border(
           left: BorderSide(color: borderColor, width: 2),
           top: BorderSide(color: _T.border2),

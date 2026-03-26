@@ -210,6 +210,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       await _guardarActivityLog();
       await _guardarYMostrarTerritorioActual();
       await _actualizarRacha();
+      OnboardingService.registrarRunCompletado();
     } else {
       await _cargarTodosLosTerritorios();
     }

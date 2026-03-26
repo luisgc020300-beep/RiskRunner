@@ -29,6 +29,7 @@ dependencies:
   http: ^1.6.0
   purchases_flutter: ^9.13.1  
   purchases_ui_flutter: ^9.13.1
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -144,7 +144,7 @@ class _PressState extends State<_Press> with SingleTickerProviderStateMixin {
 }
 
 // =============================================================================
-//  AVATAR — iniciales con color determinista desde nickname
+//  AVATAR
 // =============================================================================
 class _Avatar extends StatelessWidget {
   final String? fotoBase64;
@@ -348,19 +348,41 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     try {
       final data = doc.data() as Map<String, dynamic>;
       final int monedas = (data['monedas'] as num? ?? 0).toInt();
-      final rankSnap = await FirebaseFirestore.instance.collection('players').where('monedas', isGreaterThan: monedas).count().get();
-      final friendSnap = await FirebaseFirestore.instance.collection('friendships').where('senderId', whereIn: [currentUserId, doc.id]).get();
+      final rankSnap = await FirebaseFirestore.instance
+          .collection('players')
+          .where('monedas', isGreaterThan: monedas)
+          .count()
+          .get();
       final int rango = ((rankSnap.count as num?)?.toInt() ?? 0) + 1;
+
+      // Buscar relación: enviadas por mí hacia ese usuario
       String relacion = 'ninguna';
-      for (final f in friendSnap.docs) {
-        final fd = f.data() as Map<String, dynamic>;
-        if ((fd['senderId'] == currentUserId && fd['receiverId'] == doc.id) ||
-            (fd['senderId'] == doc.id && fd['receiverId'] == currentUserId)) {
-          relacion = fd['status'] ?? 'ninguna'; break;
+      final sentSnap = await FirebaseFirestore.instance
+          .collection('friendships')
+          .where('senderId', isEqualTo: currentUserId)
+          .where('receiverId', isEqualTo: doc.id)
+          .limit(1)
+          .get();
+      if (sentSnap.docs.isNotEmpty) {
+        relacion = sentSnap.docs.first.data()['status'] ?? 'ninguna';
+      } else {
+        // Buscar relación: enviadas por ese usuario hacia mí
+        final recvSnap = await FirebaseFirestore.instance
+            .collection('friendships')
+            .where('senderId', isEqualTo: doc.id)
+            .where('receiverId', isEqualTo: currentUserId)
+            .limit(1)
+            .get();
+        if (recvSnap.docs.isNotEmpty) {
+          relacion = recvSnap.docs.first.data()['status'] ?? 'ninguna';
         }
       }
+
       return {...data, 'id': doc.id, 'rango': rango, 'relacion': relacion};
-    } catch (_) { return null; }
+    } catch (e) {
+      debugPrint('Error procesarResultado: $e');
+      return null;
+    }
   }
 
   void _escucharSolicitudes() {
@@ -430,11 +452,14 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       _buildHeader(),
       Expanded(child: _searchQuery.isNotEmpty ? _buildSearchResults() : TabBarView(
         controller: _tabController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [_buildRankingTab(), _buildFriendsList(), _buildChatList(), _buildRequestsList(), const ClanScreen()]
-        
-        )),
-        
+        physics: const PageScrollPhysics(), // ← permite deslizar suavemente
+        children: [
+          _buildRankingTab(),
+          _buildFriendsList(),
+          _buildChatList(),
+          _buildRequestsList(),
+          const ClanScreen(),
+        ])),
     ]),
     bottomNavigationBar: const CustomBottomNavbar(currentIndex: 3),
   );
@@ -447,10 +472,8 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Bloque izquierdo: título + subtítulo táctico
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              // Corchete táctico izquierdo
               Column(children: [
                 Container(width: 8, height: 1.5, color: _kAccent),
                 const SizedBox(height: 3),
@@ -461,7 +484,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                 style: TextStyle(color: _kText1, fontSize: 22,
                   fontWeight: FontWeight.w900, letterSpacing: 3, height: 1.0)),
               const SizedBox(width: 10),
-              // Corchete táctico derecho
               Column(children: [
                 Container(width: 8, height: 1.5, color: _kAccent),
                 const SizedBox(height: 3),
@@ -471,7 +493,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             const SizedBox(height: 5),
             Row(children: [
               const SizedBox(width: 10),
-              // Estado de red en vivo
               Container(width: 5, height: 5, decoration: const BoxDecoration(
                 color: _kGreenFg, shape: BoxShape.circle)),
               const SizedBox(width: 5),
@@ -487,7 +508,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
             ]),
           ])),
-          // Bloque derecho: puntos + liga
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
@@ -540,6 +560,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         ])));
   }
 
+  // ── FIX: pestaña CLAN con texto visible ──────────────────
   Widget _buildTabBar() => TabBar(
     controller: _tabController,
     indicatorColor: _kAccent, indicatorWeight: 2, indicatorSize: TabBarIndicatorSize.tab,
@@ -551,14 +572,15 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       const Tab(icon: Icon(Icons.military_tech_rounded, size: 13), text: 'LIGAS', iconMargin: EdgeInsets.only(bottom: 2)),
       const Tab(icon: Icon(Icons.groups_2_rounded, size: 13), text: 'AMIGOS', iconMargin: EdgeInsets.only(bottom: 2)),
       const Tab(icon: Icon(Icons.shield_rounded, size: 13), text: 'CHAT', iconMargin: EdgeInsets.only(bottom: 2)),
-      Tab(icon: const Icon(Icons.sensors_rounded, size: 13), iconMargin: const EdgeInsets.only(bottom: 2),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Text('SOLICITUDES'),
-          if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 5), _PulseBadge(count: _mensajesNoLeidos, color: _kAccent)]])),
-      Tab(icon: const Icon(Icons.person_add_alt_1_rounded, size: 13), iconMargin: const EdgeInsets.only(bottom: 2),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Text(''),
-          if (_solicitudesPendientes > 0) ...[const SizedBox(width: 5), _PulseBadge(count: _solicitudesPendientes, color: _kAccent)]])),
+      Tab(
+        iconMargin: const EdgeInsets.only(bottom: 2),
+        icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.sensors_rounded, size: 13),
+          if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 3), _PulseBadge(count: _mensajesNoLeidos, color: _kAccent)],
+        ]),
+        text: 'SOLICITUDES',
+      ),
+      const Tab(icon: Icon(Icons.shield_moon_rounded, size: 13), text: 'CLAN', iconMargin: EdgeInsets.only(bottom: 2)),
     ]);
 
   // ══════════════════════════ SEARCH RESULTS ════════════════════════════════════
@@ -785,35 +807,59 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32), itemCount: 7,
     itemBuilder: (_, i) => _Skel(height: i < 3 ? 82 : 64));
 
-  // ════════════════════════ ALIADOS TAB ══════════════════════════════════════════
+  // ════════════════════════ AMIGOS TAB — FIX ═════════════════════════════════════
   Widget _buildFriendsList() {
+    final sentStream = FirebaseFirestore.instance.collection('friendships')
+        .where('senderId', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'accepted').snapshots();
+
+    final recvStream = FirebaseFirestore.instance.collection('friendships')
+        .where('receiverId', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'accepted').snapshots();
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('friendships').where('status', isEqualTo: 'accepted').snapshots(),
-      builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _genSkels();
-        if (snapshot.hasError) return _ErrorState(onRetry: () { _perfilesCache.clear(); setState(() {}); });
-        final amigos = snapshot.data!.docs.where((d) => d['senderId'] == currentUserId || d['receiverId'] == currentUserId).toList();
-        if (amigos.isEmpty) return _EmptyState(icon: Icons.group_outlined, titulo: 'Sin aliados aún',
-          subtitulo: 'Busca exploradores y forma\ntu equipo cartográfico',
-          accionLabel: 'Buscar exploradores', onAccion: () => _searchController.clear());
-        return RefreshIndicator(
-          key: _rkAliados, color: _kAccent, backgroundColor: _kSurface2,
-          onRefresh: () async { _perfilesCache.clear(); setState(() {}); },
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-            itemCount: amigos.length,
-            itemBuilder: (ctx, i) {
-              final fid = amigos[i]['senderId'] == currentUserId ? amigos[i]['receiverId'] : amigos[i]['senderId'];
-              if (_perfilesCache.containsKey(fid)) return _Stagger(index: i, child: _buildFriendCard(_perfilesCache[fid]!, fid));
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('players').doc(fid).get(),
-                builder: (ctx, s) {
-                  if (!s.hasData) return const _Skel();
-                  final data = s.data!.data() as Map<String, dynamic>? ?? {};
-                  _perfilesCache[fid] = data;
-                  return _Stagger(index: i, child: _buildFriendCard(data, fid));
-                });
-            }));
+      stream: sentStream,
+      builder: (ctx, sentSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: recvStream,
+          builder: (ctx, recvSnap) {
+            if (!sentSnap.hasData || !recvSnap.hasData) return _genSkels();
+            if (sentSnap.hasError || recvSnap.hasError)
+              return _ErrorState(onRetry: () { _perfilesCache.clear(); setState(() {}); });
+
+            final amigos = [...sentSnap.data!.docs, ...recvSnap.data!.docs];
+
+            if (amigos.isEmpty) return _EmptyState(
+              icon: Icons.group_outlined,
+              titulo: 'Sin aliados aún',
+              subtitulo: 'Busca exploradores y forma\ntu equipo cartográfico',
+              accionLabel: 'Buscar exploradores',
+              onAccion: () => _searchController.clear());
+
+            return RefreshIndicator(
+              key: _rkAliados, color: _kAccent, backgroundColor: _kSurface2,
+              onRefresh: () async { _perfilesCache.clear(); setState(() {}); },
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+                itemCount: amigos.length,
+                itemBuilder: (ctx, i) {
+                  final doc = amigos[i];
+                  final fid = doc['senderId'] == currentUserId
+                      ? doc['receiverId']
+                      : doc['senderId'];
+                  if (_perfilesCache.containsKey(fid))
+                    return _Stagger(index: i, child: _buildFriendCard(_perfilesCache[fid]!, fid));
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance.collection('players').doc(fid).get(),
+                    builder: (ctx, s) {
+                      if (!s.hasData) return const _Skel();
+                      final data = s.data!.data() as Map<String, dynamic>? ?? {};
+                      _perfilesCache[fid] = data;
+                      return _Stagger(index: i, child: _buildFriendCard(data, fid));
+                    });
+                }));
+          });
       });
   }
 
@@ -938,7 +984,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
 }
 
 // =============================================================================
-//  LEAGUE BANNER — COMPLETAMENTE REDISEÑADO
+//  LEAGUE BANNER
 // =============================================================================
 class _LeagueBanner extends StatelessWidget {
   final LeagueInfo ligaInfo; final int puntosLiga; final Color accent;
@@ -959,7 +1005,6 @@ class _LeagueBanner extends StatelessWidget {
             color: _kSurface, border: Border.all(color: ligaInfo.color.withValues(alpha: 0.25), width: 1.5),
             borderRadius: BorderRadius.circular(14)),
           child: Column(children: [
-            // Cabecera
             Container(
               decoration: BoxDecoration(
                 color: ligaInfo.color.withValues(alpha: 0.05),
@@ -991,7 +1036,6 @@ class _LeagueBanner extends StatelessWidget {
                   const Text('LIGA ACTUAL', style: TextStyle(color: _kSubtext, fontSize: 9, letterSpacing: 3, fontWeight: FontWeight.w600)),
                 ])),
               ])),
-            // Cuerpo
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1032,7 +1076,6 @@ class _LeagueBanner extends StatelessWidget {
                   style: TextStyle(color: _kText3, fontSize: 10)),
               ])),
           ])),
-        // Barra lateral con gradiente
         Positioned(left: 0, top: 0, bottom: 0,
           child: Container(width: 3,
             decoration: BoxDecoration(
@@ -1045,7 +1088,7 @@ class _LeagueBanner extends StatelessWidget {
 }
 
 // =============================================================================
-//  RANK CARD — REDISEÑADO
+//  RANK CARD
 // =============================================================================
 class _RankCard extends StatelessWidget {
   final int posicion, nivel, monedas, puntosLiga;
@@ -1123,7 +1166,7 @@ class _RankCard extends StatelessWidget {
 }
 
 // =============================================================================
-//  FRIEND CARD — color territorio + estado operativo
+//  FRIEND CARD
 // =============================================================================
 class _FriendCard extends StatelessWidget {
   final String nickname; final int nivel, monedas, puntosLiga;
@@ -1151,11 +1194,9 @@ class _FriendCard extends StatelessWidget {
               border: Border.all(color: _kLine2),
               borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              // Avatar con anillo en color de territorio
               Stack(alignment: Alignment.bottomRight, children: [
                 _Avatar(fotoBase64: fotoBase64, nickname: nickname, size: 46,
                   ringColor: tc.withValues(alpha: 0.55)),
-                // Dot activo/inactivo
                 Container(
                   width: 11, height: 11,
                   decoration: BoxDecoration(
@@ -1173,7 +1214,6 @@ class _FriendCard extends StatelessWidget {
                 Text(nickname, style: const TextStyle(color: _kText1, fontWeight: FontWeight.w700, fontSize: 14)),
                 const SizedBox(height: 4),
                 Row(children: [
-                  // Estado textual
                   Text(
                     activo ? 'ACTIVO' : 'INACTIVO',
                     style: TextStyle(
@@ -1184,7 +1224,6 @@ class _FriendCard extends StatelessWidget {
                   _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: ligaInfo.emoji),
                 ]),
               ])),
-              // Botón mapa/perfil: neutro
               _Press(onTap: onPerfil, child: Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
@@ -1193,7 +1232,6 @@ class _FriendCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.person_outline_rounded, color: _kText3, size: 15))),
               const SizedBox(width: 6),
-              // Botón chat: rojo con glow
               _Press(onTap: onChat, child: Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
@@ -1201,7 +1239,6 @@ class _FriendCard extends StatelessWidget {
                   boxShadow: [BoxShadow(color: _kAccentGlow, blurRadius: 10)]),
                 child: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 15))),
             ])),
-          // Borde izquierdo con color de territorio del aliado
           Positioned(left: 0, top: 0, bottom: 0,
             child: Container(width: 3,
               decoration: BoxDecoration(
@@ -1594,8 +1631,7 @@ class _EmptyState extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14)),
               child: Icon(icon, color: _kDim, size: 24)),
             const SizedBox(height: 16),
-            Text(titulo,
-              style: const TextStyle(color: _kText1, fontWeight: FontWeight.w700, fontSize: 14)),
+            Text(titulo, style: const TextStyle(color: _kText1, fontWeight: FontWeight.w700, fontSize: 14)),
             const SizedBox(height: 6),
             Text(subtitulo,
               style: const TextStyle(color: _kText2, fontSize: 12, fontStyle: FontStyle.italic),

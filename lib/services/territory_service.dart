@@ -1,16 +1,24 @@
 // lib/services/territory_service.dart
 //
-// ── OPTIMIZACIONES v2 ──────────────────────────────────────────────────────
-//  ANTES: loop de N queries individuales (1 por amigo) + 1 query global sin filtro
-//  AHORA:
-//    • cargarTodosLosTerritorios → 1 query whereIn (máx 10 ids) + chunks si hay más
-//    • _cargarTerritoriosCercanos → usa el resultado ya cargado, sin query extra
-//    • calcularDominioZonaCompleto (zona_service) → NO toca este archivo,
-//      se optimiza por separado con un campo 'zona_id' en el documento
+// ── OPTIMIZACIONES v6 ──────────────────────────────────────────────────────
+//  NUEVO en v6 respecto a v5:
+//    • renombrarTerritorio — llama a la Cloud Function "renombrarTerritorio".
+//      El servidor valida: ownership + longitud + caracteres + lista negra.
+//      El cliente nunca escribe nombre_territorio directamente a Firestore.
+//
+//  MANTENIDO de v5:
+//    • conquistarTerritorio via Cloud Function
+//
+//  MANTENIDO de v4:
+//    • caché estático TTL 2 min + invalidación por push
+//    • invalidarCachePorConquista() alias semántico
+//    • cargarTodosLosTerritorios con filtro geográfico opcional
+//    • whereIn en chunks de 10
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'package:RiskRunner/services/clan_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
@@ -92,6 +100,27 @@ class TerritoryData {
 class TerritoryService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ── CACHÉ ESTÁTICO con TTL 2 minutos ─────────────────────────────────────
+  static List<TerritoryData>? _cachedTerritorios;
+  static DateTime? _cacheTimestamp;
+  static const Duration _cacheTTL = Duration(minutes: 2);
+
+  static void invalidarCache() {
+    _cachedTerritorios = null;
+    _cacheTimestamp    = null;
+    debugPrint('🗑️ TerritoryService: caché invalidado');
+  }
+
+  static void invalidarCachePorConquista() {
+    debugPrint('⚔️ TerritoryService: caché invalidado por conquista externa');
+    invalidarCache();
+  }
+
+  static bool get _cacheValido {
+    if (_cachedTerritorios == null || _cacheTimestamp == null) return false;
+    return DateTime.now().difference(_cacheTimestamp!) < _cacheTTL;
+  }
+
   // ── Calcular área ─────────────────────────────────────────────────────────
   static double calcularAreaM2(List<LatLng> puntos) {
     if (puntos.length < 3) return 0;
@@ -145,8 +174,11 @@ class TerritoryService {
         'rey_nickname':      null,
         'rey_desde':         null,
         'nombre_territorio': null,
+        'centroLat':         latC,
+        'centroLng':         lngC,
       });
 
+      invalidarCache();
       return true;
     } catch (e) {
       debugPrint('❌ Error creando territorio: $e');
@@ -154,22 +186,19 @@ class TerritoryService {
     }
   }
 
-  // ── OPTIMIZADO: cargar territorios para el mapa home ──────────────────────
-  //
-  //  ANTES: 1 query players + 1 query territories POR CADA amigo (loop).
-  //         Con 10 amigos = 20 queries secuenciales.
-  //
-  //  AHORA:
-  //    1. 1 query friendships (igual que antes)
-  //    2. 1 query players con whereIn (todos los ids de golpe, chunks de 10)
-  //    3. 1 query territories con whereIn (todos los ids, chunks de 10)
-  //    Total: 2-4 queries en vez de 20+
-  //
-  static Future<List<TerritoryData>> cargarTodosLosTerritorios() async {
+  // ── OPTIMIZADO v4: caché 2 min + filtro geográfico opcional ──────────────
+  static Future<List<TerritoryData>> cargarTodosLosTerritorios({
+    LatLng? centro,
+  }) async {
+    if (_cacheValido) {
+      debugPrint('✅ TerritoryService: caché hit (${_cachedTerritorios!.length} territorios)');
+      return _cachedTerritorios!;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
-    // 1. Obtener ids de amigos
+    // 1. Ids de amigos
     final friendsSnap = await _db
         .collection('friendships')
         .where('status', isEqualTo: 'accepted')
@@ -187,7 +216,7 @@ class TerritoryService {
 
     final List<String> todosIds = [user.uid, ...amigoIds];
 
-    // 2. Cargar datos de todos los players en UNA query whereIn (chunks de 10)
+    // 2. Players en chunks de 10
     final Map<String, Map<String, dynamic>> playerDataMap = {};
     for (int i = 0; i < todosIds.length; i += 10) {
       final chunk = todosIds.sublist(i, (i + 10).clamp(0, todosIds.length));
@@ -200,27 +229,30 @@ class TerritoryService {
       }
     }
 
-    // 3. Cargar todos los territorios de esos usuarios en chunks whereIn
+    // 3. Territorios en chunks de 10 con filtro geográfico opcional
+    const double kRadGrados = 0.09; // ~10 km
     final List<TerritoryData> resultado = [];
+
     for (int i = 0; i < todosIds.length; i += 10) {
       final chunk = todosIds.sublist(i, (i + 10).clamp(0, todosIds.length));
-      final territoriosSnap = await _db
+
+      Query<Map<String, dynamic>> query = _db
           .collection('territories')
-          .where('userId', whereIn: chunk)
-          .get();
+          .where('userId', whereIn: chunk);
+
+      if (centro != null) {
+        query = query
+            .where('centroLat', isGreaterThan: centro.latitude  - kRadGrados)
+            .where('centroLat', isLessThan:    centro.latitude  + kRadGrados);
+      }
+
+      final territoriosSnap = await query.get();
 
       for (final doc in territoriosSnap.docs) {
         final data      = doc.data();
         final uid       = data['userId'] as String? ?? '';
         final rawPuntos = data['puntos'] as List<dynamic>?;
         if (rawPuntos == null || rawPuntos.isEmpty) continue;
-
-        final playerData = playerDataMap[uid];
-        final colorInt   = (playerData?['territorio_color'] as num?)?.toInt();
-        final color      = colorInt != null
-            ? Color(colorInt)
-            : (uid == user.uid ? Colors.orange : Colors.blue);
-        final nickPlayer = playerData?['nickname'] as String? ?? '';
 
         final List<LatLng> puntos = rawPuntos.map((p) {
           final m = p as Map<String, dynamic>;
@@ -229,6 +261,18 @@ class TerritoryService {
 
         final double latC = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
         final double lngC = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
+
+        if (centro != null) {
+          final storeLng = (data['centroLng'] as num?)?.toDouble() ?? lngC;
+          if ((storeLng - centro.longitude).abs() > kRadGrados) continue;
+        }
+
+        final playerData = playerDataMap[uid];
+        final colorInt   = (playerData?['territorio_color'] as num?)?.toInt();
+        final color      = colorInt != null
+            ? Color(colorInt)
+            : (uid == user.uid ? Colors.orange : Colors.blue);
+        final nickPlayer = playerData?['nickname'] as String? ?? '';
 
         DateTime? ultimaVisita;
         final tsRaw = data['ultima_visita'];
@@ -255,6 +299,10 @@ class TerritoryService {
       }
     }
 
+    _cachedTerritorios = resultado;
+    _cacheTimestamp    = DateTime.now();
+    debugPrint('💾 TerritoryService: caché actualizado (${resultado.length} territorios)');
+
     return resultado;
   }
 
@@ -264,6 +312,7 @@ class TerritoryService {
       await _db.collection('territories').doc(docId).update({
         'ultima_visita': FieldValue.serverTimestamp(),
       });
+      invalidarCache();
       await _comprobarYCoronarRey(docId);
     } catch (e) {
       debugPrint('Error actualizando ultima_visita: $e');
@@ -309,27 +358,6 @@ class TerritoryService {
     }
   }
 
-  static Future<void> _quitarCorona(String docId, String reyAnteriorId,
-      String reyAnteriorNick, String nuevoOwnerNick) async {
-    try {
-      await _db.collection('territories').doc(docId).update({
-        'rey_id':       null,
-        'rey_nickname': null,
-        'rey_desde':    null,
-      });
-      await _db.collection('notifications').add({
-        'toUserId':  reyAnteriorId,
-        'type':      'territory_king_lost',
-        'message':   '👑💀 ¡$nuevoOwnerNick te ha arrebatado el reinado! '
-                     'Ya no eres Rey de ese territorio.',
-        'read':      false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error quitando corona: $e');
-    }
-  }
-
   static TerritoryData? territorioEnPosicion(
       List<TerritoryData> territorios, LatLng posicion) {
     for (final t in territorios) {
@@ -364,57 +392,96 @@ class TerritoryService {
     );
   }
 
-  static Future<void> conquistarTerritorio({
+  // ── NUEVO v5: conquista via Cloud Function ────────────────────────────────
+  //
+  // El servidor valida:
+  //   1. El territorio existe
+  //   2. El atacante no es el dueño actual
+  //   3. El territorio lleva >= 10 días sin visita
+  //   4. El usuario está físicamente a <= 200 m del centro
+  //
+  // Returns true si la conquista fue exitosa, false en caso de error.
+  // Lanza una excepción con mensaje legible si la validación falla.
+  // ─────────────────────────────────────────────────────────────────────────
+  static Future<bool> conquistarTerritorio({
     required String docId,
     required String duenoAnteriorId,
+    required double latUsuario,
+    required double lngUsuario,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) return false;
 
+    // Si es nuestro propio territorio, solo visitamos (sin llamar a la Function)
     if (duenoAnteriorId == user.uid) {
       await actualizarUltimaVisita(docId);
-      return;
+      return true;
     }
 
     try {
-      final results = await Future.wait([
-        _db.collection('territories').doc(docId).get(),
-        _db.collection('players').doc(user.uid).get(),
-      ]);
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('conquistarTerritorio');
 
-      final docSnap       = results[0];
-      final playerSnap    = results[1];
-      final reyAnteriorId   = docSnap.data()?['rey_id'] as String?;
-      final reyAnteriorNick = docSnap.data()?['rey_nickname'] as String?;
-      final nuevoNickname   = playerSnap.data()?['nickname'] as String? ?? 'Alguien';
-
-      await _db.collection('territories').doc(docId).update({
-        'userId':            user.uid,
-        'nickname':          nuevoNickname,
-        'ultima_visita':     FieldValue.serverTimestamp(),
-        'conquistado_por':   user.uid,
-        'fecha_conquista':   FieldValue.serverTimestamp(),
-        'fecha_desde_dueno': FieldValue.serverTimestamp(),
-        'rey_id':            null,
-        'rey_nickname':      null,
-        'rey_desde':         null,
+      final result = await callable.call<Map<String, dynamic>>({
+        'docId':      docId,
+        'latUsuario': latUsuario,
+        'lngUsuario': lngUsuario,
       });
 
-      if (reyAnteriorId != null && reyAnteriorId.isNotEmpty && reyAnteriorNick != null) {
-        await _quitarCorona(docId, reyAnteriorId, reyAnteriorNick, nuevoNickname);
+      final data   = result.data;
+      final ok     = data['ok'] as bool? ?? false;
+      final accion = data['accion'] as String? ?? '';
+
+      if (ok) {
+        invalidarCache();
+        debugPrint('⚔️ Conquista exitosa: $accion en $docId');
       }
 
-      // Puntos al clan
-      try {
-        final clanId = playerSnap.data()?['clanId'] as String?;
-        if (clanId != null) {
-          await ClanService.sumarPuntosAlClan(clanId: clanId, uid: user.uid, puntos: 25);
-        }
-      } catch (e) {
-        debugPrint('Error sumando puntos al clan: $e');
-      }
+      return ok;
+    } on FirebaseFunctionsException catch (e) {
+      // El mensaje viene del servidor — mostrárselo al usuario directamente
+      debugPrint('❌ conquistarTerritorio [${e.code}]: ${e.message}');
+      rethrow; // el caller puede capturarlo y mostrarlo en un SnackBar
     } catch (e) {
-      debugPrint('❌ Error conquistando territorio: $e');
+      debugPrint('❌ Error inesperado en conquistarTerritorio: $e');
+      return false;
+    }
+  }
+
+  // ── NUEVO v6: renombrar territorio via Cloud Function ────────────────────
+  //
+  // El servidor valida:
+  //   1. El usuario es el dueño del territorio
+  //   2. Longitud 1-30 caracteres
+  //   3. Solo caracteres permitidos (letras, números, espacios, - ' . , ! ?)
+  //   4. Sin palabras de la lista negra
+  //
+  // Lanza FirebaseFunctionsException con mensaje legible si falla.
+  // ─────────────────────────────────────────────────────────────────────────
+  static Future<String> renombrarTerritorio({
+    required String docId,
+    required String nombre,
+  }) async {
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('renombrarTerritorio');
+
+      final result = await callable.call<Map<String, dynamic>>({
+        'docId':  docId,
+        'nombre': nombre,
+      });
+
+      final nombreGuardado = result.data['nombre'] as String? ?? nombre;
+      invalidarCache();
+      debugPrint('✏️ Territorio $docId renombrado: $nombreGuardado');
+      return nombreGuardado;
+
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('❌ renombrarTerritorio [${e.code}]: ${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ Error inesperado en renombrarTerritorio: $e');
+      rethrow;
     }
   }
 
@@ -436,10 +503,10 @@ class TerritoryService {
 
       await _db.collection('notifications').add({
         'toUserId':     toUserId,
+        'fromNickname': fromNickname,
         'type':         'territory_invasion',
         'message':      '⚔️ $fromNickname está invadiendo tu territorio AHORA MISMO. '
                         '¡Sal a defenderlo!',
-        'fromNickname': fromNickname,
         'territoryId':  territoryId,
         'read':         false,
         'timestamp':    FieldValue.serverTimestamp(),
@@ -480,7 +547,8 @@ class TerritoryService {
           .where('rey_id', isEqualTo: userId)
           .get();
       return snap.docs.length;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error contando reinos: $e');
       return 0;
     }
   }

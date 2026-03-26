@@ -4,12 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'territory_service.dart';
 
 // Handler global para notificaciones cuando la app está cerrada
 // DEBE estar fuera de la clase y ser una función top-level
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('📩 Notificación en background: ${message.notification?.title}');
+  // No invalidamos caché aquí — la app no está en memoria,
+  // cuando el usuario la abra el caché estará vacío por defecto.
 }
 
 class NotificationService {
@@ -79,8 +82,14 @@ class NotificationService {
   // ==========================================================================
   static void _onMensajePrimerPlano(RemoteMessage message) {
     debugPrint('📩 Notificación en primer plano: ${message.notification?.title}');
-    // Las notificaciones ya se guardan en Firestore desde Cloud Functions
-    // Puedes añadir aquí un snackbar si quieres mostrar algo en pantalla
+
+    // Si alguien nos invade o conquista un territorio, invalidamos el caché
+    // para que el mapa muestre los datos reales en la próxima carga.
+    // Coste: cero — solo pone a null dos variables en memoria.
+    final tipo = message.data['type'] as String?;
+    if (tipo == 'territory_invasion' || tipo == 'territory_conquest') {
+      TerritoryService.invalidarCachePorConquista();
+    }
   }
 
   static void _onNotificacionAbierta(RemoteMessage message) {
@@ -105,7 +114,7 @@ class NotificationService {
   // ==========================================================================
   static Future<void> marcarLeida(String notifId) async {
     try {
-    await _db.collection('notifications').doc(notifId).update({'read': true});
+      await _db.collection('notifications').doc(notifId).update({'read': true});
     } catch (e) {
       debugPrint('❌ Error marcando notificación como leída: $e');
     }

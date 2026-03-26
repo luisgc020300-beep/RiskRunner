@@ -1,20 +1,4 @@
 // lib/widgets/custom_navbar.dart
-//
-// ── OPTIMIZACIÓN v2 ────────────────────────────────────────────────────────
-//  ANTES: 3 StreamBuilders anidados (notifications + friendships + chats)
-//         = 3 listeners de Firestore permanentes en paralelo.
-//         Cada cambio en cualquiera de las 3 colecciones reconstruye
-//         los 3 StreamBuilders en cascada.
-//
-//  AHORA: 1 único StreamBuilder que combina las 3 queries en
-//         _NavBadgeData con rxdart/StreamZip conceptual hecho a mano.
-//         Solo 1 reconstrucción por cambio, misma funcionalidad.
-//
-//  ALTERNATIVA más simple (la que implementamos aquí):
-//    Usamos un Stream propio que hace Future.wait de los 3 counts cada vez
-//    que cualquiera de los snapshots cambia. Limpio, sin dependencias extra.
-// ─────────────────────────────────────────────────────────────────────────────
-
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
 import 'package:RiskRunner/Pesta%C3%B1as/create_post_screen.dart';
@@ -69,7 +53,10 @@ class CustomBottomNavbar extends StatefulWidget {
           Flexible(
             child: Text(
               '¿Listo para correr?',
-              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold),
             ),
           ),
         ]),
@@ -93,19 +80,24 @@ class CustomBottomNavbar extends StatefulWidget {
               backgroundColor: AppColors.red,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('¡Vamos!', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('¡Vamos!',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  static void iniciarCarreraConReto(BuildContext context, Map<String, dynamic> retoActivo) {
+  static void iniciarCarreraConReto(
+      BuildContext context, Map<String, dynamic> retoActivo) {
     HapticFeedback.mediumImpact();
     Navigator.pushNamedAndRemoveUntil(
-      context, '/correr', ModalRoute.withName('/home'),
+      context,
+      '/correr',
+      ModalRoute.withName('/home'),
       arguments: {'retoActivo': retoActivo},
     );
   }
@@ -115,8 +107,6 @@ class CustomBottomNavbar extends StatefulWidget {
 }
 
 class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
-  // ── Un único stream que combina los 3 contadores ─────────────────────────
-  Stream<_NavBadgeData>? _badgeStream;
   StreamSubscription? _sub1, _sub2, _sub3;
   _NavBadgeData _badges = _NavBadgeData.empty;
 
@@ -132,7 +122,6 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
 
     final db = FirebaseFirestore.instance;
 
-    // Valores en memoria para combinar
     int notifCount  = 0;
     int friendCount = 0;
     int chatUnread  = 0;
@@ -147,8 +136,8 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
       });
     }
 
-    // Stream 1: notificaciones no leídas
-    _sub1 = db.collection('notifications')
+    _sub1 = db
+        .collection('notifications')
         .where('toUserId', isEqualTo: uid)
         .where('read', isEqualTo: false)
         .snapshots()
@@ -157,8 +146,8 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
       emitir();
     });
 
-    // Stream 2: solicitudes de amistad pendientes
-    _sub2 = db.collection('friendships')
+    _sub2 = db
+        .collection('friendships')
         .where('receiverId', isEqualTo: uid)
         .where('status', isEqualTo: 'pending')
         .snapshots()
@@ -167,8 +156,8 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
       emitir();
     });
 
-    // Stream 3: mensajes de chat no leídos
-    _sub3 = db.collection('chats')
+    _sub3 = db
+        .collection('chats')
         .where('participants', arrayContains: uid)
         .snapshots()
         .listen((snap) {
@@ -214,24 +203,38 @@ class _NavbarContent extends StatelessWidget {
   void _onTap(BuildContext context, int index) {
     HapticFeedback.selectionClick();
     switch (index) {
+
+      // ── HOME ──────────────────────────────────────────────────────────────
+      // Usamos pushNamedAndRemoveUntil para limpiar toda la pila y llegar a
+      // /home sin importar desde qué pantalla venimos (mapa, social, etc.).
+      // Si ya estamos en /home el Navigator simplemente no apila nada extra
+      // porque la predicada devuelve false para todas las rutas anteriores.
       case 0:
-        if (Navigator.of(context).canPop()) {
-          Navigator.popUntil(context, ModalRoute.withName('/home'));
-        } else {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
+        if (currentIndex == 0) return; // ya estamos en Home, no hacemos nada
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/home',
+          (route) => false, // elimina toda la pila
+        );
         break;
+
       case 1:
         CustomBottomNavbar.confirmarInicioCarrera(context);
         break;
+
       case 2:
+        if (currentIndex == 2) return; // ya estamos en Mapa
         Navigator.pushNamed(context, '/mapa');
         break;
+
       case 3:
+        if (currentIndex == 3) return; // ya estamos en Social
         Navigator.pushNamedAndRemoveUntil(
             context, '/social', ModalRoute.withName('/home'));
         break;
+
       case 4:
+        if (currentIndex == 4) return; // ya estamos en Perfil
         Navigator.pushNamedAndRemoveUntil(
             context, '/perfil', ModalRoute.withName('/home'));
         break;
@@ -243,7 +246,8 @@ class _NavbarContent extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.bg,
-        border: Border(top: BorderSide(color: AppColors.surface2, width: 1)),
+        border:
+            Border(top: BorderSide(color: AppColors.surface2, width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -251,36 +255,36 @@ class _NavbarContent extends StatelessWidget {
           height: 58,
           child: Row(children: [
             _NavItem(
-              icon: Icons.home_rounded,
-              label: 'Home',
+              icon:     Icons.home_rounded,
+              label:    'Home',
               selected: currentIndex == 0,
-              badge: notifCount,
-              onTap: () => _onTap(context, 0),
+              badge:    notifCount,
+              onTap:    () => _onTap(context, 0),
             ),
             _NavItem(
-              icon: Icons.directions_run_rounded,
-              label: 'Correr',
+              icon:     Icons.directions_run_rounded,
+              label:    'Correr',
               selected: currentIndex == 1,
-              onTap: () => _onTap(context, 1),
+              onTap:    () => _onTap(context, 1),
             ),
             _NavItem(
-              icon: Icons.map_rounded,
-              label: 'Mapa',
+              icon:     Icons.map_rounded,
+              label:    'Mapa',
               selected: currentIndex == 2,
-              onTap: () => _onTap(context, 2),
+              onTap:    () => _onTap(context, 2),
             ),
             _NavItem(
-              icon: Icons.people_rounded,
-              label: 'Social',
+              icon:     Icons.people_rounded,
+              label:    'Social',
               selected: currentIndex == 3,
-              badge: socialCount,
-              onTap: () => _onTap(context, 3),
+              badge:    socialCount,
+              onTap:    () => _onTap(context, 3),
             ),
             _NavItem(
-              icon: Icons.person_rounded,
-              label: 'Perfil',
+              icon:     Icons.person_rounded,
+              label:    'Perfil',
               selected: currentIndex == 4,
-              onTap: () => _onTap(context, 4),
+              onTap:    () => _onTap(context, 4),
             ),
           ]),
         ),
@@ -333,20 +337,25 @@ class _NavItem extends StatelessWidget {
                   top: -2,
                   right: -4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
                       color: AppColors.red,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.bg, width: 1.5),
-                      boxShadow: [BoxShadow(
-                        color: AppColors.red.withValues(alpha: 0.5),
-                        blurRadius: 4,
-                      )],
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.red.withValues(alpha: 0.5),
+                          blurRadius: 4,
+                        )
+                      ],
                     ),
                     child: Text(
                       badge > 9 ? '9+' : '$badge',
                       style: const TextStyle(
-                        color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900),
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
                 ),
@@ -355,9 +364,9 @@ class _NavItem extends StatelessWidget {
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
-                color: color,
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                color:       color,
+                fontSize:    10,
+                fontWeight:  selected ? FontWeight.w700 : FontWeight.w400,
                 letterSpacing: selected ? 0.5 : 0.3,
               ),
               child: Text(label),
