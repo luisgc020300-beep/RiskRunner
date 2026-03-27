@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="RunnerRisk"
-        android:name="${applicationName}"
+        android:name="io.flutter.app.FlutterApplication"
         android:icon="@mipmap/ic_launcher">
 
         <meta-data
@@ -38,3 +38,8 @@
         </intent>
     </queries>
 </manifest>
+```
+
+Copia esto, reemplaza el contenido del archivo en VS Code, guárdalo y luego ejecuta en la terminal del Mac:
+```
+flutter run -d web-server --web-port=8080 --web-hostname=0.0.0.0
