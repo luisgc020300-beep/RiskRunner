@@ -7,32 +7,26 @@ jobs:
   build_ios:
     runs-on: macos-latest
     steps:
-      
-uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      
-uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.19.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
 
-      
-name: Install dependencies
-      run: flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
-      
-name: Build iOS (no codesign)
-      run: flutter build ios --release --no-codesign
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign
 
-      
-name: Create IPA
-      run: |
-        mkdir -p Payload
-        cp -r build/ios/iphoneos/Runner.app Payload/
-        zip -r risk_runner.ipa Payload/
+      - name: Create IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r risk_runner.ipa Payload/
 
-      
-name: Upload IPA
-      uses: actions/upload-artifact@v3
-      with:
-        name: risk_runner-ipa
-        path: risk_runner.ipa
+      - name: Upload IPA
+        uses: actions/upload-artifact@v3
+        with:
+          name: risk_runner-ipa
+          path: risk_runner.ipa
