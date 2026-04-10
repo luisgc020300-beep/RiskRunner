@@ -70,8 +70,10 @@ jobs:
 
       - name: Create IPA
         run: |
+          APP_PATH=$(find build/Runner.xcarchive -name "*.app" | head -1)
+          echo "Found app at: $APP_PATH"
           mkdir -p build/ipa/Payload
-          cp -r build/Runner.xcarchive/Products/Applications/Runner.app build/ipa/Payload/
+          cp -r "$APP_PATH" build/ipa/Payload/
           cd build/ipa
           zip -r ../../risk_runner.ipa Payload/
 
