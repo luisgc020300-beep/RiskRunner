@@ -73,3 +73,11 @@ jobs:
         with:
           name: risk_runner-ipa
           path: risk_runner.ipa
+
+      - name: Debug - Show Podfile and pod list
+        run: |
+          echo "=== PODFILE ==="
+          cat ios/Podfile
+          echo "=== PODS INSTALLED ==="
+          ls ios/Pods/Headers/Public/ 2>/dev/null || echo "No public headers"
+          ls ios/Pods/ | grep -i firestore || echo "Firestore pod not found"
