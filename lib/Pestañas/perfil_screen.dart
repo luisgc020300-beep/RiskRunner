@@ -1,4 +1,5 @@
 // lib/screens/perfil_screen.dart
+import '../scripts/seed_fantasmas_granada.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -144,6 +145,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<Map<String, dynamic>> _liveRunners    = [];
   StreamSubscription<QuerySnapshot>? _territoriesStream;
   StreamSubscription<QuerySnapshot>? _runnersStream;
+  StreamSubscription<QuerySnapshot>? _desafiosStream;
 
   AvatarConfig _avatarConfig = const AvatarConfig();
 
@@ -155,6 +157,11 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   // ── Contadores de desafíos para badge ────────────────────
   int _desafiosActivosCount = 0;
+
+  // ── Clan ──────────────────────────────────────────────────────────────────
+  String? _clanNombre;
+  String? _clanTag;
+  String? _clanRol;
 
   // ── Estado premium ────────────────────────────────────────────────────────
   bool _isPremium = false;
@@ -209,6 +216,7 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   @override
   void dispose() {
+    _desafiosStream?.cancel();
     _cancelLiveStreams();
     _liveMapCtrl.dispose();
     _nicknameController.dispose();
@@ -296,24 +304,22 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (viewedUserId == null) return;
     final uid = viewedUserId!;
 
-    // Combinamos retador + retado
-    FirebaseFirestore.instance
+    // Solo retador — el badge no necesita ser exacto al milisegundo
+    _desafiosStream = FirebaseFirestore.instance
         .collection('desafios')
         .where('retadorId', isEqualTo: uid)
         .where('estado', isEqualTo: 'activo')
         .snapshots()
-        .listen((s1) {
-      FirebaseFirestore.instance
+        .listen((s1) async {
+      if (!mounted) return;
+      final s2 = await FirebaseFirestore.instance
           .collection('desafios')
           .where('retadoId', isEqualTo: uid)
           .where('estado', isEqualTo: 'activo')
-          .get()
-          .then((s2) {
-        if (mounted) {
-          setState(() =>
-              _desafiosActivosCount = s1.docs.length + s2.docs.length);
-        }
-      });
+          .get();
+      if (mounted) {
+        setState(() => _desafiosActivosCount = s1.docs.length + s2.docs.length);
+      }
     });
   }
 
@@ -330,8 +336,10 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (viewedUserId == null) return;
     setState(() => isLoading = true);
     try {
+      // _cargarPerfil primero para que _puntosLiga esté disponible en _cargarRangoEnLiga
+      await _cargarPerfil();
       await Future.wait([
-        _cargarPerfil(), _cargarEstadisticas(), _cargarLogros(),
+        _cargarEstadisticas(), _cargarLogros(),
         _cargarCarrerasRecientes(), _cargarRangoEnLiga(), _cargarRacha(),
         _cargarHistorialGuerra(), _cargarHistorialCompleto(),
         _cargarTitulos(),
@@ -367,41 +375,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     }
   }
 
-  Future<void> _cargarHistorialCompleto() async {
-    if (viewedUserId == null) return;
-    if (mounted) setState(() => _cargandoHistorial = true);
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('activity_logs')
-          .where('userId', isEqualTo: viewedUserId)
-          .orderBy('timestamp', descending: true)
-          .limit(100)
-          .get()
-          .timeout(const Duration(seconds: 6));
-      final lista = <Map<String, dynamic>>[];
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        lista.add({
-          'titulo'    : d['titulo'] ?? 'Carrera completada',
-          'recompensa': (d['recompensa'] as num? ?? 0).toInt(),
-          'fecha'     : d['fecha_dia'] ?? 'Reciente',
-          'timestamp' : d['timestamp'],
-          'distancia' : (d['distancia'] as num? ?? 0).toDouble(),
-          'tiempo_segundos': (d['tiempo_segundos'] as num? ?? 0).toInt(),
-          'velocidad_media': (d['velocidad_media'] as num? ?? 0).toDouble(),
-        });
-      }
-      if (mounted) setState(() {
-        _historialCompleto     = lista;
-        _historialFiltrado     = lista;
-        _historialPaginaActual = 1;
-        _cargandoHistorial     = false;
-      });
-    } catch (e) {
-      debugPrint('Error historial completo: $e');
-      if (mounted) setState(() => _cargandoHistorial = false);
-    }
-  }
+  // Delegada a _cargarEstadisticas — historial se construye desde el mismo snapshot
+  Future<void> _cargarHistorialCompleto() async {}
 
   void _filtrarHistorial(String q) => setState(() {
     _historialFiltrado = _historialCompleto
@@ -419,8 +394,9 @@ class _PerfilScreenState extends State<PerfilScreen>
     final pts            = (data['puntos_liga'] as num? ?? 0).toInt();
     final liga           = LeagueHelper.getLeague(pts);
     final avatarMap      = data['avatar_config'] as Map<String, dynamic>?;
+    AvatarConfig? parsedAvatar;
     if (avatarMap != null) {
-      try { _avatarConfig = AvatarConfig.fromMap(avatarMap); } catch (e) { debugPrint('Error avatar config: $e'); }
+      try { parsedAvatar = AvatarConfig.fromMap(avatarMap); } catch (e) { debugPrint('Error avatar config: $e'); }
     }
     setState(() {
       nickname    = data['nickname'] as String? ?? '';
@@ -433,10 +409,12 @@ class _PerfilScreenState extends State<PerfilScreen>
       _ligaInfo   = liga;
       if (isOwnProfile) _nicknameController.text = nickname;
       if (colorInt != null) _colorTerritorio = Color(colorInt);
-      if (avatarMap != null) _avatarConfig = AvatarConfig.fromMap(avatarMap);
+      if (parsedAvatar != null) _avatarConfig = parsedAvatar;
       if (isOwnProfile) _esAdmin = data['esAdmin'] as bool? ?? false;
-      _isPremium = (data['is_premium'] as bool?) ??
-          SubscriptionService.currentStatus.isPremium;
+      _isPremium  = (data['is_premium'] as bool?) ?? SubscriptionService.currentStatus.isPremium;
+      _clanNombre = data['clanNombre'] as String?;
+      _clanTag    = data['clanTag'] as String?;
+      _clanRol    = data['clanRol'] as String?;
     });
   }
 
@@ -447,13 +425,15 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Future<void> _cargarRangoEnLiga() async {
+    // _puntosLiga ya disponible gracias a _cargarPerfil que corre primero
     try {
-      final myDoc = await FirebaseFirestore.instance.collection('players').doc(viewedUserId).get();
-      if (!myDoc.exists) return;
-      final myPts    = (myDoc.data()?['puntos_liga'] as num? ?? 0).toInt();
+      final myPts  = _puntosLiga;
       final ligaInfo = LeagueHelper.getLeague(myPts);
       final int maxPts = ligaInfo.maxPts ?? 999999;
-      final rankQ = await FirebaseFirestore.instance.collection('players').where('puntos_liga', isGreaterThan: myPts).where('puntos_liga', isLessThanOrEqualTo: maxPts).count().get();
+      final rankQ = await FirebaseFirestore.instance.collection('players')
+          .where('puntos_liga', isGreaterThan: myPts)
+          .where('puntos_liga', isLessThanOrEqualTo: maxPts)
+          .count().get();
       if (mounted) { final int raw = (rankQ.count as num?)?.toInt() ?? 0; setState(() => _rangoEnLiga = raw + 1); }
     } catch (e) { debugPrint('Error rango: $e'); if (mounted) setState(() => _rangoEnLiga = 0); }
   }
@@ -528,7 +508,18 @@ class _PerfilScreenState extends State<PerfilScreen>
         final puntos = rawPuntos.map((p) { final m = p as Map<String, dynamic>; return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble()); }).toList();
         lista.add({'docId': doc.id, 'puntos': puntos});
       }
-      if (mounted) setState(() { _territoriosDelUsuario = lista; _loadingTerritoriosMapa = false; _mapaTerritoriosExpandido = true; _initLiveMap(); });
+      if (mounted) {
+        setState(() { _territoriosDelUsuario = lista; _loadingTerritoriosMapa = false; _mapaTerritoriosExpandido = true; });
+        // Actualizar centro del mapa si hay territorios, sin relanzar streams
+        if (lista.isNotEmpty) {
+          final pts = lista.first['puntos'] as List<LatLng>;
+          if (pts.isNotEmpty) {
+            final lat = pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
+            final lng = pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
+            setState(() => _liveCenter = LatLng(lat, lng));
+          }
+        }
+      }
     } catch (e) { debugPrint('Error territorios: $e'); if (mounted) setState(() => _loadingTerritoriosMapa = false); }
   }
 
@@ -614,7 +605,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final horasCtrl = TextEditingController(text: '$horasIniciales');
 
     if (!mounted) return;
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       backgroundColor: _kSurface,
       isScrollControlled: true,
@@ -684,6 +675,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         ),
       ),
     );
+    horasCtrl.dispose();
   }
 
   Future<void> _enviarReto(int apuesta, int horas) async {
@@ -740,74 +732,87 @@ class _PerfilScreenState extends State<PerfilScreen>
     } catch (e) { debugPrint('Error racha: $e'); }
   }
 
+  // Una sola query a activity_logs — stats + logros + carreras recientes de golpe
   Future<void> _cargarEstadisticas() async {
     try {
-      final logsSnap = await FirebaseFirestore.instance.collection('activity_logs').where('userId', isEqualTo: viewedUserId).get();
+      final logsSnap = await FirebaseFirestore.instance
+          .collection('activity_logs')
+          .where('userId', isEqualTo: viewedUserId)
+          .orderBy('timestamp', descending: true)
+          .limit(500)
+          .get();
+
       double kmTotal = 0, sumVel = 0;
       int countVel = 0, totalSeg = 0;
+      final List<Map<String, dynamic>> carreras = [];
+      final List<Map<String, dynamic>> logrosData = [];
+      final Set<String> idsVistos = {};
+
+      final List<Map<String, dynamic>> historial = [];
+      int carrerasConDist = 0;
+
       for (final doc in logsSnap.docs) {
         final d    = doc.data();
         final dist = (d['distancia'] as num?)?.toDouble() ?? 0;
         final seg  = (d['tiempo_segundos'] as num?)?.toInt() ?? 0;
-        kmTotal += dist; totalSeg += seg;
+        kmTotal += dist;
+        totalSeg += seg;
         if (dist > 0 && seg > 0) { sumVel += dist / (seg / 3600); countVel++; }
+
+        // carreras recientes (solo con distancia real)
+        if (dist > 0) {
+          carreras.add({...d, 'docId': doc.id});
+          carrerasConDist++;
+        }
+
+        // historial completo (solo carreras con distancia — filtra reto-only)
+        if (dist > 0) {
+          historial.add({
+            'titulo'         : d['titulo'] ?? 'Carrera completada',
+            'recompensa'     : (d['recompensa'] as num? ?? 0).toInt(),
+            'fecha'          : d['fecha_dia'] ?? 'Reciente',
+            'timestamp'      : d['timestamp'],
+            'distancia'      : dist,
+            'tiempo_segundos': seg,
+            'velocidad_media': (d['velocidad_media'] as num? ?? 0).toDouble(),
+          });
+        }
+
+        // logros (retos completados)
+        final idReto = d['id_reto_completado']?.toString();
+        if (idReto != null && d['titulo'] != null && !idsVistos.contains(idReto)) {
+          idsVistos.add(idReto);
+          logrosData.add({...d, 'docId': doc.id});
+        }
       }
-      final conqSnap = await FirebaseFirestore.instance.collection('notifications').where('toUserId', isEqualTo: viewedUserId).where('type', isEqualTo: 'territory_conquered').limit(500).get();
+
+      // ya viene ordenado desc por timestamp
+      final conqSnap = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('toUserId', isEqualTo: viewedUserId)
+          .where('type', isEqualTo: 'territory_conquered')
+          .limit(500)
+          .get();
+
       if (mounted) setState(() {
         _kmTotales               = kmTotal;
         _velocidadMediaHistorica = countVel > 0 ? sumVel / countVel : 0;
-        _totalCarreras           = logsSnap.docs.length;
+        _totalCarreras           = carrerasConDist;   // solo carreras reales
         _tiempoTotalActividad    = Duration(seconds: totalSeg);
         _territoriosConquistados = conqSnap.docs.length;
+        _carrerasRecientes       = carreras.take(5).toList();
+        _logros                  = logrosData.take(10).toList();
+        _historialCompleto       = historial;
+        _historialFiltrado       = historial;
+        _historialPaginaActual   = 1;
+        _cargandoHistorial       = false;
       });
     } catch (e) { debugPrint('Error stats: $e'); }
   }
 
-  Future<void> _cargarLogros() async {
-    try {
-      final logsSnap = await FirebaseFirestore.instance.collection('activity_logs').where('userId', isEqualTo: viewedUserId).get();
-      final List<Map<String, dynamic>> logrosData = [];
-      final Set<String> idsVistos = {};
-      for (final doc in logsSnap.docs) {
-        final d      = doc.data();
-        final idReto = d['id_reto_completado']?.toString();
-        if (idReto == null || d['titulo'] == null) continue;
-        if (idsVistos.contains(idReto)) continue;
-        idsVistos.add(idReto);
-        logrosData.add({...d, 'docId': doc.id});
-      }
-      logrosData.sort((a, b) {
-        final tA = a['timestamp'] as Timestamp?;
-        final tB = b['timestamp'] as Timestamp?;
-        if (tA == null && tB == null) return 0;
-        if (tA == null) return 1;
-        if (tB == null) return -1;
-        return tB.compareTo(tA);
-      });
-      if (mounted) setState(() => _logros = logrosData.take(10).toList());
-    } catch (e) { debugPrint('Error logros: $e'); }
-  }
-
-  Future<void> _cargarCarrerasRecientes() async {
-    try {
-      final snap = await FirebaseFirestore.instance.collection('activity_logs').where('userId', isEqualTo: viewedUserId).get();
-      final List<Map<String, dynamic>> carreras = [];
-      for (final doc in snap.docs) {
-        final d    = doc.data();
-        final dist = (d['distancia'] as num?)?.toDouble() ?? 0;
-        if (dist > 0) carreras.add({...d, 'docId': doc.id});
-      }
-      carreras.sort((a, b) {
-        final tA = a['timestamp'] as Timestamp?;
-        final tB = b['timestamp'] as Timestamp?;
-        if (tA == null && tB == null) return 0;
-        if (tA == null) return 1;
-        if (tB == null) return -1;
-        return tB.compareTo(tA);
-      });
-      if (mounted) setState(() => _carrerasRecientes = carreras.take(5).toList());
-    } catch (e) { debugPrint('Error carreras: $e'); }
-  }
+  // Delegadas a _cargarEstadisticas — no necesitan hacer su propia query
+  Future<void> _cargarLogros() async {}
+  Future<void> _cargarCarrerasRecientes() async {}
 
   Future<void> _cargarHistorialGuerra() async {
     if (viewedUserId == null) return;
@@ -995,6 +1000,10 @@ class _PerfilScreenState extends State<PerfilScreen>
               _mostrarSnackbar('Ligas inicializadas');
               break;
             case 'temporada': _mostrarDialogoCerrarTemporada(); break;
+            case 'seed_fantasmas':
+            await SeedFantasmasGranada.ejecutar();
+            _mostrarSnackbar('✅ Fantasmas creados');
+             break;
             case 'logout':
               await FirebaseAuth.instance.signOut();
               if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
@@ -1007,6 +1016,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           PopupMenuItem(value: 'liga', child: _popupItem(Icons.sync_rounded, 'Inicializar puntos de liga', Colors.tealAccent)),
           if (_esAdmin)
             PopupMenuItem(value: 'temporada', child: _popupItem(Icons.emoji_events_rounded, 'Cerrar temporada', _kGold)),
+            if (_esAdmin)
+              PopupMenuItem(value: 'seed_fantasmas', child: _popupItem(Icons.blur_on, 'Seed fantasmas Granada', Colors.purpleAccent)),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'logout', child: _popupItem(Icons.logout_rounded, 'Cerrar sesión', Colors.redAccent)),
         ],
@@ -1180,11 +1191,8 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildTabContent() {
     switch (_tabPrincipal) {
       case 0:
-        // Cargar stats premium la primera vez que se abre el tab
         if (_isPremium && !_statsPremiumCargadas && !_loadingStatsPremium) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _cargarStatsPremium();
-          });
+          Future.microtask(_cargarStatsPremium);
         }
         return _buildTabStats();
       case 1: return _buildTabHistorial();
@@ -1234,11 +1242,8 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildTabZona() {
-    // Auto-cargar territorios la primera vez que se abre el tab
     if (_territoriosDelUsuario.isEmpty && !_loadingTerritoriosMapa) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _cargarTerritoriosDelUsuario();
-      });
+      Future.microtask(_cargarTerritoriosDelUsuario);
     }
     return FadeTransition(
       opacity: _fadeZona3,
@@ -2147,30 +2152,19 @@ class _PerfilScreenState extends State<PerfilScreen>
               ReyBannerActivo(titulosActivos: _titulosActivos),
               const SizedBox(height: 8),
             ],
-            StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance.collection('players').doc(viewedUserId).snapshots(),
-              builder: (ctx, snap) {
-                if (!snap.hasData) return const SizedBox.shrink();
-                final data      = snap.data!.data() as Map<String, dynamic>?;
-                final clanNombre = data?['clanNombre'] as String?;
-                final clanTag    = data?['clanTag'] as String?;
-                final clanRol    = data?['clanRol'] as String?;
-                if (clanNombre == null) {
-                  return GestureDetector(
-                    onTap: isOwnProfile ? () => Navigator.pushNamed(context, '/clan') : null,
-                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: _kMuted), borderRadius: BorderRadius.circular(4)), child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 1.5))));
-                }
-                return Container(
+            _clanNombre == null
+              ? GestureDetector(
+                  onTap: isOwnProfile ? () => Navigator.pushNamed(context, '/clan') : null,
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: _kMuted), borderRadius: BorderRadius.circular(4)), child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 1.5))))
+              : Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.08), border: Border.all(color: _kAccent.withValues(alpha: 0.3)), borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('[$clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
+                    Text('[$_clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
                     const SizedBox(width: 6),
-                    Text(clanNombre.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _kText, spacing: 1)),
-                    if (clanRol == 'lider') ...[const SizedBox(width: 5), const Text('👑', style: TextStyle(fontSize: 9))],
-                  ]));
-              },
-            ),
+                    Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _kText, spacing: 1)),
+                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Text('👑', style: TextStyle(fontSize: 9))],
+                  ])),
             if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _kSubtext))],
             const SizedBox(height: 28),
           ]),
@@ -2228,29 +2222,26 @@ class _PerfilScreenState extends State<PerfilScreen>
                 : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), fit: BoxFit.cover, width: 80, height: 80) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
           ),
         ),
-        Positioned(
-          bottom: 4, right: 4,
-          child: GestureDetector(
-            onTap: _abrirCustomizador,
-            child: Container(
-              width: 24, height: 24,
-              decoration: BoxDecoration(
-                color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
-                shape: BoxShape.circle,
-                border: Border.all(color: _kBg, width: 2),
-              ),
-              child: Center(
-                child: Text(
-                  _titulosActivos.isNotEmpty ? '👑' : '',
-                  style: const TextStyle(fontSize: 10),
-                  textAlign: TextAlign.center,
+        if (isOwnProfile)
+          Positioned(
+            bottom: 4, right: 4,
+            child: GestureDetector(
+              onTap: _abrirCustomizador,
+              child: Container(
+                width: 24, height: 24,
+                decoration: BoxDecoration(
+                  color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _kBg, width: 2),
+                ),
+                child: Center(
+                  child: _titulosActivos.isNotEmpty
+                      ? const Text('👑', style: TextStyle(fontSize: 10))
+                      : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
                 ),
               ),
             ),
           ),
-        ),
-        if (_titulosActivos.isEmpty && isOwnProfile)
-          Positioned(bottom: 4, right: 4, child: GestureDetector(onTap: _abrirCustomizador, child: Container(width: 24, height: 24, decoration: BoxDecoration(color: _kAccent, shape: BoxShape.circle, border: Border.all(color: _kBg, width: 2)), child: const Icon(Icons.palette_rounded, color: Colors.black, size: 11)))),
       ]),
     );
   }

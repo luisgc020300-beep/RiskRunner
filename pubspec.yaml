@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cloud_functions: 6.0.7  
-  mapbox_maps_flutter: ^2.1.0   # ← bajar versión
+  mapbox_maps_flutter: ^2.1.0   
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
@@ -26,7 +26,7 @@ dependencies:
   path_provider: ^2.1.2
   share_plus: 12.0.1
   firebase_messaging: ^16.1.2
-  http: ^1.6.0
+  http: ^1.2.0
   purchases_flutter: ^9.13.1  
   purchases_ui_flutter: ^9.13.1
   shimmer: ^3.0.0

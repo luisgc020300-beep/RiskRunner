@@ -1,5 +1,4 @@
 // lib/main.dart
-
 import 'package:RiskRunner/Pesta%C3%B1as/coin_shop_screen.dart';
 import 'package:RiskRunner/Pesta%C3%B1as/fullscreen_map_screen.dart';
 import 'package:RiskRunner/Pesta%C3%B1as/onboarding_slides_screen.dart';
@@ -35,7 +34,6 @@ void main() async {
     if (user != null) {
       NotificationService.inicializar();
       SubscriptionService.inicializar(user.uid);
-      // Verificar desafíos expirados al arrancar la app
       DesafiosService.verificarExpirados(user.uid);
     }
   });
@@ -48,7 +46,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final _rajdhaniBase = GoogleFonts.rajdhaniTextTheme(
+    final rajdhaniBase = GoogleFonts.rajdhaniTextTheme(
       ThemeData(brightness: Brightness.dark).textTheme,
     );
 
@@ -59,49 +57,28 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.dark,
         primarySwatch: Colors.orange,
         scaffoldBackgroundColor: const Color(0xFF090807),
-
-        textTheme: _rajdhaniBase.copyWith(
-          displayLarge: _rajdhaniBase.displayLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-          ),
-          displayMedium: _rajdhaniBase.displayMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-          ),
-          headlineLarge: _rajdhaniBase.headlineLarge?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.5,
-          ),
-          headlineMedium: _rajdhaniBase.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.0,
-          ),
-          headlineSmall: _rajdhaniBase.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-          ),
-          bodyLarge: _rajdhaniBase.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.3,
-          ),
-          bodyMedium: _rajdhaniBase.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w400,
-          ),
-          labelLarge: _rajdhaniBase.labelLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-          ),
-          labelMedium: _rajdhaniBase.labelMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-          ),
-          labelSmall: _rajdhaniBase.labelSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
+        textTheme: rajdhaniBase.copyWith(
+          displayLarge: rajdhaniBase.displayLarge?.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.0),
+          displayMedium: rajdhaniBase.displayMedium?.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 0.8),
+          headlineLarge: rajdhaniBase.headlineLarge?.copyWith(
+              fontWeight: FontWeight.w900, letterSpacing: 2.5),
+          headlineMedium: rajdhaniBase.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w900, letterSpacing: 2.0),
+          headlineSmall: rajdhaniBase.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800, letterSpacing: 1.5),
+          bodyLarge: rajdhaniBase.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w500, letterSpacing: 0.3),
+          bodyMedium: rajdhaniBase.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w400),
+          labelLarge: rajdhaniBase.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800, letterSpacing: 1.5),
+          labelMedium: rajdhaniBase.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.2),
+          labelSmall: rajdhaniBase.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700, letterSpacing: 1.5),
         ),
-
         appBarTheme: AppBarTheme(
           backgroundColor: const Color(0xFF090807),
           elevation: 0,
@@ -112,22 +89,16 @@ class MyApp extends StatelessWidget {
             letterSpacing: 3.0,
           ),
         ),
-
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             textStyle: GoogleFonts.rajdhani(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.5,
-            ),
+                fontWeight: FontWeight.w800, letterSpacing: 1.5),
           ),
         ),
-
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
             textStyle: GoogleFonts.rajdhani(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-            ),
+                fontWeight: FontWeight.w700, letterSpacing: 1.2),
           ),
         ),
       ),
@@ -137,17 +108,10 @@ class MyApp extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _SplashLoading();
           }
-          if (snapshot.hasData) {
-            return const _OnboardingGate();
-          }
+          if (snapshot.hasData) return const _OnboardingGate();
           return const LoginScreen();
         },
       ),
-
-      // ── TODAS las rutas en onGenerateRoute para que los arguments
-      // lleguen correctamente a todos los widgets (settings: settings).
-      // Con routes: {} y onGenerateRoute juntos, popUntil y pushNamed
-      // pueden fallar porque Flutter no encuentra las rutas nombradas.
       onGenerateRoute: (settings) {
         switch (settings.name) {
 
@@ -202,15 +166,22 @@ class MyApp extends StatelessWidget {
               builder: (_) => const LiveActivityScreen(),
             );
 
+          // ── /resumen ahora acepta todos los campos extras de Guerra Global
           case '/resumen':
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => ResumenScreen(
-                distancia:      (args?['distancia'] as double?)   ?? 0.0,
-                tiempo:         (args?['tiempo']    as Duration?)  ?? Duration.zero,
-                ruta:           (args?['ruta']      as List?)?.cast<LatLng>() ?? [],
-                esDesdeCarrera: (args?['esDesdeCarrera'] as bool?) ?? false,
+                distancia:              (args?['distancia']     as double?)   ?? 0.0,
+                tiempo:                 (args?['tiempo']        as Duration?)  ?? Duration.zero,
+                ruta:                   (args?['ruta']          as List?)?.cast<LatLng>() ?? [],
+                esDesdeCarrera:         (args?['esDesdeCarrera'] as bool?)    ?? false,
+                territoriosConquistados:(args?['territoriosConquistados'] as int?) ?? 0,
+                puntosLigaGanados:      (args?['puntosLigaGanados']      as int?) ?? 0,
+                // ── Guerra Global
+                objetivoGlobal:         args?['objetivoGlobal']  as Map<String, dynamic>?,
+                globalConquistado:      (args?['globalConquistado'] as bool?) ?? false,
+                nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
               ),
             );
 
@@ -227,6 +198,7 @@ class MyApp extends StatelessWidget {
                 mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
               ),
             );
+
           case '/tienda':
             return MaterialPageRoute(
               settings: settings,
@@ -264,7 +236,7 @@ class _SplashLoading extends StatelessWidget {
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
-                color: Color(0xFFCC7C3A), strokeWidth: 2),
+                  color: Color(0xFFCC7C3A), strokeWidth: 2),
             ),
           ],
         ),
@@ -323,7 +295,6 @@ class _AnimatedLogoState extends State<_AnimatedLogo>
 // =============================================================================
 class _OnboardingGate extends StatefulWidget {
   const _OnboardingGate();
-
   @override
   State<_OnboardingGate> createState() => _OnboardingGateState();
 }
@@ -346,9 +317,9 @@ class _OnboardingGateState extends State<_OnboardingGate> {
   void _onSlidesCompleto() {
     setState(() {
       _state = OnboardingState(
-        slidesVistos: true,
-        runActual: _state?.runActual ?? 0,
-        tooltipsVistos: _state?.tooltipsVistos ?? {},
+        slidesVistos:    true,
+        runActual:       _state?.runActual ?? 0,
+        tooltipsVistos:  _state?.tooltipsVistos ?? {},
       );
     });
   }
