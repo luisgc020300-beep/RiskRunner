@@ -1,8 +1,6 @@
 name: Build iOS IPA
-
 on:
   workflow_dispatch:
-
 jobs:
   build_ios:
     runs-on: macos-latest
@@ -23,15 +21,12 @@ jobs:
         run: |
           cat > ios/Podfile << 'EOF'
           load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-
           platform :ios, '15.0'
-
           target 'Runner' do
             use_frameworks! :linkage => :static
             use_modular_headers!
             flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
           end
-
           post_install do |installer|
             installer.pods_project.targets.each do |target|
               flutter_additional_ios_build_settings(target)
@@ -46,6 +41,15 @@ jobs:
         run: |
           cd ios
           pod install --repo-update
+
+      - name: Debug - Show Podfile and pod list
+        if: always()
+        run: |
+          echo "=== PODFILE ==="
+          cat ios/Podfile
+          echo "=== PODS INSTALLED ==="
+          ls ios/Pods/Headers/Public/ 2>/dev/null || echo "No public headers"
+          ls ios/Pods/ | grep -i firestore || echo "Firestore pod not found"
 
       - name: Build with xcodebuild
         run: |
@@ -76,11 +80,3 @@ jobs:
         with:
           name: risk_runner-ipa
           path: risk_runner.ipa
-
-      - name: Debug - Show Podfile and pod list
-        run: |
-          echo "=== PODFILE ==="
-          cat ios/Podfile
-          echo "=== PODS INSTALLED ==="
-          ls ios/Pods/Headers/Public/ 2>/dev/null || echo "No public headers"
-          ls ios/Pods/ | grep -i firestore || echo "Firestore pod not found"
