@@ -16,13 +16,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Patch Podfile with use_frameworks!
+        run: |
+          cd ios
+          # Flutter regenera el Podfile, así que lo parcheamos después
+          head -5 Podfile
+          sed -i '' "s/target 'Runner' do/target 'Runner' do\n  use_frameworks!\n  use_modular_headers!/" Podfile
+          cat Podfile
+
       - name: Install CocoaPods dependencies
         run: |
           cd ios
           pod install --repo-update
 
       - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --no-pub
 
       - name: Create IPA
         run: |
