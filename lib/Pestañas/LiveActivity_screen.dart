@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:custom_timer/custom_timer.dart';
+import 'package:http/http.dart' as http;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
@@ -40,6 +43,7 @@ const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
 const _kCosmicBg   = Color(0xFF040302);
 const _kCosmicMid  = Color(0xFF1A0F08);
+const _kGlobalRed  = Color(0xFFCC2222);
 
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
@@ -66,7 +70,32 @@ const _kGpsPausado = LocationSettings(
 const _kPresenciaMovimientoSeg = 10;
 const _kPresenciaPausadoSeg    = 30;
 
+// Cache limitado a 50 entradas para evitar memory leak en sesiones largas
 final Map<int, Uint8List> _avatarCache = {};
+const int _kAvatarCacheMax = 50;
+
+// =============================================================================
+// MODELO BARRIO
+// =============================================================================
+class _BarrioData {
+  final String       nombre;
+  final List<LatLng> puntos;
+  final double       areaM2;
+  double             porcentajeCubierto;
+
+  _BarrioData({
+    required this.nombre,
+    required this.puntos,
+    required this.areaM2,
+    this.porcentajeCubierto = 0.0,
+  });
+
+  LatLng get centro {
+    final lat = puntos.map((p) => p.latitude).reduce((a, b) => a + b)  / puntos.length;
+    final lng = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
+    return LatLng(lat, lng);
+  }
+}
 
 // =============================================================================
 // WIDGET PRINCIPAL
@@ -96,8 +125,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _annotationManager;
   final Map<String, mapbox.PointAnnotation> _anotacionesJugadores = {};
+  // Anotaciones de corona para territorios con Rey
+  final Map<String, mapbox.PointAnnotation> _anotacionesReyes = {};
+  Uint8List? _coronaBytes;
 
   // ── GPS
+  List<TerritoryData> _territoriosRivalesCercanos = [];
+  TerritoryData? _territorioActualBajoPie;
   List<LatLng> routePoints           = [];
   bool isTracking                    = false;
   bool isPaused                      = false;
@@ -107,6 +141,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
   Position? _ultimaPosicionVelocidad;
+
+  // ── Barrios OSM (modo solitario)
+  List<_BarrioData> _barriosCercanos   = [];
+  _BarrioData?      _barrioActual;
+  bool              _cargandoBarrios   = false;
+  bool              _barriosCargados   = false;
+  static const String _barrioSourceId     = 'barrios-source';
+  static const String _barrioFillLayerId  = 'barrios-fill';
+  static const String _barrioLineLayerId  = 'barrios-line';
+  static const String _barrioLabelLayerId = 'barrios-label';
+  bool _barriosLayerCreated            = false;
 
   int _puntosDesdeUltimoUpdate       = 0;
   static const int _kActualizarMapaCadaN = 3;
@@ -118,8 +163,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── Jugador
   Color  _colorTerritorio      = _kTerracotta;
-  List<TerritoryData> _territorios = [];
+  List<TerritoryData> _territorios     = [];
   bool   _territoriosCargados  = false;
+  bool   _fantasmasCargando    = false;
   String _miNickname           = 'Alguien';
   String? _miClanId;
   bool   _boostXpActivo        = false;
@@ -188,9 +234,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   int    _minutosResistenciaNotificados = 0;
   Timer? _timerResistencia;
 
-  // ── Reto activo desde Home ─────────────────────────────────────────────────
+  // ── Reto activo desde Home
   Map<String, dynamic>? _retoActivo;
   bool _retoCompletado = false;
+
+  // ── GUERRA GLOBAL — estado del objetivo de conquista
+  Map<String, dynamic>? _objetivoGlobal;
+  bool _globalConquistado   = false;
+  bool _globalConquistando  = false;
+  bool _globalKmAlcanzados  = false;
+  double? _nuevaClausula;
+  StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
+  String? _globalTerritoryLastOwner;
+  // FIX: guard contra doble tap en stopTracking
+  bool _stopping = false;
 
   // ==========================================================================
   // INIT / DISPOSE
@@ -200,7 +257,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     super.initState();
     _modoNoche = _esHoraNoche();
 
-    StatsService.mapboxToken = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+    StatsService.mapboxToken =
+        'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
 
     _cuentaAtrasAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
@@ -236,20 +294,39 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (mounted) setState(() => _mensajeNarrador = msg);
     };
 
-    // ── Leer el reto activo si viene desde el Home
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args != null && args['retoActivo'] != null) {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args == null) return;
+
+      if (args['retoActivo'] != null) {
         final reto = args['retoActivo'] as Map<String, dynamic>;
         setState(() => _retoActivo = reto);
-        // Configurar el narrador con los datos del reto
         final titulo         = reto['titulo'] as String? ?? 'Reto';
-        final objetivoMetros = (reto['objetivo_valor'] as num?)?.toDouble() ?? 0;
+        final objetivoMetros =
+            (reto['objetivo_valor'] as num?)?.toDouble() ?? 0;
         _narrador.configurarReto(titulo, objetivoMetros);
-        // Anunciar el reto con un pequeño delay para que cargue la pantalla
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) _narrador.anunciarReto(titulo);
+        });
+      }
+
+      if (args['objetivoGlobal'] != null) {
+        final objetivo = args['objetivoGlobal'] as Map<String, dynamic>;
+        setState(() {
+          _objetivoGlobal     = objetivo;
+          _globalConquistado  = false;
+          _globalConquistando = false;
+          _modoSolitario      = false;
+        });
+        final nombre = objetivo['territorioNombre'] as String? ?? 'Territorio';
+        final kmReq  = (objetivo['kmRequeridos'] as num?)?.toDouble() ?? 0;
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            _narrador.anunciarReto(
+                '⚔️ Objetivo: conquistar $nombre — ${kmReq.toStringAsFixed(1)} km');
+          }
         });
       }
     });
@@ -261,6 +338,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _timerCuentaAtras?.cancel();
     _positionStream?.cancel();
     _jugadoresStream?.cancel();
+    _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
     _pulsoTimer?.cancel();
     _timerResistencia?.cancel();
@@ -287,7 +365,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (_estiloMapa == 'normal') {
       _mapboxMap?.loadStyleURI(_mapStyle);
     }
-    _buildings3dCreated = false;
+    _buildings3dCreated       = false;
     _territoriosLayersCreated = false;
     Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
@@ -359,10 +437,23 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
         _miClanId = doc.data()?['clanId'] as String?;
       }
-      final lista = await TerritoryService.cargarTodosLosTerritorios();
+      // Intentar posición rápida para el query global; si no hay, el service
+      // carga solo los territorios propios como fallback.
+      LatLng? centro;
+      if (_currentPosition != null) {
+        centro = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+      } else {
+        try {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) centro = LatLng(last.latitude, last.longitude);
+        } catch (_) {}
+      }
+
+      final lista = await TerritoryService.cargarTodosLosTerritorios(centro: centro);
       if (mounted) {
         setState(() { _territorios = lista; _territoriosCargados = true; });
         _dibujarTerritoriosEnMapa();
+        _aplicarTerritoriosFantasma();
       }
     } catch (e) {
       debugPrint('Error datos iniciales: $e');
@@ -378,8 +469,273 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final pos = await Geolocator.getCurrentPosition(
           locationSettings:
               const LocationSettings(accuracy: LocationAccuracy.high));
-      if (mounted) setState(() => _currentPosition = pos);
+      if (mounted) {
+        final anteriorCentro = _currentPosition;
+        setState(() => _currentPosition = pos);
+
+        // Si la posición difiere >500 m de la usada al cargar, recargar territorios
+        final debeCargarse = anteriorCentro == null ||
+            Geolocator.distanceBetween(anteriorCentro.latitude,
+                anteriorCentro.longitude, pos.latitude, pos.longitude) > 500;
+
+        if (debeCargarse && _territoriosCargados) {
+          TerritoryService.invalidarCache();
+          final centro = LatLng(pos.latitude, pos.longitude);
+          final lista  = await TerritoryService.cargarTodosLosTerritorios(
+              centro: centro);
+          if (mounted) {
+            setState(() => _territorios = lista);
+            _dibujarTerritoriosEnMapa();
+          }
+        }
+        _aplicarTerritoriosFantasma();
+      }
     }
+  }
+
+  // ==========================================================================
+  // BARRIOS OSM — modo solitario
+  // ==========================================================================
+  Future<void> _cargarBarriosOSM(LatLng pos) async {
+    if (_cargandoBarrios || _barriosCargados) return;
+    _cargandoBarrios = true;
+
+    try {
+      final lat   = pos.latitude;
+      final lng   = pos.longitude;
+      const delta = 0.018; // ~2 km
+
+      final url = Uri.parse(
+        'https://overpass-api.de/api/interpreter?data='
+        '[out:json][timeout:15];'
+        '('
+        '  way["place"~"suburb|neighbourhood|quarter"]'
+        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
+        '  relation["place"~"suburb|neighbourhood|quarter"]'
+        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
+        ');'
+        'out geom;',
+      );
+
+      final response = await http.get(url).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) return;
+
+      final jsonData  = jsonDecode(response.body) as Map<String, dynamic>;
+      final elements  = (jsonData['elements'] as List<dynamic>? ?? []);
+      final List<_BarrioData> barrios = [];
+
+      for (final el in elements) {
+        final tags   = el['tags'] as Map<String, dynamic>? ?? {};
+        final nombre = (tags['name'] as String?)?.trim() ?? '';
+        if (nombre.isEmpty) continue;
+
+        List<LatLng> puntos = [];
+
+        if (el['type'] == 'way') {
+          final geometry = el['geometry'] as List<dynamic>? ?? [];
+          puntos = geometry.map((g) {
+            final m = g as Map<String, dynamic>;
+            return LatLng(
+              (m['lat'] as num).toDouble(),
+              (m['lon'] as num).toDouble(),
+            );
+          }).toList();
+        } else if (el['type'] == 'relation') {
+          final members = el['members'] as List<dynamic>? ?? [];
+          for (final member in members) {
+            final m = member as Map<String, dynamic>;
+            if (m['role'] == 'outer' && m['geometry'] != null) {
+              final geom = m['geometry'] as List<dynamic>;
+              puntos = geom.map((g) {
+                final gm = g as Map<String, dynamic>;
+                return LatLng(
+                  (gm['lat'] as num).toDouble(),
+                  (gm['lon'] as num).toDouble(),
+                );
+              }).toList();
+              break;
+            }
+          }
+        }
+
+        if (puntos.length < 4) continue;
+        final area = TerritoryService.calcularAreaM2(puntos);
+        if (area < 10000) continue;
+
+        barrios.add(_BarrioData(nombre: nombre, puntos: puntos, areaM2: area));
+      }
+
+      if (!mounted) return;
+
+      // Calcular porcentaje inicial
+      final misTerritorios = _territorios.where((t) => t.esMio).toList();
+      for (final barrio in barrios) {
+        barrio.porcentajeCubierto =
+            _calcularPorcentajeBarrio(barrio, misTerritorios);
+      }
+
+      // Ordenar por distancia
+      barrios.sort((a, b) {
+        final dA = Geolocator.distanceBetween(
+            lat, lng, a.centro.latitude, a.centro.longitude);
+        final dB = Geolocator.distanceBetween(
+            lat, lng, b.centro.latitude, b.centro.longitude);
+        return dA.compareTo(dB);
+      });
+
+      setState(() {
+        _barriosCercanos = barrios;
+        _barrioActual    = barrios.isNotEmpty ? barrios.first : null;
+        _barriosCargados = true;
+      });
+
+      await _dibujarBarriosEnMapa();
+
+    } catch (e) {
+      debugPrint('Error cargando barrios OSM: $e');
+    } finally {
+      _cargandoBarrios = false;
+    }
+  }
+
+  double _calcularPorcentajeBarrio(
+      _BarrioData barrio, List<TerritoryData> misTerritorios) {
+    if (barrio.areaM2 <= 0) return 0.0;
+    double areaCubierta = 0.0;
+    for (final ter in misTerritorios) {
+      // Si el centro del territorio está dentro del barrio, sumamos su área
+      if (_puntoEnPoligono(ter.centro, barrio.puntos)) {
+        areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
+      }
+    }
+    return (areaCubierta / barrio.areaM2).clamp(0.0, 1.0);
+  }
+
+  Future<void> _dibujarBarriosEnMapa() async {
+    if (_mapboxMap == null || _barriosCercanos.isEmpty) return;
+    if (!_modoSolitario) return;
+
+    final features = _barriosCercanos.map((b) {
+      final coords = b.puntos.map((p) => [p.longitude, p.latitude]).toList();
+      if (coords.first[0] != coords.last[0] ||
+          coords.first[1] != coords.last[1]) {
+        coords.add(coords.first);
+      }
+      final pct = b.porcentajeCubierto;
+      // Capa barrios: gris oscuro semitransparente en todos los casos
+      // (solo diferenciamos el borde con opacity para distinguir % cubierto)
+      const String color = '#888888';
+
+      return _encodeJson({
+        'type': 'Feature',
+        'properties': {
+          'nombre':     b.nombre,
+          'color':      color,
+          'porcentaje': (pct * 100).toInt(),
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      });
+    }).join(',');
+
+    final geojson = '{"type":"FeatureCollection","features":[$features]}';
+
+    try {
+      if (_barriosLayerCreated) {
+        final src = await _mapboxMap!.style
+            .getSource(_barrioSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+        return;
+      }
+
+      for (final id in [_barrioLabelLayerId, _barrioLineLayerId, _barrioFillLayerId]) {
+        try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+      }
+      try { await _mapboxMap!.style.removeStyleSource(_barrioSourceId); } catch (_) {}
+
+      await _mapboxMap!.style.addSource(
+          mapbox.GeoJsonSource(id: _barrioSourceId, data: geojson));
+
+      // Relleno semitransparente
+      await _mapboxMap!.style.addLayer(
+          mapbox.FillLayer(id: _barrioFillLayerId, sourceId: _barrioSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioFillLayerId, 'fill-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioFillLayerId, 'fill-opacity', 0.10);
+
+      // Borde discontinuo
+      await _mapboxMap!.style.addLayer(
+          mapbox.LineLayer(id: _barrioLineLayerId, sourceId: _barrioSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-width', 1.5);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-opacity', 0.55);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-dasharray', [4.0, 2.0]);
+
+      _barriosLayerCreated = true;
+    } catch (e) {
+      debugPrint('Error dibujando barrios: $e');
+    }
+  }
+
+  Future<void> _limpiarCapasBarrios() async {
+    if (!_barriosLayerCreated || _mapboxMap == null) return;
+    for (final id in [_barrioLabelLayerId, _barrioLineLayerId, _barrioFillLayerId]) {
+      try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+    }
+    try { await _mapboxMap!.style.removeStyleSource(_barrioSourceId); } catch (_) {}
+    _barriosLayerCreated = false;
+  }
+
+  Future<void> _verificarBarriosCompletados() async {
+    if (!_modoSolitario || _barriosCercanos.isEmpty) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final misTerritorios = _territorios.where((t) => t.esMio).toList();
+
+    for (final barrio in _barriosCercanos) {
+      final pctAntes = barrio.porcentajeCubierto;
+      final pctAhora = _calcularPorcentajeBarrio(barrio, misTerritorios);
+      barrio.porcentajeCubierto = pctAhora;
+
+      if (pctAhora >= 1.0 && pctAntes < 1.0) {
+        final bonusMonedas = _calcularBonusBarrio(barrio);
+        try {
+          await FirebaseFirestore.instance
+              .collection('players')
+              .doc(user.uid)
+              .update({'monedas': FieldValue.increment(bonusMonedas)});
+
+          await FirebaseFirestore.instance
+              .collection('notifications')
+              .add({
+            'toUserId':     user.uid,
+            'type':         'barrio_completado',
+            'message':      '🏆 ¡Has conquistado el barrio de ${barrio.nombre}! +$bonusMonedas 🪙',
+            'read':         false,
+            'timestamp':    FieldValue.serverTimestamp(),
+            'barrioNombre': barrio.nombre,
+            'bonusMonedas': bonusMonedas,
+          });
+        } catch (e) {
+          debugPrint('Error dando bonus barrio: $e');
+        }
+
+        if (mounted) _mostrarNotificacionBarrioCompletado(barrio, bonusMonedas);
+      }
+    }
+
+    await _dibujarBarriosEnMapa();
+  }
+
+  int _calcularBonusBarrio(_BarrioData barrio) {
+    if (barrio.areaM2 > 2000000) return 1000;
+    if (barrio.areaM2 > 50000)   return 600;
+    return 300;
   }
 
   // ==========================================================================
@@ -476,9 +832,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _addBuildings3D() async {
     if (_mapboxMap == null || _buildings3dCreated) return;
     try {
-      try {
-        await _mapboxMap!.style.removeStyleLayer(_buildingsLayerId);
-      } catch (_) {}
+      try { await _mapboxMap!.style.removeStyleLayer(_buildingsLayerId); } catch (_) {}
       await _mapboxMap!.style.addLayer(mapbox.FillExtrusionLayer(
           id: _buildingsLayerId,
           sourceId: 'composite',
@@ -505,21 +859,95 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  // ── Territorios fantasma ─────────────────────────────────────────────────
+  // El query global ya incluye los fantasmas de Firestore en _territorios.
+  // Este método solo comprueba si hay que CREAR más (mapa escaso) y, si los
+  // crea, invalida el caché y recarga para que aparezcan.
+  Future<void> _aplicarTerritoriosFantasma() async {
+    if (_modoSolitario) {
+      final sinF = _territorios.where((t) => !t.esFantasma).toList();
+      if (sinF.length != _territorios.length) {
+        if (mounted) setState(() => _territorios = sinF);
+        _dibujarTerritoriosEnMapa();
+      }
+      return;
+    }
+    if (_currentPosition == null || !_territoriosCargados) return;
+    if (_fantasmasCargando) return;
+
+    _fantasmasCargando = true;
+    try {
+      final centro = LatLng(
+          _currentPosition!.latitude, _currentPosition!.longitude);
+
+      const double radioVisible = 0.022; // ~2.4 km
+      const int    kUmbral      = 18;
+
+      // Contar territorios reales (no bot) ya cargados cerca
+      final realesCercanos = _territorios.where((t) =>
+        !t.esFantasma &&
+        (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
+        (t.centro.longitude - centro.longitude).abs() < radioVisible,
+      ).length;
+
+      // Contar fantasmas ya presentes en _territorios
+      final fantasmasCercanos = _territorios.where((t) =>
+        t.esFantasma &&
+        (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
+        (t.centro.longitude - centro.longitude).abs() < radioVisible,
+      ).length;
+
+      final faltan = kUmbral - realesCercanos - fantasmasCercanos;
+      if (faltan <= 0) return; // ya hay suficientes
+
+      // Crear los que faltan y recargar el mapa
+      await TerritoryService.crearTerritoriosFantasmaEnZona(
+        centro:          centro,
+        todosExistentes: _territorios,
+        max:             faltan,
+      );
+      // crearTerritoriosFantasmaEnZona ya invalida el caché
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: centro);
+      if (mounted) {
+        setState(() => _territorios = lista);
+        _dibujarTerritoriosEnMapa();
+      }
+    } catch (e) {
+      debugPrint('Error gestionando fantasmas: $e');
+    } finally {
+      _fantasmasCargando = false;
+    }
+  }
+
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || _territorios.isEmpty) return;
 
     final features = _territorios.map((t) {
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
       coords.add(coords.first);
+
+      // Los fantasmas son rivales normales visualmente (HP, color, opacidad iguales)
+      final colorHex    = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+      final borderWidth = t.esMio
+          ? 2.8
+          : switch (t.estadoHp) {
+              EstadoHp.saludable => 1.4,
+              EstadoHp.danado    => 1.8,
+              EstadoHp.critico   => 2.2,
+            };
+      final innerOpacity = t.esMio ? t.opacidadRelleno * 0.55 : 0.0;
+
       return _encodeJson({
         'type': 'Feature',
         'properties': {
-          'color':        _colorToHex(t.color),
-          'fillOpacity':  t.esMio ? 0.38 : 0.18,
-          'innerOpacity': t.esMio ? 0.20 : 0.0,
-          'borderOpacity':t.esMio ? 0.95 : 0.55,
-          'borderWidth':  t.esMio ? 2.8  : 1.4,
-          'esMio':        t.esMio,
+          'color':         colorHex,
+          'fillOpacity':   t.opacidadRelleno,
+          'innerOpacity':  innerOpacity,
+          'borderOpacity': t.opacidadBorde,
+          'borderWidth':   borderWidth,
+          'esMio':         t.esMio,
+          'estadoHp':      t.estadoHp.name,
         },
         'geometry': {'type': 'Polygon', 'coordinates': [coords]},
       });
@@ -532,6 +960,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         final src = await _mapboxMap!.style
             .getSource(_sourceId) as mapbox.GeoJsonSource?;
         await src?.updateGeoJSON(geojson);
+        _actualizarCoronesMapa();
         return;
       }
 
@@ -592,9 +1021,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'round');
 
       _territoriosLayersCreated = true;
+      _actualizarCoronesMapa();
 
-      _pulsoTimer =
-          Timer.periodic(const Duration(milliseconds: 120), (_) {
+      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
         if (!mounted || _mapboxMap == null) return;
         if (_pulsoUp) {
           _pulsoOpacity += 0.025;
@@ -648,21 +1077,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // JUGADORES ACTIVOS
   // ==========================================================================
   void _escucharJugadoresActivos() {
+    final cutoff = Timestamp.fromDate(
+        DateTime.now().subtract(const Duration(minutes: 5)));
     _jugadoresStream = FirebaseFirestore.instance
         .collection('presencia_activa')
+        .where('timestamp', isGreaterThan: cutoff)
         .snapshots()
         .listen((snap) async {
       if (!mounted) return;
       final user   = FirebaseAuth.instance.currentUser;
+      final myLat  = _currentPosition?.latitude;
+      final myLng  = _currentPosition?.longitude;
       final nuevos = <String, Map<String, dynamic>>{};
       for (final doc in snap.docs) {
         if (doc.id == user?.uid) continue;
         final d  = doc.data();
+        // Filtro dinámico: descartar jugadores inactivos hace >5 min
         final ts = d['timestamp'] as Timestamp?;
-        if (ts != null &&
-            DateTime.now().difference(ts.toDate()).inMinutes < 5) {
-          nuevos[doc.id] = d;
+        if (ts == null ||
+            DateTime.now().difference(ts.toDate()).inMinutes >= 5) { continue; }
+        final lat = (d['lat'] as num?)?.toDouble();
+        final lng = (d['lng'] as num?)?.toDouble();
+        // Filtro geográfico client-side: solo jugadores a <5 km
+        if (myLat != null && myLng != null && lat != null && lng != null) {
+          final dist = Geolocator.distanceBetween(myLat, myLng, lat, lng);
+          if (dist > 5000) continue;
         }
+        nuevos[doc.id] = d;
       }
       setState(() => _jugadoresActivos
         ..clear()
@@ -675,8 +1116,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       Map<String, Map<String, dynamic>> jugadores) async {
     if (_annotationManager == null) return;
     final activos = jugadores.keys.toSet();
-    for (final uid
-        in _anotacionesJugadores.keys.where((k) => !activos.contains(k)).toList()) {
+    for (final uid in _anotacionesJugadores.keys
+        .where((k) => !activos.contains(k))
+        .toList()) {
       _eliminarAvatarJugador(uid);
     }
     for (final entry in jugadores.entries) {
@@ -702,6 +1144,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final key = color.value;
     if (_avatarCache.containsKey(key)) return _avatarCache[key]!;
     final bytes = await _generarImagenAvatar(color);
+    if (_avatarCache.length >= _kAvatarCacheMax) _avatarCache.remove(_avatarCache.keys.first);
     _avatarCache[key] = bytes;
     return bytes;
   }
@@ -711,8 +1154,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (_annotationManager == null) return;
     final ann = await _annotationManager!.create(
         mapbox.PointAnnotationOptions(
-          geometry:
-              mapbox.Point(coordinates: mapbox.Position(lng, lat)),
+          geometry: mapbox.Point(coordinates: mapbox.Position(lng, lat)),
           image:    bytes,
           iconSize: 1.0,
         ));
@@ -724,6 +1166,87 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _annotationManager?.delete(_anotacionesJugadores[uid]!);
       _anotacionesJugadores.remove(uid);
     }
+  }
+
+  // ==========================================================================
+  // CORONAS DE REYES EN EL MAPA
+  // ==========================================================================
+  Future<void> _actualizarCoronesMapa() async {
+    if (_annotationManager == null || _modoSolitario) return;
+
+    final bytes = _coronaBytes ??= await _generarImagenCorona();
+
+    final conRey = _territorios
+        .where((t) => t.tieneRey && !t.esFantasma)
+        .toList();
+    final idsConRey = conRey.map((t) => t.docId).toSet();
+
+    // Eliminar coronas de territorios que ya no tienen Rey
+    for (final docId in _anotacionesReyes.keys
+        .where((k) => !idsConRey.contains(k))
+        .toList()) {
+      await _annotationManager?.delete(_anotacionesReyes[docId]!);
+      _anotacionesReyes.remove(docId);
+    }
+
+    // Crear / actualizar coronas
+    for (final t in conRey) {
+      final pos = mapbox.Point(
+        coordinates: mapbox.Position(
+            t.centro.longitude, t.centro.latitude),
+      );
+      if (_anotacionesReyes.containsKey(t.docId)) {
+        final ann = _anotacionesReyes[t.docId]!;
+        await _annotationManager?.update(ann..geometry = pos);
+      } else {
+        final ann = await _annotationManager!.create(
+          mapbox.PointAnnotationOptions(
+            geometry: pos,
+            image:    bytes,
+            iconSize: 0.9,
+          ),
+        );
+        _anotacionesReyes[t.docId] = ann;
+      }
+    }
+  }
+
+  Future<Uint8List> _generarImagenCorona() async {
+    const sz = 48.0;
+    final recorder = ui.PictureRecorder();
+    final canvas   = Canvas(recorder);
+
+    // Fondo circular semitransparente
+    canvas.drawCircle(
+      const Offset(sz / 2, sz / 2),
+      sz / 2,
+      Paint()..color = const Color(0xCC1A1000),
+    );
+    // Borde dorado
+    canvas.drawCircle(
+      const Offset(sz / 2, sz / 2),
+      sz / 2 - 2,
+      Paint()
+        ..color       = const Color(0xFFD4A84C)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+
+    // Emoji 👑 centrado
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '👑',
+        style: TextStyle(fontSize: 24, height: 1),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas,
+        Offset((sz - tp.width) / 2, (sz - tp.height) / 2 - 1));
+
+    final pic      = recorder.endRecording();
+    final img      = await pic.toImage(sz.toInt(), sz.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   Future<Uint8List> _generarImagenAvatar(Color color) async {
@@ -845,7 +1368,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final retadorNick   = data['retadorNick'] as String? ?? 'Rival';
       final retadoNick    = data['retadoNick'] as String? ?? 'Rival';
       final String ganadorId, ganadorNick, perdedorId, perdedorNick;
-      if (puntosRetador >= puntosRetado) {
+      // En empate gana el retado (defensor), igual que en Risk clásico
+      if (puntosRetador > puntosRetado) {
         ganadorId = retadorId; ganadorNick = retadorNick;
         perdedorId = retadoId; perdedorNick = retadoNick;
       } else {
@@ -861,10 +1385,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .doc(desafioId)
           .update({'estado': 'finalizado', 'ganadorId': ganadorId});
       for (final n in [
-        {'toUserId': ganadorId,  'type': 'desafio_ganado',
-         'message': '🏆 ¡Ganaste el desafío contra $perdedorNick! +${apuesta * 2} 🪙'},
-        {'toUserId': perdedorId, 'type': 'desafio_perdido',
-         'message': '💀 Perdiste el desafío contra $ganadorNick. $ganadorNick se lleva ${apuesta * 2} 🪙'},
+        {
+          'toUserId': ganadorId, 'type': 'desafio_ganado',
+          'message': '🏆 ¡Ganaste el desafío contra $perdedorNick! +${apuesta * 2} 🪙'
+        },
+        {
+          'toUserId': perdedorId, 'type': 'desafio_perdido',
+          'message': '💀 Perdiste el desafío contra $ganadorNick. $ganadorNick se lleva ${apuesta * 2} 🪙'
+        },
       ]) {
         await FirebaseFirestore.instance.collection('notifications').add(
             {...n, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
@@ -886,6 +1414,137 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   // ==========================================================================
+  // GUERRA GLOBAL
+  // ==========================================================================
+  double get _progresoGlobal {
+    if (_objetivoGlobal == null) return 0;
+    final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    if (kmReq <= 0) return 0;
+    return (_distanciaTotal / kmReq).clamp(0.0, 1.0);
+  }
+
+  double get _kmRestantesGlobal {
+    if (_objetivoGlobal == null) return 0;
+    final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    return (kmReq - _distanciaTotal).clamp(0.0, kmReq);
+  }
+
+  Future<void> _conquistarTerritorioGlobal(
+  String activityLogId, {
+  required double kmCorridosEnSesion,
+}) async {
+  if (_globalConquistando) return;
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final territorioId = _objetivoGlobal?['territorioId'] as String?;
+  if (territorioId == null) return;
+
+  setState(() => _globalConquistando = true);
+
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('conquistarTerritorioGlobal');
+    final result = await callable.call({
+      'territorioId':        territorioId,
+      'activityLogId':       activityLogId,
+      'ownerColor':          _colorTerritorio.value,
+      'kmCorridosEnSesion':  kmCorridosEnSesion,   // ← añadido
+    });
+      if (!mounted) return;
+      final data = result.data as Map<String, dynamic>;
+      if (data['ok'] == true) {
+        final nuevaClausula = (data['nuevaClausula'] as num?)?.toDouble();
+        setState(() {
+          _globalConquistado = true;
+          _nuevaClausula = nuevaClausula;
+        });
+        HapticFeedback.heavyImpact();
+        Future.delayed(const Duration(milliseconds: 150),
+            () => HapticFeedback.heavyImpact());
+        Future.delayed(const Duration(milliseconds: 300),
+            () => HapticFeedback.heavyImpact());
+        _narrador.eventoConquista(
+            _objetivoGlobal?['territorioNombre'] as String? ?? '');
+        _mostrarNotificacionConquistaGlobal();
+      }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) _mostrarError(e.message ?? 'Error al conquistar.');
+    } catch (e) {
+      debugPrint('Error conquista global: $e');
+      if (mounted) _mostrarError('Error inesperado. Inténtalo de nuevo.');
+    } finally {
+      if (mounted) setState(() => _globalConquistando = false);
+    }
+  }
+
+  void _mostrarNotificacionConquistaGlobal() {
+    if (!mounted) return;
+    final nombre     = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
+    final recompensa = (_objetivoGlobal?['recompensa'] as num?)?.toInt() ?? 0;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 8),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF3A2800), Color(0xFFD4A84C)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: _kGold, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.55), blurRadius: 28)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('⚔️', style: TextStyle(fontSize: 38)),
+          const SizedBox(height: 8),
+          Text('¡TERRITORIO CONQUISTADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 16,
+                  fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+          const SizedBox(height: 4),
+          Text(nombre, textAlign: TextAlign.center,
+              style: GoogleFonts.rajdhani(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.30),
+              border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('+$recompensa 🪙 el lunes si sigues siendo dueño  ·  +50 pts de liga',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.rajdhani(color: _kGoldLight.withValues(alpha: 0.9),
+                    fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  void _mostrarError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: _snackWrap(
+        color:  _kParchMid,
+        border: Border.all(color: _kGlobalRed.withValues(alpha: 0.5)),
+        child: Row(children: [
+          const Icon(Icons.warning_amber_rounded, color: _kGlobalRed, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(msg,
+              style: GoogleFonts.rajdhani(color: _kGoldLight,
+                  fontSize: 12, fontWeight: FontWeight.w600))),
+        ]),
+      ),
+    ));
+  }
+
+  // ==========================================================================
   // TRACKING
   // ==========================================================================
   StreamSubscription<Position> _crearStreamGPS() {
@@ -894,7 +1553,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       (Position pos) async {
         if (isPaused || !mounted) return;
 
-        // ── Anti-cheat
         final acResultado = _antiCheat.analizarPunto(pos);
         if (!acResultado.esValido) {
           if (_antiCheat.sesionCancelada && !_sesionInvalidadaPorCheat) {
@@ -920,24 +1578,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           return;
         }
 
-        // ── Actualizar estado GPS
         final newPt = LatLng(pos.latitude, pos.longitude);
         setState(() {
           if (routePoints.isNotEmpty) {
             final dist = Geolocator.distanceBetween(
-              routePoints.last.latitude,
-              routePoints.last.longitude,
-              newPt.latitude,
-              newPt.longitude,
+              routePoints.last.latitude, routePoints.last.longitude,
+              newPt.latitude, newPt.longitude,
             );
             _distanciaTotal += dist / 1000;
             _bearing = _calcularBearing(routePoints.last, newPt);
-
             if (_ultimaPosicionVelocidad != null) {
               final dt = pos.timestamp
                       .difference(_ultimaPosicionVelocidad!.timestamp)
-                      .inMilliseconds /
-                  3600000.0;
+                      .inMilliseconds / 3600000.0;
               if (dt > 0) {
                 final vel = (dist / 1000) / dt;
                 _velocidadActualKmh =
@@ -951,30 +1604,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _puntosDesdeUltimoUpdate++;
         });
 
-        // ── Cámara y mapa
-        _moverCamara(
-          lat:     pos.latitude,
-          lng:     pos.longitude,
-          zoom:    _kZoomCorrer,
-          bearing: _bearing,
-          pitch:   _kPitchCorrer,
-        );
+        _moverCamara(lat: pos.latitude, lng: pos.longitude,
+            zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer);
         if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
           _puntosDesdeUltimoUpdate = 0;
           _actualizarRutaEnMapa();
         }
 
-        // ── Verificar progreso y completion del reto activo
         if (_retoActivo != null && !_retoCompletado) {
           final objetivoMetros =
               (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
           final distanciaMetros = _distanciaTotal * 1000;
           if (objetivoMetros > 0) {
-            // Narrador al 50% del reto
             _narrador.eventoMitadReto(distanciaMetros);
-            // Narrador a 200m del final
             _narrador.eventoFinalReto(distanciaMetros);
-            // Completado
             if (distanciaMetros >= objetivoMetros) {
               setState(() => _retoCompletado = true);
               final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
@@ -984,10 +1627,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           }
         }
 
-        // ── Territorios
+        if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
+  final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+  if (kmReq > 0 && _distanciaTotal >= kmReq) {
+    setState(() => _globalKmAlcanzados = true);
+    final nombreTer =
+        _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
+    _narrador.anunciarReto(
+        '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
+    Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+  }
+}
+
         if (!_modoSolitario) _procesarPosicionEnTerritorios(newPt);
 
-        // ── Narrador
         final kmActual = _distanciaTotal.floor();
         if (kmActual > 0) _narrador.eventoKilometro(kmActual);
         if (_distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
@@ -995,7 +1650,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _narrador.analizarRitmo(_velocidadActualKmh);
         }
 
-        // ── Rival cerca
         if (!_modoSolitario) {
           final double radioRadar = SubscriptionService.radioRadar;
           for (final entry in _jugadoresActivos.entries) {
@@ -1005,19 +1659,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final dist = Geolocator.distanceBetween(
                 pos.latitude, pos.longitude, lat2, lng2);
             if (dist < radioRadar) {
-              _narrador.eventoRivalCerca(
-                  entry.value['nickname'] as String?, dist);
+              _narrador.eventoRivalCerca(entry.value['nickname'] as String?, dist);
               break;
             }
           }
         }
 
-        // ── Modo noche automático
         if (!_modoManual) {
           final esNoche = _esHoraNoche();
-          if (esNoche != _modoNoche) {
-            setState(() => _modoNoche = esNoche);
-          }
+          if (esNoche != _modoNoche) setState(() => _modoNoche = esNoche);
         }
       },
       onError: (e) => debugPrint('GPS error: $e'),
@@ -1046,21 +1696,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (p == LocationPermission.denied) return;
     }
     setState(() {
-      isTracking     = true;
-      isPaused       = false;
-      _distanciaTotal       = 0;
-      _velocidadActualKmh   = 0;
-      _bearing              = 0;
+      _globalKmAlcanzados = false;
+      isTracking               = true;
+      isPaused                 = false;
+      _distanciaTotal          = 0;
+      _velocidadActualKmh      = 0;
+      _bearing                 = 0;
       routePoints.clear();
       _puntosDesdeUltimoUpdate = 0;
       _territoriosNotificadosEnSesion.clear();
       _territoriosVisitadosEnSesion.clear();
-      _hudMinimizado = true;
-      // Reset reto al iniciar nueva sesión
-      _retoCompletado = false;
+      _hudMinimizado           = true;
+      _retoCompletado          = false;
     });
     _antiCheat.resetear();
     _sesionInvalidadaPorCheat = false;
+    _stopping = false;
     _stopwatch.reset();
     _stopwatch.start();
     _timerController.start();
@@ -1070,13 +1721,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _distanciaUltimoAnalisisRitmo  = 0;
 
     _timerResistencia?.cancel();
-    _timerResistencia =
-        Timer.periodic(const Duration(minutes: 1), (_) {
+    _timerResistencia = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!isTracking || isPaused || !mounted) return;
       final mins = _stopwatch.elapsed.inMinutes;
-      if (mins >= 20 &&
-          mins % 10 == 0 &&
-          mins != _minutosResistenciaNotificados) {
+      if (mins >= 20 && mins % 10 == 0 && mins != _minutosResistenciaNotificados) {
         _minutosResistenciaNotificados = mins;
         _narrador.eventoResistencia(mins);
       }
@@ -1086,17 +1734,82 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         mapbox.GesturesSettings(rotateEnabled: false, pitchEnabled: false));
     if (_currentPosition != null) {
       await _moverCamara(
-        lat:     _currentPosition!.latitude,
-        lng:     _currentPosition!.longitude,
-        zoom:    _kZoomCorrer,
-        bearing: _bearing,
-        pitch:   _kPitchCorrer,
-        duracion: 2800,
-        forzar:  true,
+        lat: _currentPosition!.latitude, lng: _currentPosition!.longitude,
+        zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer,
+        duracion: 2800, forzar: true,
       );
     }
 
+    // ── Cargar barrios OSM si estamos en modo solitario
+    if (_modoSolitario && _currentPosition != null) {
+      _cargarBarriosOSM(LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      ));
+    }
+
     _positionStream = _crearStreamGPS();
+
+    // ── Listener en tiempo real del territorio global objetivo
+    if (_objetivoGlobal != null) {
+      final tId = _objetivoGlobal!['territorioId'] as String?;
+      if (tId != null) {
+        _globalTerritoryLastOwner =
+            _objetivoGlobal!['ownerUid'] as String?;
+        _globalTerritoryStream = FirebaseFirestore.instance
+            .collection('global_territories')
+            .doc(tId)
+            .snapshots()
+            .listen((snap) {
+          if (!mounted || !isTracking) return;
+          if (!snap.exists) return;
+          final data    = snap.data()!;
+          final newOwner = data['ownerUid'] as String?;
+          final uid      = FirebaseAuth.instance.currentUser?.uid;
+          // Si cambió de dueño y no somos nosotros quienes lo tomamos
+          if (newOwner != null &&
+              newOwner != _globalTerritoryLastOwner &&
+              newOwner != uid &&
+              !_globalConquistado) {
+            _globalTerritoryLastOwner = newOwner;
+            final nick = data['ownerNickname'] as String? ?? 'otro jugador';
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                duration: const Duration(seconds: 5),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                content: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A0000),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: const Color(0xFFCC2222).withValues(alpha: 0.7)),
+                  ),
+                  child: Row(children: [
+                    const Text('⚔️', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '¡$nick acaba de conquistar este territorio!',
+                        style: GoogleFonts.rajdhani(
+                          color: const Color(0xFFFF5252),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ));
+            }
+          } else if (newOwner != null) {
+            _globalTerritoryLastOwner = newOwner;
+          }
+        });
+      }
+    }
   }
 
   void togglePause() {
@@ -1104,29 +1817,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       isPaused       = !isPaused;
       _hudMinimizado = !isPaused;
     });
-
     if (isPaused) {
       _timerController.pause();
       _stopwatch.stop();
       _velocidadActualKmh = 0;
       _bounceAnim.stop();
       _positionStream?.cancel();
-
       _positionStream = Geolocator.getPositionStream(
           locationSettings: _kGpsPausado).listen((pos) {
         if (mounted) setState(() => _currentPosition = pos);
       });
-
       _ajustarPresenciaPausado();
       if (_currentPosition != null) {
-        _moverCamara(
-          lat:     _currentPosition!.latitude,
-          lng:     _currentPosition!.longitude,
-          zoom:    _kZoomPausado,
-          pitch:   _kPitchNormal,
-          bearing: 0,
-          forzar:  true,
-        );
+        _moverCamara(lat: _currentPosition!.latitude,
+            lng: _currentPosition!.longitude,
+            zoom: _kZoomPausado, pitch: _kPitchNormal, bearing: 0, forzar: true);
       }
       _hudAnim.forward();
     } else {
@@ -1137,25 +1842,28 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _positionStream = _crearStreamGPS();
       _ajustarPresenciaMovimiento();
       if (_currentPosition != null) {
-        _moverCamara(
-          lat:     _currentPosition!.latitude,
-          lng:     _currentPosition!.longitude,
-          zoom:    _kZoomCorrer,
-          pitch:   _kPitchCorrer,
-          bearing: _bearing,
-          forzar:  true,
-        );
+        _moverCamara(lat: _currentPosition!.latitude,
+            lng: _currentPosition!.longitude,
+            zoom: _kZoomCorrer, pitch: _kPitchCorrer, bearing: _bearing, forzar: true);
       }
     }
   }
 
   Future<void> stopTracking() async {
+    if (_stopping) return;
+    _stopping = true;
+
     _stopwatch.stop();
     _timerController.pause();
     _positionStream?.cancel();
     _timerPublicarPosicion?.cancel();
     _pulsoTimer?.cancel();
     await _limpiarPresenciaFirestore();
+
+    // Limpiar capas de barrios si era solitario
+    if (_modoSolitario) {
+      await _limpiarCapasBarrios();
+    }
 
     final tiempoFinal    = _stopwatch.elapsed;
     final rutaFinal      = List<LatLng>.from(routePoints);
@@ -1172,15 +1880,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _mapboxMap?.gestures.updateSettings(
         mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
 
-    // ── Guardar log
+    // ── Guardar log de actividad
     String? logId;
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && distanciaFinal > 0) {
         final monedasBase    = (distanciaFinal * 10).round();
         final bool esPremium = SubscriptionService.currentStatus.isPremium;
-        final int multiplicador =
-            (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
+        final int multiplicador = (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
         final double factorModo = multiplicadorMonedas(_modoSolitario);
         final int monedasFinales =
             (monedasBase * multiplicador * factorModo).round();
@@ -1188,6 +1895,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .collection('players')
             .doc(user.uid)
             .update({'monedas': FieldValue.increment(monedasFinales)});
+
         final now = DateTime.now();
         final logRef = await FirebaseFirestore.instance
             .collection('activity_logs')
@@ -1195,14 +1903,34 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'userId':          user.uid,
           'distancia':       distanciaFinal,
           'tiempo_segundos': tiempoFinal.inSeconds,
+          'velocidad_media': tiempoFinal.inSeconds > 0
+              ? distanciaFinal / (tiempoFinal.inSeconds / 3600)
+              : 0.0,
           'boost_activo':    _boostXpActivo,
+          'latFinal':        _currentPosition?.latitude,
+          'lngFinal':        _currentPosition?.longitude,
           'timestamp':       FieldValue.serverTimestamp(),
-          'titulo': _modoSolitario ? 'Exploración Solitaria' : 'Carrera Libre',
-          'modo': _modoSolitario ? 'solitario' : 'competitivo',
+          'ownerColor':      _colorTerritorio.value,
+          'titulo': _modoSolitario
+              ? 'Exploración Solitaria'
+              : _objetivoGlobal != null
+                  ? 'Guerra Global · ${_objetivoGlobal!['territorioNombre']}'
+                  : 'Carrera Libre',
+          'modo': _modoSolitario
+              ? 'solitario'
+              : _objetivoGlobal != null ? 'guerra_global' : 'competitivo',
           'fecha_dia':
               '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+          if (_objetivoGlobal != null) ...{
+            'objetivo_global_id':           _objetivoGlobal!['territorioId'],
+            'objetivo_global_conquistado':  _globalConquistado,
+          },
         });
         logId = logRef.id;
+
+        if (_objetivoGlobal != null && _globalKmAlcanzados && logId != null) {
+          await _conquistarTerritorioGlobal(logId!, kmCorridosEnSesion: distanciaFinal);
+        }
 
         if (rutaFinal.isNotEmpty) {
           StatsService.enriquecerLog(logId: logId, ruta: rutaFinal)
@@ -1216,24 +1944,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     // ── Validación post-sesión anticheat
     if (distanciaFinal > 0 && !_sesionInvalidadaPorCheat) {
       final sesionCheck = AntiCheatService.analizarSesionCompleta(
-        ruta:         rutaFinal,
-        tiempo:       tiempoFinal,
-        distanciaKm:  distanciaFinal,
+        ruta: rutaFinal, tiempo: tiempoFinal, distanciaKm: distanciaFinal,
       );
       if (!sesionCheck.esValida) {
         _sesionInvalidadaPorCheat = true;
         if (mounted) {
           await AntiCheatWarningOverlay.mostrar(
-            context,
-            motivo: sesionCheck.motivo ?? 'Sesión inválida',
-          );
+              context, motivo: sesionCheck.motivo ?? 'Sesión inválida');
           if (mounted) Navigator.of(context).pop();
         }
+        _stopping = false;
         return;
       }
     }
 
-    // ── Conquistas
+    // ── Conquistas locales
     int conquistados = 0;
 
     if (_modoSolitario) {
@@ -1244,6 +1969,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       if (creado) {
         conquistados = 1;
+        // Recargar territorios e incluir el nuevo en el cálculo de barrios
+        final nuevosTerritorios =
+            await TerritoryService.cargarTodosLosTerritorios();
+        if (mounted) setState(() => _territorios = nuevosTerritorios);
+        await _verificarBarriosCompletados();
         if (mounted) await ConquistaOverlay.mostrar(context, esInvasion: false);
       } else {
         if (mounted) {
@@ -1265,10 +1995,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   child: Text(
                     'Área insuficiente para crear territorio.\n'
                     '¡Explora más calles y rodea una zona más amplia!',
-                    style: GoogleFonts.rajdhani(
-                        color: _kGoldLight,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600),
+                    style: GoogleFonts.rajdhani(color: _kGoldLight,
+                        fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ]),
@@ -1276,7 +2004,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ));
         }
       }
-    } else {
+      // Limpiar estado de barrios
+      if (mounted) {
+        setState(() {
+          _barriosCercanos = [];
+          _barrioActual    = null;
+          _barriosCargados = false;
+        });
+      }
+    } else if (_objetivoGlobal == null) {
       conquistados =
           await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
       await _actualizarPuntosDesafio(conquistados, distanciaFinal);
@@ -1289,33 +2025,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               .firstWhere((_) => true, orElse: () => null);
           nombreRival = rivalT?.ownerNickname;
         }
-        await ConquistaOverlay.mostrar(
-          context,
-          esInvasion:       conquistados > 0,
-          nombreTerritorio: nombreRival,
-        );
+        await ConquistaOverlay.mostrar(context,
+            esInvasion: conquistados > 0, nombreTerritorio: nombreRival);
       }
     }
 
-    if (!mounted) return;
+    if (!mounted) { _stopping = false; return; }
+
+    // En guerra global los puntos de liga se entregan el lunes (CF liquidarGuerraGlobal),
+    // no en el momento de la conquista. Solo se computan para los otros modos.
     final puntosLigaGanados = _modoSolitario
         ? 0
-        : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
+        : _objetivoGlobal != null
+            ? 0
+            : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
 
-    // ── Desafíos: acumular puntos y verificar expirados ──────────────────────
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && distanciaFinal > 0) {
-      // Acumular puntos en desafíos activos
       DesafiosService.acumularPuntos(
-        uid:                    user.uid,
-        distanciaKm:            distanciaFinal,
+        uid:                     user.uid,
+        distanciaKm:             distanciaFinal,
         territoriosConquistados: conquistados,
       );
-      // Resolver desafíos que hayan expirado durante la sesión
       DesafiosService.verificarExpirados(user.uid);
     }
 
-    // ── NUEVO: pasar el reto completado al resumen si hubo uno
+    _stopping = false;
+
     Navigator.pushReplacementNamed(context, '/resumen', arguments: {
       'distancia':               distanciaFinal,
       'tiempo':                  tiempoFinal,
@@ -1324,33 +2060,63 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'territoriosConquistados': conquistados,
       'puntosLigaGanados':       puntosLigaGanados,
       'retoCompletado':          _retoCompletado ? _retoActivo : null,
+      'objetivoGlobal':          _objetivoGlobal,
+      'globalConquistado':       _globalConquistado,
+      'nuevaClausula':           _nuevaClausula,
     });
   }
 
   // ==========================================================================
-  // TERRITORIOS LÓGICA
+  // TERRITORIOS LÓGICA LOCAL
   // ==========================================================================
   void _procesarPosicionEnTerritorios(LatLng pos) {
     if (_territorios.isEmpty) return;
+
     final t = TerritoryService.territorioEnPosicion(_territorios, pos);
+
+    final cercanos = _territorios.where((ter) {
+      if (ter.esMio) return false;
+      final dist = Geolocator.distanceBetween(
+        pos.latitude, pos.longitude,
+        ter.centro.latitude, ter.centro.longitude,
+      );
+      return dist < 400;
+    }).toList()
+      ..sort((a, b) {
+        final dA = Geolocator.distanceBetween(pos.latitude, pos.longitude,
+            a.centro.latitude, a.centro.longitude);
+        final dB = Geolocator.distanceBetween(pos.latitude, pos.longitude,
+            b.centro.latitude, b.centro.longitude);
+        return dA.compareTo(dB);
+      });
+
+    if (mounted) {
+      setState(() {
+        _territoriosRivalesCercanos = cercanos.take(3).toList();
+        _territorioActualBajoPie    = (t != null && !t.esMio) ? t : null;
+      });
+    }
+
     if (t == null) return;
+
     if (t.esMio) {
       if (!_territoriosVisitadosEnSesion.contains(t.docId)) {
         _territoriosVisitadosEnSesion.add(t.docId);
         TerritoryService.actualizarUltimaVisita(t.docId);
         _narrador.eventoTerritorioPropio();
-        _mostrarSnackRefuerzo();
+        _mostrarSnackRefuerzo(t);
       }
     } else {
       if (!_territoriosNotificadosEnSesion.contains(t.docId)) {
         _territoriosNotificadosEnSesion.add(t.docId);
-        TerritoryService.crearNotificacionInvasion(
-          toUserId:    t.ownerId,
-          fromNickname: _miNickname,
-          territoryId: t.docId,
-        );
+        // Los fantasmas no tienen dueño real → no enviar notificación Firestore
+        if (!t.esFantasma) {
+          TerritoryService.crearNotificacionInvasion(
+            toUserId: t.ownerId, fromNickname: _miNickname, territoryId: t.docId,
+          );
+        }
         _narrador.eventoTerritorioRival(t.ownerNickname);
-        _mostrarSnackInvasion(t.ownerNickname);
+        _mostrarSnackTerritorioRival(t);
       }
     }
   }
@@ -1359,106 +2125,92 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       List<LatLng> ruta, Duration tiempo, double distancia) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || ruta.isEmpty || _territorios.isEmpty) return 0;
-    int conquistados = 0;
 
-    for (final t in _territorios.where((t) => !t.esMio)) {
+    final rutaParaCloud = ruta
+        .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+        .toList();
+
+    final double velocidadMedia = _velocidadActualKmh > 0
+        ? _velocidadActualKmh
+        : (distancia > 0 && tiempo.inSeconds > 0
+            ? distancia / (tiempo.inSeconds / 3600)
+            : 5.0);
+
+    final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('atacarTerritorio',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 30)));
+
+    final territoriosObjetivo = _territorios.where((t) {
+      if (t.esMio) return false;
       final paso    = _rutaPasaPorPoligono(ruta, t.puntos);
       final cercano = t.esConquistableSinPasar &&
-          _rutaPasaCercaDe(ruta, t.centro, radioMetros: 200);
-      if (!paso && !cercano) continue;
+          _rutaPasaCercaDe(ruta, t.centro, radioMetros: 50);
+      return paso || cercano;
+    }).toList();
 
-      try {
-        final ownerDoc = await FirebaseFirestore.instance
-            .collection('players').doc(t.ownerId).get();
-        if (ownerDoc.exists) {
-          final escudo  = ownerDoc.data()?['escudo_activo'] as bool? ?? false;
-          final expiraT = ownerDoc.data()?['escudo_expira'] as Timestamp?;
-          if (escudo && expiraT != null &&
-              expiraT.toDate().isAfter(DateTime.now())) continue;
-        }
-      } catch (_) {}
+    if (territoriosObjetivo.isEmpty) return 0;
 
-      try {
-        final conquistado = await FirebaseFirestore.instance
-            .runTransaction<bool>((tx) async {
-          final terRef = FirebaseFirestore.instance
-              .collection('territories').doc(t.docId);
-          final terSnap = await tx.get(terRef);
-          if (!terSnap.exists) return false;
-          final currentOwner = terSnap.data()?['userId'] as String?;
-          if (currentOwner != t.ownerId) return false;
-          tx.update(terRef, {
-            'userId':          user.uid,
-            'ultima_visita':   FieldValue.serverTimestamp(),
-            'conquistado_por': user.uid,
-            'fecha_conquista': FieldValue.serverTimestamp(),
+    final resultados = await Future.wait(
+      territoriosObjetivo.map((t) async {
+        try {
+          final result = await callable.call({
+            'territorioDefensorId':      t.docId,
+            'rutaAtacante':              rutaParaCloud,
+            'velocidadMediaAtacanteKmh': velocidadMedia,
           });
-          return true;
-        });
-
-        if (!conquistado) continue;
-
-        for (final notif in [
-          {
-            'toUserId':    t.ownerId,
-            'type':        'territory_lost',
-            'message':     '😤 ¡$_miNickname te ha robado un territorio!',
-            'fromNickname': _miNickname,
-            'territoryId': t.docId,
-          },
-          {
-            'toUserId':    user.uid,
-            'type':        'territory_conquered',
-            'message':     '🏴 ¡Conquistado de ${t.ownerNickname}!',
-            'fromNickname': t.ownerNickname,
-            'territoryId': t.docId,
-            'distancia':   distancia,
-            'tiempo_segundos': tiempo.inSeconds,
-          },
-        ]) {
-          await FirebaseFirestore.instance.collection('notifications').add(
-              {...notif, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
-        }
-
-        await LeagueService.sumarPuntosLiga(user.uid, 25);
-        await LeagueService.sumarPuntosLiga(t.ownerId, -10);
-        _narrador.eventoConquista(t.ownerNickname);
-        conquistados++;
-
-        if (_miClanId != null) {
-          try {
-            await ClanService.sumarPuntosAlClan(
-                clanId: _miClanId!, uid: user.uid, puntos: 25);
-            final guerrasSnap = await FirebaseFirestore.instance
-                .collection('clan_wars')
-                .where('estado', isEqualTo: 'activa')
-                .where('clanA.id', isEqualTo: _miClanId)
-                .limit(1)
-                .get();
-            final guerrasSnapB = guerrasSnap.docs.isEmpty
-                ? await FirebaseFirestore.instance
-                    .collection('clan_wars')
-                    .where('estado', isEqualTo: 'activa')
-                    .where('clanB.id', isEqualTo: _miClanId)
-                    .limit(1)
-                    .get()
-                : null;
-            final warDoc = guerrasSnap.docs.isNotEmpty
-                ? guerrasSnap.docs.first
-                : guerrasSnapB?.docs.firstOrNull;
-            if (warDoc != null) {
-              await ClanService.puntoClanEnGuerra(
-                  warId: warDoc.id, clanId: _miClanId!);
+          final data   = result.data as Map<String, dynamic>;
+          final accion = data['accion'] as String?;
+          if (data['ok'] == true) {
+            if (accion == 'conquista_total' || accion == 'robo_parcial') {
+              _narrador.eventoConquista(t.ownerNickname);
+              final nuevos = await TerritoryService.cargarTodosLosTerritorios();
+                if (mounted) {
+                  setState(() => _territorios = nuevos);
+                  _territoriosLayersCreated = false;
+                  await _dibujarTerritoriosEnMapa();
+                }
+              return 1;
+            } else if (accion == 'daño') {
+              final hpDespues     = data['hpDespues'] as int? ?? 0;
+              final bajoDeEstado  = data['bajoDeEstado'] as bool? ?? false;
+              final estadoDespues = data['estadoDespues'] as String? ?? '';
+              if (mounted) {
+                final mensaje = bajoDeEstado
+                    ? '⚠️ Territorio debilitado a estado ${estadoDespues.toUpperCase()}'
+                    : '⚔️ Daño causado. HP rival: $hpDespues%';
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  duration: const Duration(seconds: 3),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  content: _snackWrap(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
+                    shadow: _kTerracotta,
+                    child: Row(children: [
+                      const Text('⚔️', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(mensaje,
+                          style: const TextStyle(color: Color(0xFFFFE8C0),
+                              fontWeight: FontWeight.bold, fontSize: 13))),
+                    ]),
+                  ),
+                ));
+              }
             }
-          } catch (e) {
-            debugPrint('Error puntos clan/guerra: $e');
           }
+          return 0;
+        } on FirebaseFunctionsException catch (e) {
+          debugPrint('Error atacarTerritorio [${t.docId}]: ${e.message}');
+          return 0;
+        } catch (e) {
+          debugPrint('Error atacarTerritorio: $e');
+          return 0;
         }
-      } catch (e) {
-        debugPrint('Error conquistando (transacción): $e');
-      }
-    }
-    return conquistados;
+      }),
+      eagerError: false,
+    );
+
+    return resultados.fold<int>(0, (sum, val) => sum + val);
   }
 
   bool _rutaPasaPorPoligono(List<LatLng> ruta, List<LatLng> pol) =>
@@ -1470,37 +2222,28 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final xi = pol[i].longitude, yi = pol[i].latitude;
       final xj = pol[j].longitude, yj = pol[j].latitude;
       if (((yi > punto.latitude) != (yj > punto.latitude)) &&
-          punto.longitude <
-              (xj - xi) * (punto.latitude - yi) / (yj - yi) + xi) {
+          punto.longitude < (xj - xi) * (punto.latitude - yi) / (yj - yi) + xi) {
         inter++;
       }
     }
     return inter % 2 == 1;
   }
 
-  bool _rutaPasaCercaDe(
-          List<LatLng> ruta, LatLng obj, {required double radioMetros}) =>
+  bool _rutaPasaCercaDe(List<LatLng> ruta, LatLng obj,
+          {required double radioMetros}) =>
       ruta.any((p) => Geolocator.distanceBetween(
               p.latitude, p.longitude, obj.latitude, obj.longitude) <=
           radioMetros);
 
   // ==========================================================================
-  // SNACKS
+  // SNACKS Y NOTIFICACIONES
   // ==========================================================================
-
-  // ── NUEVO: Notificación de reto completado durante la carrera
   void _mostrarNotificacionRetoCompletado() {
     if (!mounted || _retoActivo == null) return;
-
-    // Vibración triple para destacarlo
     HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 150),
-        () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 300),
-        () => HapticFeedback.heavyImpact());
-
+    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
     final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
-
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 7),
       backgroundColor: Colors.transparent,
@@ -1510,146 +2253,479 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF3A2800), Color(0xFFD4A84C)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           border: Border.all(color: _kGold, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-                color: _kGold.withValues(alpha: 0.55), blurRadius: 28),
-          ],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.55), blurRadius: 28)],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('🏆', style: TextStyle(fontSize: 38)),
           const SizedBox(height: 8),
-          Text(
-            '¡RETO COMPLETADO!',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.cinzel(
-              color: _kGoldLight, fontSize: 17,
-              fontWeight: FontWeight.w900, letterSpacing: 3,
-            ),
-          ),
+          Text('¡RETO COMPLETADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 17,
+                  fontWeight: FontWeight.w900, letterSpacing: 3)),
           const SizedBox(height: 4),
-          Text(
-            titulo,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.rajdhani(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text(titulo, textAlign: TextAlign.center,
+              style: GoogleFonts.rajdhani(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.30),
               border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(
-              'Puedes seguir corriendo o finalizar la carrera',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.rajdhani(
-                color: _kGoldLight.withValues(alpha: 0.85),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+            child: Text('Puedes seguir corriendo o finalizar la carrera',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.rajdhani(color: _kGoldLight.withValues(alpha: 0.85),
+                    fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  // Corrección 1 — snack territorio rival con HP y estado
+  void _mostrarSnackTerritorioRival(TerritoryData t) {
+    if (!mounted) return;
+    final String estadoLabel;
+    final Color  estadoColor;
+    final String emoji;
+    final String consejo;
+    switch (t.estadoHp) {
+      case EstadoHp.saludable:
+        estadoLabel = 'FUERTE'; estadoColor = _kVerde;
+        emoji = '🟢'; consejo = 'Necesitas >7 km/h para dañarlo';
+      case EstadoHp.danado:
+        estadoLabel = 'MEDIO'; estadoColor = _kGold;
+        emoji = '🟡'; consejo = 'Necesitas >5 km/h';
+      case EstadoHp.critico:
+        estadoLabel = '¡LEVE!'; estadoColor = _kGlobalRed;
+        emoji = '🔴'; consejo = '¡Cualquier paso lo conquista!';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _kParchment.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: estadoColor.withValues(alpha: 0.7), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: estadoColor.withValues(alpha: 0.25), blurRadius: 16),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color:  estadoColor.withValues(alpha: 0.15),
+              shape:  BoxShape.circle,
+              border: Border.all(color: estadoColor.withValues(alpha: 0.5)),
+            ),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  const Text('⚔️ ', style: TextStyle(fontSize: 12)),
+                  Expanded(child: Text(t.ownerNickname,
+                      style: GoogleFonts.rajdhani(color: _kGoldLight,
+                          fontSize: 13, fontWeight: FontWeight.w900),
+                      overflow: TextOverflow.ellipsis)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: estadoColor.withValues(alpha: 0.15),
+                      border: Border.all(color: estadoColor.withValues(alpha: 0.6)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(estadoLabel,
+                        style: GoogleFonts.rajdhani(color: estadoColor,
+                            fontSize: 10, fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2)),
+                  ),
+                ]),
+                const SizedBox(height: 3),
+                Text(consejo,
+                    style: GoogleFonts.rajdhani(
+                        color: _kGoldLight.withValues(alpha: 0.75),
+                        fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Stack(children: [
+                  Container(height: 3,
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2))),
+                  FractionallySizedBox(
+                    widthFactor: (t.hpActual / 100.0).clamp(0.0, 1.0),
+                    child: Container(height: 3,
+                        decoration: BoxDecoration(color: estadoColor,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [BoxShadow(
+                                color: estadoColor.withValues(alpha: 0.6),
+                                blurRadius: 4)])),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  // Corrección 1 — radar de territorios próximos
+  Widget _buildRadarTerritoriosProximos() {
+    if (_modoSolitario || !isTracking || isPaused) return const SizedBox.shrink();
+    if (_territoriosRivalesCercanos.isEmpty && _territorioActualBajoPie == null) {
+      return const SizedBox.shrink();
+    }
+    final todos = [
+      if (_territorioActualBajoPie != null) _territorioActualBajoPie!,
+      ..._territoriosRivalesCercanos
+          .where((t) => t.docId != _territorioActualBajoPie?.docId),
+    ].take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: todos.map((t) {
+        final bool bajoPie = t.docId == _territorioActualBajoPie?.docId;
+        final Color estadoColor;
+        final String estadoEmoji;
+        final String estadoLabel;
+        switch (t.estadoHp) {
+          case EstadoHp.saludable:
+            estadoColor = _kVerde; estadoEmoji = '🟢'; estadoLabel = 'FUERTE';
+          case EstadoHp.danado:
+            estadoColor = _kGold; estadoEmoji = '🟡'; estadoLabel = 'MEDIO';
+          case EstadoHp.critico:
+            estadoColor = _kGlobalRed; estadoEmoji = '🔴'; estadoLabel = 'LEVE';
+        }
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: bajoPie
+                ? estadoColor.withValues(alpha: 0.18)
+                : _kParchment.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: estadoColor.withValues(alpha: bajoPie ? 0.9 : 0.45),
+                width: bajoPie ? 1.5 : 1.0),
+            boxShadow: bajoPie
+                ? [BoxShadow(color: estadoColor.withValues(alpha: 0.3), blurRadius: 12)]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6)],
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(estadoEmoji, style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 6),
+            Column(crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min, children: [
+              Text(bajoPie ? '¡PISANDO!' : 'CERCA',
+                  style: GoogleFonts.rajdhani(
+                      color: bajoPie ? estadoColor : _kGoldDim,
+                      fontSize: 8, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5)),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                if (t.tieneRey) ...[
+                  const Text('👑', style: TextStyle(fontSize: 9)),
+                  const SizedBox(width: 3),
+                ],
+                if (t.escudoVigente) ...[
+                  const Text('🛡️', style: TextStyle(fontSize: 9)),
+                  const SizedBox(width: 3),
+                ],
+                Text(t.ownerNickname.length > 10
+                    ? '${t.ownerNickname.substring(0, 9)}…'
+                    : t.ownerNickname,
+                    style: GoogleFonts.rajdhani(
+                        color: bajoPie
+                            ? _kGoldLight
+                            : _kGoldLight.withValues(alpha: 0.7),
+                        fontSize: 11, fontWeight: FontWeight.w800)),
+              ]),
+            ]),
+            const SizedBox(width: 8),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: estadoColor.withValues(alpha: 0.15),
+                  border: Border.all(color: estadoColor.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(estadoLabel,
+                    style: GoogleFonts.rajdhani(color: estadoColor,
+                        fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              ),
+              if (t.escudoVigente && t.escudoExpira != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'escudo ${_horasRestantes(t.escudoExpira!)}h',
+                  style: GoogleFonts.rajdhani(
+                      color: Colors.lightBlueAccent,
+                      fontSize: 7, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ]),
+          ]),
+        );
+      }).toList(),
+    );
+  }
+
+  // Corrección 2 — chip barrio actual (modo solitario)
+  Widget _buildChipBarrioActual() {
+    if (!_modoSolitario || !isTracking || _barrioActual == null) {
+      return const SizedBox.shrink();
+    }
+    final barrio = _barrioActual!;
+    final pct    = barrio.porcentajeCubierto;
+    final pctInt = (pct * 100).toInt();
+    final Color color;
+    final String emoji;
+    if (pct >= 1.0)      { color = _kVerde;     emoji = '🏆'; }
+    else if (pct >= 0.5) { color = _kGold;       emoji = '🗺️'; }
+    else if (pct > 0)    { color = _kTerracotta; emoji = '📍'; }
+    else                 { color = _kGoldDim;    emoji = '🗺️'; }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kParchment.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 12)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(emoji, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(barrio.nombre,
+              style: GoogleFonts.rajdhani(color: _kGoldLight,
+                  fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 110,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value:           pct,
+                backgroundColor: color.withValues(alpha: 0.15),
+                valueColor:      AlwaysStoppedAnimation(color),
+                minHeight:       4,
               ),
             ),
           ),
         ]),
-      ),
-    ));
+        const SizedBox(width: 8),
+        Text('$pctInt%',
+            style: GoogleFonts.orbitron(color: color,
+                fontSize: 12, fontWeight: FontWeight.w900)),
+      ]),
+    );
   }
 
-  void _mostrarSnackInvasion(String nick) {
+  // Corrección 2 — notificación barrio completado al 100%
+  void _mostrarNotificacionBarrioCompletado(_BarrioData barrio, int bonusMonedas) {
     if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 450), () => HapticFeedback.heavyImpact());
+
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration:        const Duration(seconds: 3),
+      duration: const Duration(seconds: 10),
       backgroundColor: Colors.transparent,
-      elevation:       0,
-      content: _snackWrap(
-        gradient: const LinearGradient(
-            colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
-        shadow: _kTerracotta,
-        child: Row(children: [
-          const Text('⚔️', style: TextStyle(fontSize: 20)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '¡Invadiendo el territorio de $nick!',
-              style: const TextStyle(
-                  color:      Color(0xFFFFE8C0),
-                  fontWeight: FontWeight.bold,
-                  fontSize:   13),
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A3A1A), Color(0xFF4CAF50)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: _kVerde, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.55), blurRadius: 28)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏆', style: TextStyle(fontSize: 42)),
+          const SizedBox(height: 8),
+          Text('¡BARRIO CONQUISTADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 16,
+                  fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+          const SizedBox(height: 4),
+          Text(barrio.nombre.toUpperCase(), textAlign: TextAlign.center,
+              style: GoogleFonts.rajdhani(color: Colors.white,
+                  fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text('Has conquistado el 100% de este barrio',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.rajdhani(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.30),
+              border: Border.all(color: _kVerde.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('🪙', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text('+$bonusMonedas BONUS',
+                  style: GoogleFonts.orbitron(color: _kGoldLight,
+                      fontSize: 16, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5)),
+            ]),
           ),
         ]),
       ),
     ));
   }
 
-  void _mostrarSnackRefuerzo() {
+  int _horasRestantes(DateTime expira) =>
+      expira.difference(DateTime.now()).inHours.clamp(0, 999);
+
+  void _mostrarSnackRefuerzo(TerritoryData territorio) {
     if (!mounted) return;
+    final String mensaje;
+    final String emoji;
+    switch (territorio.estadoHp) {
+      case EstadoHp.critico:
+        mensaje = '¡Territorio estabilizado a estado Medio!'; emoji = '🔧';
+      case EstadoHp.danado:
+        mensaje = '¡Territorio reforzado a estado Fuerte!'; emoji = '🛡️';
+      case EstadoHp.saludable:
+        mensaje = '¡Territorio en perfecto estado!'; emoji = '⚔️';
+    }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration:        const Duration(seconds: 2),
+      duration: Duration(seconds: territorio.escudoVigente ? 2 : 5),
       backgroundColor: Colors.transparent,
-      elevation:       0,
+      elevation: 0,
       content: _snackWrap(
         color:  _kParchMid,
         border: Border.all(color: _kGold.withValues(alpha: 0.55)),
-        child:  const Row(children: [
-          Text('🛡️', style: TextStyle(fontSize: 18)),
-          SizedBox(width: 10),
-          Text('¡Territorio reforzado!',
-              style: TextStyle(
-                  color:      _kGoldLight,
-                  fontWeight: FontWeight.bold,
-                  fontSize:   13)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(mensaje,
+                style: const TextStyle(color: _kGoldLight,
+                    fontWeight: FontWeight.bold, fontSize: 13))),
+            if (territorio.escudoVigente && territorio.escudoExpira != null) ...[
+              const Text('🛡️', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text('${_horasRestantes(territorio.escudoExpira!)}h',
+                  style: const TextStyle(
+                      color: Colors.lightBlueAccent,
+                      fontSize: 11, fontWeight: FontWeight.w800)),
+            ],
+          ]),
+          if (!territorio.escudoVigente) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Text('🛡️', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              Text('Proteger con escudo:',
+                  style: GoogleFonts.rajdhani(
+                      color: _kGoldDim, fontSize: 10, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              ...TerritoryService.kPreciosEscudo.entries.map((e) =>
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: GestureDetector(
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      await _activarEscudo(territorio.docId, e.key, e.value);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _kGoldDim.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: _kGold.withValues(alpha: 0.5)),
+                      ),
+                      child: Text('${e.key}h · ${e.value}🪙',
+                          style: GoogleFonts.rajdhani(
+                              color: _kGold,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ],
         ]),
       ),
     ));
   }
 
-  void _mostrarSnackBoost(int monedas, {String etiqueta = '×2'}) {
+  Future<void> _activarEscudo(
+      String territorioId, int horas, int precio) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration:        const Duration(seconds: 3),
-      backgroundColor: Colors.transparent,
-      elevation:       0,
-      content: _snackWrap(
-        gradient: LinearGradient(colors: [_kGoldDim, _kGold]),
-        shadow:   _kGold,
-        child: Row(children: [
-          const Text('⚡', style: TextStyle(fontSize: 20)),
-          const SizedBox(width: 10),
-          Text('¡Bonus! +$monedas 🪙 ($etiqueta)',
-              style: const TextStyle(
-                  color:      _kInk,
-                  fontWeight: FontWeight.bold,
-                  fontSize:   13)),
-        ]),
-      ),
-    ));
+    try {
+      await TerritoryService.activarEscudo(
+          territorioId: territorioId, horas: horas);
+      if (!mounted) return;
+      // Recargar para reflejar el escudo en el modelo
+      final nuevos = await TerritoryService.cargarTodosLosTerritorios();
+      if (!mounted) return;
+      setState(() => _territorios = nuevos);
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: _snackWrap(
+          color: const Color(0xFF0D1A2A),
+          border: Border.all(
+              color: Colors.lightBlueAccent.withValues(alpha: 0.6)),
+          child: Row(children: [
+            const Text('🛡️', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Text('¡Escudo activado $horas horas por $precio 🪙!',
+                style: const TextStyle(
+                    color: Colors.lightBlueAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13)),
+          ]),
+        ),
+      ));
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.message ?? 'Error al activar el escudo.');
+    }
   }
 
   Widget _snackWrap({
-    Widget?    child,
-    Gradient?  gradient,
-    Color?     color,
-    BoxBorder? border,
-    Color      shadow = Colors.transparent,
+    Widget? child, Gradient? gradient, Color? color,
+    BoxBorder? border, Color shadow = Colors.transparent,
   }) =>
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          gradient:     gradient,
-          color:        color,
-          borderRadius: BorderRadius.circular(14),
-          border:       border,
-          boxShadow: [
-            BoxShadow(color: shadow.withValues(alpha: 0.4), blurRadius: 12)
-          ],
+          gradient: gradient, color: color,
+          borderRadius: BorderRadius.circular(14), border: border,
+          boxShadow: [BoxShadow(color: shadow.withValues(alpha: 0.4), blurRadius: 12)],
         ),
         child: child,
       );
@@ -1667,7 +2743,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           Positioned.fill(child: _buildGloboOverlay()),
         Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
         Positioned(top: 200, left: 14, child: _buildChips()),
-        Positioned(top: 200, right: 14, child: _buildBotonesMapa()),
+        Positioned(
+          top: 200, right: 14,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildBotonesMapa(),
+              const SizedBox(height: 12),
+              _buildRadarTerritoriosProximos(),
+            ],
+          ),
+        ),
         if (isTracking && !isPaused) _buildAvatarOverlay(),
         if (isTracking)
           Align(
@@ -1678,31 +2764,168 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
         if (isTracking && !isPaused && _mensajeNarrador != null)
-          Positioned(
-            bottom: 130, left: 0, right: 0,
-            child: NarradorOverlay(mensaje: _mensajeNarrador),
-          ),
-        // ── NUEVO: Chip de reto activo visible mientras corres
+          Positioned(bottom: 130, left: 0, right: 0,
+              child: NarradorOverlay(mensaje: _mensajeNarrador)),
+        // Corrección 2 — chip barrio (solo modo solitario)
+        if (isTracking && _modoSolitario && _barrioActual != null)
+          Positioned(top: 160, left: 0, right: 0,
+              child: Center(child: _buildChipBarrioActual())),
         if (isTracking && _retoActivo != null && !_retoCompletado)
           Positioned(
-            top: 160, left: 0, right: 0,
+            top: (_modoSolitario && _barrioActual != null) ? 210 : 160,
+            left: 0, right: 0,
             child: Center(child: _buildChipRetoActivo()),
           ),
-        Positioned(
-            bottom: 0, left: 0, right: 0, child: _buildBotonera()),
+        if (_objetivoGlobal != null && !_globalConquistado)
+  Positioned(
+    // si está corriendo, debajo del chip de barrio/reto; si no, centrado arriba
+    top: isTracking
+        ? (_retoActivo != null ? 260 : 160)
+        : 120,
+    left: 0, right: 0,
+    child: Center(child: _buildChipObjetivoGlobal()),
+  ),
+        if (_globalConquistando)
+          Positioned.fill(child: _buildConquistadoOverlay()),
+        Positioned(bottom: 0, left: 0, right: 0, child: _buildBotonera()),
       ]),
     );
   }
 
-  // ── Chip pequeño que muestra el progreso del reto activo
+  // ==========================================================================
+  // GUERRA GLOBAL — widgets
+  // ==========================================================================
+  Widget _buildChipObjetivoGlobal() {
+  final nombre      = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
+  final kmReq       = (_objetivoGlobal?['kmRequeridos'] as num?)?.toDouble() ?? 0;
+  final progreso    = _progresoGlobal;
+
+  // Estado 3: confirmado por Cloud Function
+  if (_globalConquistado) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kVerde.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kVerde.withValues(alpha: 0.7)),
+        boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.35), blurRadius: 16)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('✅', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Text('¡$nombre CONQUISTADO!',
+            style: GoogleFonts.cinzel(color: _kVerde, fontSize: 11,
+                fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+      ]),
+    );
+  }
+
+  // Estado 2: km alcanzados, esperando que el usuario finalice
+  if (_globalKmAlcanzados) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _kGold.withValues(alpha: 0.20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kGold.withValues(alpha: 0.8)),
+        boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.40), blurRadius: 18)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('🏁', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text('¡META ALCANZADA!',
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 11,
+                  fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          Text('Finaliza la carrera para reclamar',
+              style: GoogleFonts.rajdhani(color: _kGold, fontSize: 9,
+                  fontWeight: FontWeight.w700)),
+        ]),
+      ]),
+    );
+  }
+
+  // Estado 1: en progreso (comportamiento original)
+  final kmRestantes = _kmRestantesGlobal;
+  final restanteStr = kmRestantes >= 1
+      ? '${kmRestantes.toStringAsFixed(2)} km'
+      : '${(kmRestantes * 1000).toInt()} m';
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    decoration: BoxDecoration(
+      color: _kInk.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: _kGlobalRed.withValues(alpha: 0.6)),
+      boxShadow: [BoxShadow(color: _kGlobalRed.withValues(alpha: 0.25), blurRadius: 14)],
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      const Text('⚔️', style: TextStyle(fontSize: 13)),
+      const SizedBox(width: 8),
+      Column(crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, children: [
+        Text(nombre, style: GoogleFonts.rajdhani(color: _kGoldLight,
+            fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        SizedBox(
+          width: 120,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: progreso,
+              backgroundColor: _kGlobalRed.withValues(alpha: 0.2),
+              valueColor: const AlwaysStoppedAnimation(_kGlobalRed),
+              minHeight: 4,
+            ),
+          ),
+        ),
+      ]),
+      const SizedBox(width: 8),
+      Text(restanteStr,
+          style: GoogleFonts.orbitron(color: _kGoldLight,
+              fontSize: 10, fontWeight: FontWeight.w900)),
+    ]),
+  );
+}
+
+  Widget _buildConquistadoOverlay() => Container(
+        color: Colors.black.withValues(alpha: 0.65),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+            decoration: BoxDecoration(
+              color: _kInk,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kGold.withValues(alpha: 0.5)),
+              boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.2), blurRadius: 30)],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(width: 36, height: 36,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _kGold)),
+              const SizedBox(height: 16),
+              Text('CONQUISTANDO...',
+                  style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 14,
+                      fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 6),
+              Text(_objetivoGlobal?['territorioNombre'] as String? ?? '',
+                  style: GoogleFonts.rajdhani(color: _kGold, fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      );
+
+  // ==========================================================================
+  // CHIP RETO ACTIVO
+  // ==========================================================================
   Widget _buildChipRetoActivo() {
-    final objetivoMetros =
-        (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
+    final objetivoMetros  = (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
     final distanciaMetros = _distanciaTotal * 1000;
     final progreso = objetivoMetros > 0
         ? (distanciaMetros / objetivoMetros).clamp(0.0, 1.0)
         : 0.0;
-    final restanteM = (objetivoMetros - distanciaMetros).clamp(0.0, objetivoMetros);
+    final restanteM   = (objetivoMetros - distanciaMetros).clamp(0.0, objetivoMetros);
     final restanteStr = restanteM >= 1000
         ? '${(restanteM / 1000).toStringAsFixed(2)} km'
         : '${restanteM.toInt()} m';
@@ -1713,19 +2936,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         color: _kParchment.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _kGold.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(color: _kGold.withValues(alpha: 0.20), blurRadius: 12),
-        ],
+        boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.20), blurRadius: 12)],
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Text('⚡', style: TextStyle(fontSize: 13)),
         const SizedBox(width: 8),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            _retoActivo!['titulo'] as String? ?? 'Reto activo',
-            style: GoogleFonts.rajdhani(
-              color: _kGoldLight, fontSize: 11, fontWeight: FontWeight.w800),
-          ),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(_retoActivo!['titulo'] as String? ?? 'Reto activo',
+              style: GoogleFonts.rajdhani(color: _kGoldLight,
+                  fontSize: 11, fontWeight: FontWeight.w800)),
           const SizedBox(height: 3),
           SizedBox(
             width: 120,
@@ -1741,17 +2961,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ]),
         const SizedBox(width: 8),
-        Text(
-          restanteStr,
-          style: GoogleFonts.orbitron(
-            color: _kGoldLight, fontSize: 10, fontWeight: FontWeight.w900),
-        ),
+        Text(restanteStr,
+            style: GoogleFonts.orbitron(color: _kGoldLight,
+                fontSize: 10, fontWeight: FontWeight.w900)),
       ]),
     );
   }
 
   // ==========================================================================
-  // GLOBO 3D CON SELECTOR DE MODO
+  // GLOBO 3D
   // ==========================================================================
   Widget _buildGloboOverlay() {
     return AnimatedBuilder(
@@ -1762,10 +2980,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           Container(
             decoration: const BoxDecoration(
               gradient: RadialGradient(
-                center: Alignment(0, -0.1),
-                radius: 1.2,
-                colors: [Color(0xFF1A0F08), _kCosmicBg],
-                stops: [0.0, 1.0],
+                center: Alignment(0, -0.1), radius: 1.2,
+                colors: [Color(0xFF1A0F08), _kCosmicBg], stops: [0.0, 1.0],
               ),
             ),
           ),
@@ -1777,12 +2993,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 0.72,
-                    colors: [
-                      Colors.transparent,
-                      _kCosmicBg.withValues(alpha: 0.55)
-                    ],
+                    center: Alignment.center, radius: 0.72,
+                    colors: [Colors.transparent, _kCosmicBg.withValues(alpha: 0.55)],
                   ),
                 ),
               ),
@@ -1792,61 +3004,54 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             top: 60, left: 0, right: 0,
             child: IgnorePointer(
               child: Column(children: [
-                Text(
-                  'CAMPO DE BATALLA EN VIVO',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.rajdhani(
-                    fontSize: 9, fontWeight: FontWeight.w700,
-                    letterSpacing: 4,
-                    color: _kGold.withValues(alpha: 0.45),
-                  ),
-                ),
+                Text('CAMPO DE BATALLA EN VIVO', textAlign: TextAlign.center,
+                    style: GoogleFonts.rajdhani(fontSize: 9, fontWeight: FontWeight.w700,
+                        letterSpacing: 4, color: _kGold.withValues(alpha: 0.45))),
                 const SizedBox(height: 4),
-                Text(
-                  'RISK RUNNER',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.cinzel(
-                    fontSize: 22, fontWeight: FontWeight.w900,
-                    letterSpacing: 3, color: _kGold,
-                    shadows: [
-                      Shadow(blurRadius: 28, color: _kGold.withValues(alpha: 0.35)),
-                      Shadow(blurRadius: 60, color: _kTerracotta.withValues(alpha: 0.2)),
-                    ],
-                  ),
-                ),
+                Text('RISK RUNNER', textAlign: TextAlign.center,
+                    style: GoogleFonts.cinzel(fontSize: 22, fontWeight: FontWeight.w900,
+                        letterSpacing: 3, color: _kGold,
+                        shadows: [
+                          Shadow(blurRadius: 28, color: _kGold.withValues(alpha: 0.35)),
+                          Shadow(blurRadius: 60, color: _kTerracotta.withValues(alpha: 0.2)),
+                        ])),
               ]),
             ),
           ),
           Positioned(
             top: 155, left: 12,
             child: IgnorePointer(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_modoSolitario) ...[
-                    _globoChip('🗺', '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
-                    const SizedBox(height: 7),
-                    _globoChip('🌍', 'Explora y conquista', _kGoldLight),
-                  ] else ...[
-                    _globoChip('⚔️',
-                        '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
-                        _kTerracotta),
-                    const SizedBox(height: 7),
-                    _globoChip('🏃', '${_jugadoresActivos.length} activos ahora', _kWaterLight),
-                    const SizedBox(height: 7),
-                    _globoChip('🗺', '${_territorios.length} territorios', _kGoldLight),
-                  ],
-                  // ── NUEVO: mostrar reto activo en el globo si viene uno
-                  if (_retoActivo != null) ...[
-                    const SizedBox(height: 7),
-                    _globoChip(
-                      '⚡',
-                      _retoActivo!['titulo'] as String? ?? 'Reto activo',
-                      _kGold,
-                    ),
-                  ],
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (_modoSolitario) ...[
+                  _globoChip('🗺', '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
+                  const SizedBox(height: 7),
+                  _globoChip('🌍', 'Explora y conquista', _kGoldLight),
+                ] else if (_objetivoGlobal != null) ...[
+                  _globoChip('⚔️',
+                      _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
+                      _kGlobalRed),
+                  const SizedBox(height: 7),
+                  _globoChip('🏃',
+                      '${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km requeridos',
+                      _kGoldLight),
+                  const SizedBox(height: 7),
+                  _globoChip('🪙',
+                      '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes si sigues siendo dueño',
+                      _kGold),
+                ] else ...[
+                  _globoChip('⚔️',
+                      '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
+                      _kTerracotta),
+                  const SizedBox(height: 7),
+                  _globoChip('🏃', '${_jugadoresActivos.length} activos ahora', _kWaterLight),
+                  const SizedBox(height: 7),
+                  _globoChip('🗺', '${_territorios.length} territorios', _kGoldLight),
                 ],
-              ),
+                if (_retoActivo != null) ...[
+                  const SizedBox(height: 7),
+                  _globoChip('⚡', _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
+                ],
+              ]),
             ),
           ),
           Positioned(
@@ -1856,12 +3061,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
-                    _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
-                    _globoStat('${_territorios.length}', 'TERRITORIOS', _kGoldLight),
-                    _globoStat('${_territoriosNotificadosEnSesion.length}⚔', 'EN GUERRA', _kTerracotta),
-                  ],
+                  children: _objetivoGlobal != null
+                      ? [
+                          _globoStat('${(_distanciaTotal).toStringAsFixed(2)}', 'KM HECHOS', _kGold),
+                          _globoStat('${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"}', 'KM META', _kWaterLight),
+                          _globoStat('${(_progresoGlobal * 100).toInt()}%', 'PROGRESO', _kGoldLight),
+                          _globoStat(_globalConquistado ? '✓' : '⏳', 'ESTADO',
+                              _globalConquistado ? _kVerde : _kTerracotta),
+                        ]
+                      : [
+                          _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
+                          _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
+                          _globoStat('${_territorios.length}', 'TERRITORIOS', _kGoldLight),
+                          _globoStat('${_territoriosNotificadosEnSesion.length}⚔', 'EN GUERRA', _kTerracotta),
+                        ],
                 ),
               ),
             ),
@@ -1892,20 +3105,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         Text(valor, style: GoogleFonts.orbitron(
             fontSize: 18, fontWeight: FontWeight.w900, color: color)),
         const SizedBox(height: 2),
-        Text(label, style: GoogleFonts.rajdhani(
-            fontSize: 7, fontWeight: FontWeight.w700,
-            letterSpacing: 1.8, color: _kGold.withValues(alpha: 0.4))),
+        Text(label, style: GoogleFonts.rajdhani(fontSize: 7,
+            fontWeight: FontWeight.w700, letterSpacing: 1.8,
+            color: _kGold.withValues(alpha: 0.4))),
       ]);
 
   Widget _buildMapbox() => mapbox.MapWidget(
         styleUri: _mapStyle,
         cameraOptions: mapbox.CameraOptions(
-          center: mapbox.Point(
-              coordinates: mapbox.Position(
-                  _currentPosition?.longitude ?? -3.70325,
-                  _currentPosition?.latitude  ?? 40.4167)),
-          zoom:  _kZoomGlobo,
-          pitch: _kPitchNormal,
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _currentPosition?.longitude ?? -3.70325,
+              _currentPosition?.latitude  ?? 40.4167)),
+          zoom: _kZoomGlobo, pitch: _kPitchNormal,
         ),
         onMapCreated: _onMapCreated,
       );
@@ -1924,39 +3135,46 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             color: _kParchment.withValues(alpha: 0.93),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-                color: _kGold.withValues(alpha: 0.18 + _pulso.value * 0.22),
+                color: (_objetivoGlobal != null ? _kGlobalRed : _kGold)
+                    .withValues(alpha: 0.18 + _pulso.value * 0.22),
                 width: 1.5),
             boxShadow: [
-              BoxShadow(
-                  color: _kGold.withValues(alpha: 0.10 + _pulso.value * 0.08),
+              BoxShadow(color: (_objetivoGlobal != null ? _kGlobalRed : _kGold)
+                  .withValues(alpha: 0.10 + _pulso.value * 0.08),
                   blurRadius: 20, spreadRadius: 1),
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.55), blurRadius: 10),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 10),
             ],
           ),
           child: child,
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _hudStat('KM', _distanciaTotal.toStringAsFixed(2), _kGold),
-          _hudDivider(),
-          _hudStat('MIN/KM', _ritmoStr, _kWaterLight),
-          _hudDivider(),
-          _buildStatTimer(),
-          if (_modoSolitario) ...[
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _hudStat('KM', _distanciaTotal.toStringAsFixed(2), _kGold),
             _hudDivider(),
-            _hudStat('MODO', 'SOLO', _kVerde),
-          ],
-          if (_boostXpActivo) ...[
+            _hudStat('MIN/KM', _ritmoStr, _kWaterLight),
             _hudDivider(),
-            _hudStat('BOOST', '×2', _kGoldLight),
+            _buildStatTimer(),
+            if (_objetivoGlobal != null) ...[
+              _hudDivider(),
+              _hudStat('META', '${(_progresoGlobal * 100).toInt()}%',
+                  _globalConquistado ? _kVerde : _kGlobalRed),
+            ] else if (_modoSolitario) ...[
+              _hudDivider(),
+              _hudStat('MODO', 'SOLO', _kVerde),
+            ],
+            if (_boostXpActivo) ...[
+              _hudDivider(),
+              _hudStat('BOOST', '×2', _kGoldLight),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }
 
-  Widget _buildHUDMini() => Positioned(
-        top: 50, left: 18, right: 18,
+  Widget _buildHUDMini() => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 50, 18, 0),
         child: GestureDetector(
           onTap: () => setState(() => _hudMinimizado = false),
           child: Container(
@@ -1965,28 +3183,30 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               color: _kParchment.withValues(alpha: 0.90),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: _kGoldDim.withValues(alpha: 0.45)),
-              boxShadow: [
-                BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 10)
-              ],
+              boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 10)],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Text(_distanciaTotal.toStringAsFixed(2),
-                    style: GoogleFonts.orbitron(
-                        color: _kGoldLight, fontWeight: FontWeight.w900, fontSize: 14)),
-                Text(' km',
-                    style: TextStyle(color: _kGold.withValues(alpha: 0.55), fontSize: 11)),
+                    style: GoogleFonts.orbitron(color: _kGoldLight,
+                        fontWeight: FontWeight.w900, fontSize: 14)),
+                Text(' km', style: TextStyle(color: _kGold.withValues(alpha: 0.55), fontSize: 11)),
                 Container(width: 1, height: 14, color: _kGoldDim.withValues(alpha: 0.4)),
                 Text(_ritmoStr,
-                    style: GoogleFonts.orbitron(
-                        color: _kWaterLight, fontWeight: FontWeight.w900, fontSize: 14)),
-                Text(' /km',
-                    style: TextStyle(color: _kWater.withValues(alpha: 0.55), fontSize: 11)),
-                if (_modoSolitario) ...[
+                    style: GoogleFonts.orbitron(color: _kWaterLight,
+                        fontWeight: FontWeight.w900, fontSize: 14)),
+                Text(' /km', style: TextStyle(color: _kWater.withValues(alpha: 0.55), fontSize: 11)),
+                if (_objetivoGlobal != null) ...[
                   Container(width: 1, height: 14, color: _kGoldDim.withValues(alpha: 0.4)),
-                  Text('SOLO', style: GoogleFonts.rajdhani(
-                      color: _kVerde, fontWeight: FontWeight.w900, fontSize: 11)),
+                  Text('${(_progresoGlobal * 100).toInt()}%',
+                      style: GoogleFonts.orbitron(
+                          color: _globalConquistado ? _kVerde : _kGlobalRed,
+                          fontWeight: FontWeight.w900, fontSize: 14)),
+                ] else if (_modoSolitario) ...[
+                  Container(width: 1, height: 14, color: _kGoldDim.withValues(alpha: 0.4)),
+                  Text('SOLO', style: GoogleFonts.rajdhani(color: _kVerde,
+                      fontWeight: FontWeight.w900, fontSize: 11)),
                 ],
                 const Icon(Icons.expand_more_rounded, color: _kGoldDim, size: 15),
               ],
@@ -1997,13 +3217,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Widget _hudStat(String label, String valor, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(label, style: GoogleFonts.rajdhani(
-            color: color.withValues(alpha: 0.7), fontSize: 8,
-            fontWeight: FontWeight.w700, letterSpacing: 1.8)),
+        Text(label, style: GoogleFonts.rajdhani(color: color.withValues(alpha: 0.7),
+            fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1.8)),
         const SizedBox(height: 4),
-        Text(valor, style: GoogleFonts.orbitron(
-            color: Colors.white, fontSize: valor.length > 5 ? 14 : 18,
-            fontWeight: FontWeight.w900,
+        Text(valor, style: GoogleFonts.orbitron(color: Colors.white,
+            fontSize: valor.length > 5 ? 14 : 18, fontWeight: FontWeight.w900,
             shadows: [Shadow(color: color.withValues(alpha: 0.55), blurRadius: 10)])),
       ]);
 
@@ -2014,7 +3232,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         controller: _timerController,
         builder: (state, remaining) {
           final str = isTracking
-              ? '${remaining.hours}:${remaining.minutes}:${remaining.seconds}'
+              ? '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}'
               : '--:--:--';
           return _hudStat('TIEMPO', str, isPaused ? _kGoldDim : _kWaterLight);
         },
@@ -2035,15 +3253,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               ],
             ),
             child: Text(
-              '${remaining.hours}:${remaining.minutes}:${remaining.seconds}',
-              style: GoogleFonts.orbitron(
-                fontSize: 46, fontWeight: FontWeight.w900,
-                color: Colors.white, letterSpacing: 2,
-                shadows: const [
-                  Shadow(blurRadius: 22, color: _kGold),
-                  Shadow(blurRadius: 45, color: Color(0x66D4722A)),
-                ],
-              ),
+              '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
+              style: GoogleFonts.orbitron(fontSize: 46, fontWeight: FontWeight.w900,
+                  color: Colors.white, letterSpacing: 2,
+                  shadows: const [
+                    Shadow(blurRadius: 22, color: _kGold),
+                    Shadow(blurRadius: 45, color: Color(0x66D4722A)),
+                  ]),
             ),
           ),
         ),
@@ -2058,23 +3274,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               offset: Offset(0, _bounceOffset.value),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 if (_velocidadActualKmh > 1)
-                  SizedBox(
-                    width: 100, height: 28,
-                    child: CustomPaint(
-                        painter: _SpeedLinesPainter(color: _kTerracotta)),
-                  ),
-                Image.asset(
-                  'assets/avatars/explorador.png',
-                  width: 110, height: 110, fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) =>
-                      Icon(Icons.directions_run_rounded, color: _kGold, size: 80),
-                ),
+                  SizedBox(width: 100, height: 28,
+                      child: CustomPaint(
+                          painter: _SpeedLinesPainter(color: _kTerracotta))),
+                Image.asset('assets/avatars/explorador.png',
+                    width: 110, height: 110, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(Icons.directions_run_rounded, color: _kGold, size: 80)),
                 Container(
                   width: 52, height: 9,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(50),
-                    gradient: RadialGradient(
-                        colors: [_kGold.withValues(alpha: 0.28), Colors.transparent]),
+                    gradient: RadialGradient(colors: [
+                      _kGold.withValues(alpha: 0.28), Colors.transparent
+                    ]),
                   ),
                 ),
               ]),
@@ -2100,6 +3313,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         const SizedBox(height: 8),
         _chip('${_territoriosNotificadosEnSesion.length} invadidos', _kTerracotta, '⚔'),
       ],
+      if (_globalConquistado) ...[
+        const SizedBox(height: 8),
+        _chip('¡Conquistado!', _kVerde, '⚔️'),
+      ],
     ]);
   }
 
@@ -2114,8 +3331,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(emoji, style: const TextStyle(fontSize: 11)),
           const SizedBox(width: 5),
-          Text(texto, style: GoogleFonts.rajdhani(
-              color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(texto, style: GoogleFonts.rajdhani(color: color,
+              fontSize: 11, fontWeight: FontWeight.w700)),
         ]),
       );
 
@@ -2126,14 +3343,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           const SizedBox(height: 10),
           _botonMapa('🎯', _kTerracotta, () {
             if (_currentPosition != null) {
-              _moverCamara(
-                lat:     _currentPosition!.latitude,
-                lng:     _currentPosition!.longitude,
-                zoom:    _kZoomCorrer,
-                pitch:   _kPitchCorrer,
-                bearing: _bearing,
-                forzar:  true,
-              );
+              _moverCamara(lat: _currentPosition!.latitude,
+                  lng: _currentPosition!.longitude,
+                  zoom: _kZoomCorrer, pitch: _kPitchCorrer,
+                  bearing: _bearing, forzar: true);
             }
           }),
         ],
@@ -2174,22 +3387,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 scale: _cuentaAtrasScale,
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text(
-                    _cuentaAtras > 0 ? '$_cuentaAtras'
-                        : (_modoSolitario ? '🗺️' : '⚔️'),
-                    style: GoogleFonts.cinzel(
-                      fontSize: 96, fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      shadows: const [
-                        Shadow(blurRadius: 35, color: _kGold),
-                        Shadow(blurRadius: 70, color: _kTerracotta),
-                        Shadow(blurRadius: 6, color: Colors.black),
-                      ],
-                    ),
+                    _cuentaAtras > 0
+                        ? '$_cuentaAtras'
+                        : (_modoSolitario ? '🗺️'
+                            : _objetivoGlobal != null ? '⚔️' : '⚔️'),
+                    style: GoogleFonts.cinzel(fontSize: 96,
+                        fontWeight: FontWeight.w900, color: Colors.white,
+                        shadows: const [
+                          Shadow(blurRadius: 35, color: _kGold),
+                          Shadow(blurRadius: 70, color: _kTerracotta),
+                          Shadow(blurRadius: 6, color: Colors.black),
+                        ]),
                   ),
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                     decoration: BoxDecoration(
                       color: _kParchment.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(20),
@@ -2198,12 +3410,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                           color: _kGold.withValues(alpha: 0.2), blurRadius: 14)],
                     ),
                     child: Text(
-                      _cuentaAtras > 0 ? 'PREPÁRATE'
-                          : (_modoSolitario ? '¡A EXPLORAR!' : '¡A CONQUISTAR!'),
-                      style: GoogleFonts.cinzel(
-                        color: _kGoldLight, fontSize: 13,
-                        fontWeight: FontWeight.w700, letterSpacing: 3.5,
-                      ),
+                      _cuentaAtras > 0
+                          ? 'PREPÁRATE'
+                          : (_modoSolitario ? '¡A EXPLORAR!'
+                              : _objetivoGlobal != null
+                                  ? '¡A CONQUISTAR EL MUNDO!'
+                                  : '¡A CONQUISTAR!'),
+                      style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 13,
+                          fontWeight: FontWeight.w700, letterSpacing: 3.5),
                     ),
                   ),
                 ]),
@@ -2233,6 +3447,76 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
 
   Widget _buildSelectorModo() {
+    if (_objetivoGlobal != null) {
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _kInk.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kGlobalRed.withValues(alpha: 0.5)),
+            boxShadow: [BoxShadow(color: _kGlobalRed.withValues(alpha: 0.15), blurRadius: 16)],
+          ),
+          child: Row(children: [
+            const Text('⚔️', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('GUERRA GLOBAL', style: GoogleFonts.cinzel(color: _kGoldLight,
+                  fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 2),
+              Text(_objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
+                  style: GoogleFonts.rajdhani(color: _kGold, fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+              Text('Corre ${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km para conquistar',
+                  style: GoogleFonts.rajdhani(color: _kGoldDim, fontSize: 10,
+                      fontWeight: FontWeight.w600)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0}',
+                  style: GoogleFonts.orbitron(color: _kGold, fontSize: 16,
+                      fontWeight: FontWeight.w900)),
+              Text('🪙 el lunes',
+                  style: GoogleFonts.rajdhani(color: _kGoldDim, fontSize: 10)),
+            ]),
+          ]),
+        ),
+        GestureDetector(
+          onTap: _mostrandoCuentaAtras ? null : _iniciarCuentaAtras,
+          child: AnimatedBuilder(
+            animation: _pulsoAnim,
+            builder: (_, child) => Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF5C0000), Color(0xFFCC2222), Color(0xFF8B0000)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                    color: _kGlobalRed.withValues(alpha: 0.35 + _pulso.value * 0.2),
+                    width: 1.5),
+                boxShadow: [
+                  BoxShadow(color: _kGlobalRed.withValues(alpha: 0.12 + _pulso.value * 0.28),
+                      blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+                ],
+              ),
+              child: child,
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Text('⚔️', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 14),
+              Text('INICIAR CONQUISTA',
+                  style: GoogleFonts.cinzel(fontSize: 16, color: Colors.white,
+                      fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+            ]),
+          ),
+        ),
+      ]);
+    }
+
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Container(
         margin: const EdgeInsets.only(bottom: 14),
@@ -2244,24 +3528,30 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: Row(children: [
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _modoSolitario = false),
+              onTap: () {
+                setState(() => _modoSolitario = false);
+                _aplicarTerritoriosFantasma();
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: !_modoSolitario
                       ? _kGoldDim.withValues(alpha: 0.5) : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(13)),
+                  borderRadius:
+                      const BorderRadius.horizontal(left: Radius.circular(13)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Text('⚔️', style: TextStyle(fontSize: 18)),
                   const SizedBox(height: 4),
-                  Text('COMPETITIVO', style: GoogleFonts.rajdhani(
-                      fontSize: 10, fontWeight: FontWeight.w900,
-                      color: !_modoSolitario ? _kGoldLight : _kGoldDim,
-                      letterSpacing: 1.5)),
-                  Text('Conquista rivales', style: GoogleFonts.rajdhani(
-                      fontSize: 8, color: _kGoldDim.withValues(alpha: 0.7))),
+                  Text('COMPETITIVO',
+                      style: GoogleFonts.rajdhani(fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: !_modoSolitario ? _kGoldLight : _kGoldDim,
+                          letterSpacing: 1.5)),
+                  Text('Conquista rivales',
+                      style: GoogleFonts.rajdhani(fontSize: 8,
+                          color: _kGoldDim.withValues(alpha: 0.7))),
                 ]),
               ),
             ),
@@ -2269,36 +3559,46 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           Container(width: 1, height: 50, color: _kGoldDim.withValues(alpha: 0.3)),
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _modoSolitario = true),
+              onTap: () {
+                setState(() {
+                  _modoSolitario = true;
+                  // Quitar fantasmas de la lista al pasar a solitario
+                  _territorios = _territorios
+                      .where((t) => !t.esFantasma)
+                      .toList();
+                });
+                _dibujarTerritoriosEnMapa();
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: _modoSolitario
                       ? _kVerde.withValues(alpha: 0.25) : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(right: Radius.circular(13)),
+                  borderRadius:
+                      const BorderRadius.horizontal(right: Radius.circular(13)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Text('🗺️', style: TextStyle(fontSize: 18)),
                   const SizedBox(height: 4),
-                  Text('SOLITARIO', style: GoogleFonts.rajdhani(
-                      fontSize: 10, fontWeight: FontWeight.w900,
-                      color: _modoSolitario ? _kVerde : _kGoldDim,
-                      letterSpacing: 1.5)),
-                  Text('Explora tu ciudad', style: GoogleFonts.rajdhani(
-                      fontSize: 8, color: _kGoldDim.withValues(alpha: 0.7))),
+                  Text('SOLITARIO',
+                      style: GoogleFonts.rajdhani(fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: _modoSolitario ? _kVerde : _kGoldDim,
+                          letterSpacing: 1.5)),
+                  Text('Explora tu ciudad',
+                      style: GoogleFonts.rajdhani(fontSize: 8,
+                          color: _kGoldDim.withValues(alpha: 0.7))),
                 ]),
               ),
             ),
           ),
         ]),
       ),
-
       if (SubscriptionService.estilosMapaActivos) ...[
         _buildSelectorEstiloMapa(),
         const SizedBox(height: 14),
       ],
-
       GestureDetector(
         onTap: _mostrandoCuentaAtras ? null : _iniciarCuentaAtras,
         child: AnimatedBuilder(
@@ -2318,18 +3618,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                     ], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: (_modoSolitario ? _kVerde : _kGoldLight)
-                    .withValues(alpha: 0.35 + _pulso.value * 0.2),
-                width: 1.5,
-              ),
+                  color: (_modoSolitario ? _kVerde : _kGoldLight)
+                      .withValues(alpha: 0.35 + _pulso.value * 0.2),
+                  width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: (_modoSolitario ? _kVerde : _kGold)
-                      .withValues(alpha: 0.12 + _pulso.value * 0.28),
-                  blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5),
-                ),
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+                    color: (_modoSolitario ? _kVerde : _kGold)
+                        .withValues(alpha: 0.12 + _pulso.value * 0.28),
+                    blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
               ],
             ),
             child: child,
@@ -2338,14 +3635,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             Text(_modoSolitario ? '🗺️' : '🏴',
                 style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 14),
-            Text(
-              _modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
-              style: GoogleFonts.cinzel(
-                fontSize: 16,
-                color: _modoSolitario ? Colors.white : _kInk,
-                fontWeight: FontWeight.w900, letterSpacing: 2.5,
-              ),
-            ),
+            Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
+                style: GoogleFonts.cinzel(fontSize: 16,
+                    color: _modoSolitario ? Colors.white : _kInk,
+                    fontWeight: FontWeight.w900, letterSpacing: 2.5)),
           ]),
         ),
       ),
@@ -2358,79 +3651,72 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       {'id': 'satelite', 'emoji': '🛰️', 'label': 'Satélite'},
       {'id': 'militar',  'emoji': '🎖️', 'label': 'Militar'},
     ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 6),
-          child: Row(children: [
-            const Text('👑', style: TextStyle(fontSize: 10)),
-            const SizedBox(width: 5),
-            Text('ESTILO DE MAPA', style: GoogleFonts.rajdhani(
-                color: _kGoldDim, fontSize: 9,
-                fontWeight: FontWeight.w800, letterSpacing: 2)),
-          ]),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(left: 2, bottom: 6),
+        child: Row(children: [
+          const Text('👑', style: TextStyle(fontSize: 10)),
+          const SizedBox(width: 5),
+          Text('ESTILO DE MAPA', style: GoogleFonts.rajdhani(color: _kGoldDim,
+              fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2)),
+        ]),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: _kParchMid.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _kGoldDim.withValues(alpha: 0.3)),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: _kParchMid.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _kGoldDim.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: estilos.map((e) {
-              final selected = _estiloMapa == e['id'];
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    if (_estiloMapa == e['id']) return;
-                    setState(() => _estiloMapa = e['id'] as String);
-                    final uri = _mapUriParaEstilo(e['id'] as String);
-                    _mapboxMap?.loadStyleURI(uri);
-                    _buildings3dCreated       = false;
-                    _territoriosLayersCreated = false;
-                    Future.delayed(const Duration(milliseconds: 800), () {
-                      if (!mounted) return;
-                      _addBuildings3D();
-                      _configurarAtmosfera();
-                      _dibujarTerritoriosEnMapa();
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? _kGoldDim.withValues(alpha: 0.45) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text(e['emoji'] as String,
-                          style: const TextStyle(fontSize: 16)),
-                      const SizedBox(height: 2),
-                      Text(e['label'] as String,
-                          style: GoogleFonts.rajdhani(
-                              fontSize: 9, fontWeight: FontWeight.w700,
-                              color: selected ? _kGoldLight : _kGoldDim,
-                              letterSpacing: 0.5)),
-                    ]),
+        child: Row(
+          children: estilos.map((e) {
+            final selected = _estiloMapa == e['id'];
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  if (_estiloMapa == e['id']) return;
+                  setState(() => _estiloMapa = e['id'] as String);
+                  final uri = _mapUriParaEstilo(e['id'] as String);
+                  _mapboxMap?.loadStyleURI(uri);
+                  _buildings3dCreated       = false;
+                  _territoriosLayersCreated = false;
+                  Future.delayed(const Duration(milliseconds: 800), () {
+                    if (!mounted) return;
+                    _addBuildings3D();
+                    _configurarAtmosfera();
+                    _dibujarTerritoriosEnMapa();
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? _kGoldDim.withValues(alpha: 0.45) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
                   ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(e['emoji'] as String, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(e['label'] as String,
+                        style: GoogleFonts.rajdhani(fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? _kGoldLight : _kGoldDim,
+                            letterSpacing: 0.5)),
+                  ]),
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
-      ],
-    );
+      ),
+    ]);
   }
 
   String _mapUriParaEstilo(String estilo) {
     switch (estilo) {
       case 'satelite': return mapbox.MapboxStyles.SATELLITE_STREETS;
       case 'militar':  return mapbox.MapboxStyles.DARK;
-      default:
-        return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
+      default: return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
     }
   }
 
@@ -2448,9 +3734,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               ],
             ),
             child: Center(
-              child: Text(isPaused ? '▶️' : '⏸️',
-                  style: const TextStyle(fontSize: 26)),
-            ),
+                child: Text(isPaused ? '▶️' : '⏸️',
+                    style: const TextStyle(fontSize: 26))),
           ),
         ),
         const SizedBox(width: 14),
@@ -2461,9 +3746,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               padding: const EdgeInsets.symmetric(vertical: 19),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF5C1200), Color(0xFFB84020)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                ),
+                    colors: [Color(0xFF5C1200), Color(0xFFB84020)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: _kTerracotta.withValues(alpha: 0.35), width: 1),
                 boxShadow: [
@@ -2472,21 +3756,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_modoSolitario ? '🏁' : '🏳️',
-                      style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 10),
-                  Text(
-                    _modoSolitario ? 'FINALIZAR' : 'RETIRADA',
-                    style: GoogleFonts.cinzel(
-                      fontSize: 15, fontWeight: FontWeight.w700,
-                      color: const Color(0xFFFFE0C0), letterSpacing: 2.5,
-                    ),
-                  ),
-                ],
-              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(_modoSolitario ? '🏁'
+                    : _objetivoGlobal != null ? '🏴' : '🏳️',
+                    style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Text(
+                  _modoSolitario ? 'FINALIZAR'
+                      : _objetivoGlobal != null
+                          ? (_globalConquistado ? 'MISIÓN CUMPLIDA' : 'RETIRADA')
+                          : 'RETIRADA',
+                  style: GoogleFonts.cinzel(fontSize: 15, fontWeight: FontWeight.w700,
+                      color: const Color(0xFFFFE0C0), letterSpacing: 2.5),
+                ),
+              ]),
             ),
           ),
         ),
@@ -2535,7 +3818,8 @@ class _GlobePainter extends CustomPainter {
     canvas.drawCircle(Offset(cx, cy), r,
         Paint()
           ..color = goldColor.withValues(alpha: 0.18)
-          ..style = PaintingStyle.stroke..strokeWidth = 1.2);
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2);
 
     canvas.save();
     final clipCircle = ui.Path()
@@ -2543,36 +3827,36 @@ class _GlobePainter extends CustomPainter {
     canvas.clipPath(clipCircle);
     final gridPaint = Paint()
       ..color = goldColor.withValues(alpha: 0.06)
-      ..style = PaintingStyle.stroke..strokeWidth = 0.7;
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7;
     for (int i = 0; i < 10; i++) {
       final a  = i / 10 * math.pi * 2 + angle;
       final rx = r * math.max(0.01, math.cos(a).abs());
-      canvas.drawOval(
-          Rect.fromCenter(center: Offset(cx, cy), width: rx * 2, height: r * 2),
-          gridPaint);
+      canvas.drawOval(Rect.fromCenter(
+          center: Offset(cx, cy), width: rx * 2, height: r * 2), gridPaint);
     }
     for (int lat = 1; lat < 6; lat++) {
       final yOff = cy + r * math.cos(lat / 5 * math.pi);
       final rr   = r * math.max(0.01, math.sin(lat / 5 * math.pi).abs());
-      canvas.drawOval(
-          Rect.fromCenter(center: Offset(cx, yOff), width: rr * 2, height: rr * 0.28),
-          gridPaint);
+      canvas.drawOval(Rect.fromCenter(
+          center: Offset(cx, yOff), width: rr * 2, height: rr * 0.28), gridPaint);
     }
     canvas.restore();
 
     final continenteDefs = [
       _ContinenteDef(angle * 0.25, [
-        Offset(-30, -95), Offset(-10, -70), Offset(-20, -35), Offset(-40, -5),
-        Offset(-55, 55), Offset(-60, 105), Offset(-42, 95), Offset(-28, 32),
-        Offset(-38, -28), Offset(-15, -60),
+        Offset(-30, -95), Offset(-10, -70), Offset(-20, -35),
+        Offset(-40, -5),  Offset(-55, 55),  Offset(-60, 105),
+        Offset(-42, 95),  Offset(-28, 32),  Offset(-38, -28), Offset(-15, -60),
       ], goldColor.withValues(alpha: 0.30)),
       _ContinenteDef(angle * 0.22, [
-        Offset(-95, -85), Offset(-75, -60), Offset(-88, -12), Offset(-105, 62),
-        Offset(-120, 110), Offset(-128, 78), Offset(-110, 8), Offset(-96, -52),
+        Offset(-95, -85), Offset(-75, -60), Offset(-88, -12),
+        Offset(-105, 62), Offset(-120, 110),Offset(-128, 78),
+        Offset(-110, 8),  Offset(-96, -52),
       ], goldColor.withValues(alpha: 0.25)),
       _ContinenteDef(angle * 0.28, [
         Offset(15, -90), Offset(72, -78), Offset(105, -48),
-        Offset(98, -12), Offset(52, 12), Offset(22, -22),
+        Offset(98, -12), Offset(52, 12),  Offset(22, -22),
       ], goldColor.withValues(alpha: 0.22)),
     ];
     for (final def in continenteDefs) {
@@ -2612,7 +3896,8 @@ class _GlobePainter extends CustomPainter {
       canvas.drawCircle(Offset(d.x, d.y), pulse,
           Paint()
             ..color = d.color.withValues(alpha: 0.28)
-            ..style = PaintingStyle.stroke..strokeWidth = 1.0);
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.0);
     }
     canvas.drawCircle(Offset(cx, cy), r,
         Paint()..shader = RadialGradient(
@@ -2627,15 +3912,12 @@ class _GlobePainter extends CustomPainter {
 }
 
 class _ContinenteDef {
-  final double       rot;
-  final List<Offset> pts;
-  final Color        color;
+  final double rot; final List<Offset> pts; final Color color;
   const _ContinenteDef(this.rot, this.pts, this.color);
 }
 
 class _DotDef {
-  final double x, y, r;
-  final Color  color;
+  final double x, y, r; final Color color;
   const _DotDef(this.x, this.y, this.color, this.r);
 }
 
@@ -2646,9 +3928,9 @@ class _SpeedLinesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withValues(alpha: 0.32)
+      ..color       = color.withValues(alpha: 0.32)
       ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+      ..style       = PaintingStyle.stroke;
     final rnd = math.Random(42);
     for (int i = 0; i < 10; i++) {
       final x   = rnd.nextDouble() * size.width;

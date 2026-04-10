@@ -282,10 +282,9 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(_onTabChange);
-    _cargarColorAccent();
+    _cargarDatosPropios();
     _escucharSolicitudes();
     _escucharMensajesNoLeidos();
-    _cargarMiLiga();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -306,23 +305,21 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     }
   }
 
-  Future<void> _cargarColorAccent() async {
+  Future<void> _cargarDatosPropios() async {
     try {
       final doc = await FirebaseFirestore.instance.collection('players').doc(currentUserId).get();
       if (!doc.exists || !mounted) return;
-      final c = (doc.data()?['territorio_color'] as num?)?.toInt();
-      if (c != null && mounted) setState(() => _accent = Color(c));
-    } catch (_) {}
-  }
-
-  Future<void> _cargarMiLiga() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('players').doc(currentUserId).get();
-      if (!doc.exists || !mounted) return;
-      final pts = (doc.data()?['puntos_liga'] as num? ?? 0).toInt();
+      final data = doc.data()!;
+      final c   = (data['territorio_color'] as num?)?.toInt();
+      final pts = (data['puntos_liga'] as num? ?? 0).toInt();
       final info = LeagueHelper.getLeague(pts);
-      setState(() { _misPuntosLiga = pts; _miLiga = info.name; _ligaSeleccionada = null; });
-    } catch (e) { debugPrint('Error liga: $e'); }
+      setState(() {
+        if (c != null) _accent = Color(c);
+        _misPuntosLiga = pts;
+        _miLiga = info.name;
+        _ligaSeleccionada = null;
+      });
+    } catch (e) { debugPrint('Error cargando datos propios: $e'); }
   }
 
   Future<void> _buscar() async {
@@ -571,12 +568,19 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     tabs: [
       const Tab(icon: Icon(Icons.military_tech_rounded, size: 13), text: 'LIGAS', iconMargin: EdgeInsets.only(bottom: 2)),
       const Tab(icon: Icon(Icons.groups_2_rounded, size: 13), text: 'AMIGOS', iconMargin: EdgeInsets.only(bottom: 2)),
-      const Tab(icon: Icon(Icons.shield_rounded, size: 13), text: 'CHAT', iconMargin: EdgeInsets.only(bottom: 2)),
+      Tab(
+        iconMargin: const EdgeInsets.only(bottom: 2),
+        icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Icon(Icons.shield_rounded, size: 13),
+          if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 3), _PulseBadge(count: _mensajesNoLeidos, color: _kAccent)],
+        ]),
+        text: 'CHAT',
+      ),
       Tab(
         iconMargin: const EdgeInsets.only(bottom: 2),
         icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.sensors_rounded, size: 13),
-          if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 3), _PulseBadge(count: _mensajesNoLeidos, color: _kAccent)],
+          if (_solicitudesPendientes > 0) ...[const SizedBox(width: 3), _PulseBadge(count: _solicitudesPendientes, color: _kAccent)],
         ]),
         text: 'SOLICITUDES',
       ),
@@ -627,7 +631,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         if (_ligaSeleccionada != null) _buildBotonVolver(),
         Expanded(child: RefreshIndicator(
           key: _rkRanking, color: _kAccent, backgroundColor: _kSurface2,
-          onRefresh: () async { await _cargarMiLiga(); },
+          onRefresh: () async { await _cargarDatosPropios(); },
           child: _ligaSeleccionada != null
               ? _buildLeagueRankingById(_ligaSeleccionada!)
               : ListView(padding: const EdgeInsets.fromLTRB(20, 6, 20, 32), children: [
@@ -913,11 +917,21 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
               final String fid = parts.firstWhere((p) => p != currentUserId, orElse: () => '');
               if (fid.isEmpty) return const SizedBox.shrink();
               final int unread = (chatData['unread_$currentUserId'] as num? ?? 0).toInt();
+              if (_perfilesCache.containsKey(fid)) {
+                final fd = _perfilesCache[fid]!;
+                return _Stagger(index: i, child: _ChatCard(
+                  chatId: chatId, nickname: fd['nickname'] ?? '?', fotoBase64: fd['foto_base64'] as String?,
+                  lastMessage: chatData['lastMessage'] as String? ?? '',
+                  lastTime: chatData['lastMessageTime'] as Timestamp?,
+                  unread: unread, accent: _accent,
+                  onTap: () => _abrirChat(fid, fd['nickname'] ?? '?', fd['foto_base64'] as String?)));
+              }
               return FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance.collection('players').doc(fid).get(),
                 builder: (ctx, s) {
                   if (!s.hasData) return const _Skel();
                   final fd = s.data!.data() as Map<String, dynamic>? ?? {};
+                  _perfilesCache[fid] = fd;
                   return _Stagger(index: i, child: _ChatCard(
                     chatId: chatId, nickname: fd['nickname'] ?? '?', fotoBase64: fd['foto_base64'] as String?,
                     lastMessage: chatData['lastMessage'] as String? ?? '',
@@ -947,11 +961,25 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             itemCount: solicitudes.length,
             itemBuilder: (ctx, i) {
               final doc = solicitudes[i];
+              final String senderId = doc['senderId'] as String;
+              if (_perfilesCache.containsKey(senderId)) {
+                final data = _perfilesCache[senderId]!;
+                return _Stagger(index: i, child: _RequestCard(
+                  nickname: data['nickname'] ?? '?', nivel: (data['nivel'] as num? ?? 1).toInt(),
+                  fotoBase64: data['foto_base64'] as String?,
+                  puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
+                  onAceptar: () async {
+                    await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
+                    _snack('¡${data['nickname']} ahora es tu aliado!');
+                  },
+                  onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));
+              }
               return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('players').doc(doc['senderId']).get(),
+                future: FirebaseFirestore.instance.collection('players').doc(senderId).get(),
                 builder: (ctx, s) {
                   if (!s.hasData) return const _Skel();
                   final data = s.data!.data() as Map<String, dynamic>? ?? {};
+                  _perfilesCache[senderId] = data;
                   return _Stagger(index: i, child: _RequestCard(
                     nickname: data['nickname'] ?? '?', nivel: (data['nivel'] as num? ?? 1).toInt(),
                     fotoBase64: data['foto_base64'] as String?,
