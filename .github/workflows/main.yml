@@ -1,9 +1,12 @@
 name: Build iOS IPA
+
 on:
   workflow_dispatch:
+
 jobs:
   build_ios:
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -11,24 +14,69 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install dependencies
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Build iOS
+      - name: Generate plugin registrant (without full build)
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign --no-pub 2>&1 || true
+          # Esperamos que GeneratedPluginRegistrant.m ya exista
+          ls ios/Runner/GeneratedPluginRegistrant.m || echo "WARNING: no existe todavía"
 
-      - name: Create IPA
+      - name: Overwrite Podfile
         run: |
-          APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -1)
-          echo "Found app at: $APP_PATH"
-          mkdir -p build/ipa/Payload
-          cp -r "$APP_PATH" build/ipa/Payload/
-          cd build/ipa
-          zip -r ../../risk_runner.ipa Payload/
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: risk_runner-ipa
-          path: risk_runner.ipa
+          cat > ios/Podfile << 'PODEOF'
+          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+          platform :ios, '15.0'
+          target 'Runner' do
+            use_frameworks! :linkage => :static
+            use_modular_headers!
+            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+          end
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              flutter_additional_ios_build_settings(target)
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+                config.build_settings['DEFINES_MODULE'] = 'YES'
+                config.build_settings['SWIFT_VERSION'] = '5.0'
+              end
+            end
+          end
+          PODEOF
+                    echo "=== Podfile escrito ==="
+                    cat ios/Podfile
+          
+                - name: Pod install
+                  run: |
+                    cd ios
+                    pod install --repo-update 2>&1
+          
+                - name: Build with xcodebuild
+                  run: |
+                    xcodebuild \
+                      -workspace ios/Runner.xcworkspace \
+                      -scheme Runner \
+                      -configuration Release \
+                      -destination generic/platform=iOS \
+                      -archivePath build/Runner.xcarchive \
+                      CODE_SIGNING_ALLOWED=NO \
+                      CODE_SIGNING_REQUIRED=NO \
+                      CODE_SIGN_IDENTITY="" \
+                      archive 2>&1 | tail -100
+          
+                - name: Create IPA
+                  run: |
+                    mkdir -p build/ipa/Payload
+                    cp -r build/Runner.xcarchive/Products/Applications/Runner.app build/ipa/Payload/
+                    cd build/ipa && zip -r ../../risk_runner.ipa Payload/
+          
+                - name: Upload IPA
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: risk_runner_ipa
+                    path: risk_runner.ipa
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: risk_runner-ipa
+                    path: risk_runner.ipa
