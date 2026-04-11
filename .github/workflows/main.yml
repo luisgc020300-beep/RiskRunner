@@ -64,24 +64,18 @@ jobs:
 
       - name: Create IPA
         run: |
-          echo "=== Buscando .app ==="
-          find build/ -name "*.app" -type d 2>/dev/null
-          echo "=== Estructura xcarchive ==="
-          find build/Runner.xcarchive -maxdepth 5 -type d 2>/dev/null
-          
-          APP_PATH=$(find build/Runner.xcarchive -name "*.app" -type d | head -1)
-          echo "APP_PATH: $APP_PATH"
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No se encontró .app"
-            exit 1
-          fi
-          
+          APP_PATH="build/ios/Release-iphoneos/Runner.app"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
-          cd build/ipa && zip -r ../../risk_runner.ipa Payload/
-          echo "IPA creado:"
-          ls -lh ../../risk_runner.ipa || ls -lh /Users/runner/work/RiskRunner/RiskRunner/risk_runner.ipa
+          cd build/ipa && zip -r ../../../risk_runner.ipa Payload/
+          echo "=== IPA creado ==="
+          ls -lh ../../../risk_runner.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk_runner_ipa
+          path: risk_runner.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
