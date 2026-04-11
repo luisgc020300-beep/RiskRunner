@@ -17,19 +17,26 @@ jobs:
       - name: Generate iOS files (without building)
         run: flutter build ios --release --no-codesign --no-pub || true
 
+      - name: Fix GeneratedPluginRegistrant imports
+        run: |
+          sed -i '' 's/@import \([a-zA-Z_]*\);/#import <\1\/\1.h>;/g' \
+            ios/Runner/GeneratedPluginRegistrant.m
+          echo "=== GeneratedPluginRegistrant.m after fix ==="
+          cat ios/Runner/GeneratedPluginRegistrant.m
+
       - name: Patch Podfile
         run: |
           cat > ios/Podfile << 'EOF'
-            load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-        
+          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+
           platform :ios, '15.0'
-          
+
           target 'Runner' do
             use_frameworks! :linkage => :static
             use_modular_headers!
             flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
           end
-          
+
           post_install do |installer|
             installer.pods_project.targets.each do |target|
               flutter_additional_ios_build_settings(target)
