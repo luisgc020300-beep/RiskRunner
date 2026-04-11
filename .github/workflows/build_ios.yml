@@ -67,18 +67,14 @@ jobs:
           APP_PATH="build/ios/Release-iphoneos/Runner.app"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
-          cd build/ipa && zip -r ../../../risk_runner.ipa Payload/
+          cd build/ipa && zip -r "$GITHUB_WORKSPACE/risk_runner.ipa" Payload/
           echo "=== IPA creado ==="
-          ls -lh ../../../risk_runner.ipa
+          ls -lh "$GITHUB_WORKSPACE/risk_runner.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: risk_runner_ipa
-          path: risk_runner.ipa
+          path: ${{ github.workspace }}/risk_runner.ipa
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: risk_runner_ipa
-          path: risk_runner.ipa
+      
