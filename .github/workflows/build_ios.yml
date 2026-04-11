@@ -64,9 +64,11 @@ jobs:
 
       - name: Create IPA
         run: |
-          mkdir -p build/ipa/Payload
-          cp -r build/Runner.xcarchive/Products/Applications/Runner.app build/ipa/Payload/
-          cd build/ipa && zip -r ../../risk_runner.ipa Payload/
+          echo "=== Contenido del xcarchive ==="
+          find build/Runner.xcarchive -type d -name "*.app" || echo "No se encontró .app"
+          find build/ -type d -name "*.app" || echo "No .app en build/"
+          ls -la build/ || echo "No existe build/"
+          ls -la build/Runner.xcarchive/ || echo "No existe xcarchive"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
