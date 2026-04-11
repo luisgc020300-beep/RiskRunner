@@ -17,30 +17,29 @@ jobs:
       - name: Generate iOS files (without building)
         run: flutter build ios --release --no-codesign --no-pub || true
 
-      - name: Show GeneratedPluginRegistrant
-        if: always()
-        run: cat ios/Runner/GeneratedPluginRegistrant.m
-
       - name: Patch Podfile
         run: |
           cat > ios/Podfile << 'EOF'
-          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-          platform :ios, '15.0'
-          target 'Runner' do
-            use_frameworks! :linkage => :static
-            use_modular_headers!
-            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-          end
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              flutter_additional_ios_build_settings(target)
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                config.build_settings['DEFINES_MODULE'] = 'YES'
-              end
-            end
-          end
-          EOF
+load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+
+platform :ios, '15.0'
+
+target 'Runner' do
+  use_frameworks! :linkage => :static
+  use_modular_headers!
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      config.build_settings['DEFINES_MODULE'] = 'YES'
+    end
+  end
+end
+EOF
 
       - name: Pod install
         run: |
