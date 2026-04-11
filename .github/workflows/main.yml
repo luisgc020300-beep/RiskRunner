@@ -14,53 +14,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Generate iOS files (without building)
-        run: flutter build ios --release --no-codesign --no-pub || true
-
-      - name: Patch Podfile
+      - name: Build iOS
         run: |
-          cat > ios/Podfile << 'PODEOF'
-          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-          platform :ios, '15.0'
-          target 'Runner' do
-            use_frameworks! :linkage => :static
-            use_modular_headers!
-            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-          end
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              flutter_additional_ios_build_settings(target)
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                config.build_settings['DEFINES_MODULE'] = 'YES'
-              end
-            end
-          end
-          PODEOF
-
-      - name: Pod install
-        run: |
-          cd ios
-          pod install --repo-update
-
-      - name: Build with xcodebuild
-        run: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            EXPANDED_CODE_SIGN_IDENTITY="" \
-            -archivePath build/Runner.xcarchive \
-            archive 2>&1 | tee build_log.txt
-          grep -E "error:" build_log.txt | head -20 || true
+          flutter build ios --release --no-codesign
 
       - name: Create IPA
         run: |
-          APP_PATH=$(find build/Runner.xcarchive -name "*.app" | head -1)
+          APP_PATH=$(find build/ios/iphoneos -name "*.app" | head -1)
           echo "Found app at: $APP_PATH"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
