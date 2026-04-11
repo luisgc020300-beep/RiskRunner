@@ -25,8 +25,8 @@ jobs:
 
       - name: Overwrite Podfile
         run: |
-          cat > ios/Podfile << 'PODEOF'
-          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+          python3 - << 'PYEOF'
+          content = """load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
           platform :ios, '15.0'
           target 'Runner' do
             use_frameworks! :linkage => :static
@@ -43,7 +43,13 @@ jobs:
               end
             end
           end
-          PODEOF
+          """
+          with open('ios/Podfile', 'w') as f:
+              f.write(content)
+          print("=== Podfile escrito ===")
+          with open('ios/Podfile') as f:
+              print(f.read())
+          PYEOF
                     echo "=== Podfile escrito ==="
                     cat ios/Podfile
           
