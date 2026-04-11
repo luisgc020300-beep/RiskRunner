@@ -66,11 +66,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             EXPANDED_CODE_SIGN_IDENTITY="" \
-            DEFINES_MODULE=NO \
-            SWIFT_INSTALL_OBJC_HEADER=NO \
             -archivePath build/Runner.xcarchive \
             archive 2>&1 | tee build_log.txt
-          grep -E "^.*(error:|warning:).*$" build_log.txt | head -30 || true
+          grep -E "error:" build_log.txt | head -20 || true
 
       - name: Create IPA
         run: |
