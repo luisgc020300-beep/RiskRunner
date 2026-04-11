@@ -65,6 +65,10 @@ jobs:
       - name: Create IPA
         run: |
           APP_PATH="build/ios/Release-iphoneos/Runner.app"
+          echo "=== Contenido del .app ==="
+          ls -la "$APP_PATH"
+          echo "=== Buscando ejecutable ==="
+          file "$APP_PATH/Runner" || echo "No existe Runner ejecutable"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
           cd build/ipa && zip -r "$GITHUB_WORKSPACE/risk_runner.ipa" Payload/
