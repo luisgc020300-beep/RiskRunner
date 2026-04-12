@@ -17,11 +17,24 @@ jobs:
       - name: Generate Flutter files
         run: flutter build ios --release --no-codesign 2>&1 || true
 
-      - name: Pod install with correct config
+      - name: Show GeneratedPluginRegistrant
+        if: always()
+        run: cat ios/Runner/GeneratedPluginRegistrant.m || echo "No existe"
+
+      - name: Patch GeneratedPluginRegistrant
         run: |
-          cd ios
-          pod deintegrate || true
-          pod install --repo-update
+          FILE="ios/Runner/GeneratedPluginRegistrant.m"
+          # Eliminar los bloques @import que fallan
+          sed -i '' '/@import cloud_firestore/d' "$FILE"
+          sed -i '' '/@import firebase_auth/d' "$FILE"
+          sed -i '' '/@import firebase_core/d' "$FILE"
+          sed -i '' '/@import firebase_messaging/d' "$FILE"
+          sed -i '' '/@import cloud_functions/d' "$FILE"
+          echo "=== Archivo parcheado ==="
+          cat "$FILE"
+
+      - name: Pod install
+        run: cd ios && pod install --repo-update
 
       - name: Build with xcodebuild
         run: |
@@ -35,12 +48,10 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | grep -E "(error:|warning:|BUILD|FAILED|SUCCEEDED|cloud_firestore)" | tail -50
+            archive 2>&1 | grep -E "(error:|BUILD|FAILED|SUCCEEDED)" | tail -50
 
-      - name: Find and package app
+      - name: Package IPA
         run: |
-          echo "=== Buscando .app en xcarchive ==="
-          find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
           echo "APP: $APP_PATH"
           ls -la "$APP_PATH"
