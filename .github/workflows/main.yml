@@ -15,16 +15,13 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS
-        run: flutter build ios --release --no-codesign || true
-
-      - name: Show generated Podfile
-        if: always()
-        run: cat ios/Podfile
+        run: flutter build ios --release --no-codesign -v 2>&1 | tail -200
 
       - name: Create IPA
         run: |
           APP_PATH=$(find build/ios -name "*.app" -type d | head -1)
           echo "APP encontrado: $APP_PATH"
+          ls -la "$APP_PATH"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
           cd build/ipa && zip -r "$GITHUB_WORKSPACE/risk_runner.ipa" Payload/
