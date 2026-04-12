@@ -16,6 +16,12 @@ jobs:
 
       - name: Build iOS
         run: flutter build ios --release --no-codesign -v 2>&1 | tail -200
+      - name: Check app contents
+        if: always()
+        run: |
+          APP_PATH=$(find build/ios -name "*.app" -type d | head -1)
+          echo "APP: $APP_PATH"
+          ls -la "$APP_PATH" || echo "No se encontró .app"
 
       - name: Create IPA
         run: |
