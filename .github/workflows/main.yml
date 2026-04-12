@@ -14,31 +14,6 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Write Podfile script
-        run: |
-          printf '%s\n' "podfile = '''load File.join(File.dirname(File.realpath(__FILE__)), \"Flutter\", \"podhelper.rb\")" > /tmp/write_podfile.py
-          printf '%s\n' "platform :ios, \"15.0\"" >> /tmp/write_podfile.py
-          printf '%s\n' "target \"Runner\" do" >> /tmp/write_podfile.py
-          printf '%s\n' "  use_frameworks! :linkage => :static" >> /tmp/write_podfile.py
-          printf '%s\n' "  use_modular_headers!" >> /tmp/write_podfile.py
-          printf '%s\n' "  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))" >> /tmp/write_podfile.py
-          printf '%s\n' "end" >> /tmp/write_podfile.py
-          printf '%s\n' "post_install do |installer|" >> /tmp/write_podfile.py
-          printf '%s\n' "  installer.pods_project.targets.each do |target|" >> /tmp/write_podfile.py
-          printf '%s\n' "    flutter_additional_ios_build_settings(target)" >> /tmp/write_podfile.py
-          printf '%s\n' "    target.build_configurations.each do |config|" >> /tmp/write_podfile.py
-          printf '%s\n' "      config.build_settings[\"IPHONEOS_DEPLOYMENT_TARGET\"] = \"15.0\"" >> /tmp/write_podfile.py
-          printf '%s\n' "      config.build_settings[\"DEFINES_MODULE\"] = \"YES\"" >> /tmp/write_podfile.py
-          printf '%s\n' "      config.build_settings[\"SWIFT_VERSION\"] = \"5.0\"" >> /tmp/write_podfile.py
-          printf '%s\n' "    end" >> /tmp/write_podfile.py
-          printf '%s\n' "  end" >> /tmp/write_podfile.py
-          printf '%s\n' "end" >> /tmp/write_podfile.py
-          printf '%s\n' "'''" >> /tmp/write_podfile.py
-          printf '%s\n' "open('ios/Podfile', 'w').write(podfile)" >> /tmp/write_podfile.py
-
-      - name: Overwrite Podfile
-        run: python3 /tmp/write_podfile.py
-
       - name: Build iOS
         run: flutter build ios --release --no-codesign
 
