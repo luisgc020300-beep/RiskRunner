@@ -14,12 +14,9 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Generate plugin registrant
-        run: flutter build ios --release --no-codesign --no-pub 2>&1 || true
-
       - name: Write Podfile script
         run: |
-          printf '%s\n' "content = '''load File.join(File.dirname(File.realpath(__FILE__)), \"Flutter\", \"podhelper.rb\")" > /tmp/write_podfile.py
+          printf '%s\n' "podfile = '''load File.join(File.dirname(File.realpath(__FILE__)), \"Flutter\", \"podhelper.rb\")" > /tmp/write_podfile.py
           printf '%s\n' "platform :ios, \"15.0\"" >> /tmp/write_podfile.py
           printf '%s\n' "target \"Runner\" do" >> /tmp/write_podfile.py
           printf '%s\n' "  use_frameworks! :linkage => :static" >> /tmp/write_podfile.py
@@ -37,41 +34,22 @@ jobs:
           printf '%s\n' "  end" >> /tmp/write_podfile.py
           printf '%s\n' "end" >> /tmp/write_podfile.py
           printf '%s\n' "'''" >> /tmp/write_podfile.py
-          printf '%s\n' "open('ios/Podfile', 'w').write(content)" >> /tmp/write_podfile.py
-          printf '%s\n' "print('Podfile escrito OK')" >> /tmp/write_podfile.py
+          printf '%s\n' "open('ios/Podfile', 'w').write(podfile)" >> /tmp/write_podfile.py
 
       - name: Overwrite Podfile
         run: python3 /tmp/write_podfile.py
 
-      - name: Show Podfile
-        run: cat ios/Podfile
-
-      - name: Pod install
-        run: cd ios && pod install --repo-update
-
-      - name: Build with xcodebuild
-        run: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            -archivePath build/Runner.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            archive 2>&1 | tail -150
+      - name: Build iOS
+        run: flutter build ios --release --no-codesign
 
       - name: Create IPA
         run: |
-          APP_PATH="build/ios/Release-iphoneos/Runner.app"
-          echo "=== Contenido del .app ==="
+          APP_PATH=$(find build/ios -name "*.app" -type d | head -1)
+          echo "APP encontrado: $APP_PATH"
           ls -la "$APP_PATH"
-          chmod +x "$APP_PATH/Runner"
           mkdir -p build/ipa/Payload
           cp -r "$APP_PATH" build/ipa/Payload/
           cd build/ipa && zip -r "$GITHUB_WORKSPACE/risk_runner.ipa" Payload/
-          echo "=== IPA creado ==="
           ls -lh "$GITHUB_WORKSPACE/risk_runner.ipa"
 
       - name: Upload IPA
@@ -79,5 +57,3 @@ jobs:
         with:
           name: risk_runner_ipa
           path: ${{ github.workspace }}/risk_runner.ipa
-
-      
