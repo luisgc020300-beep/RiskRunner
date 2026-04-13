@@ -10,15 +10,21 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/clan_service.dart';
 import '../widgets/custom_navbar.dart';
 
-// ── Paleta (coherente con el resto de la app) ─────────────────────────────────
-const _kBg         = Color(0xFF090807);
-const _kSurface    = Color(0xFF0F0D0A);
-const _kBorder     = Color(0xFF2A2218);
-const _kGold       = Color(0xFFD4A84C);
-const _kGoldLight  = Color(0xFFEDD98A);
-const _kGoldDim    = Color(0xFF7A5E28);
-const _kTerracotta = Color(0xFFD4722A);
-const _kDim        = Color(0xFF5A5040);
+// ── Paleta iOS ───────────────────────────────────────────────────────────────���
+const _kBg      = Color(0xFFE8E8ED);
+const _kSurface = Color(0xFFFFFFFF);
+const _kSep     = Color(0xFFC6C6C8);
+const _kDim     = Color(0xFFAEAEB2);
+const _kSubtext = Color(0xFF8E8E93);
+const _kWhite   = Color(0xFF1C1C1E);
+const _kBlue    = Color(0xFFE02020);
+const _kGold    = Color(0xFFFFD60A);
+
+TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
+    GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+
+TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
+    GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 // ── Modelo de entrada de ranking ──────────────────────────────────────────────
 class _ClanRankEntry {
@@ -65,35 +71,25 @@ class _ClanRankingScreenState extends State<ClanRankingScreen>
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _kGold, size: 18),
+              color: Colors.white, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'RANKING DE CLANES',
-          style: GoogleFonts.rajdhani(
-            color:        _kGoldLight,
-            fontSize:     15,
-            fontWeight:   FontWeight.w900,
-            letterSpacing: 3,
-          ),
-        ),
+        title: Text('Ranking de clanes', style: _dm(15, FontWeight.w600, Colors.white)),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: _kTerracotta,
+          indicatorColor: _kBlue,
           indicatorWeight: 2,
-          labelColor: _kGoldLight,
+          labelColor: Colors.white,
           unselectedLabelColor: _kDim,
-          labelStyle: GoogleFonts.rajdhani(
-              fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5),
-          unselectedLabelStyle: GoogleFonts.rajdhani(
-              fontSize: 12, fontWeight: FontWeight.w600),
+          labelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w400),
           tabs: const [
-            Tab(text: '⚔️  SEMANAL'),
-            Tab(text: '🏆  TOTAL'),
+            Tab(text: 'Semanal'),
+            Tab(text: 'Total'),
           ],
         ),
       ),
@@ -137,13 +133,12 @@ class _RankingTab extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('⚔️', style: TextStyle(fontSize: 48)),
+                const Icon(Icons.shield_outlined, color: _kDim, size: 48),
                 const SizedBox(height: 16),
                 Text(
                   'Todavía no hay clanes\nen el ranking',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.rajdhani(
-                      color: _kDim, fontSize: 15, fontWeight: FontWeight.w600),
+                  style: _dm(15, FontWeight.w400, _kDim),
                 ),
               ],
             ),
@@ -220,18 +215,21 @@ class _RankingTab extends StatelessWidget {
 
   Widget _buildLista(List<_ClanRankEntry> entries,
       {required bool usarPuntosTotal}) {
-    return ListView.builder(
+    return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: entries.length,
+      separatorBuilder: (_, __) =>
+          ColoredBox(color: _kSurface,
+              child: Container(height: 0.5, color: _kSep,
+                  margin: const EdgeInsets.only(left: 68))),
       itemBuilder: (context, i) {
         final entry = entries[i];
-        final puntos = usarPuntosTotal
-            ? entry.clan.puntos
-            : entry.puntosSemana;
+        final puntos = usarPuntosTotal ? entry.clan.puntos : entry.puntosSemana;
+        final isFirst = i == 0;
+        final isLast  = i == entries.length - 1;
         return _ClanRankCard(
-          entry:   entry,
-          puntos:  puntos,
-          esTotal: usarPuntosTotal,
+          entry: entry, puntos: puntos, esTotal: usarPuntosTotal,
+          isFirst: isFirst, isLast: isLast,
         );
       },
     );
@@ -245,11 +243,15 @@ class _ClanRankCard extends StatelessWidget {
   final _ClanRankEntry entry;
   final int puntos;
   final bool esTotal;
+  final bool isFirst;
+  final bool isLast;
 
   const _ClanRankCard({
     required this.entry,
     required this.puntos,
     required this.esTotal,
+    this.isFirst = false,
+    this.isLast  = false,
   });
 
   @override
@@ -259,142 +261,69 @@ class _ClanRankCard extends StatelessWidget {
     final clanColor = clan.colorObj;
     final esPodio  = pos <= 3;
 
-    // Colores y estilos del podio
     final podioColor = pos == 1
-        ? const Color(0xFFFFD700) // oro
+        ? const Color(0xFFFFD60A)  // iOS gold
         : pos == 2
-            ? const Color(0xFFB0BEC5) // plata
-            : const Color(0xFFBF8B5E); // bronce
-    final podioEmoji = pos == 1 ? '🥇' : pos == 2 ? '🥈' : '🥉';
+            ? const Color(0xFFAEAEB2)  // iOS secondary
+            : const Color(0xFFBF8B5E); // bronze
 
+    final radius = BorderRadius.vertical(
+      top:    isFirst ? const Radius.circular(12) : Radius.zero,
+      bottom: isLast  ? const Radius.circular(12) : Radius.zero,
+    );
     return GestureDetector(
       onTap: () => HapticFeedback.selectionClick(),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: esPodio
-              ? podioColor.withValues(alpha: 0.06)
-              : _kSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: esPodio
-                ? podioColor.withValues(alpha: 0.4)
-                : _kBorder,
-            width: esPodio ? 1.5 : 1,
-          ),
-          boxShadow: esPodio
-              ? [
-                  BoxShadow(
-                    color:      podioColor.withValues(alpha: 0.12),
-                    blurRadius: 14,
-                    offset:     const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
+        decoration: BoxDecoration(color: _kSurface, borderRadius: radius),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(children: [
-          // ── Posición ────────────────────────────────────────────────────
+          // ── Posición ─────────────────────────────────────────────────
           SizedBox(
-            width: 40,
-            child: esPodio
-                ? Text(podioEmoji,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22))
-                : Text(
-                    '#$pos',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.orbitron(
-                      color:      _kDim,
-                      fontSize:   13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+            width: 36,
+            child: Text(
+              '$pos',
+              textAlign: TextAlign.center,
+              style: _raj(15, FontWeight.w700,
+                  esPodio ? podioColor : _kDim),
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
-          // ── Emoji + color del clan ────────────────────────────────────
+          // ── Emoji del clan ────────────────────────────────────────────
           Container(
-            width:  44,
-            height: 44,
+            width: 40, height: 40,
             decoration: BoxDecoration(
-              color:        clanColor.withValues(alpha: 0.12),
-              shape:        BoxShape.circle,
-              border: Border.all(
-                  color: clanColor.withValues(alpha: 0.5), width: 1.5),
+              color: clanColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(clan.emoji,
-                  style: const TextStyle(fontSize: 20)),
-            ),
+            child: Center(child: Text(clan.emoji,
+                style: const TextStyle(fontSize: 20))),
           ),
           const SizedBox(width: 12),
 
           // ── Nombre y tag ──────────────────────────────────────────────
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Text(
-                    '[${clan.tag}]',
-                    style: GoogleFonts.rajdhani(
-                      color:        clanColor,
-                      fontSize:     11,
-                      fontWeight:   FontWeight.w900,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      clan.nombre,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.rajdhani(
-                        color:      Colors.white,
-                        fontSize:   14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 4),
-                Row(children: [
-                  Text(
-                    '${clan.miembros.length} miembros',
-                    style: GoogleFonts.rajdhani(
-                        color: _kDim, fontSize: 11),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    '${clan.victorias}V / ${clan.derrotas}D',
-                    style: GoogleFonts.rajdhani(
-                        color: _kGoldDim, fontSize: 11),
-                  ),
-                ]),
-              ],
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('[${clan.tag}]', style: _dm(11, FontWeight.w600, clanColor)),
+                const SizedBox(width: 6),
+                Flexible(child: Text(clan.nombre, overflow: TextOverflow.ellipsis,
+                    style: _dm(14, FontWeight.w500, _kWhite))),
+              ]),
+              const SizedBox(height: 2),
+              Text('${clan.miembros.length} miembros  ·  ${clan.victorias}V ${clan.derrotas}D',
+                  style: _dm(11, FontWeight.w400, _kDim)),
+            ]),
           ),
 
           // ── Puntos ────────────────────────────────────────────────────
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatPuntos(puntos),
-                style: GoogleFonts.orbitron(
-                  color:      esPodio ? podioColor : _kGold,
-                  fontSize:   18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              Text(
-                esTotal ? 'pts totales' : 'pts semana',
-                style: GoogleFonts.rajdhani(
-                    color: _kDim, fontSize: 9, letterSpacing: 1),
-              ),
-            ],
-          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(_formatPuntos(puntos),
+                style: _raj(18, FontWeight.w700,
+                    esPodio ? podioColor : _kGold)),
+            Text(esTotal ? 'pts totales' : 'pts semana',
+                style: _dm(10, FontWeight.w400, _kDim)),
+          ]),
         ]),
       ),
     );

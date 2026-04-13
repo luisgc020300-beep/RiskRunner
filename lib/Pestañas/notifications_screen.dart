@@ -12,19 +12,19 @@ import '../services/desafios_service.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kBg      = Color(0xFF030303);
-const _kSurface = Color(0xFF0C0C0C);
-const _kBorder2 = Color(0xFF1F1F1F);
-const _kMuted   = Color(0xFF333333);
-const _kDim     = Color(0xFF4A4A4A);
-const _kSub     = Color(0xFF666666);
-const _kText    = Color(0xFFB0B0B0);
-const _kWhite   = Color(0xFFEEEEEE);
-const _kRed     = Color(0xFFCC2222);
-const _kRedDim  = Color(0xFF7A1414);
-const _kGold    = Color(0xFFD4A84C);
-const _kGoldDim = Color(0xFF5A4520);
-const _kGreen   = Color(0xFF4CAF50);
+const _kBg      = Color(0xFFE8E8ED);
+const _kSurface = Color(0xFFFFFFFF);
+const _kBorder2 = Color(0xFFD1D1D6);
+const _kMuted   = Color(0xFFAEAEB2);
+const _kDim     = Color(0xFF8E8E93);
+const _kSub     = Color(0xFF636366);
+const _kText    = Color(0xFF3C3C43);
+const _kWhite   = Color(0xFF1C1C1E);
+const _kRed     = Color(0xFFE02020);
+const _kRedDim  = Color(0xFFFF6B6B);
+const _kGold    = Color(0xFFFFD60A);
+const _kGoldDim = Color(0xFFAEAEB2);
+const _kGreen   = Color(0xFF30D158);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
@@ -44,8 +44,16 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-  // ── Stream combinado: notificaciones + solicitudes de amistad ──────────────
-  Stream<List<NotifItem>> _streamCombinado() {
+  // ── Stream combinado: creado una sola vez en initState ────────────────────
+  late final Stream<List<NotifItem>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = _buildStream();
+  }
+
+  Stream<List<NotifItem>> _buildStream() {
     if (userId == null) return Stream.value([]);
 
     final sNotifs = FirebaseFirestore.instance
@@ -238,7 +246,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.88),
+      barrierColor: Colors.black.withValues(alpha: 0.88),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
@@ -246,7 +254,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: _kSurface,
-            border: Border.all(color: color.withOpacity(0.25)),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
             boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 32)],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -468,7 +476,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           decoration: BoxDecoration(
             color: filled ? color : Colors.transparent,
             border: Border.all(
-                color: filled ? color : color.withOpacity(0.5)),
+                color: filled ? color : color.withValues(alpha: 0.5)),
           ),
           child: Text(label, textAlign: TextAlign.center,
               style: _raj(10, FontWeight.w900,
@@ -823,7 +831,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: color,
       behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(6))),
     ));
   }
 
@@ -835,19 +843,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _kSurface,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _kText, size: 18),
+              color: Colors.white, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('NOTIFICACIONES',
-            style: _raj(14, FontWeight.w900, _kWhite, spacing: 3)),
+            style: _raj(14, FontWeight.w900, Colors.white, spacing: 3)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: _kBorder2),
+          child: Container(height: 1, color: _kRed),
         ),
         actions: [
           IconButton(
@@ -859,7 +867,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: StreamBuilder<List<NotifItem>>(
-        stream: _streamCombinado(),
+        stream: _stream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -902,12 +910,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   decoration: BoxDecoration(
                     color: item.leida
                         ? _kSurface
-                        : color.withOpacity(0.06),
+                        : color.withValues(alpha: 0.06),
                     border: Border(
                       left: BorderSide(
                           color: item.leida
                               ? _kBorder2
-                              : color.withOpacity(0.6),
+                              : color.withValues(alpha: 0.6),
                           width: 2),
                       top: BorderSide(color: _kBorder2),
                       right: BorderSide(color: _kBorder2),

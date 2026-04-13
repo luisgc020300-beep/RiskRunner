@@ -18,6 +18,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
 import '../services/league_service.dart';
+import 'fullscreen_map_screen.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
 import '../services/subscription_service.dart';
@@ -31,19 +32,19 @@ import '../services/desafios_service.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kInk        = Color(0xFF1E1408);
-const _kParchment  = Color(0xFF2A1F0F);
-const _kParchMid   = Color(0xFF3D2E18);
-const _kGold       = Color(0xFFD4A84C);
-const _kGoldLight  = Color(0xFFEDD98A);
-const _kGoldDim    = Color(0xFF7A5E28);
-const _kTerracotta = Color(0xFFD4722A);
+const _kInk        = Color(0xFF1C1C1E);
+const _kParchment  = Color(0xFFFFFFFF);
+const _kParchMid   = Color(0xFFE5E5EA);
+const _kGold       = Color(0xFFFFD60A);
+const _kGoldLight  = Color(0xFFFFD60A);
+const _kGoldDim    = Color(0xFFAEAEB2);
+const _kTerracotta = Color(0xFF636366);
 const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
-const _kCosmicBg   = Color(0xFF040302);
-const _kCosmicMid  = Color(0xFF1A0F08);
-const _kGlobalRed  = Color(0xFFCC2222);
+const _kCosmicBg   = Color(0xFFE8E8ED);
+const _kCosmicMid  = Color(0xFFFFFFFF);
+const _kGlobalRed  = Color(0xFF636366);
 
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
@@ -3446,6 +3447,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ),
       );
 
+  /// Abre FullscreenMapScreen en modo selección global.
+  /// Cuando el usuario pulsa "INICIAR CONQUISTA" allí, la pantalla hace pop()
+  /// con el mapa del objetivo y aquí lo recibimos para arrancar la carrera.
+  Future<void> _elegirTerritorioGlobal() async {
+    final resultado = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FullscreenMapScreen(selectionMode: true),
+      ),
+    );
+    if (resultado == null || !mounted) return;
+    setState(() {
+      _objetivoGlobal     = resultado;
+      _modoSolitario      = false;
+      _globalConquistado  = false;
+      _globalConquistando = false;
+    });
+    final nombre = resultado['territorioNombre'] as String? ?? 'Territorio';
+    final kmReq  = (resultado['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _narrador.anunciarReto(
+            '⚔️ Objetivo: conquistar $nombre — ${kmReq.toStringAsFixed(1)} km');
+      }
+    });
+  }
+
   Widget _buildSelectorModo() {
     if (_objetivoGlobal != null) {
       return Column(mainAxisSize: MainAxisSize.min, children: [
@@ -3514,6 +3542,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ]),
           ),
         ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => setState(() => _objetivoGlobal = null),
+          child: Text('cambiar objetivo',
+              style: GoogleFonts.rajdhani(
+                  color: _kGoldDim, fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline)),
+        ),
       ]);
     }
 
@@ -3575,8 +3612,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 decoration: BoxDecoration(
                   color: _modoSolitario
                       ? _kVerde.withValues(alpha: 0.25) : Colors.transparent,
-                  borderRadius:
-                      const BorderRadius.horizontal(right: Radius.circular(13)),
                 ),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Text('🗺️', style: TextStyle(fontSize: 18)),
@@ -3587,6 +3622,32 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                           color: _modoSolitario ? _kVerde : _kGoldDim,
                           letterSpacing: 1.5)),
                   Text('Explora tu ciudad',
+                      style: GoogleFonts.rajdhani(fontSize: 8,
+                          color: _kGoldDim.withValues(alpha: 0.7))),
+                ]),
+              ),
+            ),
+          ),
+          Container(width: 1, height: 50, color: _kGoldDim.withValues(alpha: 0.3)),
+          Expanded(
+            child: GestureDetector(
+              onTap: _elegirTerritorioGlobal,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.horizontal(right: Radius.circular(13)),
+                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('⚔️', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 4),
+                  Text('GLOBAL',
+                      style: GoogleFonts.rajdhani(fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: _kGoldDim,
+                          letterSpacing: 1.5)),
+                  Text('Guerra global',
                       style: GoogleFonts.rajdhani(fontSize: 8,
                           color: _kGoldDim.withValues(alpha: 0.7))),
                 ]),

@@ -34,18 +34,18 @@ const _kMapboxStyleId = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/$_kMapboxStyleId/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
-const _kBg       = Color(0xFF030303);
-const _kSurface  = Color(0xFF0C0C0C);
-const _kSurface2 = Color(0xFF101010);
-const _kBorder   = Color(0xFF161616);
-const _kBorder2  = Color(0xFF1F1F1F);
-const _kMuted    = Color(0xFF333333);
-const _kDim      = Color(0xFF4A4A4A);
-const _kSubtext  = Color(0xFF666666);
-const _kText     = Color(0xFFB0B0B0);
-const _kWhite    = Color(0xFFEEEEEE);
-const _kAccent   = Color(0xFFCC2222);
-const _kGold     = Color(0xFFD4A017);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kBorder   = Color(0xFFC6C6C8);
+const _kBorder2  = Color(0xFFD1D1D6);
+const _kMuted    = Color(0xFFAEAEB2);
+const _kDim      = Color(0xFF8E8E93);
+const _kSubtext  = Color(0xFF636366);
+const _kText     = Color(0xFF3C3C43);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kAccent   = Color(0xFFE02020);
+const _kGold     = Color(0xFFFFD60A);
 
 TextStyle _rajdhani(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height, List<Shadow>? shadows}) {
@@ -145,7 +145,8 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<Map<String, dynamic>> _liveRunners    = [];
   StreamSubscription<QuerySnapshot>? _territoriesStream;
   StreamSubscription<QuerySnapshot>? _runnersStream;
-  StreamSubscription<QuerySnapshot>? _desafiosStream;
+  StreamSubscription<QuerySnapshot>? _desafiosStreamRetador;
+  StreamSubscription<QuerySnapshot>? _desafiosStreamRetado;
 
   AvatarConfig _avatarConfig = const AvatarConfig();
 
@@ -216,7 +217,8 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   @override
   void dispose() {
-    _desafiosStream?.cancel();
+    _desafiosStreamRetador?.cancel();
+    _desafiosStreamRetado?.cancel();
     _cancelLiveStreams();
     _liveMapCtrl.dispose();
     _nicknameController.dispose();
@@ -251,10 +253,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         final ts     = (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
         final ritmo  = distancia > 0 && tiempo > 0
             ? (tiempo / 60) / distancia : 0.0;
-        final zonas  = [
-          ZonaRitmo.competicion, ZonaRitmo.umbral,
-          ZonaRitmo.moderado, ZonaRitmo.facil, ZonaRitmo.recuperacion
-        ];
         final zona = ritmo < 4.5 ? ZonaRitmo.competicion
             : ritmo < 5.5 ? ZonaRitmo.umbral
             : ritmo < 6.5 ? ZonaRitmo.moderado
@@ -299,27 +297,37 @@ class _PerfilScreenState extends State<PerfilScreen>
     }
   }
 
-  // ── Escuchar conteo de desafíos activos para el badge ────────────────────
+  // ── Escuchar conteo de desafíos activos para el badge (dos streams O(1)) ──
+  int _desafiosComoRetador = 0;
+  int _desafiosComoRetado  = 0;
+
   void _escucharConteoDesafios() {
     if (viewedUserId == null) return;
     final uid = viewedUserId!;
+    final db  = FirebaseFirestore.instance;
 
-    // Solo retador — el badge no necesita ser exacto al milisegundo
-    _desafiosStream = FirebaseFirestore.instance
+    _desafiosStreamRetador = db
         .collection('desafios')
         .where('retadorId', isEqualTo: uid)
         .where('estado', isEqualTo: 'activo')
         .snapshots()
-        .listen((s1) async {
+        .listen((s) {
       if (!mounted) return;
-      final s2 = await FirebaseFirestore.instance
-          .collection('desafios')
-          .where('retadoId', isEqualTo: uid)
-          .where('estado', isEqualTo: 'activo')
-          .get();
-      if (mounted) {
-        setState(() => _desafiosActivosCount = s1.docs.length + s2.docs.length);
-      }
+      _desafiosComoRetador = s.docs.length;
+      setState(() => _desafiosActivosCount =
+          _desafiosComoRetador + _desafiosComoRetado);
+    });
+
+    _desafiosStreamRetado = db
+        .collection('desafios')
+        .where('retadoId', isEqualTo: uid)
+        .where('estado', isEqualTo: 'activo')
+        .snapshots()
+        .listen((s) {
+      if (!mounted) return;
+      _desafiosComoRetado = s.docs.length;
+      setState(() => _desafiosActivosCount =
+          _desafiosComoRetador + _desafiosComoRetado);
     });
   }
 
@@ -578,9 +586,9 @@ class _PerfilScreenState extends State<PerfilScreen>
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
-          color: _kAccent.withOpacity(0.07),
+          color: _kAccent.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _kAccent.withOpacity(0.35)),
+          border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Text('⚔️', style: TextStyle(fontSize: 14)),
@@ -658,7 +666,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: _kAccent.withOpacity(0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _kBorder2), right: BorderSide(color: _kBorder2), bottom: BorderSide(color: _kBorder2))),
+              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _kBorder2), right: BorderSide(color: _kBorder2), bottom: BorderSide(color: _kBorder2))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 2)),
                 const SizedBox(height: 6),
@@ -981,12 +989,16 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   AppBar _buildAppBar() => AppBar(
-    backgroundColor: Colors.transparent, elevation: 0,
-    leading: !isOwnProfile ? IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 18), onPressed: () => Navigator.pop(context)) : null,
+    backgroundColor: const Color(0xFF0D0D0D), elevation: 0,
+    bottom: PreferredSize(
+      preferredSize: const Size.fromHeight(1),
+      child: Container(height: 1, color: _kAccent),
+    ),
+    leading: !isOwnProfile ? IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18), onPressed: () => Navigator.pop(context)) : null,
     actions: isOwnProfile ? [
-      IconButton(icon: const Icon(Icons.refresh_rounded, color: _kDim, size: 20), onPressed: _cargarTodo),
+      IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 20), onPressed: _cargarTodo),
       PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: _kDim, size: 20),
+        icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
         color: _kSurface2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: _kBorder2)),
         onSelected: (v) async {
@@ -1386,11 +1398,11 @@ class _PerfilScreenState extends State<PerfilScreen>
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: voy
-                  ? _kGold.withOpacity(0.25)
-                  : _kAccent.withOpacity(0.20)),
+                  ? _kGold.withValues(alpha: 0.25)
+                  : _kAccent.withValues(alpha: 0.20)),
           boxShadow: [
             BoxShadow(
-                color: (voy ? _kGold : _kAccent).withOpacity(0.06),
+                color: (voy ? _kGold : _kAccent).withValues(alpha: 0.06),
                 blurRadius: 16),
           ],
         ),
@@ -1413,7 +1425,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _kBorder2.withOpacity(0.5),
+                  color: _kBorder2.withValues(alpha: 0.5),
                   border: Border.all(color: _kBorder2),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1442,7 +1454,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                       fontSize: 40, fontWeight: FontWeight.w900,
                       color: voy ? _kWhite : _kSubtext, height: 1,
                       shadows: voy
-                          ? [Shadow(color: _kGold.withOpacity(0.4), blurRadius: 12)]
+                          ? [Shadow(color: _kGold.withValues(alpha: 0.4), blurRadius: 12)]
                           : []),
                   duration: const Duration(milliseconds: 900),
                 ),
@@ -1457,8 +1469,8 @@ class _PerfilScreenState extends State<PerfilScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: _kGold.withOpacity(0.06),
-                    border: Border.all(color: _kGold.withOpacity(0.25)),
+                    color: _kGold.withValues(alpha: 0.06),
+                    border: Border.all(color: _kGold.withValues(alpha: 0.25)),
                   ),
                   child: Text('${info.apuesta} 🪙',
                       style: _rajdhani(10, FontWeight.w900, _kGold)),
@@ -1477,7 +1489,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                       fontSize: 40, fontWeight: FontWeight.w900,
                       color: !voy ? _kWhite : _kSubtext, height: 1,
                       shadows: !voy
-                          ? [Shadow(color: _kAccent.withOpacity(0.4), blurRadius: 12)]
+                          ? [Shadow(color: _kAccent.withValues(alpha: 0.4), blurRadius: 12)]
                           : []),
                   duration: const Duration(milliseconds: 900),
                 ),
@@ -1514,9 +1526,9 @@ class _PerfilScreenState extends State<PerfilScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: (voy ? _kGold : _kAccent).withOpacity(0.08),
+                    color: (voy ? _kGold : _kAccent).withValues(alpha: 0.08),
                     border: Border.all(
-                        color: (voy ? _kGold : _kAccent).withOpacity(0.3)),
+                        color: (voy ? _kGold : _kAccent).withValues(alpha: 0.3)),
                   ),
                   child: Text(voy ? '⬆ Ganando' : '⬇ Perdiendo',
                       style: _rajdhani(9, FontWeight.w800,
@@ -1552,7 +1564,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           color: _kSurface,
           borderRadius: BorderRadius.circular(10),
           border: Border(
-            left: BorderSide(color: color.withOpacity(0.6), width: 2),
+            left: BorderSide(color: color.withValues(alpha: 0.6), width: 2),
             top: BorderSide(color: _kBorder2),
             right: BorderSide(color: _kBorder2),
             bottom: BorderSide(color: _kBorder2),
@@ -1575,8 +1587,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.07),
-              border: Border.all(color: color.withOpacity(0.28)),
+              color: color.withValues(alpha: 0.07),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
             ),
             child: Text('$premio 🪙',
                 style: _rajdhani(12, FontWeight.w900, color)),
@@ -1629,7 +1641,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         decoration: BoxDecoration(
           color: _kSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kGold.withOpacity(0.2)),
+          border: Border.all(color: _kGold.withValues(alpha: 0.2)),
         ),
         child: Column(children: [
           const SizedBox(height: 8),
@@ -1652,9 +1664,9 @@ class _PerfilScreenState extends State<PerfilScreen>
           color: _kSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           border: Border(
-            top: BorderSide(color: _kGold.withOpacity(0.3)),
-            left: BorderSide(color: _kGold.withOpacity(0.3)),
-            right: BorderSide(color: _kGold.withOpacity(0.3)),
+            top: BorderSide(color: _kGold.withValues(alpha: 0.3)),
+            left: BorderSide(color: _kGold.withValues(alpha: 0.3)),
+            right: BorderSide(color: _kGold.withValues(alpha: 0.3)),
             bottom: BorderSide(color: _kBorder2),
           ),
         ),
@@ -1669,8 +1681,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: _kGold.withOpacity(0.08),
-              border: Border.all(color: _kGold.withOpacity(0.25)),
+              color: _kGold.withValues(alpha: 0.08),
+              border: Border.all(color: _kGold.withValues(alpha: 0.25)),
             ),
             child: Text('PREMIUM',
                 style: _rajdhani(7, FontWeight.w900, _kGold, spacing: 1)),
@@ -1727,8 +1739,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
-              border: Border.all(color: color.withOpacity(0.3)),
+              color: color.withValues(alpha: 0.08),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Icon(mejora ? Icons.trending_up_rounded
@@ -1829,7 +1841,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                           color: pt.distanciaTotal > 0
                               ? (esReciente
                                   ? goldColor
-                                  : goldColor.withOpacity(0.35))
+                                  : goldColor.withValues(alpha: 0.35))
                               : _kBorder2,
                           borderRadius: BorderRadius.circular(3),
                         ),
@@ -1899,7 +1911,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                 color: _kBg,
                 border: Border(
                   left: BorderSide(
-                      color: _colorTerritorio.withOpacity(0.6), width: 2),
+                      color: _colorTerritorio.withValues(alpha: 0.6), width: 2),
                   top: BorderSide(color: _kBorder2),
                   right: BorderSide(color: _kBorder2),
                   bottom: BorderSide(color: _kBorder2),
@@ -1941,18 +1953,18 @@ class _PerfilScreenState extends State<PerfilScreen>
         decoration: BoxDecoration(
           color: _kSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kGold.withOpacity(0.25)),
+          border: Border.all(color: _kGold.withValues(alpha: 0.25)),
           boxShadow: [
             BoxShadow(
-                color: _kGold.withOpacity(0.06), blurRadius: 16),
+                color: _kGold.withValues(alpha: 0.06), blurRadius: 16),
           ],
         ),
         child: Row(children: [
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color: _kGold.withOpacity(0.08),
-              border: Border.all(color: _kGold.withOpacity(0.25)),
+              color: _kGold.withValues(alpha: 0.08),
+              border: Border.all(color: _kGold.withValues(alpha: 0.25)),
             ),
             child: const Center(
                 child: Text('👑', style: TextStyle(fontSize: 20))),
@@ -2257,8 +2269,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFFD4A017).withOpacity(0.15),
-                const Color(0xFFFFD700).withOpacity(0.08),
+                const Color(0xFFD4A017).withValues(alpha: 0.15),
+                const Color(0xFFFFD700).withValues(alpha: 0.08),
               ],
             ),
             borderRadius: BorderRadius.circular(3),
@@ -2267,11 +2279,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                 const Color(0xFFD4A017),
                 const Color(0xFFFFD700),
                 glow,
-              )!.withOpacity(0.7),
+              )!.withValues(alpha: 0.7),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFD4A017).withOpacity(glow * 0.25),
+                color: const Color(0xFFD4A017).withValues(alpha: glow * 0.25),
                 blurRadius: 8,
               ),
             ],

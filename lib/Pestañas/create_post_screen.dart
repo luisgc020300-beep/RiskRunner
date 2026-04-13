@@ -10,17 +10,17 @@ import '../services/story_service.dart';
 
 // ── Design tokens
 class _C {
-  static const bg0       = Color(0xFF060606);
-  static const bg1       = Color(0xFF0C0C0C);
-  static const bg2       = Color(0xFF101010);
-  static const parch     = Color(0xFFEEEEEE);   // texto principal — blanco
-  static const parchm    = Color(0xFFCC2222);   // acento — rojo
-  static const parchd    = Color(0xFF666666);   // texto secundario — gris
-  static const bronze    = Color(0xFFCC2222);   // alias rojo
-  static const ivory     = Color(0xFFEEEEEE);   // texto blanco
-  static const border    = Color(0x1FCCCCCC);   // borde sutil gris
-  static const borderHot = Color(0x3FCC2222);   // borde activo rojo
-  static const safe      = Color(0xFF4CAF50);
+  static const bg0       = Color(0xFFE8E8ED);
+  static const bg1       = Color(0xFFFFFFFF);
+  static const bg2       = Color(0xFFE5E5EA);
+  static const parch     = Color(0xFF1C1C1E);   // texto principal
+  static const parchm    = Color(0xFF3C3C43);   // acento gris
+  static const parchd    = Color(0xFF636366);   // texto secundario
+  static const bronze    = Color(0xFF636366);   // alias gris
+  static const ivory     = Color(0xFF1C1C1E);   // texto principal
+  static const border    = Color(0x1FC6C6C8);   // borde sutil
+  static const borderHot = Color(0x3F3C3C43);   // borde activo gris
+  static const safe      = Color(0xFF30D158);
 }
 
 class CreatePostScreen extends StatefulWidget {
@@ -46,7 +46,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool    _publicando = false;
   String  _errorMsg   = '';
 
-  Color _accentColor = const Color(0xFFCC2222);
+  Color _accentColor = const Color(0xFFE02020);
 
   @override
   void initState() {
@@ -336,21 +336,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   PreferredSizeWidget _buildAppBar() {
     final String btnLabel = _destino == 'historia' ? 'Subir' : 'Publicar';
     return AppBar(
-      backgroundColor: _C.bg0,
+      backgroundColor: const Color(0xFF0D0D0D),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       leading: GestureDetector(
         onTap: () => Navigator.pop(context),
         child: Container(
           margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(border: Border.all(color: _C.border)),
-          child: const Icon(Icons.close_rounded, color: _C.parchd, size: 16),
+          decoration: BoxDecoration(border: Border.all(color: const Color(0xFF444444))),
+          child: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
         ),
       ),
       title: Text(
         _destino == 'historia' ? 'NUEVA HISTORIA' : 'NUEVA PUBLICACIÓN',
         style: const TextStyle(
-          color: _C.parch, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 3),
+          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 3),
       ),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),

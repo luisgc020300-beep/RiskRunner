@@ -8,9 +8,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 // DESIGN TOKENS
 // =============================================================================
 class _RR {
-  static const parchm = Color(0xFFCAAA6C);
-  static const parchd = Color(0xFF8C7242);
-  static const bronze = Color(0xFFCC7C3A);
+  static const parchm = Color(0xFF3C3C43);
+  static const parchd = Color(0xFF636366);
+  static const bronze = Color(0xFF636366);
 }
 
 // =============================================================================

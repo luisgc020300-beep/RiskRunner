@@ -42,10 +42,10 @@ class CustomBottomNavbar extends StatefulWidget {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0C0C0C),
+        backgroundColor: const Color(0xFFFFFFFF),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: AppColors.red.withValues(alpha: 0.35)),
+          side: BorderSide(color: AppColors.red.withValues(alpha: 0.6)),
         ),
         title: const Row(children: [
           Icon(Icons.directions_run_rounded, color: AppColors.red, size: 22),
@@ -54,7 +54,7 @@ class CustomBottomNavbar extends StatefulWidget {
             child: Text(
               '¿Listo para correr?',
               style: TextStyle(
-                  color: Colors.white,
+                  color: Color(0xFF1C1C1E),
                   fontSize: 17,
                   fontWeight: FontWeight.bold),
             ),
@@ -62,12 +62,12 @@ class CustomBottomNavbar extends StatefulWidget {
         ]),
         content: const Text(
           'Vas a iniciar una nueva carrera. ¿Estás seguro?',
-          style: TextStyle(color: Colors.white54, fontSize: 14),
+          style: TextStyle(color: Color(0xFF636366), fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: Colors.white38),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFF8E8E93)),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(

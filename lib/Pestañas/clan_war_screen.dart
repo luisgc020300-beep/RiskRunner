@@ -6,18 +6,22 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/clan_service.dart';
 
-const _kBg      = Color(0xFF060608);
-const _kSurface = Color(0xFF0D0D10);
-const _kLine    = Color(0xFF1C1C24);
-const _kLine2   = Color(0xFF242430);
-const _kSubtext = Color(0xFF5A5A70);
-const _kText    = Color(0xFFAAAAAC);
-const _kWhite   = Color(0xFFF0F0F2);
-const _kAccent  = Color(0xFFCC2222);
-const _kGold    = Color(0xFFD4A84C);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kSubtext  = Color(0xFF8E8E93);
+const _kText     = Color(0xFF3C3C43);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kAccent   = Color(0xFFE02020);
+const _kBlue     = Color(0xFFE02020);
+
+TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
+    GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+
+TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
+    GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 class ClanWarScreen extends StatefulWidget {
   final ClanWar war;
@@ -30,7 +34,6 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     with SingleTickerProviderStateMixin {
 
   late AnimationController _pulse;
-  late Stream<ClanWar?>    _warStream;
   Timer? _timer;
   Duration _restante = Duration.zero;
 
@@ -39,9 +42,6 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     super.initState();
     _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 1))
       ..repeat(reverse: true);
-
-    _warStream = ClanService.clanStream(widget.war.clanA['id'] as String).map((_) => null)
-        .asBroadcastStream(); // placeholder — en prod usaría clan_wars stream directo
 
     _restante = widget.war.fin.difference(DateTime.now());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -68,11 +68,9 @@ class _ClanWarScreenState extends State<ClanWarScreen>
   @override
   Widget build(BuildContext context) {
     final war = widget.war;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-
     // Determinar cuál es mi clan en esta guerra
     // (en prod cargaríamos el clanId del jugador desde Firestore)
-    final clanAId    = war.clanA['id'] as String;
+    final _ = war.clanA['id'] as String;
     final clanAColor = Color((war.clanA['color'] as num? ?? 0xFFCC2222).toInt());
     final clanBColor = Color((war.clanB['color'] as num? ?? 0xFF3B6BBF).toInt());
 
@@ -84,18 +82,17 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 16),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('GUERRA EN CURSO', style: GoogleFonts.rajdhani(
-            fontSize: 13, fontWeight: FontWeight.w900, color: _kWhite, letterSpacing: 3)),
+        title: Text('Guerra en curso', style: _dm(15, FontWeight.w600, Colors.white)),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: _kLine),
+          child: Container(height: 1, color: _kAccent),
         ),
       ),
       body: SingleChildScrollView(
@@ -139,19 +136,16 @@ class _ClanWarScreenState extends State<ClanWarScreen>
           decoration: BoxDecoration(
             color: colorA.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colorA.withValues(alpha: 0.5), width: 2),
-            boxShadow: [BoxShadow(color: colorA.withValues(alpha: 0.2), blurRadius: 16)],
           ),
           child: Center(child: Text(
-            war.clanA['emoji'] as String? ?? '⚔️',
+            war.clanA['emoji'] as String? ?? '🛡',
             style: const TextStyle(fontSize: 30),
           )),
         ),
         const SizedBox(height: 8),
-        Text('[${war.clanA['tag']}]', style: GoogleFonts.rajdhani(
-            fontSize: 10, fontWeight: FontWeight.w900, color: colorA, letterSpacing: 1)),
+        Text('[${war.clanA['tag']}]', style: _dm(11, FontWeight.w600, colorA)),
         Text(war.clanA['nombre'] as String? ?? '',
-            style: GoogleFonts.rajdhani(fontSize: 13, fontWeight: FontWeight.w800, color: _kWhite),
+            style: _dm(13, FontWeight.w500, _kWhite),
             textAlign: TextAlign.center, maxLines: 2),
       ])),
 
@@ -162,17 +156,14 @@ class _ClanWarScreenState extends State<ClanWarScreen>
           builder: (_, __) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: _kAccent.withValues(alpha: 0.08 + _pulse.value * 0.06),
+              color: _kAccent.withValues(alpha: 0.06 + _pulse.value * 0.06),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _kAccent.withValues(alpha: 0.4)),
             ),
-            child: Text('VS', style: GoogleFonts.rajdhani(
-                fontSize: 20, fontWeight: FontWeight.w900, color: _kAccent, letterSpacing: 2)),
+            child: Text('VS', style: _raj(20, FontWeight.w900, _kAccent, sp: 2)),
           ),
         ),
         const SizedBox(height: 8),
-        Text('$pA  —  $pB', style: GoogleFonts.rajdhani(
-            fontSize: 26, fontWeight: FontWeight.w900, color: _kWhite)),
+        Text('$pA  —  $pB', style: _raj(26, FontWeight.w900, _kWhite)),
       ]),
 
       // Clan B
@@ -182,19 +173,16 @@ class _ClanWarScreenState extends State<ClanWarScreen>
           decoration: BoxDecoration(
             color: colorB.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colorB.withValues(alpha: 0.5), width: 2),
-            boxShadow: [BoxShadow(color: colorB.withValues(alpha: 0.2), blurRadius: 16)],
           ),
           child: Center(child: Text(
-            war.clanB['emoji'] as String? ?? '⚔️',
+            war.clanB['emoji'] as String? ?? '🛡',
             style: const TextStyle(fontSize: 30),
           )),
         ),
         const SizedBox(height: 8),
-        Text('[${war.clanB['tag']}]', style: GoogleFonts.rajdhani(
-            fontSize: 10, fontWeight: FontWeight.w900, color: colorB, letterSpacing: 1)),
+        Text('[${war.clanB['tag']}]', style: _dm(11, FontWeight.w600, colorB)),
         Text(war.clanB['nombre'] as String? ?? '',
-            style: GoogleFonts.rajdhani(fontSize: 13, fontWeight: FontWeight.w800, color: _kWhite),
+            style: _dm(13, FontWeight.w500, _kWhite),
             textAlign: TextAlign.center, maxLines: 2),
       ])),
     ]);
@@ -206,7 +194,7 @@ class _ClanWarScreenState extends State<ClanWarScreen>
         height: 10,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: colorB.withValues(alpha: 0.3),
+          color: colorB.withValues(alpha: 0.25),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(children: [
@@ -214,19 +202,14 @@ class _ClanWarScreenState extends State<ClanWarScreen>
             duration: const Duration(milliseconds: 500),
             curve: Curves.easeInOut,
             width: (MediaQuery.of(context).size.width - 40) * ratioA,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [colorA.withValues(alpha: 0.7), colorA]),
-              borderRadius: BorderRadius.circular(6),
-            ),
+            decoration: BoxDecoration(color: colorA, borderRadius: BorderRadius.circular(6)),
           ),
         ]),
       ),
       const SizedBox(height: 6),
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('$pA territorios', style: GoogleFonts.rajdhani(
-            fontSize: 10, color: colorA.withValues(alpha: 0.8), fontWeight: FontWeight.w700)),
-        Text('$pB territorios', style: GoogleFonts.rajdhani(
-            fontSize: 10, color: colorB.withValues(alpha: 0.8), fontWeight: FontWeight.w700)),
+        Text('$pA territorios', style: _dm(11, FontWeight.w500, colorA)),
+        Text('$pB territorios', style: _dm(11, FontWeight.w500, colorB)),
       ]),
     ]);
   }
@@ -237,18 +220,15 @@ class _ClanWarScreenState extends State<ClanWarScreen>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
-        color: ended ? _kSurface : _kAccent.withValues(alpha: 0.06),
+        color: _kSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ended ? _kLine : _kAccent.withValues(alpha: 0.3)),
       ),
       child: Column(children: [
-        Text(ended ? 'GUERRA FINALIZADA' : 'TIEMPO RESTANTE',
-            style: GoogleFonts.rajdhani(fontSize: 9, fontWeight: FontWeight.w800,
-                color: ended ? _kSubtext : _kAccent, letterSpacing: 2.5)),
+        Text(ended ? 'Guerra finalizada' : 'Tiempo restante',
+            style: _dm(12, FontWeight.w500, ended ? _kSubtext : _kAccent)),
         const SizedBox(height: 6),
-        Text(_tiempoStr, style: GoogleFonts.rajdhani(
-            fontSize: 38, fontWeight: FontWeight.w900,
-            color: ended ? _kSubtext : _kWhite, letterSpacing: 2)),
+        Text(_tiempoStr, style: _raj(38, FontWeight.w900,
+            ended ? _kSubtext : _kWhite, sp: 2)),
       ]),
     );
   }
@@ -260,40 +240,27 @@ class _ClanWarScreenState extends State<ClanWarScreen>
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kLine2),
       ),
       child: Row(children: [
-        Text(info['emoji']!, style: const TextStyle(fontSize: 28)),
+        Icon(info.icon, color: _kAccent, size: 28),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color: _kAccent.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: _kAccent.withValues(alpha: 0.3)),
-              ),
-              child: Text(war.tipo.toUpperCase(), style: GoogleFonts.rajdhani(
-                  fontSize: 9, fontWeight: FontWeight.w900, color: _kAccent, letterSpacing: 1.5)),
-            ),
-          ]),
-          const SizedBox(height: 4),
-          Text(info['titulo']!, style: GoogleFonts.rajdhani(
-              fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
+          Text(war.tipo, style: _dm(11, FontWeight.w600, _kAccent)),
+          const SizedBox(height: 2),
+          Text(info.titulo, style: _dm(14, FontWeight.w500, _kWhite)),
         ])),
       ]),
     );
   }
 
-  Map<String, String> _tipoInfo(String tipo) {
+  ({IconData icon, String titulo}) _tipoInfo(String tipo) {
     switch (tipo) {
       case 'asedio':
-        return {'emoji': '🏰', 'titulo': 'Conquista el mayor territorio posible'};
+        return (icon: Icons.location_city_rounded, titulo: 'Conquista el mayor territorio posible');
       case 'resistencia':
-        return {'emoji': '🛡️', 'titulo': 'Defiende tus territorios el máximo tiempo'};
+        return (icon: Icons.shield_rounded, titulo: 'Defiende tus territorios el máximo tiempo');
       default:
-        return {'emoji': '🗺️', 'titulo': 'Conquista más zonas que el rival'};
+        return (icon: Icons.map_outlined, titulo: 'Conquista más zonas que el rival');
     }
   }
 
@@ -301,14 +268,15 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF3B6BBF).withValues(alpha: 0.06),
+        color: _kBlue.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF3B6BBF).withValues(alpha: 0.25)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('📋  CÓMO SUMAR PUNTOS', style: GoogleFonts.rajdhani(
-            fontSize: 10, fontWeight: FontWeight.w900,
-            color: const Color(0xFF3B6BBF), letterSpacing: 2)),
+        Row(children: [
+          const Icon(Icons.info_outline_rounded, color: _kBlue, size: 16),
+          const SizedBox(width: 8),
+          Text('Cómo sumar puntos', style: _dm(13, FontWeight.w600, _kBlue)),
+        ]),
         const SizedBox(height: 10),
         _instruccion('1', 'Sal a correr y activa el modo carrera'),
         _instruccion('2', 'Cada territorio conquistado suma +1 punto al clan'),
@@ -324,16 +292,13 @@ class _ClanWarScreenState extends State<ClanWarScreen>
       Container(
         width: 20, height: 20,
         decoration: BoxDecoration(
-          color: const Color(0xFF3B6BBF).withValues(alpha: 0.15),
+          color: _kBlue.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: Center(child: Text(num, style: GoogleFonts.rajdhani(
-            fontSize: 10, fontWeight: FontWeight.w900,
-            color: const Color(0xFF3B6BBF)))),
+        child: Center(child: Text(num, style: _dm(10, FontWeight.w700, _kBlue))),
       ),
       const SizedBox(width: 10),
-      Expanded(child: Text(texto, style: GoogleFonts.rajdhani(
-          fontSize: 12, color: _kText))),
+      Expanded(child: Text(texto, style: _dm(13, FontWeight.w400, _kText))),
     ]),
   );
 
@@ -341,11 +306,7 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     // En producción esto vendría de un subcolección war_contributions/
     // Aquí mostramos la estructura lista para conectar
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 3, height: 12, color: _kAccent, margin: const EdgeInsets.only(right: 8)),
-        Text('RANKING DE CONTRIBUCIÓN', style: GoogleFonts.rajdhani(
-            fontSize: 9, fontWeight: FontWeight.w800, color: _kSubtext, letterSpacing: 2.5)),
-      ]),
+      Text('Ranking de contribución', style: _dm(12, FontWeight.w600, _kSubtext)),
       const SizedBox(height: 12),
       // Cabecera: dos columnas, una por clan
       Row(children: [
@@ -360,40 +321,36 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
+        color: _kSurface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(clan['emoji'] as String? ?? '⚔️', style: const TextStyle(fontSize: 16)),
+          Text(clan['emoji'] as String? ?? '🛡', style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 6),
-          Text('[${clan['tag']}]', style: GoogleFonts.rajdhani(
-              fontSize: 10, fontWeight: FontWeight.w900, color: color)),
+          Text('[${clan['tag']}]', style: _dm(11, FontWeight.w600, color)),
         ]),
         const SizedBox(height: 8),
-        // Placeholder de miembros
         ...(clan['miembros'] as List<dynamic>? ?? []).take(4).map((m) {
           final mm = m as Map<String, dynamic>;
+          final pts = mm['puntosAportados'] ?? mm['puntos'];
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(children: [
               Container(
-                width: 20, height: 20,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: 0.12),
-                ),
+                width: 22, height: 22,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.12)),
                 child: Center(child: Text(
                   (mm['nickname'] as String? ?? '?')[0].toUpperCase(),
-                  style: GoogleFonts.rajdhani(fontSize: 10, fontWeight: FontWeight.w900, color: color),
+                  style: _raj(10, FontWeight.w700, color),
                 )),
               ),
               const SizedBox(width: 6),
               Expanded(child: Text(mm['nickname'] as String? ?? '?',
-                  style: GoogleFonts.rajdhani(fontSize: 11, color: _kText),
+                  style: _dm(12, FontWeight.w400, _kText),
                   overflow: TextOverflow.ellipsis)),
-              Text('— pts', style: GoogleFonts.rajdhani(fontSize: 10, color: _kSubtext)),
+              Text(pts != null ? '$pts pts' : '— pts',
+                  style: _dm(11, FontWeight.w500, _kSubtext)),
             ]),
           );
         }),

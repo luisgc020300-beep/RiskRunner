@@ -5,26 +5,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // =============================================================================
-// PALETA — Pergamino de Guerra v2 (sincronizada con HTML)
+// PALETA — Pergamino de Guerra v2
 // =============================================================================
-const _kBg        = Color(0xFF0F0D08);
-const _kBg2       = Color(0xFF161208);
-const _kParch     = Color(0xFFF0E8D0);
-const _kParchDark = Color(0xFFDDD0B0);
-const _kInk       = Color(0xFF0F0D08);
-const _kMuted     = Color(0xFF7A6040);
-const _kBorder    = Color(0xFFA89060);
-const _kAccent    = Color(0xFFE05A1A);
-const _kAccent2   = Color(0xFFF07030);
-const _kGold      = Color(0xFFD4960A);
-const _kGoldDim   = Color(0xFFC8A030);
+const _kBg        = Color(0xFFE8E8ED);
+const _kParch     = Color(0xFF1C1C1E);
+const _kParchDark = Color(0xFF3C3C43);
+const _kInk       = Color(0xFF1C1C1E);
+const _kMuted     = Color(0xFF8E8E93);
+const _kBorder    = Color(0xFFC6C6C8);
+const _kAccent    = Color(0xFFE02020);
+const _kAccent2   = Color(0xFF636366);
+const _kGold      = Color(0xFFFFD60A);
+const _kGoldDim   = Color(0xFFAEAEB2);
 const _kSafe      = Color(0xFF4CAF50);
 const _kError     = Color(0xFF7A1A0A);
 
 // =============================================================================
 // HELPERS TIPOGRÁFICOS
-// — Bebas Neue : titulares hero y botones
-// — DM Sans    : labels, inputs, body
 // =============================================================================
 TextStyle _bebas(double size, Color color, {double spacing = 1.0}) =>
     GoogleFonts.bebasNeue(fontSize: size, color: color, letterSpacing: spacing);
@@ -42,6 +39,104 @@ TextStyle _sans(double size, Color color,
     );
 
 // =============================================================================
+// HERO PAINTER — cuadrícula táctica + arcos + scanlines CRT + vignette + pulso
+// =============================================================================
+class _HeroPainter extends CustomPainter {
+  final double pulse;
+  const _HeroPainter({required this.pulse});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final W = size.width;
+    final H = size.height;
+
+    // Fondo
+    canvas.drawRect(Rect.fromLTWH(0, 0, W, H),
+        Paint()..color = _kBg);
+
+    // Cuadrícula táctica
+    final gridPaint = Paint()
+      ..color = _kGold.withValues(alpha: 0.07)
+      ..strokeWidth = 0.5;
+    for (double x = 0; x < W; x += 22) {
+      canvas.drawLine(Offset(x, 0), Offset(x, H), gridPaint);
+    }
+    for (double y = 0; y < H; y += 22) {
+      canvas.drawLine(Offset(0, y), Offset(W, y), gridPaint);
+    }
+
+    // Scanlines CRT
+    final scanPaint = Paint()
+      ..color = const Color(0xFF000000).withValues(alpha: 0.045)
+      ..strokeWidth = 1;
+    for (double y = 0; y < H; y += 3) {
+      canvas.drawLine(Offset(0, y), Offset(W, y), scanPaint);
+    }
+
+    // Arco exterior
+    canvas.drawCircle(
+      Offset(W + 80, -80), 300,
+      Paint()
+        ..color = _kGold.withValues(alpha: 0.06)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 40,
+    );
+
+    // Arco interior dorado
+    canvas.drawCircle(
+      Offset(W - 10, 10), 110,
+      Paint()
+        ..color = _kGold.withValues(alpha: 0.15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // Arco inferior izquierdo
+    canvas.drawCircle(
+      Offset(-60, H + 120), 260,
+      Paint()
+        ..color = _kAccent.withValues(alpha: 0.10)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // Meridianos
+    canvas.drawLine(Offset(0, H * 0.5), Offset(W, H * 0.5),
+        Paint()..color = _kGold.withValues(alpha: 0.05)..strokeWidth = 0.5);
+    canvas.drawLine(Offset(W * 0.5, 0), Offset(W * 0.5, H),
+        Paint()..color = _kGold.withValues(alpha: 0.05)..strokeWidth = 0.5);
+
+    // Heat line inferior animada
+    final heatPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          Colors.transparent,
+          _kAccent.withValues(alpha: 0.3 + 0.2 * pulse),
+          _kGoldDim.withValues(alpha: 0.3 + 0.2 * pulse),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.3, 0.6, 1.0],
+      ).createShader(Rect.fromLTWH(0, H - 2, W, 2))
+      ..strokeWidth = 2;
+    canvas.drawLine(Offset(0, H - 1), Offset(W, H - 1), heatPaint);
+
+    // Vignette radial
+    final vignette = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.transparent,
+          const Color(0xFF000000).withValues(alpha: 0.55),
+        ],
+        stops: const [0.45, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, W, H));
+    canvas.drawRect(Rect.fromLTWH(0, 0, W, H), vignette);
+  }
+
+  @override
+  bool shouldRepaint(_HeroPainter o) => o.pulse != pulse;
+}
+
+// =============================================================================
 // REGISTER SCREEN
 // =============================================================================
 class RegisterScreen extends StatefulWidget {
@@ -53,10 +148,17 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen>
     with TickerProviderStateMixin {
-  final _nicknameCtrl  = TextEditingController();
-  final _emailCtrl     = TextEditingController();
-  final _passCtrl      = TextEditingController();
-  final _confirmCtrl   = TextEditingController();
+  // Controladores
+  final _nicknameCtrl = TextEditingController();
+  final _emailCtrl    = TextEditingController();
+  final _passCtrl     = TextEditingController();
+  final _confirmCtrl  = TextEditingController();
+
+  // FocusNodes para flujo de teclado
+  final _nickFocus    = FocusNode();
+  final _emailFocus   = FocusNode();
+  final _passFocus    = FocusNode();
+  final _confirmFocus = FocusNode();
 
   bool _obscurePass    = true;
   bool _obscureConfirm = true;
@@ -65,15 +167,18 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   late AnimationController _masterCtrl;
   late AnimationController _pulseCtrl;
+  late AnimationController _shakeCtrl;
 
   late Animation<double> _headerReveal;
   late Animation<double> _formReveal;
   late Animation<double> _footerReveal;
   late Animation<double> _pulse;
+  late Animation<double> _shakeAnim;
 
+  // Validación en tiempo real
   bool get _nickOk    => _nicknameCtrl.text.trim().length >= 3;
-  bool get _emailOk   =>
-      _emailCtrl.text.contains('@') && _emailCtrl.text.contains('.');
+  bool get _emailOk   => RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
+      .hasMatch(_emailCtrl.text.trim());
   bool get _passOk    => _passCtrl.text.length >= 6;
   bool get _confirmOk =>
       _passCtrl.text == _confirmCtrl.text && _confirmCtrl.text.isNotEmpty;
@@ -87,9 +192,10 @@ class _RegisterScreenState extends State<RegisterScreen>
       statusBarIconBrightness: Brightness.light,
     ));
 
+    // Animación de entrada escalonada
     _masterCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1600));
-    _pulseCtrl  = AnimationController(
+    _pulseCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2400))
       ..repeat(reverse: true);
 
@@ -104,46 +210,72 @@ class _RegisterScreenState extends State<RegisterScreen>
         curve: const Interval(0.65, 1.00, curve: Curves.easeOut));
     _pulse = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
 
-    _nicknameCtrl.addListener(() => setState(() {}));
-    _emailCtrl.addListener(()    => setState(() {}));
-    _passCtrl.addListener(()     => setState(() {}));
-    _confirmCtrl.addListener(()  => setState(() {}));
+    // Shake en error
+    _shakeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 380));
+    _shakeAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 10.0, end: -7.0),  weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -7.0, end: 7.0),   weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 7.0, end: 0.0),    weight: 1),
+    ]).animate(_shakeCtrl);
+
+    // Limpiar error al escribir en cualquier campo
+    for (final ctrl in [_nicknameCtrl, _emailCtrl, _passCtrl, _confirmCtrl]) {
+      ctrl.addListener(_clearError);
+      ctrl.addListener(() => setState(() {}));
+    }
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _masterCtrl.forward();
     });
   }
 
+  void _clearError() {
+    if (_error.isNotEmpty) setState(() => _error = '');
+  }
+
   @override
   void dispose() {
     _masterCtrl.dispose();
     _pulseCtrl.dispose();
+    _shakeCtrl.dispose();
     _nicknameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
+    _nickFocus.dispose();
+    _emailFocus.dispose();
+    _passFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
+  // ── AUTH ──────────────────────────────────────────────────────────────────
   Future<void> _register() async {
-    setState(() { _error = ''; });
+    final nick  = _nicknameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final pass  = _passCtrl.text;
 
-    if (_nicknameCtrl.text.trim().isEmpty ||
-        _emailCtrl.text.trim().isEmpty ||
-        _passCtrl.text.isEmpty) {
-      setState(() => _error = 'RELLENA TODOS LOS CAMPOS');
+    if (nick.isEmpty || email.isEmpty || pass.isEmpty) {
+      _setError('RELLENA TODOS LOS CAMPOS');
       return;
     }
-    if (_nicknameCtrl.text.trim().length < 3) {
-      setState(() => _error = 'CALLSIGN MÍNIMO 3 CARACTERES');
+    if (nick.length < 3) {
+      _setError('CALLSIGN MÍNIMO 3 CARACTERES');
       return;
     }
-    if (_passCtrl.text != _confirmCtrl.text) {
-      setState(() => _error = 'LAS CONTRASEÑAS NO COINCIDEN');
+    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      _setError('FORMATO DE EMAIL INVÁLIDO');
       return;
     }
-    if (_passCtrl.text.length < 6) {
-      setState(() => _error = 'CONTRASEÑA MÍNIMO 6 CARACTERES');
+    if (pass.length < 6) {
+      _setError('CONTRASEÑA MÍNIMO 6 CARACTERES');
+      return;
+    }
+    if (pass != _confirmCtrl.text) {
+      _setError('LAS CONTRASEÑAS NO COINCIDEN');
       return;
     }
 
@@ -151,40 +283,63 @@ class _RegisterScreenState extends State<RegisterScreen>
     HapticFeedback.mediumImpact();
 
     try {
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email:    _emailCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-
-      await FirebaseFirestore.instance
+      // Verificar nickname único
+      final existing = await FirebaseFirestore.instance
           .collection('players')
-          .doc(credential.user!.uid)
-          .set({
-        'nickname':         _nicknameCtrl.text.trim(),
-        'email':            _emailCtrl.text.trim(),
-        'victorias':        0,
-        'nivel':            1,
-        'monedas':          100,
-        'fecha_registro':   FieldValue.serverTimestamp(),
-        'proteccion_hasta': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 7))),
-        'liga':             'bronce',
-        'puntos_liga':      0,
-      });
+          .where('nickname', isEqualTo: nick)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) {
+        if (mounted) _setError('ESE CALLSIGN YA ESTÁ EN USO', stopLoading: true);
+        return;
+      }
+
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: pass);
+
+      await Future.wait([
+        // Actualizar displayName en Firebase Auth
+        credential.user!.updateDisplayName(nick),
+        // Crear documento del jugador
+        FirebaseFirestore.instance
+            .collection('players')
+            .doc(credential.user!.uid)
+            .set({
+          'nickname':         nick,
+          'email':            email,
+          'victorias':        0,
+          'nivel':            1,
+          'monedas':          100,
+          'fecha_registro':   FieldValue.serverTimestamp(),
+          'proteccion_hasta': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 7))),
+          'liga':             'bronce',
+          'puntos_liga':      0,
+        }),
+      ]);
 
       if (!mounted) return;
       HapticFeedback.heavyImpact();
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       String msg = 'ERROR EN EL REGISTRO';
       if (e.code == 'email-already-in-use') msg = 'ESTE EMAIL YA ESTÁ REGISTRADO';
       if (e.code == 'invalid-email')        msg = 'FORMATO DE EMAIL INVÁLIDO';
       if (e.code == 'weak-password')        msg = 'CONTRASEÑA DEMASIADO DÉBIL';
-      if (mounted) setState(() { _loading = false; _error = msg; });
+      _setError(msg, stopLoading: true);
     } catch (_) {
-      if (mounted) setState(() { _loading = false; _error = 'ERROR INESPERADO'; });
+      if (mounted) _setError('ERROR INESPERADO', stopLoading: true);
     }
+  }
+
+  void _setError(String msg, {bool stopLoading = false}) {
+    setState(() {
+      if (stopLoading) _loading = false;
+      _error = msg;
+    });
+    _shakeCtrl.forward(from: 0);
+    HapticFeedback.mediumImpact();
   }
 
   // ── BUILD ─────────────────────────────────────────────────────────────────
@@ -196,236 +351,106 @@ class _RegisterScreenState extends State<RegisterScreen>
     return Scaffold(
       backgroundColor: _kParch,
       resizeToAvoidBottomInset: true,
-      body: CustomScrollView(
-        physics: const ClampingScrollPhysics(),
-        slivers: [
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: CustomScrollView(
+          physics: const ClampingScrollPhysics(),
+          slivers: [
 
-          // ── HERO ──────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: AnimatedBuilder(
-              animation: _headerReveal,
-              builder: (_, __) => Opacity(
-                opacity: _headerReveal.value.clamp(0.0, 1.0),
-                child: SizedBox(
-                  height: heroH,
-                  child: Stack(
-                    children: [
-                      // Fondo con cuadrícula táctica
-                      Positioned.fill(
-                        child: CustomPaint(painter: _HeroPainter()),
-                      ),
-
-                      // Sello circular
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 14,
-                        right: 18,
-                        child: _buildStamp(),
-                      ),
-
-                      // Botón volver
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 12,
-                        left: 24,
-                        child: GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color:
-                                  Colors.white.withOpacity(0.07),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.12)),
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Heat line inferior
-                      Positioned(
-                        bottom: 1,
-                        left: 0,
-                        right: 0,
-                        child: AnimatedBuilder(
-                          animation: _pulse,
-                          builder: (_, __) => Container(
-                            height: 2,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  _kAccent.withOpacity(
-                                      0.3 + 0.2 * _pulse.value),
-                                  _kGoldDim.withOpacity(
-                                      0.3 + 0.2 * _pulse.value),
-                                  Colors.transparent,
-                                ],
-                                stops: const [0.0, 0.3, 0.6, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Contenido hero
-                      Positioned(
-                        left: 28,
-                        right: 28,
-                        bottom: 36,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('RISKRUNNER',
-                                style: _sans(9.5,
-                                    Colors.white.withOpacity(0.18),
-                                    weight: FontWeight.w600, spacing: 5.0)),
-                            const SizedBox(height: 6),
-                            RichText(
-                              text: TextSpan(
-                                style: _bebas(34, _kParch, spacing: 1.5),
-                                children: [
-                                  const TextSpan(text: 'Únete al\n'),
-                                  TextSpan(
-                                    text: 'conflicto.',
-                                    style: _bebas(34, _kAccent2,
-                                        spacing: 1.5),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Corte diagonal
-                      Positioned(
-                        bottom: -1,
-                        left: 0,
-                        right: 0,
-                        child: ClipPath(
-                          clipper: _DiagonalClipper(),
-                          child: Container(height: 32, color: _kParch),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── FORMULARIO ────────────────────────────────────────────────
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 18, 24, 48),
-            sliver: SliverToBoxAdapter(
+            // ── HERO ──────────────────────────────────────────────────────
+            SliverToBoxAdapter(
               child: AnimatedBuilder(
-                animation: _formReveal,
+                animation: _headerReveal,
                 builder: (_, __) => Opacity(
-                  opacity: _formReveal.value.clamp(0.0, 1.0),
-                  child: Transform.translate(
-                    offset: Offset(0, 16 * (1 - _formReveal.value)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  opacity: _headerReveal.value.clamp(0.0, 1.0),
+                  child: SizedBox(
+                    height: heroH,
+                    child: Stack(
                       children: [
-                        _buildFormIntro(),
-                        const SizedBox(height: 20),
-
-                        if (_error.isNotEmpty) ...[
-                          _buildErrorBanner(),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // ── Callsign
-                        _buildFieldLabel('Callsign',
-                            _nickOk && _nicknameCtrl.text.isNotEmpty),
-                        const SizedBox(height: 6),
-                        _buildInput(
-                          ctrl:      _nicknameCtrl,
-                          hint:      'Tu nombre de corredor',
-                          valid:     _nickOk && _nicknameCtrl.text.isNotEmpty,
-                          maxLength: 20,
-                        ),
-                        _buildHint(
-                            'Mínimo 3 caracteres · Visible para otros jugadores'),
-                        const SizedBox(height: 14),
-
-                        // ── Email
-                        _buildFieldLabel('Email',
-                            _emailOk && _emailCtrl.text.isNotEmpty),
-                        const SizedBox(height: 6),
-                        _buildInput(
-                          ctrl:  _emailCtrl,
-                          hint:  'tu@email.com',
-                          type:  TextInputType.emailAddress,
-                          valid: _emailOk && _emailCtrl.text.isNotEmpty,
-                        ),
-                        const SizedBox(height: 14),
-
-                        // ── Contraseña
-                        _buildFieldLabel('Contraseña',
-                            _passOk && _passCtrl.text.isNotEmpty),
-                        const SizedBox(height: 6),
-                        _buildInput(
-                          ctrl:    _passCtrl,
-                          hint:    'Mínimo 6 caracteres',
-                          obscure: _obscurePass,
-                          valid:   _passOk && _passCtrl.text.isNotEmpty,
-                          suffix: GestureDetector(
-                            onTap: () => setState(
-                                () => _obscurePass = !_obscurePass),
-                            child: Icon(
-                              _obscurePass
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: _kMuted,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-
-                        // ── Confirmar contraseña
-                        _buildFieldLabel('Confirmar contraseña',
-                            _confirmOk && _confirmCtrl.text.isNotEmpty),
-                        const SizedBox(height: 6),
-                        _buildInput(
-                          ctrl:    _confirmCtrl,
-                          hint:    'Repite la contraseña',
-                          obscure: _obscureConfirm,
-                          valid:   _confirmOk && _confirmCtrl.text.isNotEmpty,
-                          suffix: GestureDetector(
-                            onTap: () => setState(
-                                () => _obscureConfirm = !_obscureConfirm),
-                            child: Icon(
-                              _obscureConfirm
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: _kMuted,
-                              size: 18,
+                        // Fondo animado
+                        Positioned.fill(
+                          child: AnimatedBuilder(
+                            animation: _pulse,
+                            builder: (_, __) => CustomPaint(
+                              painter: _HeroPainter(pulse: _pulse.value),
                             ),
                           ),
                         ),
 
-                        const SizedBox(height: 24),
+                        // Sello circular
+                        Positioned(
+                          top: MediaQuery.of(context).padding.top + 14,
+                          right: 18,
+                          child: _buildStamp(),
+                        ),
 
-                        _buildPrivilegios(),
+                        // Botón volver
+                        Positioned(
+                          top: MediaQuery.of(context).padding.top + 12,
+                          left: 24,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.07),
+                                borderRadius:
+                                    const BorderRadius.all(Radius.circular(4)),
+                                border: Border.all(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.12)),
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                        ),
 
-                        const SizedBox(height: 24),
+                        // Contenido hero
+                        Positioned(
+                          left: 28,
+                          right: 28,
+                          bottom: 36,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('RISKRUNNER',
+                                  style: _sans(9.5,
+                                      Colors.white.withValues(alpha: 0.18),
+                                      weight: FontWeight.w600,
+                                      spacing: 5.0)),
+                              const SizedBox(height: 6),
+                              RichText(
+                                text: TextSpan(
+                                  style: _bebas(34, _kParch, spacing: 1.5),
+                                  children: [
+                                    const TextSpan(text: 'Únete al\n'),
+                                    TextSpan(
+                                      text: 'conflicto.',
+                                      style: _bebas(34, _kAccent2,
+                                          spacing: 1.5),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                        _buildRegisterButton(),
-
-                        AnimatedBuilder(
-                          animation: _footerReveal,
-                          builder: (_, __) => Opacity(
-                            opacity: _footerReveal.value.clamp(0.0, 1.0),
-                            child: _buildFooter(),
+                        // Corte diagonal
+                        Positioned(
+                          bottom: -1,
+                          left: 0,
+                          right: 0,
+                          child: ClipPath(
+                            clipper: const _DiagonalClipper(),
+                            child: Container(height: 32, color: _kParch),
                           ),
                         ),
                       ],
@@ -434,14 +459,154 @@ class _RegisterScreenState extends State<RegisterScreen>
                 ),
               ),
             ),
-          ),
-        ],
+
+            // ── FORMULARIO ────────────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 18, 24, 48),
+              sliver: SliverToBoxAdapter(
+                child: AnimatedBuilder(
+                  animation: _formReveal,
+                  builder: (_, __) => Opacity(
+                    opacity: _formReveal.value.clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      offset: Offset(0, 16 * (1 - _formReveal.value)),
+                      child: AutofillGroup(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFormIntro(),
+                            const SizedBox(height: 20),
+
+                            // Banner de error con shake
+                            if (_error.isNotEmpty) ...[
+                              AnimatedBuilder(
+                                animation: _shakeAnim,
+                                builder: (_, child) => Transform.translate(
+                                  offset: Offset(_shakeAnim.value, 0),
+                                  child: child,
+                                ),
+                                child: _buildErrorBanner(),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // ── Callsign
+                            _buildFieldLabel('Callsign',
+                                _nickOk && _nicknameCtrl.text.isNotEmpty),
+                            const SizedBox(height: 6),
+                            _buildInput(
+                              ctrl:            _nicknameCtrl,
+                              focus:           _nickFocus,
+                              hint:            'Tu nombre de corredor',
+                              valid:           _nickOk && _nicknameCtrl.text.isNotEmpty,
+                              maxLength:       20,
+                              autofillHint:    AutofillHints.username,
+                              textInputAction: TextInputAction.next,
+                              onSubmitted:     (_) => FocusScope.of(context)
+                                  .requestFocus(_emailFocus),
+                            ),
+                            _buildHint(
+                                'Mín. 3 caracteres · Visible para otros jugadores · Único'),
+                            const SizedBox(height: 14),
+
+                            // ── Email
+                            _buildFieldLabel('Email',
+                                _emailOk && _emailCtrl.text.isNotEmpty),
+                            const SizedBox(height: 6),
+                            _buildInput(
+                              ctrl:            _emailCtrl,
+                              focus:           _emailFocus,
+                              hint:            'tu@email.com',
+                              type:            TextInputType.emailAddress,
+                              valid:           _emailOk && _emailCtrl.text.isNotEmpty,
+                              autofillHint:    AutofillHints.email,
+                              textInputAction: TextInputAction.next,
+                              onSubmitted:     (_) => FocusScope.of(context)
+                                  .requestFocus(_passFocus),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // ── Contraseña
+                            _buildFieldLabel('Contraseña',
+                                _passOk && _passCtrl.text.isNotEmpty),
+                            const SizedBox(height: 6),
+                            _buildInput(
+                              ctrl:            _passCtrl,
+                              focus:           _passFocus,
+                              hint:            'Mínimo 6 caracteres',
+                              obscure:         _obscurePass,
+                              valid:           _passOk && _passCtrl.text.isNotEmpty,
+                              autofillHint:    AutofillHints.newPassword,
+                              textInputAction: TextInputAction.next,
+                              onSubmitted:     (_) => FocusScope.of(context)
+                                  .requestFocus(_confirmFocus),
+                              suffix: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _obscurePass = !_obscurePass),
+                                child: Icon(
+                                  _obscurePass
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: _kMuted,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // ── Confirmar contraseña
+                            _buildFieldLabel('Confirmar contraseña',
+                                _confirmOk && _confirmCtrl.text.isNotEmpty),
+                            const SizedBox(height: 6),
+                            _buildInput(
+                              ctrl:            _confirmCtrl,
+                              focus:           _confirmFocus,
+                              hint:            'Repite la contraseña',
+                              obscure:         _obscureConfirm,
+                              valid:           _confirmOk && _confirmCtrl.text.isNotEmpty,
+                              autofillHint:    AutofillHints.newPassword,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted:     (_) => _register(),
+                              suffix: GestureDetector(
+                                onTap: () => setState(
+                                    () => _obscureConfirm = !_obscureConfirm),
+                                child: Icon(
+                                  _obscureConfirm
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: _kMuted,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+                            _buildPrivilegios(),
+                            const SizedBox(height: 24),
+                            _buildRegisterButton(),
+
+                            AnimatedBuilder(
+                              animation: _footerReveal,
+                              builder: (_, __) => Opacity(
+                                opacity: _footerReveal.value.clamp(0.0, 1.0),
+                                child: _buildFooter(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ── WIDGETS ───────────────────────────────────────────────────────────────
-
+  // ── SELLO ─────────────────────────────────────────────────────────────────
   Widget _buildStamp() => Transform.rotate(
     angle: -0.2,
     child: Container(
@@ -449,19 +614,21 @@ class _RegisterScreenState extends State<RegisterScreen>
       height: 52,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: _kAccent.withOpacity(0.45), width: 1.5),
+        border: Border.all(
+            color: _kAccent.withValues(alpha: 0.45), width: 1.5),
       ),
       child: Center(
         child: Text(
           'RECLU\nTAS\n▲',
           textAlign: TextAlign.center,
-          style: _sans(6, _kAccent.withOpacity(0.65),
+          style: _sans(6, _kAccent.withValues(alpha: 0.65),
               weight: FontWeight.w600, spacing: 0.8),
         ),
       ),
     ),
   );
 
+  // ── INTRO FORMULARIO ──────────────────────────────────────────────────────
   Widget _buildFormIntro() => IntrinsicHeight(
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -486,11 +653,12 @@ class _RegisterScreenState extends State<RegisterScreen>
     ),
   );
 
+  // ── ERROR BANNER ──────────────────────────────────────────────────────────
   Widget _buildErrorBanner() => Container(
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-    decoration: BoxDecoration(
-      color: _kError.withOpacity(0.08),
+    decoration: const BoxDecoration(
+      color: Color(0x14500000),
       border: Border(left: BorderSide(color: _kError, width: 2.5)),
     ),
     child: Row(children: [
@@ -498,11 +666,12 @@ class _RegisterScreenState extends State<RegisterScreen>
       const SizedBox(width: 8),
       Expanded(
           child: Text(_error,
-              style: _sans(10, _kError,
-                  weight: FontWeight.w600, spacing: 1.5))),
+              style:
+                  _sans(10, _kError, weight: FontWeight.w600, spacing: 1.5))),
     ]),
   );
 
+  // ── FIELD LABEL ───────────────────────────────────────────────────────────
   Widget _buildFieldLabel(String text, [bool valid = false]) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -520,28 +689,37 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Widget _buildHint(String text) => Padding(
     padding: const EdgeInsets.only(top: 5),
-    child: Text(text,
-        style: _sans(10, _kMuted, weight: FontWeight.w300)),
+    child: Text(text, style: _sans(10, _kMuted, weight: FontWeight.w300)),
   );
 
+  // ── INPUT ─────────────────────────────────────────────────────────────────
   Widget _buildInput({
     required TextEditingController ctrl,
+    required FocusNode focus,
     required String hint,
     bool obscure = false,
     bool valid = false,
     TextInputType? type,
     Widget? suffix,
     int? maxLength,
+    String? autofillHint,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
   }) =>
       TextField(
-        controller:   ctrl,
-        obscureText:  obscure,
-        keyboardType: type,
-        maxLength:    maxLength,
-        style:        _sans(15, _kInk),
+        controller:      ctrl,
+        focusNode:       focus,
+        obscureText:     obscure,
+        keyboardType:    type,
+        maxLength:       maxLength,
+        textInputAction: textInputAction,
+        autofillHints:   autofillHint != null ? [autofillHint] : null,
+        onSubmitted:     onSubmitted,
+        style:       _sans(15, Colors.white),
+        cursorColor: Colors.white,
         decoration: InputDecoration(
           hintText:    hint,
-          hintStyle:   _sans(15, _kBorder),
+          hintStyle:   _sans(15, _kMuted),
           counterText: '',
           filled:      true,
           fillColor:   _kParchDark,
@@ -552,16 +730,16 @@ class _RegisterScreenState extends State<RegisterScreen>
           suffixIconConstraints:
               const BoxConstraints(minWidth: 40, minHeight: 0),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
             borderSide: BorderSide(
-              color: valid ? _kSafe.withOpacity(0.5) : _kBorder,
+              color: valid ? _kSafe.withValues(alpha: 0.5) : _kBorder,
               width: 1.5,
             ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
             borderSide: BorderSide(
-              color: valid ? _kSafe.withOpacity(0.8) : _kInk,
+              color: valid ? _kSafe.withValues(alpha: 0.8) : _kAccent,
               width: 1.5,
             ),
           ),
@@ -576,7 +754,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       (
         Icons.shield_outlined,
         const Color(0xFF6C9FD4),
-        '30 días de escudo',
+        '7 días de escudo',
         'Tu territorio no puede ser robado al inicio',
       ),
       (
@@ -596,7 +774,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     return Container(
       decoration: BoxDecoration(
         color: _kParch,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
         border: Border.all(color: _kBorder, width: 1.5),
       ),
       child: Column(
@@ -606,8 +784,9 @@ class _RegisterScreenState extends State<RegisterScreen>
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: _kBorder)),
+            decoration: const BoxDecoration(
+              border: Border(
+                  bottom: BorderSide(color: _kBorder)),
             ),
             child: IntrinsicHeight(
               child: Row(
@@ -630,23 +809,22 @@ class _RegisterScreenState extends State<RegisterScreen>
             return Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              decoration: BoxDecoration(
-                border: isLast
-                    ? null
-                    : Border(
-                        bottom:
-                            BorderSide(color: _kBorder, width: 0.8)),
-              ),
+              decoration: isLast
+                  ? null
+                  : const BoxDecoration(
+                      border: Border(
+                          bottom: BorderSide(color: _kBorder, width: 0.8))),
               child: Row(
                 children: [
                   Container(
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: item.$2.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
+                      color: item.$2.withValues(alpha: 0.1),
+                      borderRadius:
+                          const BorderRadius.all(Radius.circular(4)),
                       border: Border.all(
-                          color: item.$2.withOpacity(0.25), width: 1),
+                          color: item.$2.withValues(alpha: 0.25), width: 1),
                     ),
                     child: Icon(item.$1, color: item.$2, size: 16),
                   ),
@@ -681,56 +859,57 @@ class _RegisterScreenState extends State<RegisterScreen>
   Widget _buildRegisterButton() => SizedBox(
     width: double.infinity,
     height: 52,
-    child: AnimatedBuilder(
-      animation: _pulseCtrl,
-      builder: (_, __) => ElevatedButton(
-        onPressed: _loading ? null : _register,
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              _formOk ? _kInk : _kInk.withOpacity(0.35),
-          disabledBackgroundColor: _kInk.withOpacity(0.35),
-          foregroundColor: _kParch,
-          elevation:       0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4)),
-          padding:
-              const EdgeInsets.only(left: 20, right: 8),
-        ),
-        child: _loading
-            ? SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(
-                    color: _kParch, strokeWidth: 1.8))
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'UNIRSE AL CONFLICTO',
-                    style: _bebas(
-                        16,
-                        _formOk
-                            ? _kParch
-                            : _kParch.withOpacity(0.4),
-                        spacing: 3.0),
-                  ),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: _formOk
-                          ? _kAccent
-                          : _kAccent.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Icon(Icons.arrow_forward,
-                        color: _formOk
-                            ? Colors.white
-                            : Colors.white.withOpacity(0.4),
-                        size: 15),
-                  ),
-                ],
-              ),
+    child: ElevatedButton(
+      onPressed: _loading ? null : _register,
+      style: ElevatedButton.styleFrom(
+        backgroundColor:
+            _formOk ? _kInk : _kInk.withValues(alpha: 0.35),
+        disabledBackgroundColor: _kInk.withValues(alpha: 0.35),
+        foregroundColor: _kParch,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4))),
+        padding: const EdgeInsets.only(left: 20, right: 8),
       ),
+      child: _loading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                  color: _kParch, strokeWidth: 1.8))
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'UNIRSE AL CONFLICTO',
+                  style: _bebas(
+                    16,
+                    _formOk
+                        ? _kParch
+                        : _kParch.withValues(alpha: 0.4),
+                    spacing: 3.0,
+                  ),
+                ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _formOk
+                        ? _kAccent
+                        : _kAccent.withValues(alpha: 0.3),
+                    borderRadius:
+                        const BorderRadius.all(Radius.circular(3)),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward,
+                    color: _formOk
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.4),
+                    size: 15,
+                  ),
+                ),
+              ],
+            ),
     ),
   );
 
@@ -749,10 +928,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                 child: Text(
                   'Acceder',
                   style:
-                      _sans(12, _kAccent, weight: FontWeight.w500)
-                          .copyWith(
-                    decoration: TextDecoration.underline,
-                    decorationColor: _kAccent.withOpacity(0.35),
+                      _sans(12, _kAccent, weight: FontWeight.w500).copyWith(
+                    decoration:      TextDecoration.underline,
+                    decorationColor: _kAccent.withValues(alpha: 0.35),
                   ),
                 ),
               ),
@@ -765,76 +943,11 @@ class _RegisterScreenState extends State<RegisterScreen>
 }
 
 // =============================================================================
-// HERO PAINTER — cuadrícula táctica + arcos cartográficos
-// =============================================================================
-class _HeroPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final W = size.width;
-    final H = size.height;
-
-    // Fondo
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, W, H),
-      Paint()..color = _kBg,
-    );
-
-    // Cuadrícula táctica
-    final gridPaint = Paint()
-      ..color = _kGold.withOpacity(0.07)
-      ..strokeWidth = 0.5;
-    for (double x = 0; x < W; x += 22) {
-      canvas.drawLine(Offset(x, 0), Offset(x, H), gridPaint);
-    }
-    for (double y = 0; y < H; y += 22) {
-      canvas.drawLine(Offset(0, y), Offset(W, y), gridPaint);
-    }
-
-    // Arco exterior
-    canvas.drawCircle(
-      Offset(W + 80, -80),
-      300,
-      Paint()
-        ..color = _kGold.withOpacity(0.06)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 40,
-    );
-
-    // Arco interior dorado
-    canvas.drawCircle(
-      Offset(W - 10, 10),
-      110,
-      Paint()
-        ..color = _kGold.withOpacity(0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Arco inferior izquierdo (naranja)
-    canvas.drawCircle(
-      Offset(-60, H + 120),
-      260,
-      Paint()
-        ..color = _kAccent.withOpacity(0.10)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Meridianos
-    canvas.drawLine(Offset(0, H * 0.5), Offset(W, H * 0.5),
-        Paint()..color = _kGold.withOpacity(0.05)..strokeWidth = 0.5);
-    canvas.drawLine(Offset(W * 0.5, 0), Offset(W * 0.5, H),
-        Paint()..color = _kGold.withOpacity(0.05)..strokeWidth = 0.5);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-// =============================================================================
 // DIAGONAL CLIPPER
 // =============================================================================
 class _DiagonalClipper extends CustomClipper<Path> {
+  const _DiagonalClipper();
+
   @override
   Path getClip(Size size) {
     final path = Path();

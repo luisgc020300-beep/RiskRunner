@@ -15,24 +15,24 @@ import '../services/subscription_service.dart';
 // PALETA
 // =============================================================================
 class _C {
-  static const bg0     = Color(0xFF090807);
-  static const bg1     = Color(0xFF100D08);
-  static const bg2     = Color(0xFF161209);
-  static const bg3     = Color(0xFF1E1810);
-  static const parch   = Color(0xFFEAD9AA);
-  static const parchm  = Color(0xFFCAAA6C);
-  static const parchd  = Color(0xFF8C7242);
-  static const bronze  = Color(0xFFCC7C3A);
-  static const gold    = Color(0xFFDECA46);
-  static const crown   = Color(0xFFFFD700);
+  static const bg0     = Color(0xFFE8E8ED);
+  static const bg1     = Color(0xFFFFFFFF);
+  static const bg2     = Color(0xFFE5E5EA);
+  static const bg3     = Color(0xFFE8E8ED);
+  static const parch   = Color(0xFF1C1C1E);
+  static const parchm  = Color(0xFF3C3C43);
+  static const parchd  = Color(0xFF636366);
+  static const bronze  = Color(0xFF636366);
+  static const gold    = Color(0xFFFFD60A);
+  static const crown   = Color(0xFFFFD60A);
   static const silver  = Color(0xFFB0BEC5);
-  static const border  = Color(0x1FCAAA6C);
-  static const border2 = Color(0x33CAAA6C);
-  static const t1      = Color(0xFFF3EDE1);
-  static const t2      = Color(0xFFCAAA6C);
-  static const t3      = Color(0xFF8C7242);
-  static const dim     = Color(0xFF4A4030);
-  static const red     = Color(0xFFCC2222);
+  static const border  = Color(0x1FC6C6C8);
+  static const border2 = Color(0x33C6C6C8);
+  static const t1      = Color(0xFF1C1C1E);
+  static const t2      = Color(0xFF3C3C43);
+  static const t3      = Color(0xFF636366);
+  static const dim     = Color(0xFFAEAEB2);
+  static const red     = Color(0xFFE02020);
 }
 
 // =============================================================================

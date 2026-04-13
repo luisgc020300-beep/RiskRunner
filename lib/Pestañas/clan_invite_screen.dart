@@ -9,16 +9,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 
-const _kBg      = Color(0xFF060608);
-const _kSurface = Color(0xFF0D0D10);
-const _kLine    = Color(0xFF1C1C24);
-const _kLine2   = Color(0xFF242430);
-const _kDim     = Color(0xFF3A3A4A);
-const _kSubtext = Color(0xFF5A5A70);
-const _kText    = Color(0xFFAAAAAC);
-const _kWhite   = Color(0xFFF0F0F2);
-const _kAccent  = Color(0xFFCC2222);
-const _kBlue    = Color(0xFF3B6BBF);
+const _kBg      = Color(0xFFE8E8ED);
+const _kSurface = Color(0xFFFFFFFF);
+const _kLine    = Color(0xFFC6C6C8);
+const _kLine2   = Color(0xFFD1D1D6);
+const _kDim     = Color(0xFFAEAEB2);
+const _kSubtext = Color(0xFF8E8E93);
+const _kWhite   = Color(0xFF1C1C1E);
+const _kAccent  = Color(0xFFE02020);
+const _kBlue    = Color(0xFFE02020);
 
 class ClanInviteScreen extends StatefulWidget {
   const ClanInviteScreen({super.key});
@@ -123,15 +122,15 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 16),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('CLANES', style: GoogleFonts.rajdhani(
             fontSize: 13, fontWeight: FontWeight.w900,
-            color: _kWhite, letterSpacing: 3)),
+            color: Colors.white, letterSpacing: 3)),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabs,

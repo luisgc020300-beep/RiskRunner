@@ -13,20 +13,25 @@ import 'create_clan_screen.dart';
 import 'clan_war_screen.dart';
 import 'clan_invite_screen.dart';
 
-const _kBg       = Color(0xFF060608);
-const _kSurface  = Color(0xFF0D0D10);
-const _kSurface2 = Color(0xFF131318);
-const _kLine     = Color(0xFF1C1C24);
-const _kLine2    = Color(0xFF242430);
-const _kDim      = Color(0xFF3A3A4A);
-const _kSubtext  = Color(0xFF5A5A70);
-const _kText     = Color(0xFFAAAAAC);
-const _kWhite    = Color(0xFFF0F0F2);
-const _kAccent   = Color(0xFFCC2222);
-const _kGold     = Color(0xFFD4A84C);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kSep      = Color(0xFFC6C6C8);
+const _kLine2    = Color(0xFFD1D1D6);
+const _kDim      = Color(0xFFAEAEB2);
+const _kSubtext  = Color(0xFF8E8E93);
+const _kText     = Color(0xFF3C3C43);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kAccent   = Color(0xFFE02020);
+const _kBlue     = Color(0xFFE02020);
+const _kGreen    = Color(0xFF30D158);
+const _kGold     = Color(0xFFFFD60A);
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+
+TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
+    GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 class ClanScreen extends StatefulWidget {
   const ClanScreen({super.key});
@@ -102,17 +107,16 @@ class _ClanScreenState extends State<ClanScreen>
             decoration: BoxDecoration(
               color: _kSurface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _kLine2),
             ),
-            child: const Center(child: Text('⚔️', style: TextStyle(fontSize: 40))),
+            child: const Center(child: Icon(Icons.shield_outlined, color: _kSubtext, size: 40)),
           )),
           const SizedBox(height: 24),
-          Center(child: Text('SIN AFILIACIÓN', style: _raj(22, FontWeight.w900, _kWhite, sp: 3))),
+          Center(child: Text('Sin afiliación', style: _dm(22, FontWeight.w700, _kWhite))),
           const SizedBox(height: 8),
           Center(child: Text(
             'Únete a un clan para conquistar\nterritorios en equipo',
             textAlign: TextAlign.center,
-            style: _raj(13, FontWeight.w400, _kSubtext),
+            style: _dm(14, FontWeight.w400, _kSubtext),
           )),
           const SizedBox(height: 32),
 
@@ -122,21 +126,21 @@ class _ClanScreenState extends State<ClanScreen>
 
           // ── Botón crear ──────────────────────────────────
           _BotonAccion(
-            label: 'FUNDAR UN CLAN',
+            label: 'Fundar un clan',
             sub: 'Sé el líder. Define el territorio.',
-            emoji: '🏴',
+            icon: Icons.flag_rounded,
             color: _kAccent,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const CreateClanScreen())),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 1),
 
           // ── Botón buscar ─────────────────────────────────
           _BotonAccion(
-            label: 'BUSCAR CLANES',
+            label: 'Buscar clanes',
             sub: 'Encuentra tu tribu en la ciudad.',
-            emoji: '🔍',
-            color: const Color(0xFF3B6BBF),
+            icon: Icons.search_rounded,
+            color: _kBlue,
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const ClanInviteScreen())),
           ),
@@ -162,14 +166,14 @@ class _ClanScreenState extends State<ClanScreen>
     return CustomScrollView(
       slivers: [
         SliverAppBar(
-          backgroundColor: _kBg,
+          backgroundColor: const Color(0xFF0D0D0D),
           expandedHeight: 180,
           pinned: true,
           elevation: 0,
           // ── Back si viene de perfil ──────────────────────
           leading: Navigator.canPop(context)
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 18),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
                   onPressed: () => Navigator.pop(context),
                 )
               : const SizedBox(),
@@ -177,8 +181,8 @@ class _ClanScreenState extends State<ClanScreen>
             background: _buildHeroClan(clan, clanColor, esLider),
           ),
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(height: 1, color: _kLine),
+            preferredSize: const Size.fromHeight(0.5),
+            child: Container(height: 0.5, color: _kSep),
           ),
           actions: [
             if (esLider)
@@ -198,17 +202,14 @@ class _ClanScreenState extends State<ClanScreen>
             _buildStatsRow(clan, clanColor),
             const SizedBox(height: 24),
             if (esCapitan) ...[
-              _buildLabel('OPERACIONES'),
-              const SizedBox(height: 12),
+              _buildLabel('Operaciones'),
               _buildAccionesGrid(clan, clanColor, esLider),
               const SizedBox(height: 24),
             ],
-            _buildLabel('MIEMBROS  ${clan.miembros.length}/${clan.maxMiembros}'),
-            const SizedBox(height: 12),
+            _buildLabel('Miembros  ${clan.miembros.length}/${clan.maxMiembros}'),
             _MiembrosLista(clan: clan, yo: yo, esLider: esLider, esCapitan: esCapitan),
             const SizedBox(height: 24),
-            _buildLabel('HISTORIAL DE GUERRAS'),
-            const SizedBox(height: 12),
+            _buildLabel('Historial de guerras'),
             _HistorialGuerras(clanId: clan.clanId),
             const SizedBox(height: 24),
             _buildBotonAbandonar(clan),
@@ -220,14 +221,8 @@ class _ClanScreenState extends State<ClanScreen>
   }
 
   Widget _buildHeroClan(ClanData clan, Color clanColor, bool esLider) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [clanColor.withValues(alpha: 0.25), _kBg],
-        ),
-      ),
+    return ColoredBox(
+      color: _kBg,
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -237,25 +232,16 @@ class _ClanScreenState extends State<ClanScreen>
               decoration: BoxDecoration(
                 color: clanColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: clanColor.withValues(alpha: 0.5), width: 2),
               ),
               child: Center(child: Text(clan.emoji, style: const TextStyle(fontSize: 34))),
             ),
             const SizedBox(width: 16),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: clanColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: clanColor.withValues(alpha: 0.5)),
-                ),
-                child: Text('[${clan.tag}]', style: _raj(10, FontWeight.w900, clanColor, sp: 1)),
-              ),
-              const SizedBox(height: 4),
-              Text(clan.nombre, style: _raj(22, FontWeight.w900, _kWhite, sp: 0.5)),
+              Text('[${clan.tag}]', style: _dm(12, FontWeight.w600, clanColor)),
+              const SizedBox(height: 2),
+              Text(clan.nombre, style: _dm(20, FontWeight.w700, _kWhite)),
               if (clan.descripcion.isNotEmpty)
-                Text(clan.descripcion, style: _raj(11, FontWeight.w400, _kSubtext),
+                Text(clan.descripcion, style: _dm(12, FontWeight.w400, _kSubtext),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
           ]),
@@ -284,18 +270,18 @@ class _ClanScreenState extends State<ClanScreen>
   Widget _buildAccionesGrid(ClanData clan, Color clanColor, bool esLider) {
     return Row(children: [
       _AccionBtn(
-        emoji: '⚔️', label: 'GUERRA', color: _kAccent,
+        icon: Icons.bolt_rounded, label: 'GUERRA', color: _kAccent,
         onTap: () => _mostrarDeclarar(clan),
       ),
       const SizedBox(width: 8),
       _AccionBtn(
-        emoji: '📨', label: 'INVITAR', color: const Color(0xFF3B6BBF),
+        icon: Icons.person_add_outlined, label: 'INVITAR', color: _kBlue,
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const ClanInviteScreen())),
       ),
       const SizedBox(width: 8),
       if (esLider) _AccionBtn(
-        emoji: '⚙️', label: 'EDITAR', color: _kDim,
+        icon: Icons.tune_rounded, label: 'EDITAR', color: _kDim,
         onTap: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => CreateClanScreen(clanExistente: clan))),
       ),
@@ -345,18 +331,22 @@ class _ClanScreenState extends State<ClanScreen>
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _kLine2),
         ),
-        child: Center(child: Text(
-          esUnico ? '💀  DISOLVER CLAN' : '🚪  ABANDONAR CLAN',
-          style: _raj(12, FontWeight.w700, _kSubtext, sp: 1.5),
-        )),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(esUnico ? Icons.delete_outline_rounded : Icons.logout_rounded,
+              color: _kSubtext, size: 16),
+          const SizedBox(width: 8),
+          Text(esUnico ? 'Disolver clan' : 'Abandonar clan',
+              style: _dm(13, FontWeight.w500, _kSubtext)),
+        ]),
       ),
     );
   }
 
-  Widget _buildLabel(String text) => Row(children: [
-    Container(width: 3, height: 12, color: _kAccent, margin: const EdgeInsets.only(right: 8)),
-    Text(text, style: _raj(9, FontWeight.w800, _kSubtext, sp: 2.5)),
-  ]);
+  Widget _buildLabel(String text) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 6),
+    child: Text(text.toUpperCase(),
+        style: _dm(11, FontWeight.w500, _kSubtext, sp: 0.4)),
+  );
 }
 
 // ══════════════════════════════════════════════════════════
@@ -373,25 +363,24 @@ class _StatChip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: _kSurface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Column(children: [
-        Text(value, style: GoogleFonts.rajdhani(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
+        Text(value, style: _raj(20, FontWeight.w900, color)),
         const SizedBox(height: 2),
-        Text(label, style: GoogleFonts.rajdhani(fontSize: 8, fontWeight: FontWeight.w800,
-            color: color.withValues(alpha: 0.6), letterSpacing: 1.5)),
+        Text(label, style: _dm(9, FontWeight.w600, _kSubtext, sp: 0.3)),
       ]),
     ),
   );
 }
 
 class _AccionBtn extends StatelessWidget {
-  final String emoji, label;
+  final IconData icon;
+  final String label;
   final Color color;
   final VoidCallback onTap;
-  const _AccionBtn({required this.emoji, required this.label, required this.color, required this.onTap});
+  const _AccionBtn({required this.icon, required this.label, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -400,15 +389,13 @@ class _AccionBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: _kSurface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(height: 4),
-          Text(label, style: GoogleFonts.rajdhani(fontSize: 9, fontWeight: FontWeight.w800,
-              color: color, letterSpacing: 1.5)),
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
+          Text(label, style: _dm(9, FontWeight.w700, color, sp: 0.5)),
         ]),
       ),
     ),
@@ -425,13 +412,17 @@ class _MiembrosLista extends StatelessWidget {
   Widget build(BuildContext context) {
     final sorted = [...clan.miembros]
       ..sort((a, b) => b.puntosAportados.compareTo(a.puntosAportados));
-    return Column(
-      children: sorted.asMap().entries.map((e) =>
-          _MiembroTile(
-            miembro: e.value, posicion: e.key + 1,
-            clanColor: clan.colorObj, clan: clan,
-            yo: yo, esLider: esLider, esCapitan: esCapitan,
-          )).toList(),
+    return Container(
+      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.hardEdge,
+      child: Column(
+        children: sorted.asMap().entries.map((e) =>
+            _MiembroTile(
+              miembro: e.value, posicion: e.key + 1,
+              clanColor: clan.colorObj, clan: clan,
+              yo: yo, esLider: esLider, esCapitan: esCapitan,
+            )).toList(),
+      ),
     );
   }
 }
@@ -456,60 +447,54 @@ class _MiembroTile extends StatelessWidget {
     final myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final esYo  = miembro.uid == myUid;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: esYo ? clanColor.withValues(alpha: 0.06) : _kSurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: esYo ? clanColor.withValues(alpha: 0.25) : _kLine),
-      ),
-      child: Row(children: [
-        SizedBox(width: 22,
-          child: Text('$posicion', style: GoogleFonts.rajdhani(
-              fontSize: 13, fontWeight: FontWeight.w900,
-              color: posicion == 1 ? const Color(0xFFD4A84C) : _kSubtext))),
-        Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(
-            color: clanColor.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-            border: Border.all(color: clanColor.withValues(alpha: 0.3)),
-          ),
-          child: Center(child: Text(
-            miembro.nickname.isNotEmpty ? miembro.nickname[0].toUpperCase() : '?',
-            style: GoogleFonts.rajdhani(fontSize: 16, fontWeight: FontWeight.w900, color: clanColor),
-          )),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text(miembro.nickname, style: GoogleFonts.rajdhani(
-                fontSize: 14, fontWeight: FontWeight.w700, color: _kWhite)),
-            if (esYo) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(color: clanColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(3)),
-                child: Text('TÚ', style: GoogleFonts.rajdhani(
-                    fontSize: 8, fontWeight: FontWeight.w900, color: clanColor, letterSpacing: 1)),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Row(children: [
+            SizedBox(width: 20,
+              child: Text('$posicion', style: _raj(13, FontWeight.w700,
+                  posicion == 1 ? _kGold : _kDim))),
+            Container(
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: esYo ? clanColor.withValues(alpha: 0.15) : _kSurface2,
+                shape: BoxShape.circle,
+              ),
+              child: Center(child: Text(
+                miembro.nickname.isNotEmpty ? miembro.nickname[0].toUpperCase() : '?',
+                style: _raj(15, FontWeight.w700, esYo ? clanColor : _kText),
+              )),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text(miembro.nickname, style: _dm(14, FontWeight.w500, _kWhite)),
+                if (esYo) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(color: clanColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text('tú', style: _dm(10, FontWeight.w600, clanColor)),
+                  ),
+                ],
+              ]),
+              Text(miembro.rol.nombre, style: _dm(12, FontWeight.w400, rolColor)),
+            ])),
+            Text('${miembro.puntosAportados} pts',
+                style: _raj(12, FontWeight.w700, _kSubtext)),
+            if (esCapitan && !esYo && miembro.rol != ClanRol.lider) ...[
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showOpciones(context),
+                child: const Icon(Icons.more_horiz_rounded, color: _kDim, size: 20),
               ),
             ],
           ]),
-          Text(miembro.rol.nombre, style: GoogleFonts.rajdhani(
-              fontSize: 9, fontWeight: FontWeight.w800, color: rolColor, letterSpacing: 1.5)),
-        ])),
-        Text('${miembro.puntosAportados} pts',
-            style: GoogleFonts.rajdhani(fontSize: 12, fontWeight: FontWeight.w700, color: _kSubtext)),
-        if (esCapitan && !esYo && miembro.rol != ClanRol.lider) ...[
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () => _showOpciones(context),
-            child: const Icon(Icons.more_vert_rounded, color: _kDim, size: 16),
-          ),
-        ],
-      ]),
+        ),
+        Container(height: 0.5, color: _kSep, margin: const EdgeInsets.only(left: 66)),
+      ],
     );
   }
 
@@ -535,8 +520,7 @@ class _MiembroOpcionesSheet extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(miembro.nickname, style: GoogleFonts.rajdhani(
-            fontSize: 16, fontWeight: FontWeight.w900, color: _kWhite)),
+        Text(miembro.nickname, style: _dm(16, FontWeight.w600, _kWhite)),
         const SizedBox(height: 16),
         if (esLider && miembro.rol == ClanRol.miembro)
           _OpcionBtn(
@@ -581,9 +565,8 @@ class _OpcionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
-    leading: Icon(icon, color: color, size: 18),
-    title: Text(label, style: GoogleFonts.rajdhani(
-        fontSize: 13, fontWeight: FontWeight.w900, color: color, letterSpacing: 1.5)),
+    leading: Icon(icon, color: color, size: 20),
+    title: Text(label, style: _dm(14, FontWeight.w500, color)),
     onTap: onTap,
   );
 }
@@ -612,28 +595,22 @@ class _GuerraActivaBanner extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [_kAccent.withValues(alpha: 0.15), _kSurface],
-                begin: Alignment.topLeft,
-              ),
+              color: _kSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kAccent.withValues(alpha: 0.4)),
             ),
             child: Row(children: [
-              const Text('⚔️', style: TextStyle(fontSize: 22)),
+              const Icon(Icons.bolt_rounded, color: _kAccent, size: 22),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('GUERRA ACTIVA', style: GoogleFonts.rajdhani(
-                    fontSize: 9, fontWeight: FontWeight.w900, color: _kAccent, letterSpacing: 2)),
+                Text('GUERRA ACTIVA', style: _dm(11, FontWeight.w700, _kAccent, sp: 0.5)),
                 const SizedBox(height: 2),
                 Text('vs [${rival['tag']}] ${rival['nombre']}',
-                    style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w800, color: _kWhite)),
+                    style: _dm(14, FontWeight.w600, _kWhite)),
               ])),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text('$miPun - $rivalPun', style: GoogleFonts.rajdhani(
                     fontSize: 20, fontWeight: FontWeight.w900, color: _kWhite)),
-                Text(war.tiempoRestanteStr, style: GoogleFonts.rajdhani(
-                    fontSize: 9, fontWeight: FontWeight.w700, color: _kAccent, letterSpacing: 1)),
+                Text(war.tiempoRestanteStr, style: _dm(11, FontWeight.w500, _kAccent)),
               ]),
             ]),
           ),
@@ -659,39 +636,40 @@ class _HistorialGuerras extends StatelessWidget {
         if (lista.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12)),
             child: Center(child: Text('No hay guerras registradas',
-                style: GoogleFonts.rajdhani(fontSize: 12, color: _kSubtext))),
+                style: _dm(13, FontWeight.w400, _kSubtext))),
           );
         }
-        return Column(children: lista.map((w) {
-          final ganamos   = w.ganadorId == clanId;
-          final empate    = w.ganadorId == null;
-          final rival     = w.clanA['id'] == clanId ? w.clanB : w.clanA;
-          final miPun     = (w.clanA['id'] == clanId ? w.puntuacion['clanA'] : w.puntuacion['clanB']) ?? 0;
-          final rivalPun  = (w.clanA['id'] == clanId ? w.puntuacion['clanB'] : w.puntuacion['clanA']) ?? 0;
-          final resultColor = empate ? _kDim : ganamos ? const Color(0xFF4FA830) : _kAccent;
-          final resultLabel = empate ? 'EMPATE' : ganamos ? 'VICTORIA' : 'DERROTA';
+        return Container(
+          decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12)),
+          clipBehavior: Clip.hardEdge,
+          child: Column(children: lista.asMap().entries.map((entry) {
+            final w         = entry.value;
+            final ganamos   = w.ganadorId == clanId;
+            final empate    = w.ganadorId == null;
+            final rival     = w.clanA['id'] == clanId ? w.clanB : w.clanA;
+            final miPun     = (w.clanA['id'] == clanId ? w.puntuacion['clanA'] : w.puntuacion['clanB']) ?? 0;
+            final rivalPun  = (w.clanA['id'] == clanId ? w.puntuacion['clanB'] : w.puntuacion['clanA']) ?? 0;
+            final resultColor = empate ? _kSubtext : ganamos ? _kGreen : _kAccent;
+            final resultLabel = empate ? 'Empate' : ganamos ? 'Victoria' : 'Derrota';
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: resultColor.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: resultColor.withValues(alpha: 0.2)),
-            ),
-            child: Row(children: [
-              SizedBox(width: 52,
-                child: Text(resultLabel, style: GoogleFonts.rajdhani(
-                    fontSize: 9, fontWeight: FontWeight.w900, color: resultColor, letterSpacing: 1))),
-              Expanded(child: Text('vs [${rival['tag']}] ${rival['nombre']}',
-                  style: GoogleFonts.rajdhani(fontSize: 12, fontWeight: FontWeight.w700, color: _kText))),
-              Text('$miPun — $rivalPun', style: GoogleFonts.rajdhani(
-                  fontSize: 14, fontWeight: FontWeight.w900, color: _kWhite)),
-            ]),
-          );
-        }).toList());
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                child: Row(children: [
+                  SizedBox(width: 62,
+                    child: Text(resultLabel, style: _dm(12, FontWeight.w600, resultColor))),
+                  Expanded(child: Text('vs [${rival['tag']}] ${rival['nombre']}',
+                      style: _dm(13, FontWeight.w400, _kText))),
+                  Text('$miPun — $rivalPun', style: _raj(14, FontWeight.w700, _kWhite)),
+                ]),
+              ),
+              if (entry.key < lista.length - 1)
+                Container(height: 0.5, color: _kSep, margin: const EdgeInsets.only(left: 16)),
+            ]);
+          }).toList()),
+        );
       },
     );
   }
@@ -713,19 +691,17 @@ class _InvitacionesBanner extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF3B6BBF).withValues(alpha: 0.1),
+              color: _kBlue.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF3B6BBF).withValues(alpha: 0.4)),
             ),
             child: Row(children: [
-              const Text('📨', style: TextStyle(fontSize: 20)),
+              const Icon(Icons.mail_outline_rounded, color: _kBlue, size: 20),
               const SizedBox(width: 12),
               Expanded(child: Text(
                 '${invites.length} invitación${invites.length > 1 ? 'es' : ''} pendiente${invites.length > 1 ? 's' : ''}',
-                style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w700,
-                    color: const Color(0xFF3B6BBF)),
+                style: _dm(14, FontWeight.w600, _kBlue),
               )),
-              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF3B6BBF), size: 12),
+              const Icon(Icons.chevron_right_rounded, color: _kBlue, size: 18),
             ]),
           ),
         );
@@ -744,38 +720,35 @@ class _TopClanesWidget extends StatelessWidget {
         if (clanes.isEmpty) return const SizedBox();
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(width: 3, height: 12, color: _kAccent, margin: const EdgeInsets.only(right: 8)),
-            Text('TOP CLANES', style: GoogleFonts.rajdhani(
-                fontSize: 9, fontWeight: FontWeight.w800, color: _kSubtext, letterSpacing: 2.5)),
+            Text('Top clanes', style: _dm(12, FontWeight.w600, _kSubtext)),
           ]),
           const SizedBox(height: 10),
-          ...clanes.asMap().entries.map((e) {
-            final c = e.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _kSurface, borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _kLine),
-              ),
-              child: Row(children: [
-                Text('${e.key + 1}', style: GoogleFonts.rajdhani(
-                    fontSize: 14, fontWeight: FontWeight.w900,
-                    color: e.key == 0 ? _kGold : _kSubtext)),
-                const SizedBox(width: 10),
-                Text(c.emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(c.nombre, style: GoogleFonts.rajdhani(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: _kWhite)),
-                  Text('[${c.tag}]  ${c.miembros.length} miembros',
-                      style: GoogleFonts.rajdhani(fontSize: 10, color: _kSubtext)),
-                ])),
-                Text('${c.puntos} pts', style: GoogleFonts.rajdhani(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: _kGold)),
-              ]),
-            );
-          }),
+          Container(
+            decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12)),
+            clipBehavior: Clip.hardEdge,
+            child: Column(children: clanes.asMap().entries.map((e) {
+              final c = e.value;
+              return Column(children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  child: Row(children: [
+                    SizedBox(width: 22, child: Text('${e.key + 1}', style: _raj(14, FontWeight.w700,
+                        e.key == 0 ? _kGold : _kDim))),
+                    Text(c.emoji, style: const TextStyle(fontSize: 18)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(c.nombre, style: _dm(13, FontWeight.w600, _kWhite)),
+                      Text('[${c.tag}]  ·  ${c.miembros.length} miembros',
+                          style: _dm(11, FontWeight.w400, _kSubtext)),
+                    ])),
+                    Text('${c.puntos} pts', style: _raj(13, FontWeight.w700, _kGold)),
+                  ]),
+                ),
+                if (e.key < clanes.length - 1)
+                  Container(height: 0.5, color: _kSep, margin: const EdgeInsets.only(left: 16)),
+              ]);
+            }).toList()),
+          ),
         ]);
       },
     );
@@ -831,17 +804,16 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom + 20,
       ),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('⚔️  DECLARAR GUERRA', style: GoogleFonts.rajdhani(
-            fontSize: 16, fontWeight: FontWeight.w900, color: _kWhite, letterSpacing: 2)),
+        Text('Declarar guerra', style: _dm(17, FontWeight.w700, _kWhite)),
         const SizedBox(height: 16),
         if (_rival == null) ...[
           TextField(
             controller: _buscarCtrl,
             onChanged: _buscar,
-            style: GoogleFonts.rajdhani(color: _kWhite),
+            style: _dm(14, FontWeight.w400, _kWhite),
             decoration: InputDecoration(
               hintText: 'Buscar clan rival...',
-              hintStyle: GoogleFonts.rajdhani(color: _kDim),
+              hintStyle: _dm(14, FontWeight.w400, _kDim),
               filled: true, fillColor: _kSurface2,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: _kLine2)),
@@ -856,10 +828,9 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
           ..._resultados.map((c) => ListTile(
             dense: true,
             leading: Text(c.emoji, style: const TextStyle(fontSize: 20)),
-            title: Text('[${c.tag}] ${c.nombre}', style: GoogleFonts.rajdhani(
-                fontSize: 13, fontWeight: FontWeight.w700, color: _kWhite)),
+            title: Text('[${c.tag}] ${c.nombre}', style: _dm(13, FontWeight.w600, _kWhite)),
             subtitle: Text('${c.miembros.length} miembros  ·  ${c.puntos} pts',
-                style: GoogleFonts.rajdhani(fontSize: 10, color: _kSubtext)),
+                style: _dm(11, FontWeight.w400, _kSubtext)),
             onTap: () => setState(() { _rival = c; _resultados = []; }),
           )),
         ] else ...[
@@ -871,58 +842,62 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
               Text(_rival!.emoji, style: const TextStyle(fontSize: 24)),
               const SizedBox(width: 12),
               Expanded(child: Text('[${_rival!.tag}] ${_rival!.nombre}',
-                  style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w800, color: _kWhite))),
+                  style: _dm(14, FontWeight.w600, _kWhite))),
               GestureDetector(onTap: () => setState(() => _rival = null),
                   child: const Icon(Icons.close_rounded, color: _kSubtext, size: 16)),
             ]),
           ),
           const SizedBox(height: 16),
-          Text('TIPO', style: GoogleFonts.rajdhani(fontSize: 9, fontWeight: FontWeight.w800,
-              color: _kSubtext, letterSpacing: 2)),
+          Text('Tipo', style: _dm(12, FontWeight.w600, _kSubtext)),
           const SizedBox(height: 8),
-          Row(children: ['conquista', 'asedio', 'resistencia'].map((t) {
-            final sel = t == _tipo;
-            return Expanded(child: GestureDetector(
-              onTap: () => setState(() => _tipo = t),
-              child: Container(
-                margin: const EdgeInsets.only(right: 6),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: sel ? _kAccent.withValues(alpha: 0.15) : _kSurface2,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: sel ? _kAccent : _kLine2),
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: _kSurface2,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Row(children: ['conquista', 'asedio', 'resistencia'].map((t) {
+              final sel = t == _tipo;
+              return Expanded(child: GestureDetector(
+                onTap: () => setState(() => _tipo = t),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  decoration: BoxDecoration(
+                    color: sel ? _kSurface : Colors.transparent,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Center(child: Text(t,
+                      style: _dm(12, sel ? FontWeight.w600 : FontWeight.w400,
+                          sel ? _kWhite : _kSubtext))),
                 ),
-                child: Center(child: Text(t.toUpperCase(), style: GoogleFonts.rajdhani(
-                    fontSize: 9, fontWeight: FontWeight.w900,
-                    color: sel ? _kAccent : _kSubtext, letterSpacing: 1.5))),
-              ),
-            ));
-          }).toList()),
+              ));
+            }).toList()),
+          ),
           const SizedBox(height: 16),
-          Text('DURACIÓN  $_durHoras HORAS', style: GoogleFonts.rajdhani(fontSize: 9,
-              fontWeight: FontWeight.w800, color: _kSubtext, letterSpacing: 2)),
+          Text('Duración  ·  $_durHoras horas', style: _dm(12, FontWeight.w600, _kSubtext)),
           Slider(
             value: _durHoras.toDouble(), min: 24, max: 168, divisions: 6,
             activeColor: _kAccent, inactiveColor: _kLine2,
             onChanged: (v) => setState(() => _durHoras = v.round()),
           ),
           const SizedBox(height: 16),
-          GestureDetector(
-            onTap: _loading ? null : _declarar,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF991A1A), _kAccent]),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: _kAccent.withValues(alpha: 0.3), blurRadius: 15)],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _declarar,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kAccent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: _kSurface2,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
               child: _loading
-                  ? const Center(child: SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
-                  : Center(child: Text('⚔️  DECLARAR GUERRA',
-                      style: GoogleFonts.rajdhani(fontSize: 14, fontWeight: FontWeight.w900,
-                          color: Colors.white, letterSpacing: 2))),
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text('Declarar guerra', style: _dm(15, FontWeight.w600, Colors.white)),
             ),
           ),
         ],
@@ -933,10 +908,11 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
 }
 
 class _BotonAccion extends StatelessWidget {
-  final String label, sub, emoji;
+  final String label, sub;
+  final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const _BotonAccion({required this.label, required this.sub, required this.emoji,
+  const _BotonAccion({required this.label, required this.sub, required this.icon,
       required this.color, required this.onTap});
 
   @override
@@ -944,22 +920,23 @@ class _BotonAccion extends StatelessWidget {
     onTap: () { HapticFeedback.lightImpact(); onTap(); },
     child: Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        Text(emoji, style: const TextStyle(fontSize: 26)),
-        const SizedBox(width: 16),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: GoogleFonts.rajdhani(fontSize: 15, fontWeight: FontWeight.w900,
-              color: color, letterSpacing: 1.5)),
-          Text(sub, style: GoogleFonts.rajdhani(fontSize: 11, color: _kSubtext)),
-        ]),
-        const Spacer(),
-        Icon(Icons.arrow_forward_ios_rounded, color: color.withValues(alpha: 0.5), size: 14),
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: _dm(15, FontWeight.w600, _kWhite)),
+          Text(sub, style: _dm(12, FontWeight.w400, _kSubtext)),
+        ])),
+        const Icon(Icons.chevron_right_rounded, color: _kDim, size: 20),
       ]),
     ),
   );
@@ -971,17 +948,15 @@ class _ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: const Color(0xFF0D0D10),
+    backgroundColor: _kSurface,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-    title: Text(titulo, style: GoogleFonts.rajdhani(
-        fontSize: 16, fontWeight: FontWeight.w900, color: _kWhite, letterSpacing: 1.5)),
-    content: Text(mensaje, style: GoogleFonts.rajdhani(fontSize: 13, color: _kText)),
+    title: Text(titulo, style: _dm(16, FontWeight.w600, _kWhite)),
+    content: Text(mensaje, style: _dm(14, FontWeight.w400, _kText)),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context, false),
-          child: Text('CANCELAR', style: GoogleFonts.rajdhani(color: _kSubtext))),
+          child: Text('Cancelar', style: _dm(15, FontWeight.w400, _kSubtext))),
       TextButton(onPressed: () => Navigator.pop(context, true),
-          child: Text(accion, style: GoogleFonts.rajdhani(
-              color: _kAccent, fontWeight: FontWeight.w900))),
+          child: Text(accion, style: _dm(15, FontWeight.w600, _kAccent))),
     ],
   );
 }

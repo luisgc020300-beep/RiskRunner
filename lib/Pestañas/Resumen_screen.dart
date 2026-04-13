@@ -16,20 +16,20 @@ import 'fullscreen_map_screen.dart';
 // =============================================================================
 // PALETA — OPERATIVE DARK · ROJO ACENTO
 // =============================================================================
-const _kBg       = Color(0xFF0A0A0A);
-const _kSurface  = Color(0xFF111111);
-const _kSurface2 = Color(0xFF181818);
-const _kBorder   = Color(0xFF222222);
-const _kBorder2  = Color(0xFF2A2A2A);
-const _kRed      = Color(0xFFE53935);
-const _kRedDim   = Color(0xFF7B1C1A);
-const _kRedGlow  = Color(0xFFFF5252);
-const _kBright   = Color(0xFFFFFFFF);
-const _kWhite    = Color(0xFFEEEEEE);
-const _kGrey     = Color(0xFF888888);
-const _kGreyDim  = Color(0xFF444444);
-const _kGold     = Color(0xFFD4A84C);
-const _kGoldDim  = Color(0xFF5A4520);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kBorder   = Color(0xFFC6C6C8);
+const _kBorder2  = Color(0xFFD1D1D6);
+const _kRed      = Color(0xFFE02020);
+const _kRedDim   = Color(0xFFFF6B6B);
+const _kRedGlow  = Color(0x22E02020);
+const _kBright   = Color(0xFF1C1C1E);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kGrey     = Color(0xFF636366);
+const _kGreyDim  = Color(0xFF8E8E93);
+const _kGold     = Color(0xFFFFD60A);
+const _kGoldDim  = Color(0xFFAEAEB2);
 
 // Guerra Global accent
 const _kGlobalRed     = Color(0xFFCC2222);

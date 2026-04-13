@@ -11,16 +11,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 
-const _kBg       = Color(0xFF060608);
-const _kSurface  = Color(0xFF0D0D10);
-const _kSurface2 = Color(0xFF131318);
-const _kLine     = Color(0xFF1C1C24);
-const _kLine2    = Color(0xFF242430);
-const _kDim      = Color(0xFF3A3A4A);
-const _kSubtext  = Color(0xFF5A5A70);
-const _kText     = Color(0xFFAAAAAC);
-const _kWhite    = Color(0xFFF0F0F2);
-const _kAccent   = Color(0xFFCC2222);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kLine     = Color(0xFFC6C6C8);
+const _kLine2    = Color(0xFFD1D1D6);
+const _kDim      = Color(0xFFAEAEB2);
+const _kSubtext  = Color(0xFF8E8E93);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kAccent   = Color(0xFFE02020);
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
@@ -153,15 +152,15 @@ class _CreateClanScreenState extends State<CreateClanScreen>
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 16),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           _esEdicion ? 'EDITAR CUARTEL' : 'FUNDAR CLAN',
-          style: _raj(13, FontWeight.w900, _kWhite, sp: 3),
+          style: _raj(13, FontWeight.w900, Colors.white, sp: 3),
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
@@ -332,9 +331,9 @@ class _CreateClanScreenState extends State<CreateClanScreen>
       spacing: 10,
       runSpacing: 10,
       children: _kClanColors.map((c) {
-        final sel = c.value == _colorValue;
+        final sel = c.toARGB32() == _colorValue;
         return GestureDetector(
-          onTap: () { HapticFeedback.selectionClick(); setState(() => _colorValue = c.value); },
+          onTap: () { HapticFeedback.selectionClick(); setState(() => _colorValue = c.toARGB32()); },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             width: sel ? 44 : 38, height: sel ? 44 : 38,

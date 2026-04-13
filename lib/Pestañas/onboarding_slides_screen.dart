@@ -8,11 +8,11 @@ import 'package:flutter/services.dart';
 // =============================================================================
 // PALETA (coherente con ResumenScreen y ConquistaOverlay)
 // =============================================================================
-const _kBg       = Color(0xFF060608);
-const _kSurface  = Color(0xFF0D0D10);
-const _kBorder   = Color(0xFF1E1E24);
-const _kDim      = Color(0xFF666680);
-const _kAccent   = Color(0xFFFF7B1A);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kBorder   = Color(0xFFC6C6C8);
+const _kDim      = Color(0xFF8E8E93);
+const _kAccent   = Color(0xFFE02020);
 
 // =============================================================================
 // MODELO DE SLIDE

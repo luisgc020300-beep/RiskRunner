@@ -3,7 +3,6 @@
 // Pantalla de desafíos: activos con marcador en vivo, pendientes y historial.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,25 +11,30 @@ import '../services/desafios_service.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kBg       = Color(0xFF030303);
-const _kSurface  = Color(0xFF0C0C0C);
-const _kSurface2 = Color(0xFF111111);
-const _kBorder   = Color(0xFF161616);
-const _kBorder2  = Color(0xFF1F1F1F);
-const _kMuted    = Color(0xFF333333);
-const _kDim      = Color(0xFF4A4A4A);
-const _kSub      = Color(0xFF666666);
-const _kText     = Color(0xFFB0B0B0);
-const _kWhite    = Color(0xFFEEEEEE);
-const _kRed      = Color(0xFFCC2222);
-const _kRedDim   = Color(0xFF7A1414);
-const _kGold     = Color(0xFFD4A84C);
-const _kGoldDim  = Color(0xFF5A4520);
-const _kGreen    = Color(0xFF4CAF50);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kSep      = Color(0xFFC6C6C8);
+const _kMuted    = Color(0xFFD1D1D6);
+const _kDim      = Color(0xFFAEAEB2);
+const _kSub      = Color(0xFF8E8E93);
+const _kText     = Color(0xFF3C3C43);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kRed      = Color(0xFFE02020);
+const _kBlue     = Color(0xFFE02020);
+const _kGold     = Color(0xFFFFD60A);
+const _kGoldDim  = Color(0xFFB8960A);
+const _kGreen    = Color(0xFF30D158);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
     GoogleFonts.rajdhani(
+        fontSize: size, fontWeight: weight, color: color,
+        letterSpacing: spacing, height: height);
+
+TextStyle _dm(double size, FontWeight weight, Color color,
+    {double spacing = 0, double? height}) =>
+    GoogleFonts.dmSans(
         fontSize: size, fontWeight: weight, color: color,
         letterSpacing: spacing, height: height);
 
@@ -99,44 +103,46 @@ class _DesafiosScreenState extends State<DesafiosScreen>
   }
 
   PreferredSizeWidget _buildAppBar() => AppBar(
-    backgroundColor: _kSurface,
+    backgroundColor: const Color(0xFF0D0D0D),
     elevation: 0,
     surfaceTintColor: Colors.transparent,
     leading: IconButton(
-      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kText, size: 18),
+      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
       onPressed: () => Navigator.pop(context),
     ),
-    title: Text('DESAFÍOS', style: _raj(14, FontWeight.w900, _kWhite, spacing: 3)),
+    title: Text('Desafíos', style: _dm(16, FontWeight.w600, Colors.white)),
     bottom: PreferredSize(
-      preferredSize: const Size.fromHeight(44),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        height: 36,
-        decoration: BoxDecoration(
-          color: _kBg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _kBorder2),
-        ),
-        child: TabBar(
-          controller: _tabCtrl,
-          indicator: BoxDecoration(
-            color: _kSurface2,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(color: _kBorder2),
+      preferredSize: const Size.fromHeight(48),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          height: 34,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A2A2A),
+            borderRadius: BorderRadius.circular(9),
           ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          dividerColor: Colors.transparent,
-          labelStyle: _raj(10, FontWeight.w900, _kWhite, spacing: 1),
-          unselectedLabelStyle: _raj(10, FontWeight.w600, _kDim, spacing: 1),
-          labelColor: _kWhite,
-          unselectedLabelColor: _kDim,
-          tabs: const [
-            Tab(text: 'ACTIVOS'),
-            Tab(text: 'PENDIENTES'),
-            Tab(text: 'HISTORIAL'),
-          ],
+          child: TabBar(
+            controller: _tabCtrl,
+            indicator: BoxDecoration(
+              color: const Color(0xFF444444),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            indicatorSize: TabBarIndicatorSize.tab,
+            dividerColor: Colors.transparent,
+            labelStyle: _dm(12, FontWeight.w600, Colors.white),
+            unselectedLabelStyle: _dm(12, FontWeight.w400, _kSub),
+            labelColor: Colors.white,
+            unselectedLabelColor: _kSub,
+            tabs: const [
+              Tab(text: 'Activos'),
+              Tab(text: 'Pendientes'),
+              Tab(text: 'Historial'),
+            ],
+          ),
         ),
-      ),
+        Container(height: 1, color: _kRed),
+      ]),
     ),
   );
 }
@@ -188,50 +194,40 @@ class _CardActivo extends StatelessWidget {
     final miPct        = totalPuntos > 0 ? misPuntos / totalPuntos : 0.5;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: _kSurface,
-        border: Border.all(
-            color: resaltado ? _kRed.withOpacity(0.6) : _kBorder2),
-        boxShadow: resaltado
-            ? [BoxShadow(color: _kRed.withOpacity(0.12), blurRadius: 20)]
-            : [],
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
         // ── Header ──────────────────────────────────────────────────────────
-        Container(
+        Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-          decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: _kBorder2))),
           child: Row(children: [
-            Container(width: 2, height: 14, color: _kRed),
-            const SizedBox(width: 10),
-            const Text('⚔️', style: TextStyle(fontSize: 14)),
-            const SizedBox(width: 8),
-            Text('DUELO ACTIVO', style: _raj(10, FontWeight.w900, _kRed, spacing: 2)),
+            const Icon(Icons.bolt_rounded, color: _kRed, size: 15),
+            const SizedBox(width: 6),
+            Text('Duelo activo', style: _dm(12, FontWeight.w600, _kRed)),
             const Spacer(),
-            // Tiempo restante
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: info.haExpirado
-                    ? _kRedDim.withOpacity(0.3)
-                    : _kBorder2,
-                border: Border.all(
-                    color: info.haExpirado ? _kRed.withOpacity(0.5) : _kBorder2),
+                    ? _kRed.withValues(alpha: 0.12) : _kSurface2,
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.timer_outlined,
                     color: info.haExpirado ? _kRed : _kSub, size: 11),
                 const SizedBox(width: 4),
                 Text(info.tiempoRestante,
-                    style: _raj(10, FontWeight.w700,
+                    style: _dm(11, FontWeight.w500,
                         info.haExpirado ? _kRed : _kText)),
               ]),
             ),
           ]),
         ),
+        Container(height: 0.5, color: _kSep),
 
         // ── Marcador ────────────────────────────────────────────────────────
         Padding(
@@ -239,49 +235,45 @@ class _CardActivo extends StatelessWidget {
           child: Row(children: [
             // Yo
             Expanded(child: Column(children: [
-              Text('TÚ', style: _raj(9, FontWeight.w700, _kSub, spacing: 2)),
-              const SizedBox(height: 6),
+              Text('Tú', style: _dm(11, FontWeight.w500, _kSub)),
+              const SizedBox(height: 4),
               Text('$misPuntos',
-                  style: GoogleFonts.rajdhani(
-                      fontSize: 52, fontWeight: FontWeight.w900,
-                      color: voy ? _kWhite : _kSub, height: 1,
-                      shadows: voy
-                          ? [const Shadow(color: _kRed, blurRadius: 16)]
-                          : [])),
-              Text('PTS', style: _raj(9, FontWeight.w700,
-                  voy ? _kRed : _kDim, spacing: 2)),
+                  style: _raj(52, FontWeight.w900,
+                      voy ? _kWhite : _kSub, height: 1)),
+              Text('pts', style: _dm(10, FontWeight.w500,
+                  voy ? _kRed : _kDim)),
             ])),
 
             // VS
             Column(children: [
-              Text('VS', style: _raj(14, FontWeight.w900, _kMuted, spacing: 3)),
-              const SizedBox(height: 4),
+              Text('VS', style: _raj(14, FontWeight.w900, _kMuted, spacing: 2)),
+              const SizedBox(height: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: _kGoldDim.withOpacity(0.2),
-                  border: Border.all(color: _kGoldDim.withOpacity(0.4)),
+                  color: _kGold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text('${info.apuesta} 🪙',
-                    style: _raj(11, FontWeight.w900, _kGold)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.monetization_on_rounded,
+                      color: _kGold, size: 13),
+                  const SizedBox(width: 4),
+                  Text('${info.apuesta}',
+                      style: _raj(12, FontWeight.w900, _kGold)),
+                ]),
               ),
             ]),
 
             // Rival
             Expanded(child: Column(children: [
-              Text(rivalNick.toUpperCase(),
-                  style: _raj(9, FontWeight.w700, _kSub, spacing: 1),
+              Text(rivalNick, style: _dm(11, FontWeight.w500, _kSub),
                   overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text('$rivalPuntos',
-                  style: GoogleFonts.rajdhani(
-                      fontSize: 52, fontWeight: FontWeight.w900,
-                      color: !voy ? _kWhite : _kSub, height: 1,
-                      shadows: !voy
-                          ? [const Shadow(color: _kRed, blurRadius: 16)]
-                          : [])),
-              Text('PTS', style: _raj(9, FontWeight.w700,
-                  !voy ? _kRed : _kDim, spacing: 2)),
+                  style: _raj(52, FontWeight.w900,
+                      !voy ? _kWhite : _kSub, height: 1)),
+              Text('pts', style: _dm(10, FontWeight.w500,
+                  !voy ? _kRed : _kDim)),
             ])),
           ]),
         ),
@@ -309,45 +301,41 @@ class _CardActivo extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Row(children: [
-              Text(voy ? '⬆ Vas ganando' : '⬇ Vas perdiendo',
-                  style: _raj(10, FontWeight.w700,
-                      voy ? _kGreen : _kRed)),
+              Icon(voy ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                  color: voy ? _kGreen : _kRed, size: 12),
+              const SizedBox(width: 4),
+              Text(voy ? 'Vas ganando' : 'Vas perdiendo',
+                  style: _dm(11, FontWeight.w500, voy ? _kGreen : _kRed)),
               const Spacer(),
-              Text('Premio: ${info.apuesta * 2} 🪙',
-                  style: _raj(10, FontWeight.w600, _kSub)),
+              const Icon(Icons.monetization_on_rounded, color: _kGold, size: 11),
+              const SizedBox(width: 3),
+              Text('${info.apuesta * 2} premio',
+                  style: _dm(11, FontWeight.w400, _kSub)),
             ]),
           ]),
         ),
 
         // ── Cómo sumar puntos ────────────────────────────────────────────────
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _kBg,
-            border: Border.all(color: _kBorder2),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _puntoTip('⚔️', 'Conquista', '×10 pts'),
-              Container(width: 1, height: 24, color: _kBorder2),
-              _puntoTip('🏃', 'Kilómetro', '×5 pts'),
-              Container(width: 1, height: 24, color: _kBorder2),
-              _puntoTip('⏱', 'Tiempo', info.tiempoRestante),
-            ],
-          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _puntoTip(Icons.flag_rounded, 'Conquista', '×10 pts'),
+            Container(width: 0.5, height: 28, color: _kSep),
+            _puntoTip(Icons.straighten_rounded, 'Kilómetro', '×5 pts'),
+            Container(width: 0.5, height: 28, color: _kSep),
+            _puntoTip(Icons.timer_outlined, 'Tiempo', info.tiempoRestante),
+          ]),
         ),
       ]),
     );
   }
 
-  Widget _puntoTip(String emoji, String label, String valor) =>
+  Widget _puntoTip(IconData icon, String label, String valor) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(emoji, style: const TextStyle(fontSize: 14)),
-        const SizedBox(height: 2),
-        Text(label, style: _raj(8, FontWeight.w600, _kSub, spacing: 0.5)),
-        Text(valor, style: _raj(10, FontWeight.w900, _kText)),
+        Icon(icon, color: _kSub, size: 15),
+        const SizedBox(height: 3),
+        Text(label, style: _dm(10, FontWeight.w400, _kSub)),
+        Text(valor,  style: _raj(11, FontWeight.w700, _kText)),
       ]);
 }
 
@@ -388,34 +376,35 @@ class _CardPendiente extends StatelessWidget {
   Widget build(BuildContext context) {
     final rival = info.nickRival(uid);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: _kSurface,
-        border: Border(left: const BorderSide(color: _kRed, width: 2),
-            top: BorderSide(color: _kBorder2),
-            right: BorderSide(color: _kBorder2),
-            bottom: BorderSide(color: _kBorder2)),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        const Text('⏳', style: TextStyle(fontSize: 22)),
+        const Icon(Icons.hourglass_top_rounded, color: _kSub, size: 22),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Esperando a ${rival.toUpperCase()}',
-              style: _raj(13, FontWeight.w800, _kWhite)),
+          Text('Esperando a $rival',
+              style: _dm(13, FontWeight.w600, _kWhite)),
           const SizedBox(height: 4),
-          Text('${info.apuesta} 🪙 · ${info.duracionHoras}h',
-              style: _raj(11, FontWeight.w500, _kSub)),
+          Row(children: [
+            const Icon(Icons.monetization_on_rounded, color: _kSub, size: 11),
+            const SizedBox(width: 3),
+            Text('${info.apuesta}  ·  ${info.duracionHoras}h',
+                style: _dm(11, FontWeight.w400, _kSub)),
+          ]),
         ])),
-        // Botón cancelar
         GestureDetector(
           onTap: () => _cancelar(context),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              border: Border.all(color: _kBorder2),
+              color: _kSurface2,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Text('CANCELAR', style: _raj(9, FontWeight.w900, _kDim, spacing: 1.5)),
+            child: Text('Cancelar', style: _dm(12, FontWeight.w500, _kDim)),
           ),
         ),
       ]),
@@ -432,9 +421,9 @@ class _CardPendiente extends StatelessWidget {
           .collection('desafios').doc(info.id)
           .update({'estado': 'cancelado'});
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Desafío cancelado — monedas devueltas'),
-            backgroundColor: _kRedDim));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: const Text('Desafío cancelado — monedas devueltas'),
+    backgroundColor: Color.fromRGBO(255, 69, 58, 0.15)));
       }
     } catch (e) {
       debugPrint('Error cancelando: $e');
@@ -475,14 +464,14 @@ class _TabHistorial extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: _kSurface,
-                border: Border.all(color: _kBorder2),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(children: [
-                _statCol('$ganados', 'VICTORIAS', _kGold),
+                _statCol('$ganados', 'Victorias', _kGold),
                 _vDivider(),
-                _statCol('$perdidos', 'DERROTAS', _kRed),
+                _statCol('$perdidos', 'Derrotas', _kRed),
                 _vDivider(),
-                _statCol('${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _kText),
+                _statCol('${(winPct * 100).toStringAsFixed(0)}%', 'Win rate', _kText),
               ]),
             ),
             ...lista.map((d) => _CardHistorial(info: d, uid: uid!)),
@@ -496,12 +485,12 @@ class _TabHistorial extends StatelessWidget {
     child: Column(children: [
       Text(val, style: GoogleFonts.rajdhani(
           fontSize: 32, fontWeight: FontWeight.w900, color: color, height: 1)),
-      Text(label, style: _raj(8, FontWeight.w700, _kSub, spacing: 1.5)),
+      Text(label, style: _dm(10, FontWeight.w500, _kSub)),
     ]),
   );
 
   Widget _vDivider() =>
-      Container(width: 1, height: 40, color: _kBorder2,
+      Container(width: 1, height: 40, color: _kSep,
           margin: const EdgeInsets.symmetric(horizontal: 8));
 }
 
@@ -523,36 +512,36 @@ class _CardHistorial extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: _kSurface,
-        border: Border(
-          left: BorderSide(color: color.withOpacity(0.6), width: 2),
-          top: BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
-          bottom: BorderSide(color: _kBorder2),
-        ),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(children: [
-          Text(gane ? '🏆' : '💀', style: const TextStyle(fontSize: 22)),
+          Icon(
+            gane ? Icons.emoji_events_rounded : Icons.close_rounded,
+            color: color, size: 22,
+          ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              gane ? 'Victoria vs ${rival.toUpperCase()}'
-                   : 'Derrota vs ${rival.toUpperCase()}',
-              style: _raj(13, FontWeight.w800, _kWhite),
+              gane ? 'Victoria vs $rival' : 'Derrota vs $rival',
+              style: _dm(13, FontWeight.w600, _kWhite),
             ),
             const SizedBox(height: 4),
-            Text('$misPuntos pts vs $rivalPts pts',
-                style: _raj(11, FontWeight.w500, _kSub)),
+            Text('$misPuntos pts  vs  $rivalPts pts',
+                style: _dm(11, FontWeight.w400, _kSub)),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
-              border: Border.all(color: color.withOpacity(0.3)),
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Text('$premio 🪙',
-                style: _raj(13, FontWeight.w900, color)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(premio, style: _dm(13, FontWeight.w600, color)),
+              const SizedBox(width: 3),
+              Icon(Icons.monetization_on_rounded, color: color, size: 12),
+            ]),
           ),
         ]),
       ),
@@ -570,7 +559,7 @@ Widget _emptyState(String msg) => Center(
       Icon(Icons.sports_mma_rounded, color: _kMuted, size: 44),
       const SizedBox(height: 16),
       Text(msg, textAlign: TextAlign.center,
-          style: _raj(13, FontWeight.w500, _kSub, height: 1.5)),
+          style: _dm(14, FontWeight.w400, _kSub, height: 1.5)),
     ]),
   ),
 );

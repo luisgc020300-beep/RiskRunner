@@ -12,19 +12,19 @@ import '../services/league_service.dart';
 // =============================================================================
 //  PALETA — "Tactical Dark" refinada
 // =============================================================================
-const Color _kBg         = Color(0xFF060608);
-const Color _kSurface    = Color(0xFF0D0D10);
-const Color _kSurface2   = Color(0xFF131318);
-const Color _kSurface3   = Color(0xFF1A1A22);
-const Color _kLine       = Color(0xFF1C1C24);
-const Color _kLine2      = Color(0xFF242430);
-const Color _kDim        = Color(0xFF3A3A4A);
-const Color _kSubtext    = Color(0xFF5A5A70);
-const Color _kText3      = Color(0xFF7A7A90);
-const Color _kText2      = Color(0xFFAAAAAC);
-const Color _kText1      = Color(0xFFF0F0F2);
-const Color _kAccent     = Color(0xFFCC2222);
-const Color _kAccentGlow = Color(0x33CC2222);
+const Color _kBg         = Color(0xFFE8E8ED);
+const Color _kSurface    = Color(0xFFFFFFFF);
+const Color _kSurface2   = Color(0xFFE5E5EA);
+const Color _kSurface3   = Color(0xFFF2F2F7);
+const Color _kLine       = Color(0xFFC6C6C8);
+const Color _kLine2      = Color(0xFFD1D1D6);
+const Color _kDim        = Color(0xFFAEAEB2);
+const Color _kSubtext    = Color(0xFF8E8E93);
+const Color _kText3      = Color(0xFF636366);
+const Color _kText2      = Color(0xFF3C3C43);
+const Color _kText1      = Color(0xFF1C1C1E);
+const Color _kAccent     = Color(0xFFE02020);
+const Color _kAccentGlow = Color(0x33E02020);
 const Color _kGreen      = Color(0xFF1A4A35);
 const Color _kGreenFg    = Color(0xFF3DBF82);
 const Color _kGold       = Color(0xFFFFD700);
@@ -1513,9 +1513,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: _kBg,
     appBar: AppBar(
-      backgroundColor: _kBg, elevation: 0, surfaceTintColor: Colors.transparent,
-      bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(height: 1, color: _kLine)),
-      leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: _kText1, size: 16), onPressed: () => Navigator.pop(context)),
+      backgroundColor: const Color(0xFF0D0D0D), elevation: 0, surfaceTintColor: Colors.transparent,
+      bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(height: 1, color: _kAccent)),
+      leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16), onPressed: () => Navigator.pop(context)),
       title: Row(children: [
         _Avatar(fotoBase64: widget.friendFoto, nickname: widget.friendNickname, size: 34),
         const SizedBox(width: 10),

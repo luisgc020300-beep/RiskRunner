@@ -8,13 +8,13 @@ import '../services/stats_service.dart';
 // =============================================================================
 // PALETA (coherente con War Room / ResumenScreen)
 // =============================================================================
-const _kBg      = Color(0xFF060608);
-const _kSurface = Color(0xFF0D0D10);
-const _kBorder  = Color(0xFF1E1E24);
-const _kBorder2 = Color(0xFF2A2A35);
-const _kMuted   = Color(0xFF3A3A48);
-const _kDim     = Color(0xFF666680);
-const _kOrange  = Color(0xFFE8500A);
+const _kBg      = Color(0xFFE8E8ED);
+const _kSurface = Color(0xFFFFFFFF);
+const _kBorder  = Color(0xFFC6C6C8);
+const _kBorder2 = Color(0xFFD1D1D6);
+const _kMuted   = Color(0xFFAEAEB2);
+const _kDim     = Color(0xFF8E8E93);
+const _kOrange  = Color(0xFFE02020);
 
 // =============================================================================
 // PANTALLA PRINCIPAL
@@ -156,7 +156,7 @@ class _StatsScreenState extends State<StatsScreen>
   // ── AppBar ──────────────────────────────────────────────────────────────────
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
-      backgroundColor: _kBg,
+      backgroundColor: const Color(0xFF0D0D0D),
       elevation: 0,
       pinned: true,
       title: Row(children: [
@@ -173,7 +173,7 @@ class _StatsScreenState extends State<StatsScreen>
       ]),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_rounded,
-            color: Colors.white60, size: 18),
+            color: Colors.white, size: 18),
         onPressed: () => Navigator.pop(context),
       ),
     );

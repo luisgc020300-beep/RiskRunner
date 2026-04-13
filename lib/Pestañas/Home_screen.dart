@@ -39,37 +39,37 @@ const _kMapboxTileUrl =
 // =============================================================================
 class _T {
   // Fondos
-  static const bg0    = Color(0xFF0A0806);
-  static const bg1    = Color(0xFF100D08);
-  static const bg2    = Color(0xFF161209);
-  static const bg3    = Color(0xFF1E1810);
-  static const bg4    = Color(0xFF242018);
+  static const bg0    = Color(0xFFE8E8ED);
+  static const bg1    = Color(0xFFFFFFFF);
+  static const bg2    = Color(0xFFE5E5EA);
+  static const bg3    = Color(0xFFE8E8ED);
+  static const bg4    = Color(0xFFFFFFFF);
 
   // Colores principales
-  static const parch  = Color(0xFFEAD9AA); // pergamino — títulos, logo
-  static const gold   = Color(0xFFDECA46); // dorado — XP, monedas, premium
-  static const bronze = Color(0xFFCC7C3A); // bronce — CTAs, botones acción
-  static const terra  = Color(0xFFC4622D); // terracota — bordes activos
+  static const parch  = Color(0xFF1C1C1E); // texto principal
+  static const gold   = Color(0xFFFFD60A); // dorado — XP, monedas, premium
+  static const bronze = Color(0xFF636366); // gris medio — CTAs
+  static const terra  = Color(0xFFAEAEB2); // gris claro
 
   // Textos
-  static const white  = Color(0xFFF3EDE1);
-  static const text   = Color(0xFFCAAA6C);
-  static const sub    = Color(0xFF8C7242);
-  static const dim    = Color(0xFF6B5A3A);
-  static const muted  = Color(0xFF4A3A20);
+  static const white  = Color(0xFF1C1C1E);
+  static const text   = Color(0xFF3C3C43);
+  static const sub    = Color(0xFF636366);
+  static const dim    = Color(0xFF8E8E93);
+  static const muted  = Color(0xFFAEAEB2);
 
   // Bordes
-  static const border  = Color(0xFF2A2010);
-  static const border2 = Color(0xFF3A2A10);
+  static const border  = Color(0xFFC6C6C8);
+  static const border2 = Color(0xFFD1D1D6);
 
   // Semánticos — sin cambios
-  static const safe = Color(0xFF4CAF50);
+  static const safe = Color(0xFF30D158);
   static const warn = Color(0xFFFF9800);
 
-  // ROJO — SOLO alertas e invasiones
-  static const red     = Color(0xFFCC2222);
-  static const redD    = Color(0xFF7A1414);
-  static const redGlow = Color(0x22CC2222);
+  // GRIS — alertas e invasiones
+  static const red     = Color(0xFFE02020);
+  static const redD    = Color(0xFFFF6B6B);
+  static const redGlow = Color(0x22E02020);
 }
 
 TextStyle _raj(double size, FontWeight weight, Color color,
@@ -1679,13 +1679,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // =============================================================================
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _T.bg1,
+      backgroundColor: const Color(0xFF0D0D0D),
       elevation: 0,
       titleSpacing: 16,
       surfaceTintColor: Colors.transparent,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: _T.border2),
+        child: Container(height: 1, color: _T.red),
       ),
       title: Row(children: [
         RichText(
@@ -1693,10 +1693,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: GoogleFonts.rajdhani(
               fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.5),
             children: const [
-              TextSpan(text: '[', style: TextStyle(color: Color(0xFF4A3A20))),
-              TextSpan(text: 'RISK', style: TextStyle(color: Color(0xFFCC7C3A))),
-              TextSpan(text: ' RUNNER', style: TextStyle(color: Color(0xFFF3EDE1))),
-              TextSpan(text: ']', style: TextStyle(color: Color(0xFF4A3A20))),
+              TextSpan(text: '[', style: TextStyle(color: Color(0xFF636366))),
+              TextSpan(text: 'RISK', style: TextStyle(color: Color(0xFFE02020))),
+              TextSpan(text: ' RUNNER', style: TextStyle(color: Colors.white)),
+              TextSpan(text: ']', style: TextStyle(color: Color(0xFF636366))),
             ],
           ),
         ),

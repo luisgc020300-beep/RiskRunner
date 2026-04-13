@@ -32,23 +32,23 @@ const String _kMapboxDarkUrl =
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kBg       = Color(0xFF060608);
-const _kSurface  = Color(0xFF0D0D10);
-const _kSurface2 = Color(0xFF131318);
-const _kBorder   = Color(0xFF1C1C24);
-const _kBorder2  = Color(0xFF242430);
-const _kDim      = Color(0xFF3A3A4A);
-const _kSub      = Color(0xFF5A5A70);
-const _kText     = Color(0xFFAAAAAC);
-const _kWhite    = Color(0xFFF0F0F2);
-const _kRed      = Color(0xFFCC2222);
-const _kSafe     = Color(0xFF3DBF82);
-const _kWarn     = Color(0xFFD4872A);
-const _kGold     = Color(0xFFD4A84C);
-const _kGoldDim  = Color(0xFF7A5E28);
-const _kGoldLight = Color(0xFFEDD98A);
-const _kPurple   = Color(0xFF6B3FA0);
-const _kCyan     = Color(0xFF2ABFBF);
+const _kBg       = Color(0xFFE8E8ED);
+const _kSurface  = Color(0xFFFFFFFF);
+const _kSurface2 = Color(0xFFE5E5EA);
+const _kBorder   = Color(0xFFC6C6C8);
+const _kBorder2  = Color(0xFFD1D1D6);
+const _kDim      = Color(0xFFAEAEB2);
+const _kSub      = Color(0xFF8E8E93);
+const _kText     = Color(0xFF3C3C43);
+const _kWhite    = Color(0xFF1C1C1E);
+const _kRed      = Color(0xFFE02020);
+const _kSafe     = Color(0xFF30D158);
+const _kWarn     = Color(0xFFFF9500);
+const _kGold     = Color(0xFFFFD60A);
+const _kGoldDim  = Color(0xFFAEAEB2);
+const _kGoldLight = Color(0xFFFFD60A);
+const _kPurple   = Color(0xFF636366);
+const _kCyan     = Color(0xFF636366);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
@@ -712,6 +712,10 @@ class FullscreenMapScreen extends StatefulWidget {
   final LatLng? centroInicial;
   final List<LatLng> ruta;
   final bool mostrarRuta;
+  /// Cuando es true, la pantalla se abre en modo selección de territorio global.
+  /// El botón "INICIAR CONQUISTA" devuelve los datos del territorio vía
+  /// Navigator.pop en lugar de navegar a /correr.
+  final bool selectionMode;
 
   const FullscreenMapScreen({
     super.key,
@@ -720,6 +724,7 @@ class FullscreenMapScreen extends StatefulWidget {
     this.centroInicial,
     this.ruta            = const [],
     this.mostrarRuta     = false,
+    this.selectionMode   = false,
   });
 
   @override
@@ -789,6 +794,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
     _initData();
+
+    // Si se abre en modo selección, pasar directamente a vista global
+    if (widget.selectionMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_state.modoGlobal) _toggleModo();
+      });
+    }
   }
 
   void _onErrorCheck() {
@@ -1247,16 +1259,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: GestureDetector(
               onTap: () {
-                Navigator.of(context).pop();
-                // ── Pasamos clausulaKm (= kmRequired) como kmRequeridos ───
-                Navigator.pushNamed(context, '/correr', arguments: {
-                  'objetivoGlobal': {
-                    'territorioId':    t.id,
-                    'territorioNombre': t.epicName,
-                    'kmRequeridos':    t.kmRequired,   // ← clausulaKm real
-                    'recompensa':      t.rewardActual,
-                  }
-                });
+                final objetivo = {
+                  'territorioId':    t.id,
+                  'territorioNombre': t.epicName,
+                  'kmRequeridos':    t.kmRequired,
+                  'recompensa':      t.rewardActual,
+                  'ownerUid':        t.ownerUid,      // ← bug fix: incluir ownerUid
+                };
+                Navigator.of(context).pop(); // cierra el bottom sheet
+                if (widget.selectionMode) {
+                  // Devolver el territorio seleccionado a quien llamó (LiveActivity)
+                  Navigator.of(context).pop(objetivo);
+                } else {
+                  Navigator.pushNamed(context, '/correr',
+                      arguments: {'objetivoGlobal': objetivo});
+                }
               },
               child: Container(
                 width: double.infinity,

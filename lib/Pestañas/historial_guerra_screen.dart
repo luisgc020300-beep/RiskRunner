@@ -26,7 +26,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
   bool _isLoading  = true;
   bool _esPremium  = false;
 
-  Color _colorTerritorio = Colors.orange;
+  Color _colorTerritorio = const Color(0xFF636366);
 
   @override
   void initState() {
@@ -171,7 +171,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
 
       final bool esGanado = item.tipo == 'territory_conquered' ||
           item.tipo == 'territory_steal_success';
-      final Color color = esGanado ? _colorTerritorio : Colors.redAccent;
+      final Color color = esGanado ? _colorTerritorio : const Color(0xFF636366);
 
       showModalBottomSheet(
         context: context,
@@ -192,26 +192,25 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFE8E8ED),
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'HISTORIAL DE GUERRA',
+          'Historial de guerra',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
             color: Colors.white,
-            letterSpacing: 2,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.orange),
+            icon: const Icon(Icons.refresh, color: Color(0xFF636366)),
             onPressed: _cargarTodo,
           ),
         ],
@@ -220,7 +219,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
           indicatorColor: _colorTerritorio,
           indicatorWeight: 2,
           labelColor: _colorTerritorio,
-          unselectedLabelColor: Colors.white38,
+          unselectedLabelColor: const Color(0xFF8E8E93),
           labelStyle: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 12,
@@ -233,7 +232,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
                   const Text('💀  PERDIDOS'),
                   if (_perdidos.isNotEmpty) ...[
                     const SizedBox(width: 6),
-                    _Badge(count: _perdidos.length, color: Colors.redAccent),
+                    _Badge(count: _perdidos.length, color: const Color(0xFF636366)),
                   ],
                 ],
               ),
@@ -255,7 +254,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Colors.orange))
+              child: CircularProgressIndicator(color: Color(0xFF636366)))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -279,7 +278,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
               esPerdidos
                   ? 'Aún no has perdido ningún territorio'
                   : 'Aún no has conquistado territorios rivales',
-              style: const TextStyle(color: Colors.white38, fontSize: 14),
+              style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -327,12 +326,10 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1C1410), Color(0xFF2A1E0E)],
-          ),
+          color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: const Color(0xFFCC7C3A).withValues(alpha: 0.5)),
+              color: const Color(0xFFC6C6C8)),
         ),
         child: Row(children: [
           const Text('👑', style: TextStyle(fontSize: 24)),
@@ -344,26 +341,26 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
                 Text(
                   '$cantidadOculta eventos más de hace +7 días',
                   style: const TextStyle(
-                      color: Color(0xFFEAD9AA),
+                      color: Color(0xFF1C1C1E),
                       fontSize: 13,
                       fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 3),
                 const Text(
                   'Premium → historial completo ilimitado',
-                  style: TextStyle(color: Color(0xFF8C7242), fontSize: 11),
+                  style: TextStyle(color: Color(0xFF636366), fontSize: 11),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: Color(0xFFCC7C3A)),
+          const Icon(Icons.chevron_right_rounded, color: Color(0xFF8E8E93)),
         ]),
       ),
     );
   }
 
   Widget _buildResumenBanner(List<NotifItem> items, {required bool esPerdidos}) {
-    final Color color = esPerdidos ? Colors.redAccent : _colorTerritorio;
+    final Color color = esPerdidos ? const Color(0xFF636366) : _colorTerritorio;
     final int total   = items.length;
 
     String ultimaVez = '--';
@@ -415,7 +412,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
         ),
         const SizedBox(height: 2),
         Text(label,
-            style: const TextStyle(color: Colors.white38, fontSize: 9),
+            style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 9),
             textAlign: TextAlign.center),
       ]),
     );
@@ -424,13 +421,13 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
   Widget _verticalDivider() {
     return Container(
       width: 1, height: 32,
-      color: Colors.white12,
+      color: const Color(0xFFC6C6C8),
       margin: const EdgeInsets.symmetric(horizontal: 8),
     );
   }
 
   Widget _buildTarjeta(NotifItem item, {required bool esPerdidos}) {
-    final Color color = esPerdidos ? Colors.redAccent : _colorTerritorio;
+    final Color color = esPerdidos ? const Color(0xFF636366) : _colorTerritorio;
     final String tiempo     = _formatearTiempo(item.timestamp);
     final bool tieneDetalle = item.territoryId != null;
 
@@ -440,9 +437,9 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F0F0F),
+          color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          border: Border.all(color: const Color(0xFFC6C6C8)),
         ),
         child: Row(children: [
           Container(
@@ -465,7 +462,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
                 Text(
                   item.mensaje,
                   style: const TextStyle(
-                      color: Colors.white,
+                      color: Color(0xFF1C1C1E),
                       fontSize: 13,
                       fontWeight: FontWeight.w600),
                 ),
@@ -486,7 +483,7 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
                   ],
                   Text(tiempo,
                       style: const TextStyle(
-                          color: Colors.white38, fontSize: 10)),
+                          color: Color(0xFF8E8E93), fontSize: 10)),
                 ]),
                 if (item.distancia != null ||
                     item.tiempoSegundos != null) ...[
@@ -568,7 +565,7 @@ class _DetalleBottomSheet extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: const Color(0xFFFFFFFF),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
@@ -579,7 +576,7 @@ class _DetalleBottomSheet extends StatelessWidget {
           Container(
             width: 40, height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: const Color(0xFFAEAEB2),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -597,11 +594,11 @@ class _DetalleBottomSheet extends StatelessWidget {
             ),
             const Spacer(),
             Text(tiempoRelativo,
-                style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 11)),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () => Navigator.pop(context),
-              child: const Icon(Icons.close, color: Colors.white24, size: 20),
+              child: const Icon(Icons.close, color: Color(0xFFAEAEB2), size: 20),
             ),
           ]),
           const SizedBox(height: 14),
@@ -622,12 +619,12 @@ class _DetalleBottomSheet extends StatelessWidget {
             Container(
               height: 80,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
+                color: const Color(0xFFE8E8ED),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Center(
                 child: Text('Sin ubicación guardada',
-                    style: TextStyle(color: Colors.white24, fontSize: 12)),
+                    style: TextStyle(color: Color(0xFFAEAEB2), fontSize: 12)),
               ),
             ),
           const SizedBox(height: 16),
@@ -639,16 +636,16 @@ class _DetalleBottomSheet extends StatelessWidget {
                 item.distancia != null
                     ? '${item.distancia!.toStringAsFixed(2)} km'
                     : '--',
-                Colors.lightBlueAccent),
+                const Color(0xFF8E8E93)),
             const SizedBox(width: 8),
             _statTile(Icons.speed_outlined, 'Vel. media',
-                _calcVel(), Colors.purpleAccent),
+                _calcVel(), const Color(0xFF8E8E93)),
             const SizedBox(width: 8),
             _statTile(Icons.timer_outlined, 'Tiempo',
                 item.tiempoSegundos != null
                     ? '${(item.tiempoSegundos! / 60).floor()} min'
                     : '--',
-                Colors.orangeAccent),
+                const Color(0xFF8E8E93)),
           ]),
           const SizedBox(height: 8),
         ],
@@ -671,7 +668,7 @@ class _DetalleBottomSheet extends StatelessWidget {
             Icon(icon, color: c, size: 14),
             const SizedBox(height: 6),
             Text(label,
-                style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 10)),
             Text(value,
                 style: TextStyle(
                     color: c, fontSize: 11, fontWeight: FontWeight.w800)),
