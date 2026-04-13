@@ -12,16 +12,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
-import 'Pestañas/notifications_screen.dart';
-import 'Pestañas/Logging.dart';
-import 'Pestañas/Home_screen.dart';
-import 'Pestañas/social_screen.dart';
-import 'Pestañas/Resumen_screen.dart';
-import 'Pestañas/LiveActivity_screen.dart';
-import 'Pestañas/perfil_screen.dart';
+import 'pestañas/notifications_screen.dart';
+import 'pestañas/Logging.dart';
+import 'pestañas/Home_screen.dart';
+import 'pestañas/social_screen.dart';
+import 'pestañas/Resumen_screen.dart';
+import 'pestañas/LiveActivity_screen.dart';
+import 'pestañas/perfil_screen.dart';
 import 'package:latlong2/latlong.dart';
-import 'Pestañas/clan_screen.dart';
-import 'Pestañas/desafios_screen.dart';
+import 'pestañas/clan_screen.dart';
+import 'pestañas/desafios_screen.dart';
 import 'services/desafios_service.dart';
 
 void main() async {
