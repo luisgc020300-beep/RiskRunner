@@ -11,6 +11,8 @@ jobs:
           channel: 'stable'
       - name: Install dependencies
         run: flutter pub get
+      - name: Migrate to v2 embedding   # ← línea nueva
+        run: flutter migrate apply      # ← línea nueva
       - name: Build APK
         run: flutter build apk --release
       - name: Upload APK
