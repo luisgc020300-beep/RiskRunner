@@ -1,4 +1,4 @@
-package com.example.mi_app
+package com.runnerrisk.app
 
 import io.flutter.embedding.android.FlutterActivity
 
