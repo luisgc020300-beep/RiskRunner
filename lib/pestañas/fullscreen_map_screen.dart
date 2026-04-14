@@ -1,7 +1,10 @@
 // lib/screens/fullscreen_map_screen.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
+
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -67,6 +70,29 @@ TextStyle _orbitron(double size, FontWeight weight, Color color,
     GoogleFonts.orbitron(
         fontSize: size, fontWeight: weight, color: color,
         letterSpacing: spacing);
+
+// =============================================================================
+// MODELO BARRIO (modo solitario)
+// =============================================================================
+class _BarrioData {
+  final String       nombre;
+  final List<LatLng> puntos;
+  final double       areaM2;
+  double             porcentajeCubierto;
+
+  _BarrioData({
+    required this.nombre,
+    required this.puntos,
+    required this.areaM2,
+    this.porcentajeCubierto = 0.0,
+  });
+
+  LatLng get centro {
+    final lat = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
+    final lng = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
+    return LatLng(lat, lng);
+  }
+}
 
 // =============================================================================
 // MODELOS GUERRA GLOBAL
@@ -404,6 +430,7 @@ class _MapState extends ChangeNotifier {
   String? errorMessage;
 
   bool modoGlobal                             = false;
+  bool modoSolitario                          = false;
   List<GlobalTerritory> territoriosGlobales   = [];
   bool loadingGlobal                          = false;
   GlobalTerritory? territorioGlobalSeleccionado;
@@ -440,8 +467,19 @@ class _MapState extends ChangeNotifier {
   void setUserExpandido(String? id) { userExpandido = id; notifyListeners(); }
   void clearError() { errorMessage = null; }
 
+  void setModoSolitario(bool v) {
+    modoSolitario = v;
+    if (v) {
+      modoGlobal = false;
+      _globalStream?.cancel();
+    }
+    territorioSeleccionado = null;
+    notifyListeners();
+  }
+
   void toggleModoGlobal() {
     modoGlobal = !modoGlobal;
+    if (modoGlobal) modoSolitario = false;
     territorioSeleccionado = null;
     territorioGlobalSeleccionado = null;
     if (modoGlobal) {
@@ -763,6 +801,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   double _zoomGlobal = 2.5;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
+
+  // ── Modo solitario — barrios OSM ──────────────────────────────────────────
+  List<_BarrioData> _barriosCercanos  = [];
+  bool _barriosCargados               = false;
+  bool _cargandoBarrios               = false;
 
   @override
   void initState() {
@@ -1690,6 +1733,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Widget _buildModeToggle() {
+    final isCiudad    = !_state.modoGlobal && !_state.modoSolitario;
+    final isSolitario = _state.modoSolitario;
+    final isGlobal    = _state.modoGlobal;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: BackdropFilter(
@@ -1701,66 +1748,97 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
+
+            // ── MI CIUDAD ─────────────────────────────────────────────────
             Expanded(child: GestureDetector(
-              onTap: _state.modoGlobal ? _toggleModo : null,
+              onTap: isCiudad ? null : () {
+                if (isGlobal) _toggleModo();           // global → ciudad
+                if (isSolitario) _state.setModoSolitario(false);
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  color: !_state.modoGlobal
+                  color: isCiudad
                       ? _kRed.withValues(alpha: 0.15)
                       : Colors.transparent,
                   borderRadius: const BorderRadius.horizontal(
                       left: Radius.circular(7)),
-                  border: !_state.modoGlobal
+                  border: isCiudad
                       ? Border.all(color: _kRed.withValues(alpha: 0.4))
                       : null,
                 ),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center, children: [
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.location_on_rounded,
-                      color: !_state.modoGlobal ? _kRed : _kSub,
-                      size: 13),
-                  const SizedBox(width: 6),
+                      color: isCiudad ? _kRed : _kSub, size: 13),
+                  const SizedBox(width: 5),
                   Text('MI CIUDAD',
-                      style: _raj(10, FontWeight.w900,
-                          !_state.modoGlobal ? _kWhite : _kSub,
-                          spacing: 1.2)),
+                      style: _raj(9, FontWeight.w900,
+                          isCiudad ? _kWhite : _kSub, spacing: 1.0)),
                 ]),
               ),
             )),
 
             Container(width: 1, height: 30, color: _kBorder2),
 
+            // ── SOLITARIO ─────────────────────────────────────────────────
             Expanded(child: GestureDetector(
-              onTap: !_state.modoGlobal ? _toggleModo : null,
+              onTap: isSolitario ? null : () async {
+                if (isGlobal) _toggleModo();           // global → ciudad primero
+                await _activarModoSolitario();
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 padding: const EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
-                  color: _state.modoGlobal
+                  color: isSolitario
+                      ? _kSafe.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  border: isSolitario
+                      ? Border.all(color: _kSafe.withValues(alpha: 0.4))
+                      : null,
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Text('🗺️', style: const TextStyle(fontSize: 11)),
+                  const SizedBox(width: 5),
+                  Text('SOLITARIO',
+                      style: _raj(9, FontWeight.w900,
+                          isSolitario ? _kSafe : _kSub, spacing: 1.0)),
+                ]),
+              ),
+            )),
+
+            Container(width: 1, height: 30, color: _kBorder2),
+
+            // ── GUERRA GLOBAL ─────────────────────────────────────────────
+            Expanded(child: GestureDetector(
+              onTap: isGlobal ? null : () {
+                if (isSolitario) _state.setModoSolitario(false);
+                _toggleModo();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: isGlobal
                       ? _kGold.withValues(alpha: 0.12)
                       : Colors.transparent,
                   borderRadius: const BorderRadius.horizontal(
                       right: Radius.circular(7)),
-                  border: _state.modoGlobal
+                  border: isGlobal
                       ? Border.all(color: _kGold.withValues(alpha: 0.4))
                       : null,
                 ),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center, children: [
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Text('⚔️', style: TextStyle(fontSize: 11)),
-                  const SizedBox(width: 6),
-                  Text('GUERRA GLOBAL',
-                      style: _raj(10, FontWeight.w900,
-                          _state.modoGlobal ? _kGoldLight : _kSub,
-                          spacing: 1.2)),
-                  if (_state.modoGlobal &&
-                      _state.territoriosMios > 0) ...[
-                    const SizedBox(width: 6),
+                  const SizedBox(width: 5),
+                  Text('GLOBAL',
+                      style: _raj(9, FontWeight.w900,
+                          isGlobal ? _kGoldLight : _kSub, spacing: 1.0)),
+                  if (isGlobal && _state.territoriosMios > 0) ...[
+                    const SizedBox(width: 5),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
                         color: _kGold.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(3),
@@ -1772,9 +1850,256 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ]),
               ),
             )),
+
           ]),
         ),
       ),
+    );
+  }
+
+  // ==========================================================================
+  // MODO SOLITARIO — barrios OSM
+  // ==========================================================================
+  Future<void> _activarModoSolitario() async {
+    _state.setModoSolitario(true);
+    if (!_barriosCargados && !_cargandoBarrios) {
+      await _cargarBarriosSolitario(_state.centro);
+    }
+  }
+
+  Future<void> _cargarBarriosSolitario(LatLng pos) async {
+    if (_cargandoBarrios || _barriosCargados) return;
+    _cargandoBarrios = true;
+    if (mounted) setState(() {});
+
+    try {
+      final lat   = pos.latitude;
+      final lng   = pos.longitude;
+      const delta = 0.018; // ~2 km
+
+      final url = Uri.parse(
+        'https://overpass-api.de/api/interpreter?data='
+        '[out:json][timeout:15];'
+        '('
+        '  way["place"~"suburb|neighbourhood|quarter"]'
+        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
+        '  relation["place"~"suburb|neighbourhood|quarter"]'
+        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
+        ');'
+        'out geom;',
+      );
+
+      final response = await http.get(url).timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) return;
+
+      final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+      final elements = (jsonData['elements'] as List<dynamic>? ?? []);
+      final List<_BarrioData> barrios = [];
+
+      for (final el in elements) {
+        final tags   = el['tags'] as Map<String, dynamic>? ?? {};
+        final nombre = (tags['name'] as String?)?.trim() ?? '';
+        if (nombre.isEmpty) continue;
+
+        List<LatLng> puntos = [];
+        if (el['type'] == 'way') {
+          final geometry = el['geometry'] as List<dynamic>? ?? [];
+          puntos = geometry.map((g) {
+            final m = g as Map<String, dynamic>;
+            return LatLng((m['lat'] as num).toDouble(),
+                          (m['lon'] as num).toDouble());
+          }).toList();
+        } else if (el['type'] == 'relation') {
+          final members = el['members'] as List<dynamic>? ?? [];
+          for (final member in members) {
+            final m = member as Map<String, dynamic>;
+            if (m['role'] == 'outer' && m['geometry'] != null) {
+              final geom = m['geometry'] as List<dynamic>;
+              puntos = geom.map((g) {
+                final gm = g as Map<String, dynamic>;
+                return LatLng((gm['lat'] as num).toDouble(),
+                              (gm['lon'] as num).toDouble());
+              }).toList();
+              break;
+            }
+          }
+        }
+
+        if (puntos.length < 4) continue;
+        final area = TerritoryService.calcularAreaM2(puntos);
+        if (area < 10000) continue;
+
+        // Calcular % cubierto con territorios propios
+        final misTers = _state.territorios.where((t) => t.esMio).toList();
+        double areaCubierta = 0.0;
+        for (final ter in misTers) {
+          if (_puntoEnPoligonoSol(ter.centro, puntos)) {
+            areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
+          }
+        }
+        final pct = (areaCubierta / area).clamp(0.0, 1.0);
+        barrios.add(_BarrioData(nombre: nombre, puntos: puntos, areaM2: area,
+            porcentajeCubierto: pct));
+      }
+
+      // Ordenar por distancia al centro
+      barrios.sort((a, b) {
+        final dA = Geolocator.distanceBetween(
+            lat, lng, a.centro.latitude, a.centro.longitude);
+        final dB = Geolocator.distanceBetween(
+            lat, lng, b.centro.latitude, b.centro.longitude);
+        return dA.compareTo(dB);
+      });
+
+      if (!mounted) return;
+      setState(() {
+        _barriosCercanos = barrios;
+        _barriosCargados = true;
+      });
+    } catch (e) {
+      debugPrint('FullscreenMap barrios error: $e');
+    } finally {
+      _cargandoBarrios = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Ray-casting para saber si un punto está dentro de un polígono.
+  bool _puntoEnPoligonoSol(LatLng punto, List<LatLng> polygon) {
+    int cruces = 0;
+    final n = polygon.length;
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+      final xi = polygon[i].longitude; final yi = polygon[i].latitude;
+      final xj = polygon[j].longitude; final yj = polygon[j].latitude;
+      if (((yi > punto.latitude) != (yj > punto.latitude)) &&
+          (punto.longitude < (xj - xi) * (punto.latitude - yi) / (yj - yi) + xi)) {
+        cruces++;
+      }
+    }
+    return cruces.isOdd;
+  }
+
+  Widget _buildMapaSolitario() {
+    return ListenableBuilder(
+      listenable: _state,
+      builder: (_, __) {
+        final territorios = _state.territorios;
+        return Stack(children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _state.centro,
+              initialZoom: 13,
+              minZoom: 3, maxZoom: 19,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: _kMapboxUrl,
+                userAgentPackageName: 'com.runner_risk.app',
+                tileSize: 256,
+              ),
+
+              // Polígonos de barrios OSM
+              if (_barriosCercanos.isNotEmpty)
+                PolygonLayer(
+                  polygons: _barriosCercanos.map((b) {
+                    final pct = b.porcentajeCubierto;
+                    final Color color = pct >= 1.0
+                        ? _kSafe
+                        : pct > 0 ? _kWarn : _kDim;
+                    return Polygon(
+                      points: b.puntos,
+                      color: color.withValues(alpha: 0.10),
+                      borderColor: color.withValues(alpha: 0.55),
+                      borderStrokeWidth: 1.5,
+                    );
+                  }).toList(),
+                ),
+
+              // Territorios propios encima
+              if (territorios.isNotEmpty)
+                PolygonLayer(
+                  polygons: territorios.where((t) => t.esMio).map((t) =>
+                    Polygon(
+                      points: t.puntos,
+                      color: t.color.withValues(alpha: t.opacidadRelleno),
+                      borderColor: t.color,
+                      borderStrokeWidth: 2.5,
+                    ),
+                  ).toList(),
+                ),
+
+              // Marcador de posición del usuario
+              MarkerLayer(markers: [
+                Marker(
+                  point: _state.centro, width: 24, height: 24,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white, shape: BoxShape.circle,
+                      border: Border.all(color: _kRed, width: 2),
+                      boxShadow: [BoxShadow(
+                          color: _kRed.withValues(alpha: 0.5),
+                          blurRadius: 12, spreadRadius: 2)],
+                    ),
+                  ),
+                ),
+              ]),
+
+              // Etiquetas de barrios
+              if (_barriosCercanos.isNotEmpty)
+                MarkerLayer(
+                  markers: _barriosCercanos.map((b) {
+                    final pct = b.porcentajeCubierto;
+                    final Color color = pct >= 1.0
+                        ? _kSafe : pct > 0 ? _kWarn : _kDim;
+                    return Marker(
+                      point: b.centro,
+                      width: 120, height: 40,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(b.nombre,
+                            textAlign: TextAlign.center,
+                            style: _raj(9, FontWeight.w700, color, spacing: 0.5),
+                          ),
+                          if (pct > 0)
+                            Text('${(pct * 100).toInt()}%',
+                              style: _raj(8, FontWeight.w600, color)),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+
+          // Indicador de carga de barrios
+          if (_cargandoBarrios)
+            Positioned(
+              top: 90, left: 0, right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _kSurface.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const SizedBox(
+                      width: 12, height: 12,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 1.5, color: _kSub),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Cargando barrios…',
+                        style: _raj(10, FontWeight.w600, _kSub)),
+                  ]),
+                ),
+              ),
+            ),
+        ]);
+      },
     );
   }
 
@@ -1786,7 +2111,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return ListenableBuilder(
       listenable: _state,
       builder: (_, __) {
-        if (_state.modoGlobal) return _buildMapaGlobal();
+        if (_state.modoGlobal)     return _buildMapaGlobal();
+        if (_state.modoSolitario)  return _buildMapaSolitario();
         return _buildMapaCiudad(tieneRuta);
       },
     );

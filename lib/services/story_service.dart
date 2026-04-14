@@ -1,4 +1,4 @@
-import 'package:RiskRunner/Pesta%C3%B1as/story_viewer_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
