@@ -1,7 +1,7 @@
 // lib/main.dart
-import 'package:RiskRunner/Pesta%C3%B1as/coin_shop_screen.dart';
-import 'package:RiskRunner/Pesta%C3%B1as/fullscreen_map_screen.dart';
-import 'package:RiskRunner/Pesta%C3%B1as/onboarding_slides_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/coin_shop_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/fullscreen_map_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/onboarding_slides_screen.dart';
 import 'package:RiskRunner/services/notification_service.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:RiskRunner/services/subscription_service.dart';
@@ -15,7 +15,7 @@ import 'firebase_options.dart';
 import 'pestañas/notifications_screen.dart';
 import 'pestañas/Logging.dart';
 import 'pestañas/Home_screen.dart';
-import 'pestañas/social_screen.dart';
+import 'pestañas/Social_screen.dart';
 import 'pestañas/Resumen_screen.dart';
 import 'pestañas/LiveActivity_screen.dart';
 import 'pestañas/perfil_screen.dart';

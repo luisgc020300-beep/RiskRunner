@@ -1,7 +1,7 @@
 // lib/widgets/custom_navbar.dart
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
-import 'package:RiskRunner/Pesta%C3%B1as/create_post_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

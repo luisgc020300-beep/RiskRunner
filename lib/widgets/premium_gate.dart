@@ -17,7 +17,7 @@
 //    if (!PremiumGate.check(context, feature: 'Narrador')) return;
 // ══════════════════════════════════════════════════════════════════════════════
 
-import 'package:RiskRunner/Pesta%C3%B1as/paywall_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/paywall_screen.dart';
 import 'package:flutter/material.dart';
 import '../services/subscription_service.dart';
 

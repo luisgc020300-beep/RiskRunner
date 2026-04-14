@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:RiskRunner/Widgets/mini_mapa_notif.dart';
+import 'package:RiskRunner/widgets/mini_mapa_notif.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

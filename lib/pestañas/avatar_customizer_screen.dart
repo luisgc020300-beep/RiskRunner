@@ -4,7 +4,7 @@
 // Se abre desde perfil_screen.dart
 // Guarda la configuración en Firestore: players/{uid}/avatar_config (como subcampo)
 
-import 'package:RiskRunner/Widgets/avatar_widget.dart';
+import 'package:RiskRunner/widgets/avatar_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

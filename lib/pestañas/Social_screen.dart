@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'package:RiskRunner/Pesta%C3%B1as/clan_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/clan_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'perfil_screen.dart';
-import '../Widgets/custom_navbar.dart';
+import '../widgets/custom_navbar.dart';
 import '../services/league_service.dart';
 
 // =============================================================================
