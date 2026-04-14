@@ -17,7 +17,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Build APK
-        run: flutter build apk --release --dart-define=MAPBOX_TOKEN=${{ secrets.MAPBOX_TOKEN }}
+        run: flutter build apk --release --dart-define=MAPBOX_TOKEN=${{ secrets.MAPBOX_TOKEN }} 2>&1 | tee build_output.txt; exit ${PIPESTATUS[0]}
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_log
+          path: build_output.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
