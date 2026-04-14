@@ -5,7 +5,7 @@
 
         <meta-data
             android:name="com.mapbox.token"
-            android:value="Tpk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1keTI1bjkwN25qMm9zNzFlOXZkeG9wIn0.l186BxbIhi6-vAXtBjIzsw"/>
+            android:value="pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA"/>
 
         <activity
             android:name=".MainActivity"
@@ -37,8 +37,3 @@
         </intent>
     </queries>
 </manifest>
-```
-
-Copia esto, reemplaza el contenido del archivo en VS Code, guárdalo y luego ejecuta en la terminal del Mac:
-```
-flutter run -d web-server --web-port=8080 --web-hostname=0.0.0.0
