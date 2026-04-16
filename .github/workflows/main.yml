@@ -12,8 +12,11 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Flutter dependencies
+      - name: Flutter pub get
         run: flutter pub get
+
+      - name: Generate iOS config (registers plugins)
+        run: flutter build ios --release --no-codesign --config-only
 
       - name: Pod install
         run: |
