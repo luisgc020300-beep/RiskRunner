@@ -1,6 +1,7 @@
 name: Build iOS IPA
 on:
   workflow_dispatch:
+
 jobs:
   build_ios:
     runs-on: macos-latest
@@ -14,27 +15,10 @@ jobs:
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Generate Flutter files
-        run: flutter build ios --release --no-codesign 2>&1 || true
-
-      - name: Show GeneratedPluginRegistrant
-        if: always()
-        run: cat ios/Runner/GeneratedPluginRegistrant.m || echo "No existe"
-
-      - name: Patch GeneratedPluginRegistrant
-        run: |
-          FILE="ios/Runner/GeneratedPluginRegistrant.m"
-          # Eliminar los bloques @import que fallan
-          sed -i '' '/@import cloud_firestore/d' "$FILE"
-          sed -i '' '/@import firebase_auth/d' "$FILE"
-          sed -i '' '/@import firebase_core/d' "$FILE"
-          sed -i '' '/@import firebase_messaging/d' "$FILE"
-          sed -i '' '/@import cloud_functions/d' "$FILE"
-          echo "=== Archivo parcheado ==="
-          cat "$FILE"
-
       - name: Pod install
-        run: cd ios && pod install --repo-update
+        run: |
+          cd ios
+          pod install --repo-update
 
       - name: Build with xcodebuild
         run: |
@@ -48,18 +32,16 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | grep -E "(error:|BUILD|FAILED|SUCCEEDED)" | tail -50
+            archive
 
       - name: Package IPA
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
           echo "APP: $APP_PATH"
-          ls -la "$APP_PATH"
           mkdir -p $GITHUB_WORKSPACE/build/ipa/Payload
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
-          ls -lh $GITHUB_WORKSPACE/risk_runner.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
