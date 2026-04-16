@@ -1,7 +1,6 @@
 name: Build iOS IPA
 on:
   workflow_dispatch:
-
 jobs:
   build_ios:
     runs-on: macos-latest
@@ -21,6 +20,7 @@ jobs:
       - name: Pod install
         run: |
           cd ios
+          rm -rf Pods Podfile.lock
           pod install --repo-update
 
       - name: Build with xcodebuild
@@ -40,7 +40,6 @@ jobs:
       - name: Package IPA
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
-          echo "APP: $APP_PATH"
           mkdir -p $GITHUB_WORKSPACE/build/ipa/Payload
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
