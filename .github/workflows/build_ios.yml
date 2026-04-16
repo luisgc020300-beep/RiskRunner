@@ -6,23 +6,23 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
+      
       - name: Flutter pub get
         run: flutter pub get
-
-      - name: Generate iOS config (registers plugins)
+      
+      - name: Generate iOS config
         run: flutter build ios --release --no-codesign --config-only
-
+      
       - name: Pod install
         run: |
           cd ios
           rm -rf Pods Podfile.lock
           pod install --repo-update
-
+      
       - name: Build with xcodebuild
         run: |
           xcodebuild \
@@ -36,17 +36,29 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive
-
+      
       - name: Package IPA
         run: |
-          APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
+          APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found in Products/Applications, searching broader..."
+            APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
+          fi
+          echo "Using app at: $APP_PATH"
           mkdir -p $GITHUB_WORKSPACE/build/ipa/Payload
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
-
+          echo "IPA created successfully"
+      
+      - name: Verify IPA structure
+        run: |
+          echo "IPA contents:"
+          unzip -l $GITHUB_WORKSPACE/risk_runner.ipa | head -20
+      
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: risk_runner_ipa
           path: ${{ github.workspace }}/risk_runner.ipa
+          retention-days: 7
