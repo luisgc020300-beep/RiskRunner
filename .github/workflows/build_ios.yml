@@ -1,28 +1,42 @@
 name: Build iOS IPA
+
 on:
   workflow_dispatch:
+
 jobs:
   build_ios:
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      
+
       - name: Flutter pub get
         run: flutter pub get
-      
+
       - name: Generate iOS config
         run: flutter build ios --release --no-codesign --config-only
-      
+
+      - name: Setup Ruby and CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+
+      - name: Install CocoaPods
+        run: gem install cocoapods
+
       - name: Pod install
         run: |
           cd ios
           rm -rf Pods Podfile.lock
           pod install --repo-update
-      
+        env:
+          COCOAPODS_DISABLE_STATS: true
+
       - name: Build with xcodebuild
         run: |
           xcodebuild \
@@ -36,7 +50,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive
-      
+
       - name: Package IPA
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
@@ -50,12 +64,12 @@ jobs:
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
           echo "IPA created successfully"
-      
+
       - name: Verify IPA structure
         run: |
           echo "IPA contents:"
           unzip -l $GITHUB_WORKSPACE/risk_runner.ipa | head -20
-      
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
