@@ -19,16 +19,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Ruby + CocoaPods version fija ──────────────────────────────────
-      #   Los runners de GitHub tienen CocoaPods pero a veces con versión vieja.
-      #   Forzamos una versión reciente estable.
-      - name: Setup Ruby and CocoaPods
+      # ── 2. Ruby + CocoaPods ────────────────────────────────────────────────
+      - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: false
 
-      - name: Install CocoaPods gem
+      - name: Install CocoaPods
         run: gem install cocoapods --no-document
 
       # ── 3. Flutter ─────────────────────────────────────────────────────────
@@ -45,25 +42,26 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # ── 5. Generar archivos de configuración iOS ───────────────────────────
-      #   --config-only genera Podfile y GeneratedPluginRegistrant.m
-      #   sin ejecutar pod install ni compilar nada
+      # ── 5. Generar config iOS (Podfile + GeneratedPluginRegistrant) ────────
       - name: Generate iOS native config
         run: flutter build ios --config-only --release --no-codesign
 
-      # ── 6. Pod install limpio ──────────────────────────────────────────────
-      #   Ejecutamos pod install con la versión que acabamos de instalar.
-      #   El Podfile ya está generado correctamente por el paso anterior.
+      # ── 6. Reemplazar Podfile con versión corregida ────────────────────────
+      #   El Podfile del repo tiene los fixes para cloud_firestore
+      #   con static linkage. flutter --config-only puede sobreescribirlo,
+      #   así que lo restauramos desde git después de config-only.
+      - name: Restore fixed Podfile
+        run: git checkout ios/Podfile
+
+      # ── 7. Pod install limpio ──────────────────────────────────────────────
       - name: Install CocoaPods dependencies
         run: |
           cd ios
-          pod install --repo-update --verbose
+          pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: "true"
 
-      # ── 7. Build con xcodebuild usando el WORKSPACE ────────────────────────
-      #   CRÍTICO: usar Runner.xcworkspace (no .xcodeproj) para que
-      #   Xcode encuentre los Pods y sus módulos (cloud_firestore, etc.)
+      # ── 8. Build con xcodebuild ────────────────────────────────────────────
       - name: Build iOS with xcodebuild
         run: |
           xcodebuild \
@@ -75,25 +73,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE="" \
-            | xcpretty --color || xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE=""
 
-      # ── 8. Subir artefacto ─────────────────────────────────────────────────
+      # ── 9. Subir artefacto ─────────────────────────────────────────────────
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-release-app
-          path: |
-            build/ios/iphoneos/Runner.app
-            ~/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/Runner.app
+          path: build/ios/iphoneos/Runner.app
           retention-days: 7
           if-no-files-found: warn
