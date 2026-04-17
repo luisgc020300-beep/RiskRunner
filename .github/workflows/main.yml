@@ -19,7 +19,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Flutter ─────────────────────────────────────────────────────────
+      # ── 2. Ruby + CocoaPods version fija ──────────────────────────────────
+      #   Los runners de GitHub tienen CocoaPods pero a veces con versión vieja.
+      #   Forzamos una versión reciente estable.
+      - name: Setup Ruby and CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
+
+      - name: Install CocoaPods gem
+        run: gem install cocoapods --no-document
+
+      # ── 3. Flutter ─────────────────────────────────────────────────────────
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -29,47 +41,59 @@ jobs:
       - name: Flutter version info
         run: flutter --version
 
-      # ── 3. Flutter dependencies ────────────────────────────────────────────
+      # ── 4. Flutter pub get ─────────────────────────────────────────────────
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # ── 4. Generar archivos iOS nativos SIN compilar ───────────────────────
-      #   flutter build ios regenera Podfile y GeneratedPluginRegistrant.
-      #   Con --config-only solo genera los archivos de config, no compila
-      #   ni ejecuta pod install.
-      - name: Generate iOS config files (no build, no pod install)
+      # ── 5. Generar archivos de configuración iOS ───────────────────────────
+      #   --config-only genera Podfile y GeneratedPluginRegistrant.m
+      #   sin ejecutar pod install ni compilar nada
+      - name: Generate iOS native config
         run: flutter build ios --config-only --release --no-codesign
 
-      # ── 5. Instalar CocoaPods desde cero ───────────────────────────────────
-      #   Ahora que Podfile está generado correctamente, instalamos los pods.
-      #   --repo-update asegura que descarga cloud_firestore y Firebase frescos.
-      - name: Install CocoaPods
+      # ── 6. Pod install limpio ──────────────────────────────────────────────
+      #   Ejecutamos pod install con la versión que acabamos de instalar.
+      #   El Podfile ya está generado correctamente por el paso anterior.
+      - name: Install CocoaPods dependencies
         run: |
           cd ios
-          pod install --repo-update
+          pod install --repo-update --verbose
         env:
           COCOAPODS_DISABLE_STATS: "true"
 
-      # ── 6. Compilar con xcodebuild directamente ────────────────────────────
-      #   Usamos xcodebuild en lugar de flutter build ios para evitar que
-      #   Flutter vuelva a ejecutar pod install y rompa la instalación.
+      # ── 7. Build con xcodebuild usando el WORKSPACE ────────────────────────
+      #   CRÍTICO: usar Runner.xcworkspace (no .xcodeproj) para que
+      #   Xcode encuentre los Pods y sus módulos (cloud_firestore, etc.)
       - name: Build iOS with xcodebuild
         run: |
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -destination generic/platform=iOS \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            FLUTTER_BUILD_MODE=release \
-            build
+            PROVISIONING_PROFILE="" \
+            | xcpretty --color || xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE=""
 
-      # ── 7. Subir artefacto ─────────────────────────────────────────────────
+      # ── 8. Subir artefacto ─────────────────────────────────────────────────
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-release-app
-          path: build/ios/iphoneos/Runner.app
+          path: |
+            build/ios/iphoneos/Runner.app
+            ~/Library/Developer/Xcode/DerivedData/**/Build/Products/Release-iphoneos/Runner.app
           retention-days: 7
+          if-no-files-found: warn
