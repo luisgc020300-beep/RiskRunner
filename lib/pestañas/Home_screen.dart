@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/paywall_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/settings_screen.dart';
 import 'package:RiskRunner/services/league_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +24,7 @@ import '../widgets/onboarding_overlay.dart';
 import 'fullscreen_map_screen.dart';
 import 'notifications_screen.dart';
 import 'perfil_screen.dart';
-import 'story_viewer_screen.dart';
+import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
 import '../widgets/conquista_overlay.dart';
 
 // =============================================================================
@@ -37,44 +38,56 @@ const _kMapboxTileUrl =
 // DESIGN TOKENS — Paleta dorada/pergamino
 // Rojo SOLO para alertas e invasiones
 // =============================================================================
-class _T {
-  // Fondos
-  static const bg0    = Color(0xFFE8E8ED);
-  static const bg1    = Color(0xFFFFFFFF);
-  static const bg2    = Color(0xFFE5E5EA);
-  static const bg3    = Color(0xFFE8E8ED);
-  static const bg4    = Color(0xFFFFFFFF);
+// Paleta dinámica: se actualiza en cada build() según brightness
+class _TColors {
+  final Color bg0, bg1, bg2, bg3, bg4;
+  final Color parch, gold, bronze, terra;
+  final Color white, text, sub, dim, muted;
+  final Color border, border2;
+  final Color safe, warn, red, redD, redGlow;
 
-  // Colores principales
-  static const parch  = Color(0xFF1C1C1E); // texto principal
-  static const gold   = Color(0xFFFFD60A); // dorado — XP, monedas, premium
-  static const bronze = Color(0xFF636366); // gris medio — CTAs
-  static const terra  = Color(0xFFAEAEB2); // gris claro
+  const _TColors._({
+    required this.bg0, required this.bg1, required this.bg2,
+    required this.bg3, required this.bg4,
+    required this.parch, required this.gold, required this.bronze, required this.terra,
+    required this.white, required this.text, required this.sub,
+    required this.dim, required this.muted,
+    required this.border, required this.border2,
+    required this.safe, required this.warn,
+    required this.red, required this.redD, required this.redGlow,
+  });
 
-  // Textos
-  static const white  = Color(0xFF1C1C1E);
-  static const text   = Color(0xFF3C3C43);
-  static const sub    = Color(0xFF636366);
-  static const dim    = Color(0xFF8E8E93);
-  static const muted  = Color(0xFFAEAEB2);
+  static const light = _TColors._(
+    bg0: Color(0xFFE8E8ED), bg1: Color(0xFFFFFFFF), bg2: Color(0xFFE5E5EA),
+    bg3: Color(0xFFE8E8ED), bg4: Color(0xFFFFFFFF),
+    parch: Color(0xFF1C1C1E), gold: Color(0xFFFFD60A),
+    bronze: Color(0xFF636366), terra: Color(0xFFAEAEB2),
+    white: Color(0xFF1C1C1E), text: Color(0xFF3C3C43),
+    sub: Color(0xFF636366), dim: Color(0xFF8E8E93), muted: Color(0xFFAEAEB2),
+    border: Color(0xFFC6C6C8), border2: Color(0xFFD1D1D6),
+    safe: Color(0xFF30D158), warn: Color(0xFFFF9800),
+    red: Color(0xFFE02020), redD: Color(0xFFFF6B6B), redGlow: Color(0x22E02020),
+  );
 
-  // Bordes
-  static const border  = Color(0xFFC6C6C8);
-  static const border2 = Color(0xFFD1D1D6);
+  static const dark = _TColors._(
+    bg0: Color(0xFF090807), bg1: Color(0xFF1C1C1E), bg2: Color(0xFF2C2C2E),
+    bg3: Color(0xFF090807), bg4: Color(0xFF1C1C1E),
+    parch: Color(0xFFEAD9AA), gold: Color(0xFFFFD60A),
+    bronze: Color(0xFF8E8E93), terra: Color(0xFF636366),
+    white: Color(0xFFEEEEEE), text: Color(0xFFD1D1D6),
+    sub: Color(0xFF8E8E93), dim: Color(0xFF636366), muted: Color(0xFF48484A),
+    border: Color(0xFF38383A), border2: Color(0xFF2C2C2E),
+    safe: Color(0xFF30D158), warn: Color(0xFFFF9800),
+    red: Color(0xFFE02020), redD: Color(0xFFFF6B6B), redGlow: Color(0x22E02020),
+  );
 
-  // Semánticos — sin cambios
-  static const safe = Color(0xFF30D158);
-  static const warn = Color(0xFFFF9800);
-
-  // GRIS — alertas e invasiones
-  static const red     = Color(0xFFE02020);
-  static const redD    = Color(0xFFFF6B6B);
-  static const redGlow = Color(0x22E02020);
+  static _TColors of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
 }
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.rajdhani(
+    GoogleFonts.inter(
       fontSize: size, fontWeight: weight, color: color,
       letterSpacing: spacing, height: height,
     );
@@ -175,6 +188,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
+  // Paleta dinámica — se actualiza al inicio de cada build()
+  _TColors _T = _TColors.light;
+
   // ── Perfil
   Position? _currentPosition;
   String nickname = "Cargando...";
@@ -183,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? fotoBase64;
   bool isLoading = true;
 
-  Color _accentColor = _T.bronze;
+  Color _accentColor = _TColors.light.bronze;
 
   // ── Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
@@ -223,6 +239,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<FeedPost> _feedPosts = [];
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
+  // Cache de avatares actuales por userId (evita mostrar fotos desactualizadas)
+  final Map<String, String?> _avatarCache = {};
 
   // ── Tab activa
   int _tabIndex = 0;
@@ -341,13 +359,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final posts = snap.docs
           .map((doc) => FeedPost.fromFirestore(doc, uid))
           .toList();
-      setState(() {
+      if (mounted) setState(() {
         _feedPosts = posts;
         _loadingFeed = false;
       });
+      // Actualizar cache de avatares para los userIds nuevos
+      final idsNuevos = posts.map((p) => p.userId).toSet()
+          .difference(_avatarCache.keys.toSet());
+      if (idsNuevos.isNotEmpty) _actualizarAvatarCache(idsNuevos);
     }, onError: (e) {
       if (mounted) setState(() => _loadingFeed = false);
     });
+  }
+
+  Future<void> _actualizarAvatarCache(Set<String> userIds) async {
+    for (final uid in userIds) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('usuarios').doc(uid).get();
+        if (!mounted) return;
+        final foto = doc.data()?['foto_base64'] as String?;
+        setState(() => _avatarCache[uid] = foto);
+      } catch (_) {
+        _avatarCache[uid] = null;
+      }
+    }
   }
 
   Future<void> _toggleLike(FeedPost post) async {
@@ -398,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: _snackContainer(
                   border: _T.bronze,
                   child: Row(children: [
-                    const Text('👑', style: TextStyle(fontSize: 18)),
+                    const Text('', style: TextStyle(fontSize: 18)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -441,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             border: _T.border2,
             child: Row(children: [
               Container(width: 5, height: 5,
-                  decoration: const BoxDecoration(color: _T.safe, shape: BoxShape.circle)),
+                  decoration: BoxDecoration(color: _T.safe, shape: BoxShape.circle)),
               const SizedBox(width: 10),
               Text('RUTA GUARDADA', style: _raj(11, FontWeight.w900, _T.white, spacing: 2)),
             ]),
@@ -743,7 +779,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
               padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                   border: Border(bottom: BorderSide(color: _T.border2))),
               child: Row(children: [
                 Container(width: 2, height: 18,
@@ -781,7 +817,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         children: [
                           TileLayer(urlTemplate: _kMapboxTileUrl,
                               userAgentPackageName: 'com.runner_risk.app',
-                              tileSize: 256,
+                              tileDimension: 256,
                               additionalOptions: const {'accessToken': _kMapboxToken}),
                           PolygonLayer(polygons: [
                             Polygon(points: det.puntos,
@@ -892,7 +928,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (change.type == DocumentChangeType.added) {
           final data = change.doc.data() as Map<String, dynamic>;
           _mostrarBannerInvasion(
-              data['message'] ?? '⚔️ Alguien está invadiendo tu territorio',
+              data['message'] ?? ' Alguien está invadiendo tu territorio',
               change.doc.id);
         }
       }
@@ -914,7 +950,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             border: Border.all(color: _T.red.withOpacity(0.5)),
             boxShadow: [BoxShadow(color: _T.redGlow, blurRadius: 20)]),
         child: Row(children: [
-          const Text('⚔️', style: TextStyle(fontSize: 22)),
+          const Text('', style: TextStyle(fontSize: 22)),
           const SizedBox(width: 12),
           Expanded(child: Text(mensaje,
               style: _raj(13, FontWeight.w700, _T.white, spacing: 0.5))),
@@ -1098,7 +1134,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 color: _T.bronze.withOpacity(0.08),
                 border: Border.all(color: _T.bronze.withOpacity(0.30)),
               ),
-              child: const Center(child: Text('⚡', style: TextStyle(fontSize: 26))),
+              child: const Center(child: Text('', style: TextStyle(fontSize: 26))),
             ),
             const SizedBox(height: 16),
             Text('INICIAR MISIÓN',
@@ -1194,7 +1230,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('🏴', style: TextStyle(fontSize: 14)),
+                        const Text('', style: TextStyle(fontSize: 14)),
                         const SizedBox(width: 8),
                         Text(
                           'INICIAR',
@@ -1273,7 +1309,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 boxShadow: [BoxShadow(color: _T.redGlow, blurRadius: 24)],
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🛡️', style: TextStyle(fontSize: 36)),
+                const Text('', style: TextStyle(fontSize: 36)),
                 const SizedBox(height: 14),
                 Text('CONQUISTA BLOQUEADA',
                     style: _raj(15, FontWeight.w900, _T.white, spacing: 2.5)),
@@ -1316,13 +1352,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .update({'userId': userId});
     await FirebaseFirestore.instance.collection('notifications').add({
       'toUserId': ownerIdObjetivo, 'type': 'territory_lost',
-      'message': '😤 ¡$nickname te ha robado un territorio! Sal a recuperarlo.',
+      'message': ' ¡$nickname te ha robado un territorio! Sal a recuperarlo.',
       'fromNickname': nickname, 'territoryId': territorioObjetivo.id,
       'read': false, 'timestamp': FieldValue.serverTimestamp(),
     });
     await FirebaseFirestore.instance.collection('notifications').add({
       'toUserId': userId, 'type': 'territory_conquered',
-      'message': '🏴 ¡Has conquistado un territorio de $ownerNicknameObjetivo!',
+      'message': ' ¡Has conquistado un territorio de $ownerNicknameObjetivo!',
       'fromNickname': ownerNicknameObjetivo, 'territoryId': territorioObjetivo.id,
       'distancia': 2.5, 'tiempo_segundos': 18 * 60, 'read': false,
       'timestamp': FieldValue.serverTimestamp(),
@@ -1390,7 +1426,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final horas = duracion.inHours;
           final minutos = duracion.inMinutes.remainder(60);
           final tiempoRestante = horas > 0 ? '${horas}h ${minutos}m' : '${minutos}m';
-          return '🛡️ Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
+          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
         }
       }
     } catch (e) {}
@@ -1569,7 +1605,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     children: [
                       TileLayer(urlTemplate: _kMapboxTileUrl,
                           userAgentPackageName: 'com.runner_risk.app',
-                          tileSize: 256,
+                          tileDimension: 256,
                           additionalOptions: const {'accessToken': _kMapboxToken}),
                       PolylineLayer(polylines: [
                         Polyline(points: ruta, color: _T.bronze, strokeWidth: 3.5)]),
@@ -1607,7 +1643,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _popupStat({required String value, required String unit, bool big = false}) {
     return Expanded(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(value, style: GoogleFonts.rajdhani(
+        Text(value, style: GoogleFonts.inter(
             fontSize: big ? 36 : 26, fontWeight: FontWeight.w700,
             color: _T.white, height: 1,
             letterSpacing: -0.5)),
@@ -1622,8 +1658,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // =============================================================================
   @override
   Widget build(BuildContext context) {
+    _T = _TColors.of(context);
     return Scaffold(
-      backgroundColor: _T.bg0,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: isLoading
           ? _buildLoadingState()
@@ -1690,7 +1727,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       title: Row(children: [
         RichText(
           text: TextSpan(
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.5),
             children: const [
               TextSpan(text: '[', style: TextStyle(color: Color(0xFF636366))),
@@ -1713,7 +1750,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               border: Border.all(color: _T.gold.withOpacity(0.30)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('🪙', style: TextStyle(fontSize: 12)),
+              const Text('', style: TextStyle(fontSize: 12)),
               const SizedBox(width: 4),
               Text('$monedas',
                 style: TextStyle(
@@ -1743,13 +1780,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         GestureDetector(
-          onTap: _initializeData,
+          onTap: () => SettingsScreen.mostrar(context),
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Icon(Icons.refresh_rounded, color: _T.dim, size: 20),
+            child: Icon(Icons.settings_outlined, color: _T.dim, size: 20),
           ),
         ),
-        _buildUserMenu(),
         const SizedBox(width: 8),
       ],
     );
@@ -1766,7 +1802,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _T.bg1,
         border: Border(bottom: BorderSide(color: _T.border2)),
       ),
@@ -1835,7 +1871,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           child: Container(
                             color: _T.bg2,
                             child: foto != null
-                                ? Image.memory(base64Decode(foto), fit: BoxFit.cover)
+                                ? Image.memory(base64Decode(foto), key: ValueKey(foto.hashCode), fit: BoxFit.cover, gaplessPlayback: true)
                                 : isMe
                                     ? Stack(alignment: Alignment.center, children: [
                                         Icon(Icons.person, color: _T.dim, size: 30),
@@ -2089,8 +2125,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       style: _raj(8, FontWeight.w900, _T.bronze, spacing: 1)),
                 ]),
               ),
-              const Padding(
-                padding: EdgeInsets.all(6),
+              Padding(
+                padding: const EdgeInsets.all(6),
                 child: Icon(Icons.more_horiz, color: _T.muted, size: 17),
               ),
             ]),
@@ -2133,16 +2169,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildAvatar(FeedPost post, {double radius = 18}) {
+    // Prioriza el avatar actualizado del cache; si no, usa el snapshot del post
+    final foto = _avatarCache.containsKey(post.userId)
+        ? _avatarCache[post.userId]
+        : post.userAvatarBase64;
     return Container(
       width: radius * 2 + 4, height: radius * 2 + 4,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: _T.bronze.withOpacity(0.45), width: 1.5),
+        border: Border.all(color: _T.bronze.withValues(alpha: 0.45), width: 1.5),
       ),
       child: ClipOval(
-        child: post.userAvatarBase64 != null
-            ? Image.memory(base64Decode(post.userAvatarBase64!),
-                fit: BoxFit.cover, width: radius * 2, height: radius * 2)
+        child: foto != null
+            ? Image.memory(
+                base64Decode(foto),
+                key: ValueKey(foto.hashCode),
+                fit: BoxFit.cover,
+                width: radius * 2,
+                height: radius * 2,
+                gaplessPlayback: true,
+              )
             : Container(
                 color: _T.bg2,
                 child: Center(child: Text(
@@ -2169,7 +2215,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: _T.bg0,
         border: Border(
-          left: const BorderSide(color: _T.bronze, width: 2),
+          left: BorderSide(color: _T.bronze, width: 2),
           top: BorderSide(color: _T.border2),
           right: BorderSide(color: _T.border2),
           bottom: BorderSide(color: _T.border2),
@@ -2191,7 +2237,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _statItem({required String value, required String unit, bool big = false}) {
     return Expanded(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(value, style: GoogleFonts.rajdhani(
+        Text(value, style: GoogleFonts.inter(
             fontSize: big ? 32 : 22, fontWeight: FontWeight.w700,
             color: _T.white, height: 1, letterSpacing: -0.5)),
         const SizedBox(height: 3),
@@ -2209,7 +2255,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Container(
       height: 280, margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(color: _T.bg0),
+      decoration: BoxDecoration(color: _T.bg0),
       child: Image.memory(base64Decode(post.mediaBase64!), fit: BoxFit.cover),
     );
   }
@@ -2230,7 +2276,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           children: [
             TileLayer(urlTemplate: _kMapboxTileUrl,
                 userAgentPackageName: 'com.runner_risk.app',
-                tileSize: 256,
+                tileDimension: 256,
                 additionalOptions: const {'accessToken': _kMapboxToken}),
             PolylineLayer(polylines: [
               Polyline(points: ruta, color: _T.bronze, strokeWidth: 3)
@@ -2494,7 +2540,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
           color: _T.bg1,
           border: Border(
-              left: const BorderSide(color: _T.safe, width: 2),
+              left: BorderSide(color: _T.safe, width: 2),
               top: BorderSide(color: _T.border2),
               right: BorderSide(color: _T.border2),
               bottom: BorderSide(color: _T.border2))),
@@ -2523,7 +2569,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         decoration: BoxDecoration(
             color: _T.bg1,
             border: Border(
-                left: const BorderSide(color: _T.safe, width: 2),
+                left: BorderSide(color: _T.safe, width: 2),
                 top: BorderSide(color: _T.border2),
                 right: BorderSide(color: _T.border2),
                 bottom: BorderSide(color: _T.border2))),
@@ -2605,7 +2651,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     color: goldColor.withOpacity(0.12),
                     border: Border.all(color: goldColor.withOpacity(0.4)),
                   ),
-                  child: Text('👑 PREMIUM',
+                  child: Text(' PREMIUM',
                       style: _raj(7, FontWeight.w900, goldColor, spacing: 0.8)),
                 ),
               ],
@@ -2618,7 +2664,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ])),
           const SizedBox(width: 10),
           Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('+$reward', style: GoogleFonts.rajdhani(
+            Text('+$reward', style: GoogleFonts.inter(
                 fontSize: 22, fontWeight: FontWeight.w700,
                 color: esPremium ? goldColor : _T.gold, height: 1)),
             Text('PTS', style: _raj(8, FontWeight.w800, _T.muted, spacing: 2)),
@@ -2799,21 +2845,22 @@ class _CommentInputState extends State<_CommentInput> {
 
   @override
   Widget build(BuildContext context) {
+    final _T = _TColors.of(context);
     return Container(
       padding: EdgeInsets.only(
           left: 14, right: 14, top: 10,
           bottom: MediaQuery.of(context).viewInsets.bottom + 14),
       decoration: BoxDecoration(
-          color: _T.bg2, border: const Border(top: BorderSide(color: _T.border2))),
+          color: _T.bg2, border: Border(top: BorderSide(color: _T.border2))),
       child: Row(children: [
         Container(
           width: 32, height: 32,
           decoration: BoxDecoration(shape: BoxShape.circle,
-              border: Border.all(color: _T.bronze.withOpacity(0.5))),
+              border: Border.all(color: _T.bronze.withValues(alpha: 0.5))),
           child: ClipOval(
             child: widget.fotoBase64 != null
                 ? Image.memory(base64Decode(widget.fotoBase64!), fit: BoxFit.cover)
-                : const Icon(Icons.person, color: _T.bronze, size: 16),
+                : Icon(Icons.person, color: _T.bronze, size: 16),
           ),
         ),
         const SizedBox(width: 10),
@@ -2827,9 +2874,9 @@ class _CommentInputState extends State<_CommentInput> {
               hintText: 'Añadir comentario...',
               hintStyle: _raj(13, FontWeight.w400, _T.muted),
               filled: true, fillColor: _T.bg1,
-              border: const OutlineInputBorder(borderRadius: BorderRadius.zero,
+              border: OutlineInputBorder(borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(color: _T.border2)),
-              enabledBorder: const OutlineInputBorder(borderRadius: BorderRadius.zero,
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.zero,
                   borderSide: BorderSide(color: _T.border2)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             ),

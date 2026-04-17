@@ -60,19 +60,19 @@ class _Pack {
 const _packs = [
   _Pack(
     rcId: 'coins_patrol', titulo: 'Pack Patrulla',
-    emoji: '🪙', precio: '0,99€', monedas: 150,
+    emoji: '', precio: '0,99€', monedas: 150,
     descripcion: 'Para un boost puntual o un cambio de color',
     accent: _C.silver,
   ),
   _Pack(
     rcId: 'coins_commander', titulo: 'Pack Comandante',
-    emoji: '💰', precio: '2,99€', monedas: 500,
+    emoji: '', precio: '2,99€', monedas: 500,
     descripcion: 'Para varias personalizaciones o desbloqueos',
     etiqueta: 'MÁS POPULAR', accent: _C.bronze,
   ),
   _Pack(
     rcId: 'coins_legend', titulo: 'Pack Leyenda',
-    emoji: '👑', precio: '7,99€', monedas: 1500,
+    emoji: '', precio: '7,99€', monedas: 1500,
     descripcion: 'El arsenal completo para dominar el mapa',
     etiqueta: 'MEJOR VALOR', accent: _C.gold,
   ),
@@ -174,7 +174,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             HapticFeedback.heavyImpact();
             setState(() {
               _comprando  = null;
-              _successMsg = '¡${pack.monedas} monedas añadidas! 🪙';
+              _successMsg = '¡${pack.monedas} monedas añadidas! ';
               _monedas   += pack.monedas;
             });
           }
@@ -215,7 +215,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       db.collection('notifications').add({
         'toUserId':  uid,
         'type':      'coins_purchased',
-        'message':   '🪙 ¡Recibiste $cantidad monedas de "$motivo"!',
+        'message':   ' ¡Recibiste $cantidad monedas de "$motivo"!',
         'read':      false,
         'timestamp': FieldValue.serverTimestamp(),
       }),
@@ -274,7 +274,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                 'Las monedas son solo para personalización — '
                 'no afectan a la conquista de territorios.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.rajdhani(
+                style: GoogleFonts.inter(
                     color: _C.dimTxt.withValues(alpha: 0.6),
                     fontSize: 10, height: 1.5)),
             ]),
@@ -295,7 +295,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       onPressed: () => Navigator.pop(context),
     ),
     title: Text('TIENDA DE MONEDAS',
-      style: GoogleFonts.rajdhani(
+      style: GoogleFonts.inter(
         color: Colors.white, fontSize: 14,
         fontWeight: FontWeight.w900, letterSpacing: 3)),
     actions: [
@@ -335,11 +335,11 @@ class _CoinShopScreenState extends State<CoinShopScreen>
           border: Border.all(color: _C.gold.withValues(alpha: 0.25)),
         ),
         child: const Center(
-          child: Text('🪙', style: TextStyle(fontSize: 24))),
+          child: Text('', style: TextStyle(fontSize: 24))),
       ),
       const SizedBox(width: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('TUS MONEDAS', style: GoogleFonts.rajdhani(
+        Text('TUS MONEDAS', style: GoogleFonts.inter(
           color: _C.dimTxt, fontSize: 9,
           fontWeight: FontWeight.w700, letterSpacing: 2)),
         const SizedBox(height: 3),
@@ -351,7 +351,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                   borderRadius: BorderRadius.circular(4),
                 ),
               )
-            : Text('$_monedas', style: GoogleFonts.rajdhani(
+            : Text('$_monedas', style: GoogleFonts.inter(
                 color: _C.gold, fontSize: 28,
                 fontWeight: FontWeight.w900, height: 1)),
       ]),
@@ -382,7 +382,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
           const SizedBox(width: 5),
           Text(
             _rcDisponible ? 'Activa' : 'Próximamente',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color: _rcDisponible ? _C.green : _C.dimTxt,
               fontSize: 10, fontWeight: FontWeight.w700)),
         ]),
@@ -400,7 +400,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       ),
     ),
     const SizedBox(width: 10),
-    Text(text, style: GoogleFonts.rajdhani(
+    Text(text, style: GoogleFonts.inter(
       color: _C.dimTxt, fontSize: 10,
       fontWeight: FontWeight.w700, letterSpacing: 2)),
   ]);
@@ -432,7 +432,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             ),
             child: Text(pack.etiqueta!,
               textAlign: TextAlign.center,
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                 color: _C.bg0, fontSize: 10,
                 fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ),
@@ -465,7 +465,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                 ),
                 child: Text(
                   _fmtCoins(pack.monedas),
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                     color: pack.accent, fontSize: 11,
                     fontWeight: FontWeight.w900)),
               ),
@@ -476,11 +476,11 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              Text(pack.titulo, style: GoogleFonts.rajdhani(
+              Text(pack.titulo, style: GoogleFonts.inter(
                 color: _C.t1, fontSize: 15,
                 fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(pack.descripcion, style: GoogleFonts.rajdhani(
+              Text(pack.descripcion, style: GoogleFonts.inter(
                   color: _C.dimTxt, fontSize: 12, height: 1.3)),
             ])),
 
@@ -490,7 +490,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-              Text(precioMostrado, style: GoogleFonts.rajdhani(
+              Text(precioMostrado, style: GoogleFonts.inter(
                 color: pack.accent, fontSize: 20,
                 fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
@@ -522,7 +522,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             ? const SizedBox(width: 16, height: 16,
                 child: CircularProgressIndicator(
                     color: Colors.white, strokeWidth: 2))
-            : Text('COMPRAR', style: GoogleFonts.rajdhani(
+            : Text('COMPRAR', style: GoogleFonts.inter(
                 color: _C.bg0, fontSize: 11,
                 fontWeight: FontWeight.w900, letterSpacing: 1)),
       ),
@@ -545,7 +545,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       child: Row(children: [
         Icon(icon, color: color, size: 16),
         const SizedBox(width: 10),
-        Expanded(child: Text(msg, style: GoogleFonts.rajdhani(
+        Expanded(child: Text(msg, style: GoogleFonts.inter(
             color: color, fontSize: 12, height: 1.4))),
         GestureDetector(
           onTap: () => setState(() {
@@ -561,13 +561,13 @@ class _CoinShopScreenState extends State<CoinShopScreen>
   // ── Para qué sirven ───────────────────────────────────────────────────────
   Widget _paraQueSection() {
     final usos = [
-      ('🎨', 'Personalizar tu avatar',
+      ('', 'Personalizar tu avatar',
           'Peinados, colores neón, opciones exclusivas'),
-      ('🛡️', 'Escudos de territorio',
+      ('', 'Escudos de territorio',
           'Protege tus zonas días extra'),
-      ('⚡', 'Boost de XP puntual',
+      ('', 'Boost de XP puntual',
           'Multiplica tus puntos en una carrera'),
-      ('💰', 'Apuestas en desafíos',
+      ('', 'Apuestas en desafíos',
           'Sube la apuesta en tus duelos PvP'),
     ];
     return Column(
@@ -605,11 +605,11 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    Text(titulo, style: GoogleFonts.rajdhani(
+                    Text(titulo, style: GoogleFonts.inter(
                       color: _C.t1, fontSize: 13,
                       fontWeight: FontWeight.w700)),
                     const SizedBox(height: 1),
-                    Text(sub, style: GoogleFonts.rajdhani(
+                    Text(sub, style: GoogleFonts.inter(
                         color: _C.dimTxt, fontSize: 11)),
                   ])),
                 ]),
@@ -643,7 +643,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: _C.border),
     ),
-    child: Text(text, style: GoogleFonts.rajdhani(
+    child: Text(text, style: GoogleFonts.inter(
         color: _C.dimTxt, fontSize: 10, fontWeight: FontWeight.w600)),
   );
 
@@ -666,7 +666,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             )),
           const SizedBox(height: 20),
           Text('Preguntas frecuentes',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color: _C.t1, fontSize: 15,
               fontWeight: FontWeight.w800, letterSpacing: 1)),
           const SizedBox(height: 18),
@@ -690,18 +690,18 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     padding: const EdgeInsets.only(bottom: 14),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-      Text(q, style: GoogleFonts.rajdhani(
+      Text(q, style: GoogleFonts.inter(
         color: _C.bronze, fontSize: 13,
         fontWeight: FontWeight.w700)),
       const SizedBox(height: 3),
-      Text(a, style: GoogleFonts.rajdhani(
+      Text(a, style: GoogleFonts.inter(
           color: _C.dimTxt, fontSize: 12, height: 1.4)),
     ]),
   );
 
   // ── Helper ────────────────────────────────────────────────────────────────
   String _fmtCoins(int m) =>
-      m >= 1000 ? '${(m / 1000).toStringAsFixed(1)}K 🪙' : '$m 🪙';
+      m >= 1000 ? '${(m / 1000).toStringAsFixed(1)}K ' : '$m ';
 }
 
 // =============================================================================

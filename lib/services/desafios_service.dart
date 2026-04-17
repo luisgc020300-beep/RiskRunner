@@ -131,19 +131,19 @@ class DesafiosService {
   }
 
   static Stream<List<DesafioInfo>> streamHistorial(String uid) {
+    // Sin orderBy para evitar requerir índice compuesto en Firestore.
+    // _combinarStreams ya ordena por inicio desc.
     final q1 = _db.collection('desafios')
         .where('retadorId', isEqualTo: uid)
         .where('estado', isEqualTo: 'finalizado')
-        .orderBy('fin', descending: true)
-        .limit(20)
+        .limit(30)
         .snapshots()
         .map((s) => s.docs.map(DesafioInfo.fromFirestore).toList());
 
     final q2 = _db.collection('desafios')
         .where('retadoId', isEqualTo: uid)
         .where('estado', isEqualTo: 'finalizado')
-        .orderBy('fin', descending: true)
-        .limit(20)
+        .limit(30)
         .snapshots()
         .map((s) => s.docs.map(DesafioInfo.fromFirestore).toList());
 

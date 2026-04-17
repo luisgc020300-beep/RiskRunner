@@ -30,6 +30,7 @@ dependencies:
   purchases_flutter: ^9.13.1  
   purchases_ui_flutter: ^9.13.1
   shimmer: ^3.0.0
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

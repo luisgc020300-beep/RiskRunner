@@ -1,5 +1,6 @@
 // lib/screens/perfil_screen.dart
 import '../scripts/seed_fantasmas_granada.dart';
+import 'settings_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -23,33 +24,63 @@ import '../services/league_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
+import '../config/env.dart';
 import '../services/zona_service.dart';
 import '../services/desafios_service.dart';
 import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
 import 'coin_shop_screen.dart';
 
-const _kMapboxToken   = String.fromEnvironment('MAPBOX_TOKEN');
+const _kMapboxToken   = Env.mapboxPublicToken;
 const _kMapboxStyleId = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/$_kMapboxStyleId/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
-const _kBg       = Color(0xFFE8E8ED);
-const _kSurface  = Color(0xFFFFFFFF);
-const _kSurface2 = Color(0xFFE5E5EA);
-const _kBorder   = Color(0xFFC6C6C8);
-const _kBorder2  = Color(0xFFD1D1D6);
-const _kMuted    = Color(0xFFAEAEB2);
-const _kDim      = Color(0xFF8E8E93);
-const _kSubtext  = Color(0xFF636366);
-const _kText     = Color(0xFF3C3C43);
-const _kWhite    = Color(0xFF1C1C1E);
-const _kAccent   = Color(0xFFE02020);
-const _kGold     = Color(0xFFFFD60A);
+// Colores fijos
+const _kAccent = Color(0xFFE02020);
+const _kGold   = Color(0xFFFFD60A);
+
+// Paleta adaptativa dark / light
+class _PP {
+  final Color bg, surface, surface2;
+  final Color border, border2, muted, dim, sub, text, title;
+  const _PP._({
+    required this.bg,      required this.surface,  required this.surface2,
+    required this.border,  required this.border2,
+    required this.muted,   required this.dim,      required this.sub,
+    required this.text,    required this.title,
+  });
+  static const light = _PP._(
+    bg:       Color(0xFFE8E8ED),
+    surface:  Color(0xFFFFFFFF),
+    surface2: Color(0xFFE5E5EA),
+    border:   Color(0xFFC6C6C8),
+    border2:  Color(0xFFD1D1D6),
+    muted:    Color(0xFFAEAEB2),
+    dim:      Color(0xFF8E8E93),
+    sub:      Color(0xFF636366),
+    text:     Color(0xFF3C3C43),
+    title:    Color(0xFF1C1C1E),
+  );
+  static const dark = _PP._(
+    bg:       Color(0xFF090807),
+    surface:  Color(0xFF1C1C1E),
+    surface2: Color(0xFF2C2C2E),
+    border:   Color(0xFF38383A),
+    border2:  Color(0xFF2C2C2E),
+    muted:    Color(0xFF48484A),
+    dim:      Color(0xFF8E8E93),
+    sub:      Color(0xFF8E8E93),
+    text:     Color(0xFFD1D1D6),
+    title:    Color(0xFFEEEEEE),
+  );
+  static _PP of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
+}
 
 TextStyle _rajdhani(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height, List<Shadow>? shadows}) {
-  return GoogleFonts.rajdhani(
+  return GoogleFonts.inter(
     fontSize: size, fontWeight: weight, color: color,
     letterSpacing: spacing, height: height, shadows: shadows,
   );
@@ -65,6 +96,8 @@ class PerfilScreen extends StatefulWidget {
 
 class _PerfilScreenState extends State<PerfilScreen>
     with TickerProviderStateMixin {
+
+  _PP get _p => _PP.of(context);
 
   String? get myUserId     => FirebaseAuth.instance.currentUser?.uid;
   String? get viewedUserId => widget.targetUserId ?? myUserId;
@@ -172,8 +205,9 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<PuntoTendencia> _tendencia8Semanas = [];
   ComparativaSemanal?  _comparativaSemanal;
   Map<int, String>     _nombresZonas     = {};  // índice territorio → nombre
-  bool _loadingStatsPremium = false;
-  bool _statsPremiumCargadas = false;
+  bool   _loadingStatsPremium  = false;
+  bool   _statsPremiumCargadas = false;
+  String _statsPremiumError    = '';
 
   late AnimationController _entradaAnim;
   late AnimationController _loopAnim;
@@ -233,14 +267,13 @@ class _PerfilScreenState extends State<PerfilScreen>
   Future<void> _cargarStatsPremium() async {
     if (!_isPremium || _statsPremiumCargadas || _loadingStatsPremium) return;
     if (viewedUserId == null) return;
-    setState(() => _loadingStatsPremium = true);
+    setState(() { _loadingStatsPremium = true; _statsPremiumError = ''; });
     try {
-      // Carreras de las últimas 8 semanas (máx 200 — límite premium)
+      // Sin orderBy para evitar índice compuesto Firestore; ordenamos en Dart.
       final uid = viewedUserId!;
       final snap = await FirebaseFirestore.instance
           .collection('activity_logs')
           .where('userId', isEqualTo: uid)
-          .orderBy('timestamp', descending: true)
           .limit(200)
           .get();
 
@@ -264,6 +297,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           ritmoMinKm: ritmo, zona: zona, calles: [], ruta: [],
         ));
       }
+      // Ordenar por fecha desc (sustituye el orderBy eliminado)
+      carreras.sort((a, b) => b.fecha.compareTo(a.fecha));
 
       final tendencia    = StatsService.calcularTendencia8Semanas(carreras);
       final comparativa  = StatsService.calcularComparativaSemanal(carreras);
@@ -293,7 +328,10 @@ class _PerfilScreenState extends State<PerfilScreen>
       });
     } catch (e) {
       debugPrint('Error cargando stats premium: $e');
-      if (mounted) setState(() => _loadingStatsPremium = false);
+      if (mounted) setState(() {
+        _loadingStatsPremium = false;
+        _statsPremiumError   = 'No se pudo cargar el análisis. Comprueba tu conexión.';
+      });
     }
   }
 
@@ -591,7 +629,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Text('⚔️', style: TextStyle(fontSize: 14)),
+          const Text('', style: TextStyle(fontSize: 14)),
           const SizedBox(width: 8),
           Text('RETAR', style: _rajdhani(12, FontWeight.w900, _kAccent, spacing: 1.5)),
         ]),
@@ -615,69 +653,69 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (!mounted) return;
     await showModalBottomSheet(
       context: context,
-      backgroundColor: _kSurface,
+      backgroundColor: _p.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModal) => Padding(
           padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 36, height: 3, color: _kMuted)),
+            Center(child: Container(width: 36, height: 3, color: _p.muted)),
             const SizedBox(height: 24),
             Row(children: [
               Container(width: 2, height: 16, color: _kAccent),
               const SizedBox(width: 10),
-              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÍO DIRECTO', style: _rajdhani(13, FontWeight.w900, _kWhite, spacing: 2)),
+              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÍO DIRECTO', style: _rajdhani(13, FontWeight.w900, _p.title, spacing: 2)),
             ]),
             const SizedBox(height: 6),
-            Text(esContrapropuesta ? 'Propón tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista más', style: _rajdhani(12, FontWeight.w500, _kSubtext)),
+            Text(esContrapropuesta ? 'Propón tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista más', style: _rajdhani(12, FontWeight.w500, _p.sub)),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: _kSurface2, border: Border.all(color: _kBorder2)),
+              decoration: BoxDecoration(color: _p.surface2, border: Border.all(color: _p.border2)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('APUESTA', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 2)),
+                Text('APUESTA', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 12),
                 Row(children: [
-                  GestureDetector(onTap: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _kMuted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
-                  Expanded(child: Center(child: Text('$apuesta 🪙', style: _rajdhani(28, FontWeight.w900, _kWhite)))),
-                  GestureDetector(onTap: () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _kMuted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
+                  GestureDetector(onTap: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
+                  Expanded(child: Center(child: Text('$apuesta ', style: _rajdhani(28, FontWeight.w900, _p.title)))),
+                  GestureDetector(onTap: () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 8),
-                Center(child: Text('Tienes $misMonedas 🪙 disponibles', style: _rajdhani(10, FontWeight.w500, _kSubtext))),
+                Center(child: Text('Tienes $misMonedas  disponibles', style: _rajdhani(10, FontWeight.w500, _p.sub))),
               ]),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: _kSurface2, border: Border.all(color: _kBorder2)),
+              decoration: BoxDecoration(color: _p.surface2, border: Border.all(color: _p.border2)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('DURACIÓN (HORAS)', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 2)),
+                Text('DURACIÓN (HORAS)', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 12),
                 Row(children: [
-                  GestureDetector(onTap: () { setModal(() => horas = (horas - 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _kMuted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
-                  Expanded(child: TextField(controller: horasCtrl, keyboardType: TextInputType.number, textAlign: TextAlign.center, style: _rajdhani(22, FontWeight.w900, _kWhite), decoration: InputDecoration(border: InputBorder.none, suffix: Text('h', style: _rajdhani(14, FontWeight.w600, _kSubtext))), onChanged: (v) { final parsed = int.tryParse(v); if (parsed != null) setModal(() => horas = parsed.clamp(1, 168)); })),
-                  GestureDetector(onTap: () { setModal(() => horas = (horas + 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _kMuted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
+                  GestureDetector(onTap: () { setModal(() => horas = (horas - 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
+                  Expanded(child: TextField(controller: horasCtrl, keyboardType: TextInputType.number, textAlign: TextAlign.center, style: _rajdhani(22, FontWeight.w900, _p.title), decoration: InputDecoration(border: InputBorder.none, suffix: Text('h', style: _rajdhani(14, FontWeight.w600, _p.sub))), onChanged: (v) { final parsed = int.tryParse(v); if (parsed != null) setModal(() => horas = parsed.clamp(1, 168)); })),
+                  GestureDetector(onTap: () { setModal(() => horas = (horas + 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 4),
-                Center(child: Text('Mínimo 1h · Máximo 168h (7 días)', style: _rajdhani(9, FontWeight.w500, _kSubtext))),
+                Center(child: Text('Mínimo 1h · Máximo 168h (7 días)', style: _rajdhani(9, FontWeight.w500, _p.sub))),
               ]),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _kBorder2), right: BorderSide(color: _kBorder2), bottom: BorderSide(color: _kBorder2))),
+              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _p.border2), right: BorderSide(color: _p.border2), bottom: BorderSide(color: _p.border2))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 2)),
+                Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 6),
-                Text('Territorios conquistados × 10', style: _rajdhani(11, FontWeight.w500, _kSubtext)),
-                Text('Kilómetros corridos × 5', style: _rajdhani(11, FontWeight.w500, _kSubtext)),
+                Text('Territorios conquistados × 10', style: _rajdhani(11, FontWeight.w500, _p.sub)),
+                Text('Kilómetros corridos × 5', style: _rajdhani(11, FontWeight.w500, _p.sub)),
               ]),
             ),
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () { Navigator.pop(ctx); if (esContrapropuesta && desafioId != null) { _enviarContrapropuesta(desafioId, apuesta, horas); } else { _enviarReto(apuesta, horas); } },
-              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '🔄  ENVIAR CONTRAPROPUESTA' : '⚔️  ENVIAR DESAFÍO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
+              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '  ENVIAR CONTRAPROPUESTA' : '  ENVIAR DESAFÍO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
             ),
           ]),
         ),
@@ -694,7 +732,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       final misMonedas = (myDoc.data()?['monedas'] as num?)?.toInt() ?? 0;
       if (misMonedas < apuesta) { _mostrarSnackbar('No tienes suficientes monedas', error: true); return; }
       await FirebaseFirestore.instance.collection('desafios').add({'retadorId': myUserId, 'retadorNick': myNick, 'retadoId': viewedUserId, 'retadoNick': nickname, 'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente', 'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0, 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': '⚔️ $myNick te reta: ${horas}h · $apuesta 🪙. ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'monedas': FieldValue.increment(-apuesta)});
       _mostrarSnackbar('¡Desafío enviado!');
     } catch (e) { _mostrarSnackbar('Error al enviar el desafío', error: true); }
@@ -712,7 +750,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       final data       = desafioDoc.data()!;
       final retadorId  = data['retadorId'] as String;
       final toUserId   = myUserId == retadorId ? data['retadoId'] : retadorId;
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': '🔄 $myNick contrapropone: ${horas}h · $apuesta 🪙', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': ' $myNick contrapropone: ${horas}h · $apuesta ', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       _mostrarSnackbar('Contrapropuesta enviada');
     } catch (e) { _mostrarSnackbar('Error al enviar contrapropuesta', error: true); }
   }
@@ -841,14 +879,14 @@ class _PerfilScreenState extends State<PerfilScreen>
   Future<void> _seleccionarFoto() async {
     if (!isOwnProfile) return;
     showModalBottomSheet(
-      context: context, backgroundColor: _kSurface,
+      context: context, backgroundColor: _p.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 36, height: 3, decoration: BoxDecoration(color: _kMuted, borderRadius: BorderRadius.circular(2))),
+          Container(width: 36, height: 3, decoration: BoxDecoration(color: _p.muted, borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 24),
-          Text('FOTO DE PERFIL', style: _rajdhani(11, FontWeight.w700, _kDim, spacing: 3)),
+          Text('FOTO DE PERFIL', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 3)),
           const SizedBox(height: 20),
           Row(children: [
             Expanded(child: _BotonFoto(icon: Icons.camera_alt_outlined, label: 'Cámara', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.camera); })),
@@ -922,21 +960,21 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (!isOwnProfile) return;
     _nicknameController.text = nickname;
     showModalBottomSheet(
-      context: context, backgroundColor: _kSurface, isScrollControlled: true,
+      context: context, backgroundColor: _p.surface, isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(left: 24, right: 24, top: 24, bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Center(child: Container(width: 36, height: 3, decoration: BoxDecoration(color: _kMuted, borderRadius: BorderRadius.circular(2)))),
+          Center(child: Container(width: 36, height: 3, decoration: BoxDecoration(color: _p.muted, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 24),
-          Text('EDITAR CALLSIGN', style: _rajdhani(11, FontWeight.w700, _kText, spacing: 3)),
+          Text('EDITAR CALLSIGN', style: _rajdhani(11, FontWeight.w700, _p.text, spacing: 3)),
           const SizedBox(height: 4),
-          Text('Se actualizará en toda la app', style: _rajdhani(12, FontWeight.w400, _kSubtext)),
+          Text('Se actualizará en toda la app', style: _rajdhani(12, FontWeight.w400, _p.sub)),
           const SizedBox(height: 20),
           TextField(
             controller: _nicknameController, autofocus: true, maxLength: 20,
             style: _rajdhani(20, FontWeight.w700, Colors.white, spacing: 1),
-            decoration: InputDecoration(hintText: 'Tu callsign...', hintStyle: _rajdhani(20, FontWeight.w400, _kMuted), prefixIcon: const Icon(Icons.terminal_rounded, color: _kDim, size: 18), filled: true, fillColor: _kSurface2, counterStyle: _rajdhani(10, FontWeight.w400, _kSubtext), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kBorder)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kBorder)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kText, width: 1.5))),
+            decoration: InputDecoration(hintText: 'Tu callsign...', hintStyle: _rajdhani(20, FontWeight.w400, _p.muted), prefixIcon: Icon(Icons.terminal_rounded, color: _p.dim, size: 18), filled: true, fillColor: _p.surface2, counterStyle: _rajdhani(10, FontWeight.w400, _p.sub), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
           ),
           const SizedBox(height: 16),
           SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { Navigator.pop(ctx); _guardarNickname(); }, style: ElevatedButton.styleFrom(backgroundColor: _kAccent, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0), child: Text('CONFIRMAR', style: _rajdhani(13, FontWeight.w700, Colors.black, spacing: 3)))),
@@ -980,7 +1018,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
       body: isLoading ? _buildLoader() : _buildContent(),
@@ -996,11 +1034,14 @@ class _PerfilScreenState extends State<PerfilScreen>
     ),
     leading: !isOwnProfile ? IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18), onPressed: () => Navigator.pop(context)) : null,
     actions: isOwnProfile ? [
-      IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white54, size: 20), onPressed: _cargarTodo),
+      IconButton(
+        icon: const Icon(Icons.settings_outlined, color: Colors.white70, size: 20),
+        onPressed: () => SettingsScreen.mostrar(context),
+      ),
       PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
-        color: _kSurface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: _kBorder2)),
+        color: _p.surface2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: _p.border2)),
         onSelected: (v) async {
           switch (v) {
             case 'avatar': _abrirCustomizador(); break;
@@ -1014,7 +1055,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             case 'temporada': _mostrarDialogoCerrarTemporada(); break;
             case 'seed_fantasmas':
             await SeedFantasmasGranada.ejecutar();
-            _mostrarSnackbar('✅ Fantasmas creados');
+            _mostrarSnackbar(' Fantasmas creados');
              break;
             case 'logout':
               await FirebaseAuth.instance.signOut();
@@ -1023,7 +1064,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           }
         },
         itemBuilder: (_) => [
-          PopupMenuItem(value: 'avatar', child: _popupItem(Icons.palette_rounded, 'Personalizar avatar', _kText)),
+          PopupMenuItem(value: 'avatar', child: _popupItem(Icons.palette_rounded, 'Personalizar avatar', _p.text)),
           PopupMenuItem(value: 'guerra', child: _popupItem(Icons.history_rounded, 'Historial de guerra', Colors.redAccent)),
           PopupMenuItem(value: 'liga', child: _popupItem(Icons.sync_rounded, 'Inicializar puntos de liga', Colors.tealAccent)),
           if (_esAdmin)
@@ -1045,29 +1086,29 @@ class _PerfilScreenState extends State<PerfilScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _kSurface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: _kBorder2)),
+        backgroundColor: _p.surface2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _p.border2)),
         title: Row(children: [
-          const Text('👑', style: TextStyle(fontSize: 18)),
+          const Text('', style: TextStyle(fontSize: 18)),
           const SizedBox(width: 10),
-          Text('Cerrar ${temporada.label}', style: _rajdhani(16, FontWeight.w700, _kWhite)),
+          Text('Cerrar ${temporada.label}', style: _rajdhani(16, FontWeight.w700, _p.title)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Se calculará el rey de cada barrio y se entregarán las recompensas.', style: _rajdhani(13, FontWeight.w400, _kSubtext)),
+          Text('Se calculará el rey de cada barrio y se entregarán las recompensas.', style: _rajdhani(13, FontWeight.w400, _p.sub)),
           const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kGold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6), border: Border.all(color: _kGold.withValues(alpha: 0.20))), child: Text('Recompensa por zona: ${temporada.monedasBase} 🪙 + corona desbloqueada', style: _rajdhani(11, FontWeight.w500, _kGold))),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kGold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6), border: Border.all(color: _kGold.withValues(alpha: 0.20))), child: Text('Recompensa por zona: ${temporada.monedasBase}  + corona desbloqueada', style: _rajdhani(11, FontWeight.w500, _kGold))),
           const SizedBox(height: 8),
           Text('Esta acción no se puede deshacer.', style: _rajdhani(11, FontWeight.w500, Colors.redAccent.withValues(alpha: 0.8))),
         ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _kDim))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _p.dim))),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               _mostrarSnackbar('Calculando reyes...');
               try {
                 final n = await ZonaService.cerrarTemporada(temporada.id);
-                _mostrarSnackbar('✅ $n títulos otorgados. Temporada cerrada.');
+                _mostrarSnackbar(' $n títulos otorgados. Temporada cerrada.');
                 await _cargarTitulos();
               } catch (e) { _mostrarSnackbar('Error: $e', error: true); }
             },
@@ -1085,7 +1126,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         builder: (_, __) => Column(mainAxisSize: MainAxisSize.min, children: [
           SizedBox(width: 48, height: 48, child: CustomPaint(painter: _LoaderPainter(accent: _kAccent, progress: _scan.value, pulse: _pulse.value))),
           const SizedBox(height: 20),
-          Text('CARGANDO EXPEDIENTE', style: _rajdhani(10, FontWeight.w700, _kDim, spacing: 4)),
+          Text('CARGANDO EXPEDIENTE', style: _rajdhani(10, FontWeight.w700, _p.dim, spacing: 4)),
         ]),
       ),
     );
@@ -1105,7 +1146,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                 const SizedBox(height: 10),
                 _buildBotonRetar(),
                 const SizedBox(height: 10),
-                _socialBtn('Enviar mensaje', Icons.chat_bubble_outline_rounded, _kText, _abrirChat),
+                _socialBtn('Enviar mensaje', Icons.chat_bubble_outline_rounded, _p.text, _abrirChat),
               ]),
             ),
           ),
@@ -1141,9 +1182,9 @@ class _PerfilScreenState extends State<PerfilScreen>
       child: Container(
         height: 42,
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kBorder2),
+          border: Border.all(color: _p.border2),
         ),
         child: Row(
           children: tabs.asMap().entries.map((e) {
@@ -1160,9 +1201,9 @@ class _PerfilScreenState extends State<PerfilScreen>
                   duration: const Duration(milliseconds: 200),
                   margin: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    color: active ? _kSurface2 : Colors.transparent,
+                    color: active ? _p.surface2 : Colors.transparent,
                     borderRadius: BorderRadius.circular(7),
-                    border: active ? Border.all(color: _kBorder2) : null,
+                    border: active ? Border.all(color: _p.border2) : null,
                   ),
                   child: Stack(
                     clipBehavior: Clip.none,
@@ -1170,12 +1211,12 @@ class _PerfilScreenState extends State<PerfilScreen>
                       Center(
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                           Icon(icon, size: 12,
-                              color: active ? _kAccent : _kDim),
+                              color: active ? _kAccent : _p.dim),
                           const SizedBox(width: 4),
                           Text(label,
                               style: _rajdhani(9,
                                   active ? FontWeight.w700 : FontWeight.w500,
-                                  active ? _kWhite : _kDim,
+                                  active ? _p.title : _p.dim,
                                   spacing: 1)),
                         ]),
                       ),
@@ -1332,9 +1373,9 @@ class _PerfilScreenState extends State<PerfilScreen>
                                 context, '/desafios',
                                 arguments: {'desafioId': null}),
                             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Text('Ver todos los duelos', style: _rajdhani(11, FontWeight.w600, _kText)),
+                              Text('Ver todos los duelos', style: _rajdhani(11, FontWeight.w600, _p.text)),
                               const SizedBox(width: 4),
-                              const Icon(Icons.chevron_right_rounded, color: _kDim, size: 14),
+                              Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
                             ]),
                           ),
                         ),
@@ -1356,27 +1397,27 @@ class _PerfilScreenState extends State<PerfilScreen>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kBorder2),
+        border: Border.all(color: _p.border2),
       ),
       child: Row(children: [
         Expanded(child: _dueloStat('$ganados', 'VICTORIAS', _kGold)),
-        Container(width: 1, height: 44, color: _kBorder2, margin: const EdgeInsets.symmetric(horizontal: 8)),
+        Container(width: 1, height: 44, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 8)),
         Expanded(child: _dueloStat('$perdidos', 'DERROTAS', _kAccent)),
-        Container(width: 1, height: 44, color: _kBorder2, margin: const EdgeInsets.symmetric(horizontal: 8)),
+        Container(width: 1, height: 44, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 8)),
         Expanded(child: _dueloStat(
-            '${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _kText)),
+            '${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _p.text)),
       ]),
     );
   }
 
   Widget _dueloStat(String val, String label, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(val, style: GoogleFonts.rajdhani(
+        Text(val, style: GoogleFonts.inter(
             fontSize: 28, fontWeight: FontWeight.w900,
             color: color, height: 1)),
-        Text(label, style: _rajdhani(8, FontWeight.w700, _kSubtext, spacing: 1.5)),
+        Text(label, style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1.5)),
       ]);
 
   // ── Card de duelo activo en el perfil ────────────────────────────────────
@@ -1394,7 +1435,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: voy
@@ -1415,7 +1456,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               Container(width: 2, height: 14,
                   color: voy ? _kGold : _kAccent),
               const SizedBox(width: 10),
-              const Text('⚔️', style: TextStyle(fontSize: 13)),
+              const Text('', style: TextStyle(fontSize: 13)),
               const SizedBox(width: 6),
               Text('DUELO ACTIVO',
                   style: _rajdhani(9, FontWeight.w900,
@@ -1425,18 +1466,18 @@ class _PerfilScreenState extends State<PerfilScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _kBorder2.withValues(alpha: 0.5),
-                  border: Border.all(color: _kBorder2),
+                  color: _p.border2.withValues(alpha: 0.5),
+                  border: Border.all(color: _p.border2),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.timer_outlined, color: _kSubtext, size: 10),
+                  Icon(Icons.timer_outlined, color: _p.sub, size: 10),
                   const SizedBox(width: 4),
                   Text(info.tiempoRestante,
-                      style: _rajdhani(10, FontWeight.w700, _kText)),
+                      style: _rajdhani(10, FontWeight.w700, _p.text)),
                 ]),
               ),
               const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, color: _kDim, size: 14),
+              Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
             ]),
           ),
 
@@ -1446,25 +1487,25 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Row(children: [
               // Yo
               Expanded(child: Column(children: [
-                Text('TÚ', style: _rajdhani(8, FontWeight.w700, _kSubtext, spacing: 2)),
+                Text('TÚ', style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 2)),
                 const SizedBox(height: 4),
                 _AnimatedCounter(
                   value: misPuntos.toDouble(),
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                       fontSize: 40, fontWeight: FontWeight.w900,
-                      color: voy ? _kWhite : _kSubtext, height: 1,
+                      color: voy ? _p.title : _p.sub, height: 1,
                       shadows: voy
                           ? [Shadow(color: _kGold.withValues(alpha: 0.4), blurRadius: 12)]
                           : []),
                   duration: const Duration(milliseconds: 900),
                 ),
                 Text('PTS', style: _rajdhani(8, FontWeight.w700,
-                    voy ? _kGold : _kDim, spacing: 2)),
+                    voy ? _kGold : _p.dim, spacing: 2)),
               ])),
 
               // VS + apuesta
               Column(children: [
-                Text('VS', style: _rajdhani(11, FontWeight.w900, _kMuted, spacing: 3)),
+                Text('VS', style: _rajdhani(11, FontWeight.w900, _p.muted, spacing: 3)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1472,7 +1513,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     color: _kGold.withValues(alpha: 0.06),
                     border: Border.all(color: _kGold.withValues(alpha: 0.25)),
                   ),
-                  child: Text('${info.apuesta} 🪙',
+                  child: Text('${info.apuesta} ',
                       style: _rajdhani(10, FontWeight.w900, _kGold)),
                 ),
               ]),
@@ -1480,21 +1521,21 @@ class _PerfilScreenState extends State<PerfilScreen>
               // Rival
               Expanded(child: Column(children: [
                 Text(rivalNick.toUpperCase(),
-                    style: _rajdhani(8, FontWeight.w700, _kSubtext, spacing: 1),
+                    style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1),
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 _AnimatedCounter(
                   value: rivalPuntos.toDouble(),
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                       fontSize: 40, fontWeight: FontWeight.w900,
-                      color: !voy ? _kWhite : _kSubtext, height: 1,
+                      color: !voy ? _p.title : _p.sub, height: 1,
                       shadows: !voy
                           ? [Shadow(color: _kAccent.withValues(alpha: 0.4), blurRadius: 12)]
                           : []),
                   duration: const Duration(milliseconds: 900),
                 ),
                 Text('PTS', style: _rajdhani(8, FontWeight.w700,
-                    !voy ? _kAccent : _kDim, spacing: 2)),
+                    !voy ? _kAccent : _p.dim, spacing: 2)),
               ])),
             ]),
           ),
@@ -1516,7 +1557,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     const SizedBox(width: 2),
                     Flexible(
                       flex: ((1 - miPct) * 100).round().clamp(1, 99),
-                      child: Container(color: _kMuted),
+                      child: Container(color: _p.muted),
                     ),
                   ]),
                 ),
@@ -1535,8 +1576,8 @@ class _PerfilScreenState extends State<PerfilScreen>
                           voy ? _kGold : _kAccent)),
                 ),
                 const Spacer(),
-                Text('Premio: ${info.apuesta * 2} 🪙',
-                    style: _rajdhani(9, FontWeight.w600, _kSubtext)),
+                Text('Premio: ${info.apuesta * 2} ',
+                    style: _rajdhani(9, FontWeight.w600, _p.sub)),
               ]),
             ]),
           ),
@@ -1561,28 +1602,28 @@ class _PerfilScreenState extends State<PerfilScreen>
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border(
             left: BorderSide(color: color.withValues(alpha: 0.6), width: 2),
-            top: BorderSide(color: _kBorder2),
-            right: BorderSide(color: _kBorder2),
-            bottom: BorderSide(color: _kBorder2),
+            top: BorderSide(color: _p.border2),
+            right: BorderSide(color: _p.border2),
+            bottom: BorderSide(color: _p.border2),
           ),
         ),
         child: Row(children: [
-          Text(gane ? '🏆' : '💀', style: const TextStyle(fontSize: 20)),
+          Text(gane ? '' : '', style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
               gane
                   ? 'Victoria vs ${rival.toUpperCase()}'
                   : 'Derrota vs ${rival.toUpperCase()}',
-              style: _rajdhani(13, FontWeight.w800, _kWhite),
+              style: _rajdhani(13, FontWeight.w800, _p.title),
             ),
             const SizedBox(height: 3),
             Text('$misPuntos pts vs $rivalPts pts',
-                style: _rajdhani(10, FontWeight.w500, _kSubtext)),
+                style: _rajdhani(10, FontWeight.w500, _p.sub)),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1590,11 +1631,11 @@ class _PerfilScreenState extends State<PerfilScreen>
               color: color.withValues(alpha: 0.07),
               border: Border.all(color: color.withValues(alpha: 0.28)),
             ),
-            child: Text('$premio 🪙',
+            child: Text('$premio ',
                 style: _rajdhani(12, FontWeight.w900, color)),
           ),
           const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded, color: _kDim, size: 14),
+          Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
         ]),
       ),
     );
@@ -1603,11 +1644,11 @@ class _PerfilScreenState extends State<PerfilScreen>
   // ── Helpers del tab Duelos ───────────────────────────────────────────────
   Widget _panelLabel(String label, IconData icon) => Row(children: [
     Container(width: 2, height: 13, decoration: BoxDecoration(
-        color: _kBorder2, borderRadius: BorderRadius.circular(1))),
+        color: _p.border2, borderRadius: BorderRadius.circular(1))),
     const SizedBox(width: 9),
-    Icon(icon, color: _kDim, size: 11),
+    Icon(icon, color: _p.dim, size: 11),
     const SizedBox(width: 6),
-    Text(label, style: _rajdhani(10, FontWeight.w700, _kDim, spacing: 2.5)),
+    Text(label, style: _rajdhani(10, FontWeight.w700, _p.dim, spacing: 2.5)),
   ]);
 
   Widget _dueloLoader() => const Padding(
@@ -1619,10 +1660,10 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _dueloEmpty(String msg) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 20),
     child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.sports_mma_rounded, color: _kMuted, size: 36),
+      Icon(Icons.sports_mma_rounded, color: _p.muted, size: 36),
       const SizedBox(height: 12),
       Text(msg, textAlign: TextAlign.center,
-          style: _rajdhani(12, FontWeight.w500, _kSubtext, height: 1.5)),
+          style: _rajdhani(12, FontWeight.w500, _p.sub, height: 1.5)),
     ])),
   );
 
@@ -1639,7 +1680,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _kGold.withValues(alpha: 0.2)),
         ),
@@ -1650,8 +1691,39 @@ class _PerfilScreenState extends State<PerfilScreen>
                   color: _kGold, strokeWidth: 1.5)),
           const SizedBox(height: 12),
           Text('Cargando análisis avanzado...',
-              style: _rajdhani(11, FontWeight.w600, _kSubtext)),
+              style: _rajdhani(11, FontWeight.w600, _p.sub)),
           const SizedBox(height: 8),
+        ]),
+      );
+    }
+
+    if (_statsPremiumError.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _p.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kAccent.withValues(alpha: 0.3)),
+        ),
+        child: Column(children: [
+          Icon(Icons.wifi_off_rounded, color: _kAccent, size: 28),
+          const SizedBox(height: 10),
+          Text(_statsPremiumError,
+              textAlign: TextAlign.center,
+              style: _rajdhani(12, FontWeight.w500, _p.sub)),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () { setState(() { _statsPremiumError = ''; _statsPremiumCargadas = false; }); _cargarStatsPremium(); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kGold.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _kGold.withValues(alpha: 0.3)),
+              ),
+              child: Text('Reintentar', style: _rajdhani(11, FontWeight.w700, _kGold)),
+            ),
+          ),
         ]),
       );
     }
@@ -1661,19 +1733,19 @@ class _PerfilScreenState extends State<PerfilScreen>
       Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           border: Border(
             top: BorderSide(color: _kGold.withValues(alpha: 0.3)),
             left: BorderSide(color: _kGold.withValues(alpha: 0.3)),
             right: BorderSide(color: _kGold.withValues(alpha: 0.3)),
-            bottom: BorderSide(color: _kBorder2),
+            bottom: BorderSide(color: _p.border2),
           ),
         ),
         child: Row(children: [
           Container(width: 2, height: 13,
               color: _kGold, margin: const EdgeInsets.only(right: 8)),
-          Text('👑', style: const TextStyle(fontSize: 11)),
+          Text('', style: const TextStyle(fontSize: 11)),
           const SizedBox(width: 6),
           Text('ANÁLISIS AVANZADO',
               style: _rajdhani(10, FontWeight.w900, _kGold, spacing: 2)),
@@ -1709,16 +1781,16 @@ class _PerfilScreenState extends State<PerfilScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         border: Border(
-          left: BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
-          bottom: BorderSide(color: _kBorder2),
+          left: BorderSide(color: _p.border2),
+          right: BorderSide(color: _p.border2),
+          bottom: BorderSide(color: _p.border2),
         ),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('ESTA SEMANA VS ANTERIOR',
-            style: _rajdhani(9, FontWeight.w700, _kSubtext, spacing: 2)),
+            style: _rajdhani(9, FontWeight.w700, _p.sub, spacing: 2)),
         const SizedBox(height: 14),
         Row(children: [
           // Km esta semana
@@ -1726,13 +1798,13 @@ class _PerfilScreenState extends State<PerfilScreen>
             _AnimatedCounter(
               value: comp.kmEstaSemana,
               decimals: 1,
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                   fontSize: 32, fontWeight: FontWeight.w900,
-                  color: _kWhite, height: 1),
+                  color: _p.title, height: 1),
               duration: const Duration(milliseconds: 1000),
             ),
             Text('KM ESTA SEM.',
-                style: _rajdhani(8, FontWeight.w700, _kSubtext, spacing: 1.5)),
+                style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1.5)),
           ])),
 
           // Delta
@@ -1755,12 +1827,12 @@ class _PerfilScreenState extends State<PerfilScreen>
           // Km semana anterior
           Expanded(child: Column(children: [
             Text(comp.kmSemanaAnterior.toStringAsFixed(1),
-                style: GoogleFonts.rajdhani(
+                style: GoogleFonts.inter(
                     fontSize: 32, fontWeight: FontWeight.w900,
-                    color: _kSubtext, height: 1),
+                    color: _p.sub, height: 1),
                 textAlign: TextAlign.right),
             Text('SEM. ANTERIOR',
-                style: _rajdhani(8, FontWeight.w700, _kSubtext, spacing: 1.5),
+                style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1.5),
                 textAlign: TextAlign.right),
           ])),
         ]),
@@ -1770,14 +1842,14 @@ class _PerfilScreenState extends State<PerfilScreen>
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: _kBg,
-            border: Border.all(color: _kBorder2),
+            color: _p.bg,
+            border: Border.all(color: _p.border2),
           ),
           child: Row(children: [
-            const Text('🎯', style: TextStyle(fontSize: 12)),
+            const Text('', style: TextStyle(fontSize: 12)),
             const SizedBox(width: 8),
             Expanded(child: Text(comp.proximoHito,
-                style: _rajdhani(11, FontWeight.w600, _kText))),
+                style: _rajdhani(11, FontWeight.w600, _p.text))),
           ]),
         ),
       ]),
@@ -1791,23 +1863,23 @@ class _PerfilScreenState extends State<PerfilScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         border: Border(
-          left: BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
-          bottom: BorderSide(color: _kBorder2),
+          left: BorderSide(color: _p.border2),
+          right: BorderSide(color: _p.border2),
+          bottom: BorderSide(color: _p.border2),
         ),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('TENDENCIA 8 SEMANAS',
-            style: _rajdhani(9, FontWeight.w700, _kSubtext, spacing: 2)),
+            style: _rajdhani(9, FontWeight.w700, _p.sub, spacing: 2)),
         const SizedBox(height: 14),
         if (!tieneDatos)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(child: Text(
                 'Necesitas más carreras para ver la tendencia',
-                style: _rajdhani(11, FontWeight.w500, _kSubtext))),
+                style: _rajdhani(11, FontWeight.w500, _p.sub))),
           )
         else
           SizedBox(
@@ -1831,7 +1903,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                       if (pt.distanciaTotal > 0)
                         Text('${pt.distanciaTotal.toStringAsFixed(0)}',
                             style: _rajdhani(7, FontWeight.w700,
-                                esReciente ? goldColor : _kSubtext)),
+                                esReciente ? goldColor : _p.sub)),
                       const SizedBox(height: 2),
                       AnimatedContainer(
                         duration: Duration(milliseconds: 400 + idx * 60),
@@ -1842,13 +1914,13 @@ class _PerfilScreenState extends State<PerfilScreen>
                               ? (esReciente
                                   ? goldColor
                                   : goldColor.withValues(alpha: 0.35))
-                              : _kBorder2,
+                              : _p.border2,
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(_semanaCorta(pt.semana),
-                          style: _rajdhani(6, FontWeight.w600, _kSubtext)),
+                          style: _rajdhani(6, FontWeight.w600, _p.sub)),
                     ],
                   ),
                 ));
@@ -1865,34 +1937,34 @@ class _PerfilScreenState extends State<PerfilScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
         border: Border(
-          left: BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
-          bottom: BorderSide(color: _kBorder2),
+          left: BorderSide(color: _p.border2),
+          right: BorderSide(color: _p.border2),
+          bottom: BorderSide(color: _p.border2),
         ),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('ZONAS CONQUISTADAS',
-              style: _rajdhani(9, FontWeight.w700, _kSubtext, spacing: 2)),
+              style: _rajdhani(9, FontWeight.w700, _p.sub, spacing: 2)),
           const Spacer(),
           Text('${_territoriosDelUsuario.length} zonas',
-              style: _rajdhani(9, FontWeight.w600, _kDim)),
+              style: _rajdhani(9, FontWeight.w600, _p.dim)),
         ]),
         const SizedBox(height: 12),
         if (!tieneDatos)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text('Sin territorios conquistados aún',
-                style: _rajdhani(11, FontWeight.w500, _kSubtext)),
+                style: _rajdhani(11, FontWeight.w500, _p.sub)),
           )
         else if (_nombresZonas.isEmpty && !_loadingStatsPremium)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text('Cargando nombres de zonas...',
-                style: _rajdhani(11, FontWeight.w500, _kSubtext)),
+                style: _rajdhani(11, FontWeight.w500, _p.sub)),
           )
         else
           Column(children: _territoriosDelUsuario
@@ -1908,13 +1980,13 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: _kBg,
+                color: _p.bg,
                 border: Border(
                   left: BorderSide(
                       color: _colorTerritorio.withValues(alpha: 0.6), width: 2),
-                  top: BorderSide(color: _kBorder2),
-                  right: BorderSide(color: _kBorder2),
-                  bottom: BorderSide(color: _kBorder2),
+                  top: BorderSide(color: _p.border2),
+                  right: BorderSide(color: _p.border2),
+                  bottom: BorderSide(color: _p.border2),
                 ),
               ),
               child: Row(children: [
@@ -1927,10 +1999,10 @@ class _PerfilScreenState extends State<PerfilScreen>
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Text(nombre,
-                    style: _rajdhani(12, FontWeight.w700, _kText),
+                    style: _rajdhani(12, FontWeight.w700, _p.text),
                     overflow: TextOverflow.ellipsis)),
                 Text('${idx + 1}',
-                    style: _rajdhani(9, FontWeight.w600, _kSubtext)),
+                    style: _rajdhani(9, FontWeight.w600, _p.sub)),
               ]),
             );
           }).toList()),
@@ -1938,7 +2010,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(height: 4),
           Center(child: Text(
               '+${_territoriosDelUsuario.length - 20} zonas más',
-              style: _rajdhani(10, FontWeight.w600, _kSubtext))),
+              style: _rajdhani(10, FontWeight.w600, _p.sub))),
         ],
       ]),
     );
@@ -1951,7 +2023,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _kGold.withValues(alpha: 0.25)),
           boxShadow: [
@@ -1967,17 +2039,17 @@ class _PerfilScreenState extends State<PerfilScreen>
               border: Border.all(color: _kGold.withValues(alpha: 0.25)),
             ),
             child: const Center(
-                child: Text('👑', style: TextStyle(fontSize: 20))),
+                child: Text('', style: TextStyle(fontSize: 20))),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Análisis avanzado',
-                style: _rajdhani(14, FontWeight.w800, _kWhite)),
+                style: _rajdhani(14, FontWeight.w800, _p.title)),
             const SizedBox(height: 3),
             Text(
               'Tendencia 8 semanas, comparativa semanal y zonas conquistadas con nombre',
-              style: _rajdhani(11, FontWeight.w500, _kSubtext, height: 1.4),
+              style: _rajdhani(11, FontWeight.w500, _p.sub, height: 1.4),
             ),
           ])),
           const SizedBox(width: 10),
@@ -2007,29 +2079,29 @@ class _PerfilScreenState extends State<PerfilScreen>
       accent: _kAccent, label: 'TODAS LAS MISIONES', icon: Icons.history_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('$total misión${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _kSubtext))),
+          Expanded(child: Text('$total misión${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
           if (_historialCompleto.length > 5)
             GestureDetector(
               onTap: () => setState(() {
                 _verTodoHistorial = !_verTodoHistorial;
                 if (!_verTodoHistorial) { _historialSearchCtrl.clear(); _historialFiltrado = _historialCompleto; _historialPaginaActual = 1; }
               }),
-              child: Text(_verTodoHistorial ? 'MENOS' : 'TODO', style: _rajdhani(9, FontWeight.w900, _kText, spacing: 2)),
+              child: Text(_verTodoHistorial ? 'MENOS' : 'TODO', style: _rajdhani(9, FontWeight.w900, _p.text, spacing: 2)),
             ),
         ]),
         if (_verTodoHistorial) ...[
           const SizedBox(height: 12),
           TextField(
             controller: _historialSearchCtrl, onChanged: _filtrarHistorial,
-            style: _rajdhani(13, FontWeight.w500, _kWhite),
-            decoration: InputDecoration(hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _kDim), prefixIcon: const Icon(Icons.search_rounded, color: _kDim, size: 16), filled: true, fillColor: _kBg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kBorder2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kBorder2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _kText, width: 1.5))),
+            style: _rajdhani(13, FontWeight.w500, _p.title),
+            decoration: InputDecoration(hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim), prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16), filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
           ),
         ],
         const SizedBox(height: 12),
         if (_cargandoHistorial)
           Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5))))
         else if (mostrados.isEmpty)
-          Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('Sin misiones registradas', style: _rajdhani(12, FontWeight.w500, _kDim)))
+          Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('Sin misiones registradas', style: _rajdhani(12, FontWeight.w500, _p.dim)))
         else
           Column(children: [
             ...mostrados.asMap().entries.map((e) {
@@ -2041,24 +2113,24 @@ class _PerfilScreenState extends State<PerfilScreen>
               final isFirst = idx == 0;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(color: _kBg, borderRadius: BorderRadius.circular(8), border: Border(left: BorderSide(color: isFirst ? _kAccent : _kBorder2, width: isFirst ? 2 : 1))),
+                decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(8), border: Border(left: BorderSide(color: isFirst ? _kAccent : _p.border2, width: isFirst ? 2 : 1))),
                 child: IntrinsicHeight(
                   child: Row(children: [
-                    Container(width: 36, alignment: Alignment.center, child: Text('${idx + 1}'.padLeft(2, '0'), style: _rajdhani(10, FontWeight.w700, isFirst ? _kText : _kDim))),
-                    Container(width: 1, color: _kBorder2),
+                    Container(width: 36, alignment: Alignment.center, child: Text('${idx + 1}'.padLeft(2, '0'), style: _rajdhani(10, FontWeight.w700, isFirst ? _p.text : _p.dim))),
+                    Container(width: 1, color: _p.border2),
                     Expanded(child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Row(children: [
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(d['titulo'] ?? 'Carrera completada', style: _rajdhani(13, FontWeight.w700, isFirst ? _kWhite : _kText), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(d['titulo'] ?? 'Carrera completada', style: _rajdhani(13, FontWeight.w700, isFirst ? _p.title : _p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 4),
                           Row(children: [
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: _kBorder2.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(4), border: Border.all(color: _kBorder2)), child: Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(10, FontWeight.w800, _kWhite))),
-                            if (seg > 0) ...[const SizedBox(width: 6), Text(_formatTiempo(Duration(seconds: seg)), style: _rajdhani(9, FontWeight.w500, _kDim))],
-                            if (vel > 0) ...[const SizedBox(width: 6), Text('${vel.toStringAsFixed(1)} km/h', style: _rajdhani(9, FontWeight.w500, _kDim))],
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: _p.border2.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(4), border: Border.all(color: _p.border2)), child: Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(10, FontWeight.w800, _p.title))),
+                            if (seg > 0) ...[const SizedBox(width: 6), Text(_formatTiempo(Duration(seconds: seg)), style: _rajdhani(9, FontWeight.w500, _p.dim))],
+                            if (vel > 0) ...[const SizedBox(width: 6), Text('${vel.toStringAsFixed(1)} km/h', style: _rajdhani(9, FontWeight.w500, _p.dim))],
                           ]),
                         ])),
-                        Text(fecha, style: _rajdhani(9, FontWeight.w600, _kSubtext)),
+                        Text(fecha, style: _rajdhani(9, FontWeight.w600, _p.sub)),
                       ]),
                     )),
                   ]),
@@ -2069,9 +2141,9 @@ class _PerfilScreenState extends State<PerfilScreen>
               GestureDetector(
                 onTap: () => setState(() => _historialPaginaActual++),
                 child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('Ver más misiones', style: _rajdhani(11, FontWeight.w600, _kText)),
+                  Text('Ver más misiones', style: _rajdhani(11, FontWeight.w600, _p.text)),
                   const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down_rounded, color: _kDim, size: 14),
+                  Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
                 ])),
               ),
           ]),
@@ -2107,7 +2179,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         ),
         Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.15), Colors.black.withValues(alpha: 0.60)]))),
         AnimatedBuilder(animation: Listenable.merge([_loopAnim, _scanAnim]), builder: (_, __) => CustomPaint(painter: _DossierBgPainter(accent: _kAccent, pulse: _pulse.value, scan: _scan.value))),
-        Align(alignment: Alignment.bottomCenter, child: Container(height: h * 0.22, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, _kBg])))),
+        Align(alignment: Alignment.bottomCenter, child: Container(height: h * 0.22, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, _p.bg])))),
         Positioned(top: 58, left: 20, child: _buildOperativeId()),
         Positioned(top: 58, right: 20, child: _buildLigaBadge()),
         Positioned(bottom: 0, left: 0, right: 0,
@@ -2117,15 +2189,15 @@ class _PerfilScreenState extends State<PerfilScreen>
             GestureDetector(
               onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(nickname.toUpperCase(), style: GoogleFonts.rajdhani(fontSize: 36, fontWeight: FontWeight.w700, color: _kWhite, letterSpacing: 4, height: 1)),
-                if (isOwnProfile) ...[const SizedBox(width: 10), const Icon(Icons.edit_outlined, color: _kDim, size: 13)],
+                Text(nickname.toUpperCase(), style: GoogleFonts.inter(fontSize: 36, fontWeight: FontWeight.w700, color: _p.title, letterSpacing: 4, height: 1)),
+                if (isOwnProfile) ...[const SizedBox(width: 10), Icon(Icons.edit_outlined, color: _p.dim, size: 13)],
               ]),
             ),
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _tagPill(_nivelTitulo(nivel), _kText, filled: true),
+              _tagPill(_nivelTitulo(nivel), _p.text, filled: true),
               const SizedBox(width: 8),
-              _tagPill('NIV. $nivel', _kText),
+              _tagPill('NIV. $nivel', _p.text),
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: isOwnProfile
@@ -2139,7 +2211,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('🪙', style: TextStyle(fontSize: 12)),
+                    const Text('', style: TextStyle(fontSize: 12)),
                     const SizedBox(width: 4),
                     Text('$monedas', style: TextStyle(
                       color: Colors.amber.withValues(alpha: 0.85),
@@ -2167,17 +2239,17 @@ class _PerfilScreenState extends State<PerfilScreen>
             _clanNombre == null
               ? GestureDetector(
                   onTap: isOwnProfile ? () => Navigator.pushNamed(context, '/clan') : null,
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: _kMuted), borderRadius: BorderRadius.circular(4)), child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 1.5))))
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: _p.muted), borderRadius: BorderRadius.circular(4)), child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 1.5))))
               : Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.08), border: Border.all(color: _kAccent.withValues(alpha: 0.3)), borderRadius: BorderRadius.circular(4)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Text('[$_clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
                     const SizedBox(width: 6),
-                    Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _kText, spacing: 1)),
-                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Text('👑', style: TextStyle(fontSize: 9))],
+                    Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _p.text, spacing: 1)),
+                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Text('', style: TextStyle(fontSize: 9))],
                   ])),
-            if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _kSubtext))],
+            if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub))],
             const SizedBox(height: 28),
           ]),
         ),
@@ -2188,14 +2260,14 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildOperativeId() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: _kBg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _kBorder2)),
+      decoration: BoxDecoration(color: _p.bg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _p.border2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text('OPERATIVE ID', style: _rajdhani(7, FontWeight.w700, _kDim, spacing: 2)),
-        Text(_operativeId, style: _rajdhani(16, FontWeight.w700, _kText, spacing: 2)),
+        Text('OPERATIVE ID', style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 2)),
+        Text(_operativeId, style: _rajdhani(16, FontWeight.w700, _p.text, spacing: 2)),
         Row(children: [
-          Container(width: 5, height: 5, decoration: BoxDecoration(color: _rachaActual > 0 ? const Color(0xFF39FF14) : _kMuted, shape: BoxShape.circle)),
+          Container(width: 5, height: 5, decoration: BoxDecoration(color: _rachaActual > 0 ? const Color(0xFF39FF14) : _p.muted, shape: BoxShape.circle)),
           const SizedBox(width: 5),
-          Text(_rachaActual > 0 ? 'ACTIVO' : 'INACTIVO', style: _rajdhani(8, FontWeight.w700, _rachaActual > 0 ? const Color(0xFF39FF14).withValues(alpha: 0.8) : _kMuted, spacing: 1.5)),
+          Text(_rachaActual > 0 ? 'ACTIVO' : 'INACTIVO', style: _rajdhani(8, FontWeight.w700, _rachaActual > 0 ? const Color(0xFF39FF14).withValues(alpha: 0.8) : _p.muted, spacing: 1.5)),
         ]),
       ]),
     );
@@ -2206,9 +2278,9 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (liga == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: _kBg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _kBorder2)),
+      decoration: BoxDecoration(color: _p.bg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _p.border2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-        Text('LIGA', style: _rajdhani(7, FontWeight.w700, _kDim, spacing: 2)),
+        Text('LIGA', style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 2)),
         Row(mainAxisSize: MainAxisSize.min, children: [
           Text(liga.emoji, style: const TextStyle(fontSize: 13)),
           const SizedBox(width: 4),
@@ -2223,15 +2295,15 @@ class _PerfilScreenState extends State<PerfilScreen>
     return AnimatedBuilder(
       animation: _loopAnim,
       builder: (_, __) => Stack(alignment: Alignment.center, children: [
-        Container(width: 96, height: 96, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _kBorder2, width: 1))),
+        Container(width: 96, height: 96, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _p.border2, width: 1))),
         GestureDetector(
           onTap: isOwnProfile ? _seleccionarFoto : null,
           child: Container(
             width: 80, height: 80,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: _kSurface2, border: Border.all(color: _kAccent, width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.0), blurRadius: 0), BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 0, spreadRadius: 2)]),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: _p.surface2, border: Border.all(color: _kAccent, width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.0), blurRadius: 0), BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 0, spreadRadius: 2)]),
             child: isUploadingPhoto
                 ? Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
-                : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), fit: BoxFit.cover, width: 80, height: 80) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
+                : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 80, height: 80, gaplessPlayback: false) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
           ),
         ),
         if (isOwnProfile)
@@ -2244,11 +2316,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                 decoration: BoxDecoration(
                   color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
                   shape: BoxShape.circle,
-                  border: Border.all(color: _kBg, width: 2),
+                  border: Border.all(color: _p.bg, width: 2),
                 ),
                 child: Center(
                   child: _titulosActivos.isNotEmpty
-                      ? const Text('👑', style: TextStyle(fontSize: 10))
+                      ? const Text('', style: TextStyle(fontSize: 10))
                       : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
                 ),
               ),
@@ -2289,7 +2361,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             ],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('👑', style: TextStyle(fontSize: 9)),
+            Text('', style: TextStyle(fontSize: 9)),
             const SizedBox(width: 4),
             Text('PREMIUM',
                 style: _rajdhani(9, FontWeight.w900,
@@ -2313,16 +2385,16 @@ class _PerfilScreenState extends State<PerfilScreen>
     final hito     = ((_kmTotales ~/ 100) + 1) * 100;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12), border: Border(left: BorderSide(color: _kAccent, width: 1))),
+      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border(left: BorderSide(color: _kAccent, width: 1))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _kDim, spacing: 2.5)),
+        Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
         const SizedBox(height: 4),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: _AnimatedCounter(
             value: _kmTotales,
             decimals: 1,
             duration: const Duration(milliseconds: 1400),
-            style: GoogleFonts.rajdhani(fontSize: 72, fontWeight: FontWeight.w700, color: _kWhite, height: 0.9),
+            style: GoogleFonts.inter(fontSize: 72, fontWeight: FontWeight.w700, color: _p.title, height: 0.9),
           )),
           Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -2330,11 +2402,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                 ? _AnimatedCounter(
                     value: _velocidadMediaHistorica,
                     decimals: 1,
-                    style: _rajdhani(16, FontWeight.w700, _kWhite, height: 1),
+                    style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
                     duration: const Duration(milliseconds: 900),
                   )
-                : Text('--', style: _rajdhani(16, FontWeight.w700, _kWhite, height: 1)),
-              Text('KM/H', style: _rajdhani(8, FontWeight.w600, _kDim, spacing: 1.5)),
+                : Text('--', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
+              Text('KM/H', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
             ]),
             const SizedBox(height: 8),
             _miniKpi(_formatTiempo(_tiempoTotalActividad), 'TIEMPO'),
@@ -2342,19 +2414,19 @@ class _PerfilScreenState extends State<PerfilScreen>
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               _AnimatedCounter(
                 value: _totalCarreras.toDouble(),
-                style: _rajdhani(16, FontWeight.w700, _kWhite, height: 1),
+                style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
                 duration: const Duration(milliseconds: 1000),
               ),
-              Text('MISIONES', style: _rajdhani(8, FontWeight.w600, _kDim, spacing: 1.5)),
+              Text('MISIONES', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
             ]),
           ]),
         ]),
         const SizedBox(height: 2),
-        Text('KM', style: _rajdhani(13, FontWeight.w700, _kMuted, spacing: 4)),
+        Text('KM', style: _rajdhani(13, FontWeight.w700, _p.muted, spacing: 4)),
         const SizedBox(height: 14),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('HITO $hito KM', style: _rajdhani(9, FontWeight.w600, _kDim, spacing: 1.5)),
-          Text('${(progreso * 100).toStringAsFixed(0)}%', style: _rajdhani(9, FontWeight.w700, _kSubtext)),
+          Text('HITO $hito KM', style: _rajdhani(9, FontWeight.w600, _p.dim, spacing: 1.5)),
+          Text('${(progreso * 100).toStringAsFixed(0)}%', style: _rajdhani(9, FontWeight.w700, _p.sub)),
         ]),
         const SizedBox(height: 5),
         _glowBar(progreso),
@@ -2364,8 +2436,8 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _miniKpi(String val, String label) {
     return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      Text(val, style: _rajdhani(16, FontWeight.w700, _kWhite, height: 1)),
-      Text(label, style: _rajdhani(8, FontWeight.w600, _kDim, spacing: 1.5)),
+      Text(val, style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
+      Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
     ]);
   }
 
@@ -2386,17 +2458,17 @@ class _PerfilScreenState extends State<PerfilScreen>
     final numVal = double.tryParse(val.replaceAll('#', '').replaceAll(RegExp(r'[^0-9.]'), ''));
     return Container(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12), border: Border.all(color: accentColor.withValues(alpha: 0.12))),
+      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: accentColor.withValues(alpha: 0.12))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, color: accentColor.withValues(alpha: 0.40), size: 14),
         const SizedBox(height: 12),
         numVal != null && !val.startsWith('#')
           ? _AnimatedCounter(
               value: numVal,
-              style: GoogleFonts.rajdhani(fontSize: 52, fontWeight: FontWeight.w700, color: _kWhite, height: 1),
+              style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w700, color: _p.title, height: 1),
               duration: const Duration(milliseconds: 1100),
             )
-          : Text(val, style: GoogleFonts.rajdhani(fontSize: 52, fontWeight: FontWeight.w700, color: _kWhite, height: 1)),
+          : Text(val, style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w700, color: _p.title, height: 1)),
         const SizedBox(height: 4),
         Text(label, style: _rajdhani(9, FontWeight.w600, accentColor.withValues(alpha: 0.60), spacing: 1.5, height: 1.4)),
       ]),
@@ -2406,13 +2478,13 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildStatPequena(String val, String label, IconData icon, Color accentColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
+      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
       child: Row(children: [
         Icon(icon, color: accentColor.withValues(alpha: 0.50), size: 13),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(val, style: _rajdhani(22, FontWeight.w700, _kWhite, height: 1)),
-          Text(label, style: _rajdhani(8, FontWeight.w600, _kDim, spacing: 1, height: 1.3)),
+          Text(val, style: _rajdhani(22, FontWeight.w700, _p.title, height: 1)),
+          Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1, height: 1.3)),
         ])),
       ]),
     );
@@ -2431,33 +2503,33 @@ class _PerfilScreenState extends State<PerfilScreen>
     else                        msg = 'Un mes sin parar. Leyenda.';
     return Container(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
+      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
       child: Row(children: [
-        SizedBox(width: 76, height: 76, child: AnimatedBuilder(animation: _loopAnim, builder: (_, __) => CustomPaint(painter: _RachaGaugePainter(progress: prog, accent: activa ? _kAccent : _kMuted, pulse: _pulse.value, activa: activa), child: Center(child: Text(activa ? '🔥' : '💤', style: const TextStyle(fontSize: 26)))))),
+        SizedBox(width: 76, height: 76, child: AnimatedBuilder(animation: _loopAnim, builder: (_, __) => CustomPaint(painter: _RachaGaugePainter(progress: prog, accent: activa ? _kAccent : _p.muted, pulse: _pulse.value, activa: activa), child: Center(child: Text(activa ? '' : '', style: const TextStyle(fontSize: 26)))))),
         const SizedBox(width: 18),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('RACHA OPERATIVA', style: _rajdhani(9, FontWeight.w700, activa ? _kText : _kDim, spacing: 2)),
+          Text('RACHA OPERATIVA', style: _rajdhani(9, FontWeight.w700, activa ? _p.text : _p.dim, spacing: 2)),
           const SizedBox(height: 4),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             _AnimatedCounter(
               value: _rachaActual.toDouble(),
-              style: GoogleFonts.rajdhani(fontSize: 40, fontWeight: FontWeight.w700, color: _kWhite, height: 1),
+              style: GoogleFonts.inter(fontSize: 40, fontWeight: FontWeight.w700, color: _p.title, height: 1),
               duration: const Duration(milliseconds: 1000),
             ),
             const SizedBox(width: 6),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(_rachaActual == 1 ? 'DÍA' : 'DÍAS',
-                  style: _rajdhani(14, FontWeight.w600, _kDim, spacing: 1)),
+                  style: _rajdhani(14, FontWeight.w600, _p.dim, spacing: 1)),
             ),
           ]),
           const SizedBox(height: 3),
-          Text(msg, style: _rajdhani(11, FontWeight.w500, _kSubtext)),
+          Text(msg, style: _rajdhani(11, FontWeight.w500, _p.sub)),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('META', style: _rajdhani(8, FontWeight.w700, _kDim, spacing: 2)),
-          Text('$hito', style: _rajdhani(28, FontWeight.w700, _kText, height: 1)),
-          Text('días', style: _rajdhani(9, FontWeight.w500, _kDim)),
+          Text('META', style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 2)),
+          Text('$hito', style: _rajdhani(28, FontWeight.w700, _p.text, height: 1)),
+          Text('días', style: _rajdhani(9, FontWeight.w500, _p.dim)),
         ]),
       ]),
     );
@@ -2475,33 +2547,33 @@ class _PerfilScreenState extends State<PerfilScreen>
       rivalTop = freq.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
     }
     return Container(
-      decoration: BoxDecoration(color: _kSurface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
+      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
       child: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
           child: Row(children: [
-            Expanded(child: GestureDetector(onTap: () => setState(() => _tabGuerraIndex = 1), child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 14), decoration: BoxDecoration(color: Colors.transparent, borderRadius: const BorderRadius.only(topLeft: Radius.circular(12)), border: Border(bottom: BorderSide(color: _tabGuerraIndex == 1 ? _kAccent : _kBorder, width: 2))), child: Column(children: [Text('${_ganados.length}', style: GoogleFonts.rajdhani(fontSize: 44, fontWeight: FontWeight.w700, height: 1, color: _tabGuerraIndex == 1 ? _kWhite : _kMuted)), Text('VICTORIAS', style: _rajdhani(9, FontWeight.w700, _tabGuerraIndex == 1 ? _kText : _kDim, spacing: 2))])))),
-            Container(width: 1, height: 80, color: _kBorder2),
-            Expanded(child: GestureDetector(onTap: () => setState(() => _tabGuerraIndex = 0), child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 14), decoration: BoxDecoration(color: Colors.transparent, borderRadius: const BorderRadius.only(topRight: Radius.circular(12)), border: Border(bottom: BorderSide(color: _tabGuerraIndex == 0 ? Colors.redAccent : _kBorder2, width: 2))), child: Column(children: [Text('${_perdidos.length}', style: GoogleFonts.rajdhani(fontSize: 44, fontWeight: FontWeight.w700, height: 1, color: _tabGuerraIndex == 0 ? _kWhite : _kMuted)), Text('DERROTAS', style: _rajdhani(9, FontWeight.w700, _tabGuerraIndex == 0 ? Colors.redAccent.withValues(alpha: 0.8) : _kDim, spacing: 2))])))),
+            Expanded(child: GestureDetector(onTap: () => setState(() => _tabGuerraIndex = 1), child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 14), decoration: BoxDecoration(color: Colors.transparent, borderRadius: const BorderRadius.only(topLeft: Radius.circular(12)), border: Border(bottom: BorderSide(color: _tabGuerraIndex == 1 ? _kAccent : _p.border, width: 2))), child: Column(children: [Text('${_ganados.length}', style: GoogleFonts.inter(fontSize: 44, fontWeight: FontWeight.w700, height: 1, color: _tabGuerraIndex == 1 ? _p.title : _p.muted)), Text('VICTORIAS', style: _rajdhani(9, FontWeight.w700, _tabGuerraIndex == 1 ? _p.text : _p.dim, spacing: 2))])))),
+            Container(width: 1, height: 80, color: _p.border2),
+            Expanded(child: GestureDetector(onTap: () => setState(() => _tabGuerraIndex = 0), child: AnimatedContainer(duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 14), decoration: BoxDecoration(color: Colors.transparent, borderRadius: const BorderRadius.only(topRight: Radius.circular(12)), border: Border(bottom: BorderSide(color: _tabGuerraIndex == 0 ? Colors.redAccent : _p.border2, width: 2))), child: Column(children: [Text('${_perdidos.length}', style: GoogleFonts.inter(fontSize: 44, fontWeight: FontWeight.w700, height: 1, color: _tabGuerraIndex == 0 ? _p.title : _p.muted)), Text('DERROTAS', style: _rajdhani(9, FontWeight.w700, _tabGuerraIndex == 0 ? Colors.redAccent.withValues(alpha: 0.8) : _p.dim, spacing: 2))])))),
           ]),
         ),
-        Stack(children: [Container(height: 2, color: _kBorder2), FractionallySizedBox(widthFactor: winPct, child: Container(height: 2, color: _kAccent))]),
+        Stack(children: [Container(height: 2, color: _p.border2), FractionallySizedBox(widthFactor: winPct, child: Container(height: 2, color: _kAccent))]),
         if (total > 0)
           Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 0), child: Row(children: [
-            _guerraKpi('${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _kText), _guerraDivider(),
-            _guerraKpi('$total', 'TOTAL', _kText), _guerraDivider(),
-            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÍCTIMA TOP', _kText),
+            _guerraKpi('${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _p.text), _guerraDivider(),
+            _guerraKpi('$total', 'TOTAL', _p.text), _guerraDivider(),
+            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÍCTIMA TOP', _p.text),
           ])),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           child: _loadingHistorial
               ? Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
               : lista.isEmpty
-                  ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(_tabGuerraIndex == 0 ? 'Sin territorios perdidos' : 'Sin conquistas', style: _rajdhani(12, FontWeight.w500, _kDim), textAlign: TextAlign.center))
+                  ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(_tabGuerraIndex == 0 ? 'Sin territorios perdidos' : 'Sin conquistas', style: _rajdhani(12, FontWeight.w500, _p.dim), textAlign: TextAlign.center))
                   : Column(children: [
                       ...lista.take(3).map((item) => _guerraRow(item, colTab)),
                       if (lista.length > 3 && isOwnProfile)
-                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} más', style: _rajdhani(11, FontWeight.w600, _kText)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _kDim, size: 12)]))),
+                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} más', style: _rajdhani(11, FontWeight.w600, _p.text)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _p.dim, size: 12)]))),
                     ]),
         ),
       ]),
@@ -2509,20 +2581,20 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _guerraKpi(String val, String label, Color color) {
-    return Expanded(child: Column(children: [Text(val, style: _rajdhani(14, FontWeight.w700, color, height: 1), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis), const SizedBox(height: 2), Text(label, style: _rajdhani(8, FontWeight.w600, _kDim, spacing: 1.5), textAlign: TextAlign.center)]));
+    return Expanded(child: Column(children: [Text(val, style: _rajdhani(14, FontWeight.w700, color, height: 1), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis), const SizedBox(height: 2), Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5), textAlign: TextAlign.center)]));
   }
-  Widget _guerraDivider() => Container(width: 1, height: 28, color: _kBorder2, margin: const EdgeInsets.symmetric(horizontal: 8));
+  Widget _guerraDivider() => Container(width: 1, height: 28, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 8));
   Widget _guerraRow(NotifItem item, Color color) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(color: _kSurface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: color.withValues(alpha: 0.35), width: 2))),
+      decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: color.withValues(alpha: 0.35), width: 2))),
       child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(item.mensaje, style: _rajdhani(12, FontWeight.w600, _kText), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(item.mensaje, style: _rajdhani(12, FontWeight.w600, _p.text), maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
         Row(children: [
-          if (item.fromNickname != null) ...[Text(item.fromNickname!, style: _rajdhani(9, FontWeight.w700, color.withValues(alpha: 0.85))), Container(width: 1, height: 8, color: _kBorder2, margin: const EdgeInsets.symmetric(horizontal: 6))],
-          Text(_formatearTiempoGuerra(item.timestamp), style: _rajdhani(9, FontWeight.w500, _kDim)),
+          if (item.fromNickname != null) ...[Text(item.fromNickname!, style: _rajdhani(9, FontWeight.w700, color.withValues(alpha: 0.85))), Container(width: 1, height: 8, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 6))],
+          Text(_formatearTiempoGuerra(item.timestamp), style: _rajdhani(9, FontWeight.w500, _p.dim)),
         ]),
       ]))]),
     );
@@ -2541,15 +2613,15 @@ class _PerfilScreenState extends State<PerfilScreen>
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(color: _kSurface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: i == 0 ? _kBorder2 : _kBorder, width: 1))),
+                decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: i == 0 ? _p.border2 : _p.border, width: 1))),
                 child: Row(children: [
-                  Text('${i + 1}', style: _rajdhani(11, FontWeight.w700, _kDim, spacing: 0)),
+                  Text('${i + 1}', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 0)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _kWhite, height: 1)),
-                    Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _kDim)),
+                    Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
+                    Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
                   ])),
-                  Text(fecha, style: _rajdhani(10, FontWeight.w600, _kMuted)),
+                  Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
                 ]),
               );
             }).toList()),
@@ -2565,15 +2637,15 @@ class _PerfilScreenState extends State<PerfilScreen>
               final titulo     = logro['titulo'] as String? ?? 'Logro';
               final recompensa = (logro['recompensa'] as num? ?? 0).toInt();
               final medalColors = [Colors.amber, const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
-              final color = i < 3 ? medalColors[i] : _kText;
+              final color = i < 3 ? medalColors[i] : _p.text;
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(color: _kSurface2, borderRadius: BorderRadius.circular(7), border: Border(left: BorderSide(color: color.withValues(alpha: 0.5), width: 2))),
+                decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(7), border: Border(left: BorderSide(color: color.withValues(alpha: 0.5), width: 2))),
                 child: IntrinsicHeight(child: Row(children: [
-                  Container(width: 36, alignment: Alignment.center, child: Text(i < 3 ? ['🥇', '🥈', '🥉'][i] : '${i + 1}', style: TextStyle(fontSize: i < 3 ? 14 : 10, color: color, fontWeight: FontWeight.w900))),
-                  Container(width: 1, color: _kBorder),
+                  Container(width: 36, alignment: Alignment.center, child: Text(i < 3 ? ['', '', ''][i] : '${i + 1}', style: TextStyle(fontSize: i < 3 ? 14 : 10, color: color, fontWeight: FontWeight.w900))),
+                  Container(width: 1, color: _p.border),
                   Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(titulo, style: _rajdhani(13, FontWeight.w700, _kWhite), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(titulo, style: _rajdhani(13, FontWeight.w700, _p.title), maxLines: 1, overflow: TextOverflow.ellipsis),
                     if (recompensa > 0) ...[const SizedBox(height: 3), Text('+$recompensa monedas', style: _rajdhani(10, FontWeight.w600, color.withValues(alpha: 0.75)))],
                   ]))),
                   if (recompensa > 0) Padding(padding: const EdgeInsets.only(right: 12), child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(5), border: Border.all(color: color.withValues(alpha: 0.18))), child: Text('+$recompensa', style: _rajdhani(11, FontWeight.w900, color)))),
@@ -2602,13 +2674,13 @@ class _PerfilScreenState extends State<PerfilScreen>
           onTap: () { if (!_mapaTerritoriosExpandido && _territoriosDelUsuario.isEmpty) { _cargarTerritoriosDelUsuario(); } else { setState(() => _mapaTerritoriosExpandido = !_mapaTerritoriosExpandido); } },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(color: _kSurface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _kBorder)),
+            decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _p.border)),
             child: Row(children: [
               Container(width: 7, height: 7, decoration: BoxDecoration(color: _colorTerritorio, shape: BoxShape.circle)),
               const SizedBox(width: 10),
-              _loadingTerritoriosMapa ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)) : Text(_mapaTerritoriosExpandido ? 'Ocultar mapa' : 'Ver en el mapa', style: _rajdhani(12, FontWeight.w500, _kDim)),
+              _loadingTerritoriosMapa ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)) : Text(_mapaTerritoriosExpandido ? 'Ocultar mapa' : 'Ver en el mapa', style: _rajdhani(12, FontWeight.w500, _p.dim)),
               const Spacer(),
-              Icon(_mapaTerritoriosExpandido ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _kDim, size: 18),
+              Icon(_mapaTerritoriosExpandido ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 18),
             ]),
           ),
         ),
@@ -2621,12 +2693,12 @@ class _PerfilScreenState extends State<PerfilScreen>
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 height: 240,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: _kBorder)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: _p.border)),
                 child: Stack(children: [
                   FlutterMap(
                     options: MapOptions(initialCenter: centro, initialZoom: 14, interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag)),
                     children: [
-                      TileLayer(urlTemplate: _kMapboxTileUrl, userAgentPackageName: 'com.runner_risk.app', tileSize: 256, additionalOptions: const {'accessToken': _kMapboxToken}),
+                      TileLayer(urlTemplate: _kMapboxTileUrl, userAgentPackageName: 'com.runner_risk.app', tileDimension: 256, additionalOptions: const {'accessToken': _kMapboxToken}),
                       PolygonLayer(polygons: poligonos),
                       MarkerLayer(markers: _territoriosDelUsuario.map((t) {
                         final pts  = t['puntos'] as List<LatLng>;
@@ -2651,15 +2723,15 @@ class _PerfilScreenState extends State<PerfilScreen>
     return _Panel(
       accent: _kAccent, label: 'COLOR DE TERRITORIO', icon: Icons.palette_outlined,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Identifica tus zonas en el mapa y cómo te ven otros jugadores.', style: _rajdhani(11, FontWeight.w400, _kSubtext)),
+        Text('Identifica tus zonas en el mapa y cómo te ven otros jugadores.', style: _rajdhani(11, FontWeight.w400, _p.sub)),
         const SizedBox(height: 14),
         GestureDetector(
           onTap: () => setState(() => _colorPanelExpandido = !_colorPanelExpandido),
           child: Row(children: [
             Container(width: 40, height: 40, decoration: BoxDecoration(color: _colorTerritorio, borderRadius: BorderRadius.circular(8))),
             const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('COLOR ACTUAL', style: _rajdhani(8, FontWeight.w700, _kDim, spacing: 2)), const SizedBox(height: 2), Text(nombreActual, style: _rajdhani(14, FontWeight.w700, _colorTerritorio))])),
-            AnimatedRotation(turns: _colorPanelExpandido ? 0.5 : 0, duration: const Duration(milliseconds: 250), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: _kSurface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _kBorder2)), child: const Icon(Icons.keyboard_arrow_down_rounded, color: _kDim, size: 18))),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('COLOR ACTUAL', style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 2)), const SizedBox(height: 2), Text(nombreActual, style: _rajdhani(14, FontWeight.w700, _colorTerritorio))])),
+            AnimatedRotation(turns: _colorPanelExpandido ? 0.5 : 0, duration: const Duration(milliseconds: 250), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _p.border2)), child: Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 18))),
           ]),
         ),
         AnimatedSize(
@@ -2667,15 +2739,15 @@ class _PerfilScreenState extends State<PerfilScreen>
           child: _colorPanelExpandido
               ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const SizedBox(height: 16),
-                  Container(height: 1, color: _kBorder, margin: const EdgeInsets.only(bottom: 14)),
+                  Container(height: 1, color: _p.border, margin: const EdgeInsets.only(bottom: 14)),
                   Wrap(spacing: 10, runSpacing: 14, children: _coloresDisponibles.map((rc) {
                     final bool sel = _colorTerritorio.value == rc.color.value;
                     return GestureDetector(
                       onTap: () { _guardarColorTerritorio(rc.color); setState(() => _colorPanelExpandido = false); },
                       child: SizedBox(width: 56, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        AnimatedContainer(duration: const Duration(milliseconds: 200), width: sel ? 44 : 38, height: sel ? 44 : 38, decoration: BoxDecoration(color: rc.color, borderRadius: BorderRadius.circular(9), border: Border.all(color: sel ? Colors.white : _kBorder, width: sel ? 2 : 1), boxShadow: sel ? [BoxShadow(color: rc.color.withValues(alpha: 0.5), blurRadius: 8)] : []), child: sel ? const Icon(Icons.check_rounded, color: Colors.white, size: 16) : null),
+                        AnimatedContainer(duration: const Duration(milliseconds: 200), width: sel ? 44 : 38, height: sel ? 44 : 38, decoration: BoxDecoration(color: rc.color, borderRadius: BorderRadius.circular(9), border: Border.all(color: sel ? Colors.white : _p.border, width: sel ? 2 : 1), boxShadow: sel ? [BoxShadow(color: rc.color.withValues(alpha: 0.5), blurRadius: 8)] : []), child: sel ? const Icon(Icons.check_rounded, color: Colors.white, size: 16) : null),
                         const SizedBox(height: 5),
-                        Text(rc.nombre.split(' ').last, style: _rajdhani(8, sel ? FontWeight.w700 : FontWeight.w500, sel ? _colorTerritorio : _kDim), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(rc.nombre.split(' ').last, style: _rajdhani(8, sel ? FontWeight.w700 : FontWeight.w500, sel ? _colorTerritorio : _p.dim), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                       ])),
                     );
                   }).toList()),
@@ -2690,7 +2762,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     return Row(children: [
       Container(width: 26, height: 26, decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: 0.12))), child: Icon(icon, color: color, size: 13)),
       const SizedBox(width: 12),
-      Text(label, style: _rajdhani(13, FontWeight.w600, _kText)),
+      Text(label, style: _rajdhani(13, FontWeight.w600, _p.text)),
     ]);
   }
 
@@ -2700,7 +2772,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       case 'accepted':
         return _socialBtn('Amigos', Icons.people_rounded, Colors.greenAccent, () => _confirmarEliminarAmistad(), outlined: true);
       case 'pending_sent':
-        return _socialBtn('Solicitud enviada', Icons.hourglass_top_rounded, _kMuted, () => _confirmarEliminarAmistad(), outlined: true);
+        return _socialBtn('Solicitud enviada', Icons.hourglass_top_rounded, _p.muted, () => _confirmarEliminarAmistad(), outlined: true);
       case 'pending_received':
         return Row(children: [
           Expanded(child: _socialBtn('Aceptar', Icons.check_rounded, Colors.greenAccent, _aceptarSolicitud)),
@@ -2708,7 +2780,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           Expanded(child: _socialBtn('Rechazar', Icons.close_rounded, Colors.redAccent, _eliminarAmistad, outlined: true)),
         ]);
       default:
-        return _socialBtn('Añadir operativo', Icons.person_add_outlined, _kText, _enviarSolicitudAmistad);
+        return _socialBtn('Añadir operativo', Icons.person_add_outlined, _p.text, _enviarSolicitudAmistad);
     }
   }
 
@@ -2725,12 +2797,12 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   void _confirmarEliminarAmistad() {
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      backgroundColor: _kSurface2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: _kBorder2)),
-      title: Text('Eliminar amistad', style: _rajdhani(16, FontWeight.w700, _kWhite)),
-      content: Text(_friendshipStatus == 'pending_sent' ? 'Se cancelará la solicitud enviada.' : 'Dejarás de ser aliado con $nickname.', style: _rajdhani(13, FontWeight.w500, _kSubtext)),
+      backgroundColor: _p.surface2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _p.border2)),
+      title: Text('Eliminar amistad', style: _rajdhani(16, FontWeight.w700, _p.title)),
+      content: Text(_friendshipStatus == 'pending_sent' ? 'Se cancelará la solicitud enviada.' : 'Dejarás de ser aliado con $nickname.', style: _rajdhani(13, FontWeight.w500, _p.sub)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _kDim))),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _p.dim))),
         TextButton(onPressed: () { Navigator.pop(ctx); _eliminarAmistad(); }, child: Text('Eliminar', style: _rajdhani(12, FontWeight.w700, Colors.redAccent))),
       ],
     ));
@@ -2738,12 +2810,12 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _glowBar(double val, {double height = 3, Color? color}) {
     return Stack(children: [
-      Container(height: height, decoration: BoxDecoration(color: _kBorder2, borderRadius: BorderRadius.circular(2))),
+      Container(height: height, decoration: BoxDecoration(color: _p.border2, borderRadius: BorderRadius.circular(2))),
       FractionallySizedBox(widthFactor: val.clamp(0.0, 1.0), child: Container(height: height, decoration: BoxDecoration(color: color ?? _kAccent, borderRadius: BorderRadius.circular(2)))),
     ]);
   }
 
-  Widget _emptyRow(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(text, style: _rajdhani(12, FontWeight.w500, _kDim)));
+  Widget _emptyRow(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(text, style: _rajdhani(12, FontWeight.w500, _p.dim)));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2827,7 +2899,7 @@ class _Panel extends StatelessWidget {
           const SizedBox(width: 9),
           Icon(icon, color: const Color(0xFF3A3A3A), size: 11),
           const SizedBox(width: 6),
-          Text(label, style: GoogleFonts.rajdhani(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF4A4A4A), letterSpacing: 2.5)),
+          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF4A4A4A), letterSpacing: 2.5)),
         ])),
         Padding(padding: const EdgeInsets.all(18), child: child),
       ]),
@@ -2840,7 +2912,7 @@ class _DossierBgPainter extends CustomPainter {
   _DossierBgPainter({required this.accent, required this.pulse, required this.scan});
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width * 0.5, cy = size.height * 0.38;
+    final cx = size.width * 0.5, cy = size.height * 0.45;
     for (int i = 1; i <= 5; i++) { canvas.drawCircle(Offset(cx, cy), i * 36.0, Paint()..color = accent.withValues(alpha: 0.012)..strokeWidth = 0.6..style = PaintingStyle.stroke); }
     canvas.drawLine(Offset(cx - 180, cy), Offset(cx + 180, cy), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
     canvas.drawLine(Offset(cx, cy - 180), Offset(cx, cy + 180), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
@@ -2904,7 +2976,7 @@ class _BotonFoto extends StatelessWidget {
     return GestureDetector(onTap: onTap, child: Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(color: const Color(0xFF0D0D0D), borderRadius: BorderRadius.circular(8), border: Border.all(color: accent.withValues(alpha: 0.18))),
-      child: Column(children: [Icon(icon, color: accent, size: 22), const SizedBox(height: 8), Text(label, style: GoogleFonts.rajdhani(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF666666)))]),
+      child: Column(children: [Icon(icon, color: accent, size: 22), const SizedBox(height: 8), Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF666666)))]),
     ));
   }
 }

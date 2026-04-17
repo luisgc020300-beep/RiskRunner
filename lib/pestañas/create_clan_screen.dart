@@ -22,7 +22,7 @@ const _kWhite    = Color(0xFF1C1C1E);
 const _kAccent   = Color(0xFFE02020);
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
-    GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+    GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 // ── Emojis de clan disponibles ────────────────────────────
 const _kEmojis = [
@@ -150,7 +150,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,

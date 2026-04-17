@@ -294,7 +294,7 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                         ),
                         child: Center(
                           child: Text(
-                            widget.esInvasion ? '⚔️' : '🏴',
+                            widget.esInvasion ? '' : '',
                             style: const TextStyle(fontSize: 42),
                           ),
                         ),

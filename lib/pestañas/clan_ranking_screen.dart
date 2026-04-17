@@ -24,7 +24,7 @@ TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
-    GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+    GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 // ── Modelo de entrada de ranking ──────────────────────────────────────────────
 class _ClanRankEntry {
@@ -69,7 +69,7 @@ class _ClanRankingScreenState extends State<ClanRankingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,

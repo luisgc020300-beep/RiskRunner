@@ -111,7 +111,7 @@ class KingBannerWidget extends StatelessWidget {
                 Row(children: [
                   Text(
                     'REY DEL TERRITORIO',
-                    style: GoogleFonts.rajdhani(
+                    style: GoogleFonts.inter(
                       color:        _kGold,
                       fontSize:     9,
                       fontWeight:   FontWeight.w800,
@@ -141,7 +141,7 @@ class KingBannerWidget extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   territory.reyNickname ?? 'Desconocido',
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                     color:      Colors.white,
                     fontSize:   16,
                     fontWeight: FontWeight.w800,
@@ -150,7 +150,7 @@ class KingBannerWidget extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   _subtitulo(diasRey),
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                       color: _kDim, fontSize: 11),
                 ),
               ],
@@ -220,7 +220,7 @@ class _KingBannerCompact extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             territory.reyNickname ?? '?',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color:      _kGoldLight,
               fontSize:   12,
               fontWeight: FontWeight.w800,
@@ -229,7 +229,7 @@ class _KingBannerCompact extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             '· ${territory.diasComoRey}d',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
                 color: _kGoldDim, fontSize: 10),
           ),
         ]),
@@ -324,7 +324,7 @@ class _KingCoronationWidgetState extends State<_KingCoronationWidget>
             const SizedBox(height: 8),
             Text(
               '${widget.diasControlado} días dominando esta zona',
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                 color:      _kGold,
                 fontSize:   14,
                 fontWeight: FontWeight.w600,
@@ -334,7 +334,7 @@ class _KingCoronationWidgetState extends State<_KingCoronationWidget>
             Text(
               'Tu corona aparecerá en el mapa para que todos la vean',
               textAlign: TextAlign.center,
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                   color: _kDim, fontSize: 12),
             ),
           ]),
@@ -441,7 +441,7 @@ class KingProgressBar extends StatelessWidget {
           children: [
             Text(
               '👑 Progreso hacia el reinado',
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                 color:      _kGoldDim,
                 fontSize:   11,
                 fontWeight: FontWeight.w700,
@@ -450,7 +450,7 @@ class KingProgressBar extends StatelessWidget {
             ),
             Text(
               progreso >= 1.0 ? '¡Listo!' : 'Faltan $faltan días',
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                 color:      progreso >= 1.0 ? _kGoldLight : _kDim,
                 fontSize:   10,
                 fontWeight: FontWeight.w600,
@@ -474,7 +474,7 @@ class KingProgressBar extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '¡Visita el territorio para ser coronado Rey!',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color:      _kGoldLight,
               fontSize:   11,
               fontWeight: FontWeight.w700,

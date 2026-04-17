@@ -19,7 +19,7 @@ const _kGoldDim = Color(0xFF8B6914);
 
 TextStyle _raj(double size, FontWeight w, Color c,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.rajdhani(
+    GoogleFonts.inter(
         fontSize: size,
         fontWeight: w,
         color: c,
@@ -129,7 +129,7 @@ porTemporada.putIfAbsent(t.temporada, () => []).add(t);    }
               const Text('👑', style: TextStyle(fontSize: 11)),
               const SizedBox(width: 6),
               Text('PALMARÉS',
-                  style: GoogleFonts.rajdhani(
+                  style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: _kGoldDim,

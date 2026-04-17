@@ -12,6 +12,7 @@ import '../services/onboarding_service.dart';
 import '../widgets/onboarding_overlay.dart';
 import '../widgets/stats_resumen_widget.dart';
 import 'fullscreen_map_screen.dart';
+import '../config/env.dart';
 
 // =============================================================================
 // PALETA — OPERATIVE DARK · ROJO ACENTO
@@ -38,7 +39,7 @@ const _kGlobalRedDim  = Color(0xFF7A1414);
 // =============================================================================
 // MAPBOX
 // =============================================================================
-const _kMapboxToken   = String.fromEnvironment('MAPBOX_TOKEN');
+const _kMapboxToken   = Env.mapboxPublicToken;
 const _kMapboxStyleId = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/$_kMapboxStyleId/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
@@ -247,7 +248,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       if (_esGuerraGlobal && widget.globalConquistado) {
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
-            _snack('⚔️', '¡Territorio global conquistado!',
+            _snack('', '¡Territorio global conquistado!',
                 widget.objetivoGlobal!['territorioNombre'] as String? ?? '',
                 _kGold);
           }
@@ -383,9 +384,9 @@ class _ResumenScreenState extends State<ResumenScreen>
   void _mostrarBannerRacha(int r) =>
       Future.delayed(const Duration(milliseconds: 900), () {
         if (!mounted) return;
-        _snack('🔥', '¡Racha de $r días!',
+        _snack('', '¡Racha de $r días!',
             r >= 7
-                ? '🏆 Una semana seguida conquistando'
+                ? ' Una semana seguida conquistando'
                 : 'Sigue así, conquistador',
             _kGrey);
       });
@@ -393,7 +394,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   void _mostrarBannerConquista(int n) =>
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
-        _snack('⚔️', '¡Territorio conquistado!',
+        _snack('', '¡Territorio conquistado!',
             n == 1
                 ? '1 rival eliminado del mapa'
                 : '$n rivales eliminados',
@@ -694,14 +695,14 @@ class _ResumenScreenState extends State<ResumenScreen>
                       });
                       if (bCtx.mounted) {
                         Navigator.pop(bCtx);
-                        _snack('🚀', '¡Publicado!',
+                        _snack('', '¡Publicado!',
                             'Tu conquista ya está en el feed', _kGrey);
                       }
                     } catch (e) {
                       debugPrint('Error publicando post: $e');
                       setM(() => pub = false);
                       if (bCtx.mounted) {
-                        _snack('⚠️', 'Error al publicar',
+                        _snack('', 'Error al publicar',
                             'Comprueba tu conexión', _kGreyDim);
                       }
                     }
@@ -774,7 +775,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget build(BuildContext context) {
     if (isLoading || _centroMapa == null) return _buildLoading();
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: FloatingActionButton.small(
         onPressed: _volverAlInicio,
@@ -904,7 +905,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           children: [
             // ── Cabecera
             Row(children: [
-              Text(conquistado ? '⚔️' : '🏃',
+              Text(conquistado ? '' : '',
                   style: const TextStyle(fontSize: 24)),
               const SizedBox(width: 12),
               Expanded(child: Column(
@@ -943,7 +944,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   ),
                 ),
                 child: Text(
-                  conquistado ? '✓ CONQUISTADO' : '✗ NO COMPLETADO',
+                  conquistado ? ' CONQUISTADO' : ' NO COMPLETADO',
                   style: TextStyle(
                     color:         conquistado ? _kGold : _kGlobalRed,
                     fontSize:      9,
@@ -1022,7 +1023,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       color: _kGoldDim.withValues(alpha: 0.6)),
                 ),
                 child: Row(children: [
-                  const Text('🔒', style: TextStyle(fontSize: 14)),
+                  const Text('', style: TextStyle(fontSize: 14)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: RichText(
@@ -1061,7 +1062,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   border: Border.all(color: _kGoldDim.withOpacity(0.5)),
                 ),
                 child: Row(children: [
-                  const Text('🪙', style: TextStyle(fontSize: 18)),
+                  const Text('', style: TextStyle(fontSize: 18)),
                   const SizedBox(width: 10),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1108,7 +1109,7 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   // ── Loading
   Widget _buildLoading() => Scaffold(
-    backgroundColor: _kBg,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
       AnimatedBuilder(
         animation: _pulseCtrl,
@@ -1120,7 +1121,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                 color: _kGrey.withOpacity(_pulse.value), width: 1.5),
           ),
           child: const Center(
-              child: Text('⚔️', style: TextStyle(fontSize: 24))),
+              child: Text('', style: TextStyle(fontSize: 24))),
         ),
       ),
       const SizedBox(height: 18),
@@ -1325,7 +1326,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Text('⏱', style: TextStyle(fontSize: 11)),
+            const Text('', style: TextStyle(fontSize: 11)),
             const SizedBox(width: 6),
             const Text('TIEMPO', style: TextStyle(
                 color:         _kGrey,
@@ -1343,9 +1344,9 @@ class _ResumenScreenState extends State<ResumenScreen>
       )),
       const SizedBox(width: 8),
       Expanded(flex: 4, child: Column(children: [
-        _metricTileSmall(ritmo, 'MIN/KM', '🏃', accent: false),
+        _metricTileSmall(ritmo, 'MIN/KM', '', accent: false),
         const SizedBox(height: 8),
-        _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', '⚡', accent: true),
+        _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', '', accent: true),
       ])),
     ]);
   }
@@ -1436,7 +1437,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   TileLayer(
                     urlTemplate:          _kMapboxTileUrl,
                     userAgentPackageName: 'com.runner_risk.app',
-                    tileSize:             256,
+                    tileDimension:        256,
                     additionalOptions:
                         const {'accessToken': _kMapboxToken},
                   ),
@@ -1490,7 +1491,7 @@ class _ResumenScreenState extends State<ResumenScreen>
               Positioned(top: 10, left: 10,
                   child: _mapBadge(
                       '${_territoriosEnMapa.length} zona${_territoriosEnMapa.length == 1 ? '' : 's'}',
-                      '🏴')),
+                      '')),
               Positioned(top: 10, right: 10,
                 child: Container(
                   padding: const EdgeInsets.all(7),
@@ -1536,11 +1537,11 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   Widget _buildTotalesRow() => Row(children: [
     Expanded(child: _totalCell(
-        retosTotalesHistorial.toString(), 'CARRERAS TOTALES', '🏃')),
+        retosTotalesHistorial.toString(), 'CARRERAS TOTALES', '')),
     const SizedBox(width: 8),
     Expanded(child: _totalCell(
         monedasTotalesHistorial.toString(),
-        'PUNTOS ACUMULADOS', '⚡', accent: true)),
+        'PUNTOS ACUMULADOS', '', accent: true)),
   ]);
 
   Widget _totalCell(String v, String l, String emoji,
@@ -1588,7 +1589,7 @@ class _ResumenScreenState extends State<ResumenScreen>
     final hito  = hitos.firstWhere((h) => _rachaActual < h, orElse: () => 30);
     final pct   = (_rachaActual / hito).clamp(0.0, 1.0);
     return _contextCard(
-      emoji:    '🔥',
+      emoji:    '',
       tag:      'RACHA',
       headline: '$_rachaActual ${_rachaActual == 1 ? 'día' : 'días'} consecutivos',
       sub:      _rachaActual < 7
@@ -1600,7 +1601,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   }
 
   Widget _buildLigaCard() => _contextCard(
-    emoji:    '🏆',
+    emoji:    '',
     tag:      'LIGA',
     headline: '+$_puntosLigaSesion pts esta sesión',
     sub:      '$_totalPuntosLiga pts totales acumulados',
@@ -1613,7 +1614,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   );
 
   Widget _buildConquistaCard() => _contextCard(
-    emoji:    '⚔️',
+    emoji:    '',
     tag:      'CONQUISTA',
     headline: '$_territoriosConquistados territorio${_territoriosConquistados == 1 ? '' : 's'} arrebatado${_territoriosConquistados == 1 ? '' : 's'}',
     sub:      'El rival ya ha sido notificado',
@@ -1807,7 +1808,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           curve:    Curves.elasticOut,
           builder:  (_, v, child) =>
               Transform.scale(scale: v, child: child),
-          child: const Text('🏆', style: TextStyle(fontSize: 32)),
+          child: const Text('', style: TextStyle(fontSize: 32)),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -1907,7 +1908,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   children: [
                     Row(children: [
                       if (esGlobal) ...[
-                        const Text('⚔️',
+                        const Text('',
                             style: TextStyle(fontSize: 10)),
                         const SizedBox(width: 4),
                       ],
@@ -2000,7 +2001,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           color: _kWhite,
         ),
         child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('📡', style: TextStyle(fontSize: 16)),
+          Text('', style: TextStyle(fontSize: 16)),
           SizedBox(width: 10),
           Text('PUBLICAR EN EL FEED', style: TextStyle(
               color:         _kBg,

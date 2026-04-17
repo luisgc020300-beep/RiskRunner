@@ -193,9 +193,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: _C.bg2,
-          border: Border.all(color: _C.parchd.withOpacity(0.5)),
+          border: Border.all(color: _C.parchd.withValues(alpha: 0.5)),
           boxShadow: [BoxShadow(
-              color: _C.parchm.withOpacity(0.15), blurRadius: 16)],
+              color: _C.parchm.withValues(alpha: 0.15), blurRadius: 16)],
         ),
         child: Text(msg,
             style: const TextStyle(
@@ -213,116 +213,97 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg0,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: _buildAppBar(),
       body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── SELECTOR FEED / HISTORIA
-              _buildDestinoSelector(),
-              const SizedBox(height: 20),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── SELECTOR FEED / HISTORIA (pill segmented control)
+            _buildDestinoSelector(),
+            const SizedBox(height: 20),
 
-              // ── TIPO DE CONTENIDO
-              _buildTipoSelector(),
-              const SizedBox(height: 24),
+            // ── TIPO DE CONTENIDO (chips horizontales)
+            _buildTipoSelector(),
+            const SizedBox(height: 20),
 
-              if (_tipoSeleccionado != 'texto') _buildMediaArea(),
-              if (_tipoSeleccionado != 'texto') const SizedBox(height: 24),
+            if (_tipoSeleccionado != 'texto') _buildMediaArea(),
+            if (_tipoSeleccionado != 'texto') const SizedBox(height: 20),
 
-              _buildSectionLabel('TÍTULO'),
+            _buildSectionLabel('Título'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              controller: _tituloCtrl,
+              hint: 'Ej: Mi ruta favorita por Granada...',
+              maxLength: 80,
+            ),
+            const SizedBox(height: 16),
+
+            if (_destino == 'feed') ...[
+              _buildSectionLabel('Descripción'),
               const SizedBox(height: 8),
               _buildTextField(
-                controller: _tituloCtrl,
-                hint: 'Ej: Mi ruta favorita por Granada...',
-                maxLength: 80,
+                controller: _descCtrl,
+                hint: 'Cuéntale a la comunidad sobre esta carrera...',
+                maxLines: 4,
+                maxLength: 400,
               ),
-              const SizedBox(height: 20),
-
-              if (_destino == 'feed') ...[
-                _buildSectionLabel('DESCRIPCIÓN'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _descCtrl,
-                  hint: 'Cuéntale a la comunidad sobre esta carrera...',
-                  maxLines: 4,
-                  maxLength: 400,
-                ),
-                const SizedBox(height: 28),
-                _buildInfoTip(),
-              ] else ...[
-                const SizedBox(height: 8),
-                _buildHistoriaTip(),
-              ],
+              const SizedBox(height: 24),
+              _buildInfoTip(),
+            ] else ...[
+              const SizedBox(height: 4),
+              _buildHistoriaTip(),
             ],
-          ),
+          ],
+        ),
       ),
     );
   }
 
   // ===========================================================================
-  // SELECTOR DESTINO
+  // SELECTOR DESTINO — iOS segmented control pill
   // ===========================================================================
   Widget _buildDestinoSelector() {
     return Container(
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C0C0C),
-        border: Border.all(color: const Color(0x28CC2222)),
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          _destinoTab(id: 'feed',     label: 'FEED',     icon: Icons.dynamic_feed_rounded,  subtitle: 'Publicación permanente'),
-          Container(width: 1, height: 56, color: const Color(0x28CC2222)),
-          _destinoTab(id: 'historia', label: 'HISTORIA', icon: Icons.auto_stories_rounded,  subtitle: 'Visible 24 horas'),
-        ],
-      ),
+      child: Row(children: [
+        _destinoTab(id: 'feed',     label: 'Feed',     icon: Icons.dynamic_feed_rounded),
+        _destinoTab(id: 'historia', label: 'Historia', icon: Icons.auto_stories_rounded),
+      ]),
     );
   }
 
-  Widget _destinoTab({
-    required String id,
-    required String label,
-    required IconData icon,
-    required String subtitle,
-  }) {
+  Widget _destinoTab({required String id, required String label, required IconData icon}) {
     final bool selected = _destino == id;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _destino = id),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: selected
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [_accentColor.withOpacity(0.12), _accentColor.withOpacity(0.03)],
-                  )
-                : null,
-            border: Border(
-              top: BorderSide(color: selected ? _accentColor : Colors.transparent, width: 2),
-            ),
+            color: selected ? _C.bg1 : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: selected ? [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2)),
+            ] : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: selected ? _accentColor : _C.parchd),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(label, style: TextStyle(
-                    color: selected ? _C.parch : _C.parchd,
-                    fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                  Text(subtitle, style: TextStyle(
-                    color: selected ? _accentColor.withOpacity(0.7) : _C.parchd.withOpacity(0.5),
-                    fontSize: 9, fontWeight: FontWeight.w600)),
-                ],
-              ),
+              Icon(icon, size: 15, color: selected ? _accentColor : _C.parchd),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(
+                color: selected ? _C.parch : _C.parchd,
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              )),
             ],
           ),
         ),
@@ -331,51 +312,47 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   // ===========================================================================
-  // APP BAR
+  // APP BAR — iOS style: Cancel left, title center, action right
   // ===========================================================================
   PreferredSizeWidget _buildAppBar() {
     final String btnLabel = _destino == 'historia' ? 'Subir' : 'Publicar';
     return AppBar(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: _C.bg1,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      leading: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Container(
-          margin: const EdgeInsets.all(10),
-          decoration: BoxDecoration(border: Border.all(color: const Color(0xFF444444))),
-          child: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-        ),
-      ),
-      title: Text(
-        _destino == 'historia' ? 'NUEVA HISTORIA' : 'NUEVA PUBLICACIÓN',
-        style: const TextStyle(
-          color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 3),
-      ),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(
-          height: 1,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [
-              Colors.transparent, Color(0x3FCC2222), Colors.transparent])),
-        ),
+        child: Container(height: 1, color: _C.border.withValues(alpha: 0.8)),
       ),
+      leading: TextButton(
+        onPressed: () => Navigator.pop(context),
+        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+        child: Text('Cancelar', style: TextStyle(
+          color: _C.parchd, fontSize: 15, fontWeight: FontWeight.w400)),
+      ),
+      title: Text(
+        _destino == 'historia' ? 'Nueva historia' : 'Nueva publicación',
+        style: TextStyle(
+          color: _C.parch, fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+      centerTitle: true,
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 14, top: 8, bottom: 8),
+          padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
           child: _publicando
-              ? SizedBox(width: 24, height: 24,
+              ? SizedBox(width: 22, height: 22,
                   child: CircularProgressIndicator(color: _accentColor, strokeWidth: 2))
               : GestureDetector(
                   onTap: _publicar,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _accentColor, borderRadius: BorderRadius.circular(2)),
+                      color: _accentColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Text(btnLabel, style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w900,
-                      fontSize: 12, letterSpacing: 1)),
+                      color: Colors.white, fontWeight: FontWeight.w600,
+                      fontSize: 14)),
                   ),
                 ),
         ),
@@ -384,10 +361,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   // ===========================================================================
-  // TIPO SELECTOR
+  // TIPO SELECTOR — chips redondeados
   // ===========================================================================
   Widget _buildTipoSelector() {
-    // CORREGIDO: ids usan 'photo' en lugar de 'foto'
     final tipos = _destino == 'historia'
         ? [
             {'id': 'photo', 'label': 'Foto',  'icon': Icons.photo_camera_rounded},
@@ -410,33 +386,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               _mediaBase64      = null;
             }),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 180),
               margin: const EdgeInsets.symmetric(horizontal: 4),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                gradient: isActive
-                    ? LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [_accentColor.withOpacity(0.12), _accentColor.withOpacity(0.04)],
-                      )
-                    : null,
-                color: isActive ? null : _C.bg1,
+                color: isActive ? _accentColor.withValues(alpha: 0.08) : _C.bg1,
                 border: Border.all(
-                  color: isActive ? _accentColor.withOpacity(0.7) : _C.border,
+                  color: isActive ? _accentColor.withValues(alpha: 0.5) : _C.border,
                   width: isActive ? 1.5 : 1,
                 ),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(t['icon'] as IconData,
-                      color: isActive ? _accentColor : _C.parchd, size: 20),
+                      color: isActive ? _accentColor : _C.parchd, size: 22),
                   const SizedBox(height: 5),
                   Text(t['label'] as String, style: TextStyle(
                     color: isActive ? _accentColor : _C.parchd,
-                    fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                    fontSize: 12, fontWeight: isActive ? FontWeight.w600 : FontWeight.w400)),
                 ],
               ),
             ),
@@ -462,14 +431,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               color: _C.bg1,
               border: Border.all(
                 color: _mediaBase64 != null
-                    ? _accentColor.withOpacity(0.4)
+                    ? _accentColor.withValues(alpha: 0.4)
                     : _C.border,
               ),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: _mediaBase64 != null
                 ? ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(14),
                     child: Stack(fit: StackFit.expand, children: [
                       // CORREGIDO: comparar con 'photo' en lugar de 'foto'
                       if (_tipoSeleccionado == 'photo')
@@ -496,7 +465,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: _C.bg0.withOpacity(0.85),
+                              color: _C.bg0.withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: _C.border),
                             ),
                             child: const Icon(Icons.edit_rounded, color: _C.parchm, size: 14),
@@ -511,7 +481,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _C.parchd.withOpacity(0.06),
+                          color: _C.parchd.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: _C.border),
                         ),
                         child: Icon(
@@ -556,9 +527,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: _C.bg1,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Container(
         decoration: const BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           border: Border(top: BorderSide(color: Color(0x3FCC2222)))),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         child: Column(
@@ -610,11 +583,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(color: _C.bg2, border: Border.all(color: _C.border)),
+        decoration: BoxDecoration(
+            color: _C.bg2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _C.border)),
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(10),
-            color: _C.parchd.withOpacity(0.08),
+            decoration: BoxDecoration(
+              color: _C.parchd.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: Icon(icon, color: _C.parchm, size: 18)),
           const SizedBox(width: 14),
           Expanded(child: Column(
@@ -663,14 +642,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         fillColor: _C.bg1,
         counterStyle: const TextStyle(color: _C.parchd, fontSize: 10),
         border: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: Color(0x1FCCCCCC))),
         enabledBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide(color: Color(0x1FCCCCCC))),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: _accentColor.withOpacity(0.6), width: 1.5)),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: _accentColor.withValues(alpha: 0.6), width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
     );
@@ -683,14 +662,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _C.parchd.withOpacity(0.04),
+        color: _C.parchd.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.border)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            color: _C.parchd.withOpacity(0.08),
+            decoration: BoxDecoration(
+              color: _C.parchd.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: const Icon(Icons.lightbulb_outline_rounded, color: _C.parchm, size: 14)),
           const SizedBox(width: 12),
           const Expanded(child: Text(
@@ -707,14 +690,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _accentColor.withOpacity(0.04),
-        border: Border.all(color: _accentColor.withOpacity(0.2))),
+        color: _accentColor.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _accentColor.withValues(alpha: 0.2))),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            color: _accentColor.withOpacity(0.08),
+            decoration: BoxDecoration(
+              color: _accentColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Icon(Icons.auto_stories_rounded, color: _accentColor, size: 14)),
           const SizedBox(width: 12),
           Expanded(child: Text(
@@ -722,7 +709,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             'Tus amigos verán un anillo de color en tu avatar cuando '
             'tengas una historia activa.',
             style: TextStyle(
-                color: _accentColor.withOpacity(0.8), fontSize: 12, height: 1.5))),
+                color: _accentColor.withValues(alpha: 0.8), fontSize: 12, height: 1.5))),
         ],
       ),
     );

@@ -220,7 +220,7 @@ class PremiumBanner extends StatelessWidget {
           border: Border.all(color: const Color(0xFFCC7C3A).withOpacity(0.4)),
         ),
         child: Row(children: [
-          const Text('👑', style: TextStyle(fontSize: 18)),
+          const Text('', style: TextStyle(fontSize: 18)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

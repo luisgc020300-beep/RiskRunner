@@ -3,6 +3,8 @@
 //  CLAN SERVICE — lógica central de clanes y guerras
 // ═══════════════════════════════════════════════════════════
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -269,13 +271,25 @@ class ClanService {
   // ── Stream del clan del usuario ───────────────────────────
   static Stream<ClanData?> miClanStream() {
     if (myUid == null) return Stream.value(null);
-    return _db.collection('players').doc(myUid).snapshots().asyncMap((playerDoc) async {
+    // Patrón switchMap manual: cuando el clanId del jugador cambia,
+    // cancelamos la suscripción al clan anterior y abrimos una nueva.
+    // Esto garantiza actualizaciones en tiempo real tras editar el clan.
+    final ctrl = StreamController<ClanData?>.broadcast();
+    StreamSubscription? clanSub;
+    final playerSub = _db.collection('players').doc(myUid!).snapshots().listen((playerDoc) {
       final clanId = playerDoc.data()?['clanId'] as String?;
-      if (clanId == null) return null;
-      final clanDoc = await _db.collection('clans').doc(clanId).get();
-      if (!clanDoc.exists) return null;
-      return ClanData.fromDoc(clanDoc);
-    });
+      clanSub?.cancel();
+      if (clanId == null) {
+        ctrl.add(null);
+        return;
+      }
+      clanSub = _db.collection('clans').doc(clanId).snapshots().listen(
+        (clanDoc) => ctrl.add(clanDoc.exists ? ClanData.fromDoc(clanDoc) : null),
+        onError: ctrl.addError,
+      );
+    }, onError: ctrl.addError);
+    ctrl.onCancel = () { playerSub.cancel(); clanSub?.cancel(); };
+    return ctrl.stream;
   }
 
   // ── Stream directo del clan por id ────────────────────────

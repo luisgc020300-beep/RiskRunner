@@ -45,7 +45,7 @@ class OnboardingTooltips {
     // ── RUN 0 (slides) ────────────────────────────────────────────
     'bienvenida': OnboardingTooltipData(
       id: 'bienvenida', tag: 'BIENVENIDO',
-      title: 'Tu primera misión', emoji: '🎯',
+      title: 'Tu primera misión', emoji: '',
       body: 'Pulsa INICIAR CARRERA y sal a correr. Tu ruta se convertirá en territorio tuyo en el mapa.',
       color: _kAccent,
     ),
@@ -53,26 +53,26 @@ class OnboardingTooltips {
     // ── RUN 1 ─────────────────────────────────────────────────────
     'conquista_territorio': OnboardingTooltipData(
       id: 'conquista_territorio', tag: 'MECÁNICA BÁSICA',
-      title: '¡Territorio conquistado!', emoji: '🗺️',
+      title: '¡Territorio conquistado!', emoji: '',
       body: 'Cada ruta que completas queda marcada en el mapa con tu color. Cuanto más largo el recorrido, más zona controlas.',
       color: _kAccent,
     ),
     'mapa_live': OnboardingTooltipData(
       id: 'mapa_live', tag: 'MAPA EN VIVO',
-      title: 'Tu zona se actualiza', emoji: '📍',
+      title: 'Tu zona se actualiza', emoji: '',
       body: 'El mapa se actualiza en tiempo real mientras corres. Puedes ver tu territorio formándose kilómetro a kilómetro.',
       color: Color(0xFF3B82F6),
       position: TooltipPosition.top,
     ),
     'color_hint': OnboardingTooltipData(
       id: 'color_hint', tag: 'PERSONALIZACIÓN',
-      title: 'Tu color de territorio', emoji: '🎨',
+      title: 'Tu color de territorio', emoji: '',
       body: 'En el resumen puedes cambiar el color de todas tus zonas. Elige el que más te represente.',
       color: Color(0xFF8B5CF6),
     ),
     'pausa_retirada': OnboardingTooltipData(
       id: 'pausa_retirada', tag: 'CONTROLES',
-      title: 'Pausa y retirada', emoji: '⏸️',
+      title: 'Pausa y retirada', emoji: '',
       body: 'Pausa cuando necesites descansar. Si te retiras, la ruta hasta ese punto queda guardada igualmente.',
       color: _kDim,
       position: TooltipPosition.top,
@@ -81,20 +81,20 @@ class OnboardingTooltips {
     // ── RUN 2 ─────────────────────────────────────────────────────
     'deterioro_zonas': OnboardingTooltipData(
       id: 'deterioro_zonas', tag: 'DETERIORO',
-      title: 'Tus zonas se desvanecen', emoji: '⏳',
+      title: 'Tus zonas se desvanecen', emoji: '',
       body: 'Si no vuelves a correr por un territorio en 5 días, empieza a perder intensidad. A los 10 días cualquiera puede invadirlo.',
       color: Color(0xFFEAB308),
     ),
     'refuerzo_territorio': OnboardingTooltipData(
       id: 'refuerzo_territorio', tag: 'ESTRATEGIA',
-      title: 'Refuerza lo que es tuyo', emoji: '🛡️',
+      title: 'Refuerza lo que es tuyo', emoji: '',
       body: 'Volver a correr por una zona tuya la refuerza al 100%. Planifica tus rutas para mantener el control del mapa.',
       color: Color(0xFF22C55E),
       position: TooltipPosition.top,
     ),
     'frecuencia_importa': OnboardingTooltipData(
       id: 'frecuencia_importa', tag: 'CONSEJO',
-      title: 'La constancia manda', emoji: '🔥',
+      title: 'La constancia manda', emoji: '',
       body: 'Correr todos los días, aunque sea poco, es mejor que una carrera larga de vez en cuando. Tu racha también suma puntos.',
       color: _kAccent,
     ),
@@ -102,20 +102,20 @@ class OnboardingTooltips {
     // ── RUN 3 ─────────────────────────────────────────────────────
     'otros_jugadores': OnboardingTooltipData(
       id: 'otros_jugadores', tag: 'MULTIJUGADOR',
-      title: 'No estás solo', emoji: '👥',
+      title: 'No estás solo', emoji: '',
       body: 'Otros runners compiten por el mismo mapa. Ves sus zonas en otros colores. La ciudad es un campo de batalla.',
       color: Color(0xFFEF4444),
     ),
     'zona_rival': OnboardingTooltipData(
       id: 'zona_rival', tag: 'TERRITORIO RIVAL',
-      title: 'Zonas en otros colores', emoji: '🔴',
+      title: 'Zonas en otros colores', emoji: '',
       body: 'Las zonas de colores distintos al tuyo pertenecen a otros jugadores. Si están deterioradas, puedes invadirlas corriendo por ellas.',
       color: Color(0xFFEF4444),
       position: TooltipPosition.top,
     ),
     'mapa_global': OnboardingTooltipData(
       id: 'mapa_global', tag: 'VISIÓN GLOBAL',
-      title: 'El mapa completo', emoji: '🌍',
+      title: 'El mapa completo', emoji: '',
       body: 'Desde el mapa principal puedes ver toda la ciudad y cómo está repartido el control entre todos los jugadores.',
       color: Color(0xFF06B6D4),
     ),
@@ -123,20 +123,20 @@ class OnboardingTooltips {
     // ── RUN 4 ─────────────────────────────────────────────────────
     'invasion_posible': OnboardingTooltipData(
       id: 'invasion_posible', tag: 'INVASIÓN',
-      title: '¡Puedes invadir!', emoji: '⚔️',
+      title: '¡Puedes invadir!', emoji: '',
       body: 'Si corres por una zona rival deteriorada, la conquistas. El rival pierde puntos y tú ganas el doble.',
       color: Color(0xFFEF4444),
     ),
     'rival_notificado': OnboardingTooltipData(
       id: 'rival_notificado', tag: 'NOTIFICACIONES',
-      title: 'El rival lo sabe', emoji: '📳',
+      title: 'El rival lo sabe', emoji: '',
       body: 'Cuando invades una zona, el dueño recibe una notificación. Puede volver a reclamarla corriendo de nuevo.',
       color: Color(0xFFEC4899),
       position: TooltipPosition.top,
     ),
     'defiende_tu_zona': OnboardingTooltipData(
       id: 'defiende_tu_zona', tag: 'DEFENSA',
-      title: 'Defiende tu territorio', emoji: '🏰',
+      title: 'Defiende tu territorio', emoji: '',
       body: 'Si alguien invade una de tus zonas, recibe una notificación. Vuelve a correr por ella para recuperarla.',
       color: Color(0xFFEAB308),
     ),
@@ -144,20 +144,20 @@ class OnboardingTooltips {
     // ── RUN 5 ─────────────────────────────────────────────────────
     'ligas_intro': OnboardingTooltipData(
       id: 'ligas_intro', tag: 'LIGAS',
-      title: 'Sistema de ligas', emoji: '🏆',
+      title: 'Sistema de ligas', emoji: '',
       body: 'Cada acción suma puntos de liga. Conquistas, invasiones y racha diaria te suben en el ranking.',
       color: Color(0xFFEAB308),
     ),
     'puntos_liga': OnboardingTooltipData(
       id: 'puntos_liga', tag: 'PUNTUACIÓN',
-      title: 'Cómo sumar puntos', emoji: '⚡',
+      title: 'Cómo sumar puntos', emoji: '',
       body: '+15 pts por zona nueva · +25 pts por invasión · -10 pts si te invaden · +5 pts por racha diaria.',
       color: _kAccent,
       position: TooltipPosition.top,
     ),
     'ranking_semanal': OnboardingTooltipData(
       id: 'ranking_semanal', tag: 'COMPETICIÓN',
-      title: 'El ranking es semanal', emoji: '📊',
+      title: 'El ranking es semanal', emoji: '',
       body: 'Los puntos se resetean cada semana. Todos empiezan desde cero. La batalla se reinicia cada lunes.',
       color: Color(0xFF22C55E),
     ),
@@ -172,14 +172,14 @@ class OnboardingTooltips {
     //
     'retos_intro': OnboardingTooltipData(
       id: 'retos_intro', tag: 'MISIONES',
-      title: 'Retos diarios', emoji: '⚡',
+      title: 'Retos diarios', emoji: '',
       body: 'Cada día tienes misiones nuevas. Confirma un reto, sal a correr y el narrador te guiará en tiempo real hasta completarlo. Los puntos se suman solos al terminar.',
       color: _kAccent,
       position: TooltipPosition.center,
     ),
     'reto_completado': OnboardingTooltipData(
       id: 'reto_completado', tag: '¡PRIMERA MISIÓN!',
-      title: 'Reto completado', emoji: '🏆',
+      title: 'Reto completado', emoji: '',
       body: 'Los puntos ya están en tu cuenta. Puedes seguir corriendo después de completar un reto — la carrera no para hasta que tú quieras.',
       color: Color(0xFFD4A84C),
       position: TooltipPosition.top,

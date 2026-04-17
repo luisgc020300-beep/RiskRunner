@@ -19,11 +19,12 @@ import 'package:shimmer/shimmer.dart';
 
 import '../services/territory_service.dart';
 import '../widgets/custom_navbar.dart';
+import '../config/env.dart';
 
 // =============================================================================
 // MAPBOX
 // =============================================================================
-const String _kMapboxToken = String.fromEnvironment('MAPBOX_TOKEN');
+const String _kMapboxToken = Env.mapboxPublicToken;
 const String _kMapboxUrl =
     'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
     '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
@@ -55,7 +56,7 @@ const _kCyan     = Color(0xFF636366);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.rajdhani(
+    GoogleFonts.inter(
         fontSize: size, fontWeight: weight, color: color,
         letterSpacing: spacing, height: height);
 
@@ -1452,7 +1453,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(children: [
 
         Positioned.fill(child: _buildMapa()),
@@ -1996,7 +1997,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               TileLayer(
                 urlTemplate: _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
-                tileSize: 256,
+                tileDimension: 256,
               ),
 
               // Polígonos de barrios OSM
@@ -2143,7 +2144,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         TileLayer(
             urlTemplate: _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
-            tileSize: 256),
+            tileDimension: 256),
 
         if (territorios.isNotEmpty)
           GestureDetector(
@@ -2329,7 +2330,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           TileLayer(
               urlTemplate: _kMapboxDarkUrl,
               userAgentPackageName: 'com.runner_risk.app',
-              tileSize: 256),
+              tileDimension: 256),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -3886,7 +3887,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           urlTemplate: _kMapboxUrl,
                           userAgentPackageName:
                               'com.runner_risk.app',
-                          tileSize: 256),
+                          tileDimension: 256),
                       PolygonLayer(polygons: [
                         Polygon(
                             points: det.puntos,

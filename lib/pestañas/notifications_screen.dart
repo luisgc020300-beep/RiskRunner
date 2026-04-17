@@ -28,7 +28,7 @@ const _kGreen   = Color(0xFF30D158);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.rajdhani(fontSize: size, fontWeight: weight, color: color,
+    GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color,
         letterSpacing: spacing, height: height);
 
 // =============================================================================
@@ -396,7 +396,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         padding: const EdgeInsets.only(top: 10),
         child: Row(children: [
           Expanded(child: _botonDesafio(
-            label: '✅  ACEPTAR',
+            label: '  ACEPTAR',
             color: _kRed,
             filled: true,
             onTap: () => _aceptarDesafio(item, apuesta, horas, desafioId),
@@ -423,24 +423,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           border: Border.all(color: _kBorder2),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _datoCeldaDesafio('$apuesta 🪙', 'APUESTA'),
+          _datoCeldaDesafio('$apuesta ', 'APUESTA'),
           Container(width: 1, height: 28, color: _kBorder2),
           _datoCeldaDesafio('${horas}h', 'DURACIÓN'),
           Container(width: 1, height: 28, color: _kBorder2),
-          _datoCeldaDesafio('${apuesta * 2} 🪙', 'PREMIO'),
+          _datoCeldaDesafio('${apuesta * 2} ', 'PREMIO'),
         ]),
       ),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(child: _botonDesafio(
-          label: '⚔️  ACEPTAR',
+          label: '  ACEPTAR',
           color: _kRed,
           filled: true,
           onTap: () => _aceptarDesafio(item, apuesta, horas, desafioId),
         )),
         const SizedBox(width: 6),
         Expanded(child: _botonDesafio(
-          label: '🔄  NEGOCIAR',
+          label: '  NEGOCIAR',
           color: _kRed,
           filled: false,
           onTap: () => _abrirModalContrapropuesta(
@@ -528,8 +528,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             // Apuesta
             _buildInputControl(
               label: 'APUESTA',
-              value: '$apuesta 🪙',
-              sub: 'Tienes $misMonedas 🪙 disponibles',
+              value: '$apuesta ',
+              sub: 'Tienes $misMonedas  disponibles',
               onMinus: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)),
               onPlus:  () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)),
             ),
@@ -595,7 +595,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 color: _kRed,
-                child: Text('🔄  ENVIAR CONTRAPROPUESTA',
+                child: Text('  ENVIAR CONTRAPROPUESTA',
                     textAlign: TextAlign.center,
                     style: _raj(13, FontWeight.w900, Colors.white, spacing: 2)),
               ),
@@ -661,7 +661,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'fromUserId':        userId,
         'fromNickname':      myNick,
         'desafioId':         desafioId,
-        'message':           '🔄 $myNick contrapropone: ${horas}h · $apuesta 🪙',
+        'message':           ' $myNick contrapropone: ${horas}h · $apuesta ',
         'apuesta':           apuesta,
         'duracionHoras':     horas,
         'esContrapropuesta': true,
@@ -741,7 +741,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'type':         'desafio_aceptado',
         'fromNickname': myNick,
         'desafioId':    targetId,
-        'message':      '⚔️ $myNick aceptó el desafío · ${horas}h · $apuesta 🪙 ¡Empieza ahora!',
+        'message':      ' $myNick aceptó el desafío · ${horas}h · $apuesta  ¡Empieza ahora!',
         'read':         false,
         'timestamp':    FieldValue.serverTimestamp(),
       });
@@ -841,7 +841,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,

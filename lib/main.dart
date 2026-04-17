@@ -11,6 +11,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'theme/theme_notifier.dart';
 import 'firebase_options.dart';
 import 'pestañas/notifications_screen.dart';
 import 'pestañas/Logging.dart';
@@ -27,6 +28,7 @@ import 'services/desafios_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await ThemeNotifier.instance.init();
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -41,67 +43,91 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    ThemeNotifier.instance.addListener(_onThemeChange);
+  }
+
+  @override
+  void dispose() {
+    ThemeNotifier.instance.removeListener(_onThemeChange);
+    super.dispose();
+  }
+
+  void _onThemeChange() => setState(() {});
+
+  ThemeData _buildDarkTheme() {
+    final base = GoogleFonts.interTextTheme(
+      ThemeData(brightness: Brightness.dark).textTheme,
+    );
+    return ThemeData(
+      brightness: Brightness.dark,
+      primarySwatch: Colors.orange,
+      scaffoldBackgroundColor: const Color(0xFF090807),
+      textTheme: base,
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF090807),
+        elevation: 0,
+        titleTextStyle: GoogleFonts.inter(
+          color: const Color(0xFFEAD9AA),
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    final base = GoogleFonts.interTextTheme(
+      ThemeData(brightness: Brightness.light).textTheme,
+    );
+    return ThemeData(
+      brightness: Brightness.light,
+      primarySwatch: Colors.orange,
+      scaffoldBackgroundColor: const Color(0xFFF2F2F7),
+      textTheme: base,
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: GoogleFonts.inter(
+          color: const Color(0xFF1C1C1E),
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rajdhaniBase = GoogleFonts.rajdhaniTextTheme(
-      ThemeData(brightness: Brightness.dark).textTheme,
-    );
-
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Risk Runner',
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: const Color(0xFF090807),
-        textTheme: rajdhaniBase.copyWith(
-          displayLarge: rajdhaniBase.displayLarge?.copyWith(
-              fontWeight: FontWeight.w700, letterSpacing: 1.0),
-          displayMedium: rajdhaniBase.displayMedium?.copyWith(
-              fontWeight: FontWeight.w700, letterSpacing: 0.8),
-          headlineLarge: rajdhaniBase.headlineLarge?.copyWith(
-              fontWeight: FontWeight.w900, letterSpacing: 2.5),
-          headlineMedium: rajdhaniBase.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w900, letterSpacing: 2.0),
-          headlineSmall: rajdhaniBase.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800, letterSpacing: 1.5),
-          bodyLarge: rajdhaniBase.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w500, letterSpacing: 0.3),
-          bodyMedium: rajdhaniBase.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w400),
-          labelLarge: rajdhaniBase.labelLarge?.copyWith(
-              fontWeight: FontWeight.w800, letterSpacing: 1.5),
-          labelMedium: rajdhaniBase.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700, letterSpacing: 1.2),
-          labelSmall: rajdhaniBase.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700, letterSpacing: 1.5),
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFF090807),
-          elevation: 0,
-          titleTextStyle: GoogleFonts.rajdhani(
-            color: const Color(0xFFEAD9AA),
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 3.0,
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            textStyle: GoogleFonts.rajdhani(
-                fontWeight: FontWeight.w800, letterSpacing: 1.5),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            textStyle: GoogleFonts.rajdhani(
-                fontWeight: FontWeight.w700, letterSpacing: 1.2),
-          ),
-        ),
-      ),
+      themeMode: ThemeNotifier.instance.mode,
+      theme: _buildLightTheme(),
+      darkTheme: _buildDarkTheme(),
+      // ── Tema de fallback (antiguo) eliminado — darkTheme lo cubre ──
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -166,7 +192,6 @@ class MyApp extends StatelessWidget {
               builder: (_) => const LiveActivityScreen(),
             );
 
-          // ── /resumen ahora acepta todos los campos extras de Guerra Global
           case '/resumen':
             final args = settings.arguments as Map<String, dynamic>?;
             return MaterialPageRoute(
@@ -178,7 +203,6 @@ class MyApp extends StatelessWidget {
                 esDesdeCarrera:         (args?['esDesdeCarrera'] as bool?)    ?? false,
                 territoriosConquistados:(args?['territoriosConquistados'] as int?) ?? 0,
                 puntosLigaGanados:      (args?['puntosLigaGanados']      as int?) ?? 0,
-                // ── Guerra Global
                 objetivoGlobal:         args?['objetivoGlobal']  as Map<String, dynamic>?,
                 globalConquistado:      (args?['globalConquistado'] as bool?) ?? false,
                 nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
@@ -279,7 +303,7 @@ class _AnimatedLogoState extends State<_AnimatedLogo>
           opacity: _pulse.value,
           child: Text(
             'RISK RUNNER',
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color: const Color(0xFFCC7C3A),
               fontSize: 24,
               fontWeight: FontWeight.w900,

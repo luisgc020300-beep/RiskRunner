@@ -620,10 +620,10 @@ class _LoginScreenState extends State<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Bienvenido de vuelta.',
-                style: _sans(18, _kInk, weight: FontWeight.w700)),
+                style: _sans(18, const Color(0xFFEEEEEE), weight: FontWeight.w700)),
             const SizedBox(height: 3),
             Text('Tu territorio te espera.',
-                style: _sans(11.5, _kMuted,
+                style: _sans(11.5, const Color(0xFF8E8E93),
                     weight: FontWeight.w300, style: FontStyle.italic)),
           ],
         ),
@@ -776,9 +776,9 @@ class _LoginScreenState extends State<LoginScreen>
     child: ElevatedButton(
       onPressed: _loading ? null : _login,
       style: ElevatedButton.styleFrom(
-        backgroundColor:         _kInk,
-        disabledBackgroundColor: _kInk.withValues(alpha: 0.4),
-        foregroundColor:         _kParch,
+        backgroundColor:         _kAccent,
+        disabledBackgroundColor: _kAccent.withValues(alpha: 0.4),
+        foregroundColor:         Colors.white,
         elevation:               0,
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(4))),
@@ -789,12 +789,12 @@ class _LoginScreenState extends State<LoginScreen>
               width: 20,
               height: 20,
               child: CircularProgressIndicator(
-                  color: _kParch, strokeWidth: 1.8))
+                  color: Colors.white, strokeWidth: 1.8))
           : Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('ACCEDER AL MANDO',
-                    style: _bebas(16, _kParch, spacing: 3.0)),
+                    style: _bebas(16, Colors.white, spacing: 3.0)),
                 Container(
                   width: 36,
                   height: 36,
@@ -832,7 +832,7 @@ class _LoginScreenState extends State<LoginScreen>
       onPressed: _loading ? null : _signInWithGoogle,
       style: OutlinedButton.styleFrom(
         side:            const BorderSide(color: _kBorder, width: 1.5),
-        foregroundColor: _kInk,
+        foregroundColor: Colors.white,
         backgroundColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(4))),
@@ -844,7 +844,7 @@ class _LoginScreenState extends State<LoginScreen>
           const _GoogleIcon(),
           const SizedBox(width: 10),
           Text('Continuar con Google',
-              style: _sans(13, _kInk, weight: FontWeight.w400)),
+              style: _sans(13, Colors.white, weight: FontWeight.w400)),
         ],
       ),
     ),

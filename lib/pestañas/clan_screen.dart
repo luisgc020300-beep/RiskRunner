@@ -28,7 +28,7 @@ const _kGreen    = Color(0xFF30D158);
 const _kGold     = Color(0xFFFFD60A);
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
-    GoogleFonts.rajdhani(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
+    GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
 
 TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
@@ -59,7 +59,7 @@ class _ClanScreenState extends State<ClanScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: StreamBuilder<ClanData?>(
         stream: ClanService.miClanStream(),
         builder: (context, snap) {
@@ -608,7 +608,7 @@ class _GuerraActivaBanner extends StatelessWidget {
                     style: _dm(14, FontWeight.w600, _kWhite)),
               ])),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('$miPun - $rivalPun', style: GoogleFonts.rajdhani(
+                Text('$miPun - $rivalPun', style: GoogleFonts.inter(
                     fontSize: 20, fontWeight: FontWeight.w900, color: _kWhite)),
                 Text(war.tiempoRestanteStr, style: _dm(11, FontWeight.w500, _kAccent)),
               ]),
@@ -788,7 +788,7 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString().replaceAll('Exception: ', ''),
-            style: GoogleFonts.rajdhani(color: Colors.white)),
+            style: GoogleFonts.inter(color: Colors.white)),
         backgroundColor: _kAccent,
       ));
     } finally {

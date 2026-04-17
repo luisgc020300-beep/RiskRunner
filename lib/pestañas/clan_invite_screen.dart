@@ -128,7 +128,7 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('CLANES', style: GoogleFonts.rajdhani(
+        title: Text('CLANES', style: GoogleFonts.inter(
             fontSize: 13, fontWeight: FontWeight.w900,
             color: Colors.white, letterSpacing: 3)),
         centerTitle: true,
@@ -136,7 +136,7 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
           controller: _tabs,
           indicatorColor: _kAccent,
           indicatorWeight: 2,
-          labelStyle: GoogleFonts.rajdhani(
+          labelStyle: GoogleFonts.inter(
               fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2),
           unselectedLabelColor: _kSubtext,
           labelColor: _kWhite,
@@ -168,7 +168,7 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
             const Text('📭', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 16),
             Text('Sin invitaciones pendientes',
-                style: GoogleFonts.rajdhani(fontSize: 15, color: _kSubtext)),
+                style: GoogleFonts.inter(fontSize: 15, color: _kSubtext)),
           ]));
         }
         return ListView.separated(
@@ -189,10 +189,10 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
         child: TextField(
           controller: _buscarCtrl,
           onChanged: _buscar,
-          style: GoogleFonts.rajdhani(color: _kWhite, fontSize: 14),
+          style: GoogleFonts.inter(color: _kWhite, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Buscar amigo por nickname...',
-            hintStyle: GoogleFonts.rajdhani(color: _kDim),
+            hintStyle: GoogleFonts.inter(color: _kDim),
             filled: true, fillColor: _kSurface,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -232,11 +232,11 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('👥', style: TextStyle(fontSize: 48)),
         const SizedBox(height: 16),
-        Text('Aún no tienes amigos', style: GoogleFonts.rajdhani(
+        Text('Aún no tienes amigos', style: GoogleFonts.inter(
             fontSize: 15, color: _kSubtext)),
         const SizedBox(height: 4),
         Text('Añade amigos para poder invitarlos a tu clan',
-            style: GoogleFonts.rajdhani(fontSize: 11, color: _kDim),
+            style: GoogleFonts.inter(fontSize: 11, color: _kDim),
             textAlign: TextAlign.center),
       ]));
     }
@@ -246,10 +246,10 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
         const Text('🔍', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
         Text('Busca a un amigo por su nickname',
-            style: GoogleFonts.rajdhani(fontSize: 14, color: _kSubtext)),
+            style: GoogleFonts.inter(fontSize: 14, color: _kSubtext)),
         const SizedBox(height: 4),
         Text('Solo puedes invitar a jugadores que ya son tus amigos',
-            style: GoogleFonts.rajdhani(fontSize: 11, color: _kDim),
+            style: GoogleFonts.inter(fontSize: 11, color: _kDim),
             textAlign: TextAlign.center),
       ]));
     }
@@ -258,11 +258,11 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('🚫', style: TextStyle(fontSize: 40)),
         const SizedBox(height: 12),
-        Text('Usuario no encontrado', style: GoogleFonts.rajdhani(
+        Text('Usuario no encontrado', style: GoogleFonts.inter(
             fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
         const SizedBox(height: 4),
         Text('Solo puedes invitar a tus amigos',
-            style: GoogleFonts.rajdhani(fontSize: 11, color: _kSubtext)),
+            style: GoogleFonts.inter(fontSize: 11, color: _kSubtext)),
       ]));
     }
 
@@ -315,7 +315,7 @@ class _AmigoTileState extends State<_AmigoTile> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.toString().replaceAll('Exception: ', ''),
-              style: GoogleFonts.rajdhani(color: Colors.white)),
+              style: GoogleFonts.inter(color: Colors.white)),
           backgroundColor: _kAccent,
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(16),
@@ -348,15 +348,15 @@ class _AmigoTileState extends State<_AmigoTile> {
             border: Border.all(color: _kBlue.withValues(alpha: 0.3)),
           ),
           child: Center(child: Text(nick[0].toUpperCase(),
-              style: GoogleFonts.rajdhani(
+              style: GoogleFonts.inter(
                   fontSize: 18, fontWeight: FontWeight.w900, color: _kBlue))),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(nick, style: GoogleFonts.rajdhani(
+          Text(nick, style: GoogleFonts.inter(
               fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
-          Text('Nivel $nivel', style: GoogleFonts.rajdhani(
+          Text('Nivel $nivel', style: GoogleFonts.inter(
               fontSize: 10, color: _kSubtext)),
         ])),
         if (_enviada)
@@ -367,7 +367,7 @@ class _AmigoTileState extends State<_AmigoTile> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF2A5A3A)),
             ),
-            child: Text('✓ ENVIADA', style: GoogleFonts.rajdhani(
+            child: Text('✓ ENVIADA', style: GoogleFonts.inter(
                 fontSize: 9, fontWeight: FontWeight.w900,
                 color: const Color(0xFF4FA830), letterSpacing: 1)),
           )
@@ -387,7 +387,7 @@ class _AmigoTileState extends State<_AmigoTile> {
                   ? const SizedBox(width: 16, height: 16,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2))
-                  : Text('INVITAR', style: GoogleFonts.rajdhani(
+                  : Text('INVITAR', style: GoogleFonts.inter(
                       fontSize: 10, fontWeight: FontWeight.w900,
                       color: Colors.white, letterSpacing: 1.5)),
             ),
@@ -434,7 +434,7 @@ class _InviteTileState extends State<_InviteTile> {
   void _snack(String msg, {bool ok = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg,
-          style: GoogleFonts.rajdhani(color: Colors.white, fontSize: 13)),
+          style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
       backgroundColor: ok ? const Color(0xFF1A4A35) : _kAccent,
       behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.all(16),
@@ -459,9 +459,9 @@ class _InviteTileState extends State<_InviteTile> {
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Invitación de ${inv.fromNickname}',
-                style: GoogleFonts.rajdhani(fontSize: 11, color: _kSubtext)),
+                style: GoogleFonts.inter(fontSize: 11, color: _kSubtext)),
             Text('[${inv.clanTag}] ${inv.clanNombre}',
-                style: GoogleFonts.rajdhani(
+                style: GoogleFonts.inter(
                     fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
           ])),
         ]),
@@ -481,7 +481,7 @@ class _InviteTileState extends State<_InviteTile> {
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2)))
                   : Center(child: Text('✓  ACEPTAR',
-                      style: GoogleFonts.rajdhani(
+                      style: GoogleFonts.inter(
                           fontSize: 12, fontWeight: FontWeight.w900,
                           color: Colors.white, letterSpacing: 1.5))),
             ),
@@ -496,7 +496,7 @@ class _InviteTileState extends State<_InviteTile> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _kLine2),
               ),
-              child: Text('✗', style: GoogleFonts.rajdhani(
+              child: Text('✗', style: GoogleFonts.inter(
                   fontSize: 14, fontWeight: FontWeight.w900, color: _kSubtext)),
             ),
           ),

@@ -66,7 +66,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'monthly_explorer',
     titulo: 'EXPLORADOR',
-    emoji: '🗺️',
+    emoji: '',
     precio: '2,99€',
     periodo: '/mes',
     esRecomendado: false,
@@ -75,7 +75,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'monthly_commander',
     titulo: 'COMANDANTE',
-    emoji: '⚔️',
+    emoji: '',
     precio: '4,99€',
     periodo: '/mes',
     esRecomendado: false,
@@ -84,7 +84,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'annual',
     titulo: 'ANUAL',
-    emoji: '👑',
+    emoji: '',
     precio: '39,99€',
     periodo: '/año',
     precioPorMes: '3,33€/mes',
@@ -100,18 +100,18 @@ const _planesLocales = [
 
 // Cada feature: (emoji, nombre, libre, explorador, comandante)
 const _features = [
-  ('🏃', 'Tracking GPS y conquista',          true,  true,  true),
-  ('⚔️', 'Desafíos PvP y clanes',             true,  true,  true),
-  ('🪙', 'Monedas x2 por carrera',            false, true,  true),
-  ('👑', 'Badge Premium en perfil',           false, true,  true),
-  ('🎨', 'Colores neón de ropa',              false, true,  true),
-  ('💇', 'Avatar premium (Afro, Mohicano)',   false, true,  true),
-  ('🛡️', 'Escudo +7 días al suscribirte',    false, true,  true),
-  ('🗺️', 'Estilos de mapa exclusivos',       false, false, true),
-  ('📡', 'Radar de operativos (500m)',        false, false, true),
-  ('📊', 'Estadísticas avanzadas',           false, false, true),
-  ('🎯', '+2 retos premium diarios',         false, false, true),
-  ('🏆', 'Historial completo (200 carreras)',false, false, true),
+  ('', 'Tracking GPS y conquista',          true,  true,  true),
+  ('', 'Desafíos PvP y clanes',             true,  true,  true),
+  ('', 'Monedas x2 por carrera',            false, true,  true),
+  ('', 'Badge Premium en perfil',           false, true,  true),
+  ('', 'Colores neón de ropa',              false, true,  true),
+  ('', 'Avatar premium (Afro, Mohicano)',   false, true,  true),
+  ('', 'Escudo +7 días al suscribirte',    false, true,  true),
+  ('', 'Estilos de mapa exclusivos',       false, false, true),
+  ('', 'Radar de operativos (500m)',        false, false, true),
+  ('', 'Estadísticas avanzadas',           false, false, true),
+  ('', '+2 retos premium diarios',         false, false, true),
+  ('', 'Historial completo (200 carreras)',false, false, true),
 ];
 
 // =============================================================================
@@ -275,14 +275,14 @@ class _PaywallScreenState extends State<PaywallScreen>
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('👑', style: TextStyle(fontSize: 56)),
+            const Text('', style: TextStyle(fontSize: 56)),
             const SizedBox(height: 16),
             const Text('¡BIENVENIDO AL MANDO!',
               style: TextStyle(color: _C.gold, fontSize: 18,
                   fontWeight: FontWeight.w900, letterSpacing: 2)),
             const SizedBox(height: 8),
             const Text(
-              'Has recibido 500 🪙 y 7 días de escudo extra como regalo de bienvenida.\n\nTus features premium ya están activas.',
+              'Has recibido 500  y 7 días de escudo extra como regalo de bienvenida.\n\nTus features premium ya están activas.',
               textAlign: TextAlign.center,
               style: TextStyle(color: _C.t2, fontSize: 13, height: 1.6)),
             const SizedBox(height: 24),
@@ -411,7 +411,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               ),
               child: child,
             ),
-            child: const Text('👑', style: TextStyle(fontSize: 64)),
+            child: const Text('', style: TextStyle(fontSize: 64)),
           ),
         ),
       ),
@@ -446,7 +446,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         border: Border.all(color: _C.bronze.withOpacity(0.35)),
       ),
       child: Row(children: [
-        const Text('🔒', style: TextStyle(fontSize: 18)),
+        const Text('', style: TextStyle(fontSize: 18)),
         const SizedBox(width: 12),
         Expanded(child: Text(
           '${widget.featureOrigen} es exclusivo de Premium',
@@ -730,7 +730,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         Expanded(child: _planCardRC(
           package: monthly,
           titulo: 'MENSUAL',
-          emoji: '⚔️',
+          emoji: '',
           accentColor: _C.bronze,
           esRecomendado: false,
         )),
@@ -740,7 +740,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         Expanded(child: _planCardRC(
           package: annual,
           titulo: 'ANUAL',
-          emoji: '👑',
+          emoji: '',
           accentColor: _C.gold,
           esRecomendado: true,
           savingText:
@@ -1082,9 +1082,9 @@ class _PaywallScreenState extends State<PaywallScreen>
     return Column(children: [
       // Beneficios rápidos
       Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        _footerPill('✅ Sin permanencia'),
-        _footerPill('🔄 Cancela cuando quieras'),
-        _footerPill('👑 500 🪙 de bienvenida'),
+        _footerPill(' Sin permanencia'),
+        _footerPill(' Cancela cuando quieras'),
+        _footerPill(' 500  de bienvenida'),
       ]),
       const SizedBox(height: 12),
       Text(

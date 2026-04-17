@@ -101,7 +101,7 @@ class _StatsScreenState extends State<StatsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(children: [
         // Grid de fondo
         Positioned.fill(child: CustomPaint(painter: _GridBg())),
