@@ -7,15 +7,6 @@ on:
       - develop
   pull_request:
     branches:
-      - mainname: Build iOS
-
-on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
       - main
   workflow_dispatch:
 
@@ -42,104 +33,36 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # ── 4. CocoaPods cache ─────────────────────────────────────────────────
-      #   La clave usa el hash de Podfile.lock para invalidar cuando cambian pods
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        id: cocoapods-cache
-        with:
-          path: |
-            ios/Pods
-            ~/.cocoapods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
+      # ── 4. Limpiar Pods residuales ─────────────────────────────────────────
+      #   Si existe carpeta Pods (de caché o del repo), Flutter la reutiliza
+      #   sin instalar los módulos nuevos → "Module not found".
+      #   La borramos para forzar instalación limpia.
+      - name: Clean Pods directory
+        run: |
+          cd ios
+          rm -rf Pods
+          rm -rf .symlinks
+          rm -f Podfile.lock
 
       # ── 5. CocoaPods install ───────────────────────────────────────────────
-      #   Si el caché no existe o Podfile.lock cambió, reinstala desde cero.
-      #   Esto es lo que corrige "Module 'cloud_firestore' not found".
+      #   Instalamos ANTES de que Flutter lo intente.
+      #   --repo-update garantiza que descarga cloud_firestore y Firebase frescos.
       - name: Install CocoaPods dependencies
         run: |
           cd ios
-          # Limpia instalación previa para evitar módulos huérfanos
-          pod deintegrate || true
-          # Actualiza el repo de specs y reinstala
           pod install --repo-update
         env:
-          # Evita que CocoaPods pida interacción
           COCOAPODS_DISABLE_STATS: "true"
 
       # ── 6. Flutter build iOS ───────────────────────────────────────────────
+      #   FLUTTER_COCOAPODS_SKIP_PODS_INSTALL evita que Flutter vuelva a
+      #   ejecutar pod install y machaque la instalación que acabamos de hacer.
       - name: Build iOS (release, no codesign)
         run: flutter build ios --release --no-codesign
-
-      # ── 7. Subir artefacto ─────────────────────────────────────────────────
-      #   Sube el .app resultante para que lo puedas descargar desde Actions
-      - name: Upload iOS build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-release-app
-          path: build/ios/iphoneos/Runner.app
-          retention-days: 7
-  workflow_dispatch:
-
-jobs:
-  build-ios:
-    runs-on: macos-latest
-
-    steps:
-      # ── 1. Checkout ────────────────────────────────────────────────────────
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # ── 2. Flutter ─────────────────────────────────────────────────────────
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 'stable'
-          channel: 'stable'
-          cache: true
-
-      - name: Flutter version info
-        run: flutter --version
-
-      # ── 3. Flutter dependencies ────────────────────────────────────────────
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      # ── 4. CocoaPods cache ─────────────────────────────────────────────────
-      #   La clave usa el hash de Podfile.lock para invalidar cuando cambian pods
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        id: cocoapods-cache
-        with:
-          path: |
-            ios/Pods
-            ~/.cocoapods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      # ── 5. CocoaPods install ───────────────────────────────────────────────
-      #   Si el caché no existe o Podfile.lock cambió, reinstala desde cero.
-      #   Esto es lo que corrige "Module 'cloud_firestore' not found".
-      - name: Install CocoaPods dependencies
-        run: |
-          cd ios
-          # Limpia instalación previa para evitar módulos huérfanos
-          pod deintegrate || true
-          # Actualiza el repo de specs y reinstala
-          pod install --repo-update
         env:
-          # Evita que CocoaPods pida interacción
-          COCOAPODS_DISABLE_STATS: "true"
-
-      # ── 6. Flutter build iOS ───────────────────────────────────────────────
-      - name: Build iOS (release, no codesign)
-        run: flutter build ios --release --no-codesign
+          FLUTTER_COCOAPODS_SKIP_PODS_INSTALL: "true"
 
       # ── 7. Subir artefacto ─────────────────────────────────────────────────
-      #   Sube el .app resultante para que lo puedas descargar desde Actions
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
         with:
