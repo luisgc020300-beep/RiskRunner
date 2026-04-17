@@ -33,34 +33,38 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # ── 4. Limpiar Pods residuales ─────────────────────────────────────────
-      #   Si existe carpeta Pods (de caché o del repo), Flutter la reutiliza
-      #   sin instalar los módulos nuevos → "Module not found".
-      #   La borramos para forzar instalación limpia.
-      - name: Clean Pods directory
-        run: |
-          cd ios
-          rm -rf Pods
-          rm -rf .symlinks
-          rm -f Podfile.lock
+      # ── 4. Generar archivos iOS nativos SIN compilar ───────────────────────
+      #   flutter build ios regenera Podfile y GeneratedPluginRegistrant.
+      #   Con --config-only solo genera los archivos de config, no compila
+      #   ni ejecuta pod install.
+      - name: Generate iOS config files (no build, no pod install)
+        run: flutter build ios --config-only --release --no-codesign
 
-      # ── 5. CocoaPods install ───────────────────────────────────────────────
-      #   Instalamos ANTES de que Flutter lo intente.
-      #   --repo-update garantiza que descarga cloud_firestore y Firebase frescos.
-      - name: Install CocoaPods dependencies
+      # ── 5. Instalar CocoaPods desde cero ───────────────────────────────────
+      #   Ahora que Podfile está generado correctamente, instalamos los pods.
+      #   --repo-update asegura que descarga cloud_firestore y Firebase frescos.
+      - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: "true"
 
-      # ── 6. Flutter build iOS ───────────────────────────────────────────────
-      #   FLUTTER_COCOAPODS_SKIP_PODS_INSTALL evita que Flutter vuelva a
-      #   ejecutar pod install y machaque la instalación que acabamos de hacer.
-      - name: Build iOS (release, no codesign)
-        run: flutter build ios --release --no-codesign
-        env:
-          FLUTTER_COCOAPODS_SKIP_PODS_INSTALL: "true"
+      # ── 6. Compilar con xcodebuild directamente ────────────────────────────
+      #   Usamos xcodebuild en lugar de flutter build ios para evitar que
+      #   Flutter vuelva a ejecutar pod install y rompa la instalación.
+      - name: Build iOS with xcodebuild
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            FLUTTER_BUILD_MODE=release \
+            build
 
       # ── 7. Subir artefacto ─────────────────────────────────────────────────
       - name: Upload iOS build artifact
