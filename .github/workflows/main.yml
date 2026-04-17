@@ -7,7 +7,80 @@ on:
       - develop
   pull_request:
     branches:
+      - mainname: Build iOS
+
+on:
+  push:
+    branches:
       - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Flutter ─────────────────────────────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter version info
+        run: flutter --version
+
+      # ── 3. Flutter dependencies ────────────────────────────────────────────
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      # ── 4. CocoaPods cache ─────────────────────────────────────────────────
+      #   La clave usa el hash de Podfile.lock para invalidar cuando cambian pods
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        id: cocoapods-cache
+        with:
+          path: |
+            ios/Pods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      # ── 5. CocoaPods install ───────────────────────────────────────────────
+      #   Si el caché no existe o Podfile.lock cambió, reinstala desde cero.
+      #   Esto es lo que corrige "Module 'cloud_firestore' not found".
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          # Limpia instalación previa para evitar módulos huérfanos
+          pod deintegrate || true
+          # Actualiza el repo de specs y reinstala
+          pod install --repo-update
+        env:
+          # Evita que CocoaPods pida interacción
+          COCOAPODS_DISABLE_STATS: "true"
+
+      # ── 6. Flutter build iOS ───────────────────────────────────────────────
+      - name: Build iOS (release, no codesign)
+        run: flutter build ios --release --no-codesign
+
+      # ── 7. Subir artefacto ─────────────────────────────────────────────────
+      #   Sube el .app resultante para que lo puedas descargar desde Actions
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-app
+          path: build/ios/iphoneos/Runner.app
+          retention-days: 7
   workflow_dispatch:
 
 jobs:
