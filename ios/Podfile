@@ -1,17 +1,39 @@
 load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+
 platform :ios, '15.0'
+
 target 'Runner' do
   use_frameworks! :linkage => :static
   use_modular_headers!
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       config.build_settings['DEFINES_MODULE'] = 'YES'
       config.build_settings['SWIFT_VERSION'] = '5.0'
+
+      # Fix crítico: permite que los módulos de Firebase/Firestore
+      # sean encontrados cuando se compila con linkage estático
+      config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
+
+      # Fix para cloud_firestore específicamente con static frameworks
+      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+    end
+
+    # Fix específico para BoringSSL y gRPC que usan cloud_firestore
+    if target.name == 'BoringSSL-GRPC'
+      target.source_build_phase.files.each do |file|
+        if file.settings && file.settings['COMPILER_FLAGS']
+          flags = file.settings['COMPILER_FLAGS'].split
+          flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
+          file.settings['COMPILER_FLAGS'] = flags.join(' ')
+        end
+      end
     end
   end
 end
