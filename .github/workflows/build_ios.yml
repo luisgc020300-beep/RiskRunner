@@ -1,9 +1,12 @@
 name: Build iOS IPA
+
 on:
   workflow_dispatch:
+
 jobs:
   build_ios:
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -11,30 +14,28 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Flutter dependencies
+      - name: Flutter pub get
         run: flutter pub get
 
-      - name: Generate Flutter files
-        run: flutter build ios --release --no-codesign 2>&1 || true
+      - name: Setup Ruby and CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: false
 
-      - name: Show GeneratedPluginRegistrant
-        if: always()
-        run: cat ios/Runner/GeneratedPluginRegistrant.m || echo "No existe"
-
-      - name: Patch GeneratedPluginRegistrant
-        run: |
-          FILE="ios/Runner/GeneratedPluginRegistrant.m"
-          # Eliminar los bloques @import que fallan
-          sed -i '' '/@import cloud_firestore/d' "$FILE"
-          sed -i '' '/@import firebase_auth/d' "$FILE"
-          sed -i '' '/@import firebase_core/d' "$FILE"
-          sed -i '' '/@import firebase_messaging/d' "$FILE"
-          sed -i '' '/@import cloud_functions/d' "$FILE"
-          echo "=== Archivo parcheado ==="
-          cat "$FILE"
+      - name: Install CocoaPods
+        run: gem install cocoapods
 
       - name: Pod install
-        run: cd ios && pod install --repo-update
+        run: |
+          cd ios
+          rm -rf Pods Podfile.lock
+          pod install --repo-update
+        env:
+          COCOAPODS_DISABLE_STATS: true
+
+      - name: Flutter build iOS (genera GeneratedPluginRegistrant)
+        run: flutter build ios --release --no-codesign
 
       - name: Build with xcodebuild
         run: |
@@ -48,21 +49,31 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            archive 2>&1 | grep -E "(error:|BUILD|FAILED|SUCCEEDED)" | tail -50
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            archive
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
-          echo "APP: $APP_PATH"
-          ls -la "$APP_PATH"
+          APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found in Products/Applications, searching broader..."
+            APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
+          fi
+          echo "Using app at: $APP_PATH"
           mkdir -p $GITHUB_WORKSPACE/build/ipa/Payload
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
-          ls -lh $GITHUB_WORKSPACE/risk_runner.ipa
+          echo "IPA created successfully"
+
+      - name: Verify IPA structure
+        run: |
+          echo "IPA contents:"
+          unzip -l $GITHUB_WORKSPACE/risk_runner.ipa | head -20
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: risk_runner_ipa
           path: ${{ github.workspace }}/risk_runner.ipa
+          retention-days: 7
