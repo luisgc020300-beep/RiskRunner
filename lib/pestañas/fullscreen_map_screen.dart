@@ -778,6 +778,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
+  bool   get _isDark   => Theme.of(context).brightness == Brightness.dark;
+  Color  get _shBg     => _isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
+  Color  get _shSurf   => _isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+  Color  get _shBorder => _isDark ? const Color(0xFF38383A) : const Color(0xFFC6C6C8);
+  Color  get _shText   => _isDark ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
+
   StreamSubscription? _presenciaStream;
   StreamSubscription? _desafioStreamRetador;
   StreamSubscription? _desafioStreamRetado;
@@ -3156,15 +3162,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Widget _buildSheet(ScrollController scrollCtrl, int mios, int det, int pel) {
     return Container(
-      decoration: const BoxDecoration(
-        color: _kBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      decoration: BoxDecoration(
+        color: _shBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         border: Border(
-          top:   BorderSide(color: _kBorder2),
-          left:  BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
+          top:   BorderSide(color: _shBorder),
+          left:  BorderSide(color: _shBorder),
+          right: BorderSide(color: _shBorder),
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(color: Colors.black87, blurRadius: 30,
               offset: Offset(0, -4))
         ],
@@ -3203,15 +3209,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         .where((t) => t.isOwned && t.ownerUid != uid).toList();
 
     return Container(
-      decoration: const BoxDecoration(
-        color: _kBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      decoration: BoxDecoration(
+        color: _shBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         border: Border(
-          top:   BorderSide(color: _kGoldDim, width: 1),
-          left:  BorderSide(color: _kBorder2),
-          right: BorderSide(color: _kBorder2),
+          top:   const BorderSide(color: _kGoldDim, width: 1),
+          left:  BorderSide(color: _shBorder),
+          right: BorderSide(color: _shBorder),
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(color: Colors.black87, blurRadius: 30,
               offset: Offset(0, -4))
         ],
@@ -3303,7 +3309,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             Container(
                 height: 4,
                 decoration: BoxDecoration(
-                    color: _kBorder2,
+                    color: _shBorder,
                     borderRadius: BorderRadius.circular(2))),
             FractionallySizedBox(
               widthFactor: (miosTers /
@@ -3485,7 +3491,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     child: Column(children: [
       Center(child: Container(
         width: 36, height: 3,
-        decoration: BoxDecoration(color: _kBorder2,
+        decoration: BoxDecoration(color: _shBorder,
             borderRadius: BorderRadius.circular(2)),
       )),
       const SizedBox(height: 14),
@@ -3497,7 +3503,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text('$mios',
                 style:
-                    _raj(28, FontWeight.w900, _kWhite, height: 1)),
+                    _raj(28, FontWeight.w900, _shText, height: 1)),
             const SizedBox(width: 6),
             Padding(
               padding: const EdgeInsets.only(bottom: 3),
@@ -3552,7 +3558,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _shSurf,
         border: Border.all(color: c.withValues(alpha: 0.2)),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -3570,7 +3576,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
     decoration: BoxDecoration(
       color: _kRed.withValues(alpha: 0.04),
-      border: Border.all(color: _kBorder2),
+      border: Border.all(color: _shBorder),
       borderRadius: BorderRadius.circular(4),
     ),
     child: Row(children: [
@@ -3616,11 +3622,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       padding: const EdgeInsets.symmetric(
           horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _shSurf,
         border: Border.all(
             color: _state.cercanosVisible
                 ? _kRed.withValues(alpha: 0.3)
-                : _kBorder2),
+                : _shBorder),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(children: [
@@ -3635,19 +3641,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         const SizedBox(width: 10),
         _state.loadingCercanos
             ? Shimmer.fromColors(
-                baseColor: _kSurface2,
-                highlightColor: _kBorder2,
+                baseColor: _shSurf,
+                highlightColor: _shBorder,
                 child: Container(
                     width: 160, height: 12,
                     decoration: BoxDecoration(
-                        color: _kSurface2,
+                        color: _shSurf,
                         borderRadius: BorderRadius.circular(3))))
             : Text(
                 _state.cercanosVisible
                     ? 'TERRITORIOS EN ZONA  ▲'
                     : 'TERRITORIOS EN ZONA  ▼',
                 style: _raj(10, FontWeight.w700,
-                    _state.cercanosVisible ? _kText : _kSub,
+                    _state.cercanosVisible ? _shText : _kSub,
                     spacing: 1.5)),
         const Spacer(),
         Text('5 KM',
@@ -3665,8 +3671,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-            color: _kSurface,
-            border: Border.all(color: _kBorder2),
+            color: _shSurf,
+            border: Border.all(color: _shBorder),
             borderRadius: BorderRadius.circular(6)),
         child: Text('No hay territorios en 5 km',
             style: _raj(12, FontWeight.w500, _kSub)),
@@ -3675,8 +3681,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kBorder2),
+          color: _shSurf,
+          border: Border.all(color: _shBorder),
           borderRadius: BorderRadius.circular(6)),
       child: Column(
         children: _state.grupos.asMap().entries.map((entry) {
@@ -3717,12 +3723,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         ? '${g.nickname.toUpperCase()}  (TÚ)'
                         : g.nickname.toUpperCase(),
                     style: _raj(12, FontWeight.w800,
-                        g.esMio ? _kWhite : _kText, spacing: 1))),
+                        g.esMio ? _shText : _kSub, spacing: 1))),
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                        border: Border.all(color: _kBorder2),
+                        border: Border.all(color: _shBorder),
                         borderRadius: BorderRadius.circular(3)),
                     child: Text('NIV.${g.nivel}',
                         style: _raj(8, FontWeight.w900,
@@ -3744,8 +3750,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: _kBg,
-                    border: Border.all(color: _kBorder2),
+                    color: _shBg,
+                    border: Border.all(color: _shBorder),
                     borderRadius: BorderRadius.circular(4)),
                 child: dets == null
                     ? _buildShimmerDetalles()
@@ -3762,7 +3768,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 .toList()),
               ),
             if (!isLast)
-              Container(height: 1, color: _kBorder),
+              Container(height: 1, color: _shBorder),
           ]);
         }).toList(),
       ),
@@ -3775,11 +3781,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         (i) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Shimmer.fromColors(
-            baseColor: _kSurface2, highlightColor: _kBorder2,
+            baseColor: _shSurf, highlightColor: _shBorder,
             child: Container(
                 height: 44,
                 decoration: BoxDecoration(
-                    color: _kSurface2,
+                    color: _shSurf,
                     borderRadius: BorderRadius.circular(4))),
           ),
         )),

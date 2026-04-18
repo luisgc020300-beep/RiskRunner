@@ -1715,15 +1715,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // APP BAR
   // =============================================================================
   PreferredSizeWidget _buildAppBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AppBar(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xF0F2F2F7),
       elevation: 0,
       titleSpacing: 16,
       surfaceTintColor: Colors.transparent,
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: _T.red),
-      ),
       title: Row(children: [
         RichText(
           text: TextSpan(

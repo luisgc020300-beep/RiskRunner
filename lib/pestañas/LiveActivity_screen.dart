@@ -3831,15 +3831,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
             child: child,
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text(_modoSolitario ? '🗺️' : '🏴',
-                style: const TextStyle(fontSize: 22)),
-            const SizedBox(width: 14),
-            Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
-                style: GoogleFonts.cinzel(fontSize: 16,
+          child: Center(
+            child: Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
+                style: GoogleFonts.inter(fontSize: 16,
                     color: _modoSolitario ? Colors.white : _p.ink,
                     fontWeight: FontWeight.w900, letterSpacing: 2.5)),
-          ]),
+          ),
         ),
       ),
     ]);
