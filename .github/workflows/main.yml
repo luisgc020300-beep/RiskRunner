@@ -41,20 +41,19 @@ jobs:
       - name: Generate iOS native config
         run: flutter build ios --config-only --release --no-codesign
 
-      # Sobreescribe el Podfile SIEMPRE con la versión corregida
       - name: Write fixed Podfile
         run: |
-          cat > ios/Podfile << 'PODFILE_END'
-          load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+          python3 -c "
+          content = '''load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
 
           platform :ios, '15.0'
-
+          
           target 'Runner' do
             use_frameworks! :linkage => :static
             use_modular_headers!
             flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
           end
-
+          
           post_install do |installer|
             installer.pods_project.targets.each do |target|
               flutter_additional_ios_build_settings(target)
@@ -65,7 +64,6 @@ jobs:
                 config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
               end
             end
-
             installer.pods_project.targets.each do |target|
               if ['BoringSSL-GRPC', 'gRPC-Core', 'gRPC-C++', 'abseil'].include?(target.name)
                 target.build_configurations.each do |config|
@@ -82,44 +80,49 @@ jobs:
                 end
               end
             end
-
             installer.pods_project.build_configurations.each do |config|
               config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
             end
           end
-          PODFILE_END
-
-      - name: Install CocoaPods dependencies
-        run: |
-          cd ios
-          pod install --repo-update
-        env:
-          COCOAPODS_DISABLE_STATS: "true"
-
-      - name: Verify Pods
-        run: |
-          echo "=== Pods instalados ==="
-          ls ios/Pods/
-          echo "=== Buscando Firestore ==="
-          ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil" || echo "WARN: no encontrados"
-
-      - name: Build iOS with xcodebuild
-        run: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE=""
-
-      - name: Upload iOS build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-release-app
-          path: build/ios/iphoneos/Runner.app
-          retention-days: 7
-          if-no-files-found: warn
+          '''
+          with open('ios/Podfile', 'w') as f:
+              f.write(content)
+          print('Podfile escrito correctamente')
+          "
+                    echo "=== Podfile resultante ==="
+                    cat ios/Podfile
+          
+                - name: Install CocoaPods dependencies
+                  run: |
+                    cd ios
+                    pod install --repo-update
+                  env:
+                    COCOAPODS_DISABLE_STATS: "true"
+          
+                - name: Verify Pods
+                  run: |
+                    echo "=== Pods instalados ==="
+                    ls ios/Pods/
+                    echo "=== Buscando Firebase/gRPC ==="
+                    ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil|cloud" || echo "WARN: no encontrados"
+          
+                - name: Build iOS with xcodebuild
+                  run: |
+                    xcodebuild \
+                      -workspace ios/Runner.xcworkspace \
+                      -scheme Runner \
+                      -configuration Release \
+                      -sdk iphoneos \
+                      -destination "generic/platform=iOS" \
+                      CODE_SIGNING_ALLOWED=NO \
+                      CODE_SIGNING_REQUIRED=NO \
+                      CODE_SIGN_IDENTITY="" \
+                      PROVISIONING_PROFILE=""
+          
+                - name: Upload iOS build artifact
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: ios-release-app
+                    path: build/ios/iphoneos/Runner.app
+                    retention-days: 7
+                    if-no-files-found: warn
