@@ -38,91 +38,48 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      # Genera GeneratedPluginRegistrant.m sin tocar el Podfile
       - name: Generate iOS native config
         run: flutter build ios --config-only --release --no-codesign
 
-      - name: Write fixed Podfile
-        run: |
-          python3 -c "
-          content = '''load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
+      # Restaura el Podfile correcto del repo (por si config-only lo sobreescribió)
+      - name: Restore Podfile from repo
+        run: git checkout ios/Podfile
 
-          platform :ios, '15.0'
-          
-          target 'Runner' do
-            use_frameworks! :linkage => :static
-            use_modular_headers!
-            flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-          end
-          
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              flutter_additional_ios_build_settings(target)
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                config.build_settings['DEFINES_MODULE'] = 'YES'
-                config.build_settings['SWIFT_VERSION'] = '5.0'
-                config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-              end
-            end
-            installer.pods_project.targets.each do |target|
-              if ['BoringSSL-GRPC', 'gRPC-Core', 'gRPC-C++', 'abseil'].include?(target.name)
-                target.build_configurations.each do |config|
-                  config.build_settings['DEFINES_MODULE'] = 'NO'
-                end
-              end
-              if target.name == 'BoringSSL-GRPC'
-                target.source_build_phase.files.each do |file|
-                  if file.settings && file.settings['COMPILER_FLAGS']
-                    flags = file.settings['COMPILER_FLAGS'].split
-                    flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
-                    file.settings['COMPILER_FLAGS'] = flags.join(' ')
-                  end
-                end
-              end
-            end
-            installer.pods_project.build_configurations.each do |config|
-              config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-            end
-          end
-          '''
-          with open('ios/Podfile', 'w') as f:
-              f.write(content)
-          print('Podfile escrito correctamente')
-          "
-                    echo "=== Podfile resultante ==="
-                    cat ios/Podfile
-          
-                - name: Install CocoaPods dependencies
-                  run: |
-                    cd ios
-                    pod install --repo-update
-                  env:
-                    COCOAPODS_DISABLE_STATS: "true"
-          
-                - name: Verify Pods
-                  run: |
-                    echo "=== Pods instalados ==="
-                    ls ios/Pods/
-                    echo "=== Buscando Firebase/gRPC ==="
-                    ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil|cloud" || echo "WARN: no encontrados"
-          
-                - name: Build iOS with xcodebuild
-                  run: |
-                    xcodebuild \
-                      -workspace ios/Runner.xcworkspace \
-                      -scheme Runner \
-                      -configuration Release \
-                      -sdk iphoneos \
-                      -destination "generic/platform=iOS" \
-                      CODE_SIGNING_ALLOWED=NO \
-                      CODE_SIGNING_REQUIRED=NO \
-                      CODE_SIGN_IDENTITY="" \
-                      PROVISIONING_PROFILE=""
-          
-                - name: Upload iOS build artifact
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ios-release-app
-                    path: build/ios/iphoneos/Runner.app
-                    retention-days: 7
-                    if-no-files-found: warn
+      - name: Show Podfile
+        run: cat ios/Podfile
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install --repo-update
+        env:
+          COCOAPODS_DISABLE_STATS: "true"
+
+      - name: Verify Pods
+        run: |
+          echo "=== Pods instalados ==="
+          ls ios/Pods/
+          echo "=== Firebase/gRPC ==="
+          ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil|cloud" || echo "WARN: no encontrados"
+
+      - name: Build iOS with xcodebuild
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE=""
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-app
+          path: build/ios/iphoneos/Runner.app
+          retention-days: 7
+          if-no-files-found: warn
