@@ -129,6 +129,11 @@ class SubscriptionService {
           ? Env.revenueCatAndroid
           : Env.revenueCatIOS;
 
+      if (apiKey.startsWith('test_')) {
+        debugPrint('⚠️ RevenueCat: clave test detectada en release, omitiendo inicialización');
+        return;
+      }
+
       final configuration = rc.PurchasesConfiguration(apiKey)
         ..appUserID = userId;
 
