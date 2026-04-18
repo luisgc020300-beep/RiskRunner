@@ -961,12 +961,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (widget.territorios.isNotEmpty) return;
     final centro = _state.centro;
     if (centro.latitude == 0 && centro.longitude == 0) return;
+    final actuales = List<TerritoryData>.from(_state.territorios);
     await TerritoryService.crearTerritoriosFantasmaEnZona(
       centro: centro,
-      todosExistentes: _state.territorios,
+      todosExistentes: actuales,
     );
-    TerritoryService.invalidarCache();
-    await _cargarTerritorios();
+    // Load ghosts directly and merge — avoids Firestore eventual-consistency race
+    final fantasmas = await TerritoryService.cargarTerritoriosFantasmaCercanos(
+      centro: centro,
+    );
+    if (!mounted) return;
+    final sinFantasmas = actuales.where((t) => !t.esFantasma).toList();
+    _state.setTerritorios([...sinFantasmas, ...fantasmas]);
   }
 
   void _escucharJugadores() {
@@ -2833,7 +2839,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     _vDiv(),
                     t.esMio
                         ? _cardStat('⚔️', 'DEFENDER', _kGold)
-                        : _cardStat('👁', 'OBSERVAR', _kSub),
+                        : GestureDetector(
+                            onTap: () {
+                              _cerrarSeleccion();
+                              _mapController.move(t.centro, 16);
+                            },
+                            child: _cardStat('👁', 'OBSERVAR', _kSub),
+                          ),
                   ]),
                 ),
 

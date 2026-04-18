@@ -3737,107 +3737,49 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ]);
     }
 
+    final bool isCompetitivo = !_modoSolitario && _objetivoGlobal == null;
+    final bool isGlobal      = _objetivoGlobal != null;
+
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Container(
         margin: const EdgeInsets.only(bottom: 14),
+        height: 44,
         decoration: BoxDecoration(
-          color: _p.parchMid.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _p.goldDim.withValues(alpha: 0.4)),
+          color: Colors.black.withValues(alpha: 0.30),
+          borderRadius: BorderRadius.circular(11),
         ),
-        child: Row(children: [
-          Expanded(
-            child: GestureDetector(
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Row(children: [
+            _modeSegment(
+              label: 'Competitivo',
+              active: isCompetitivo,
+              activeColor: _kGoldLight,
               onTap: () {
                 setState(() => _modoSolitario = false);
                 _aplicarTerritoriosFantasma();
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: !_modoSolitario
-                      ? _p.goldDim.withValues(alpha: 0.5) : Colors.transparent,
-                  borderRadius:
-                      const BorderRadius.horizontal(left: Radius.circular(13)),
-                ),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 4),
-                  Text('COMPETITIVO',
-                      style: GoogleFonts.inter(fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: !_modoSolitario ? _kGoldLight : _p.goldDim,
-                          letterSpacing: 1.5)),
-                  Text('Conquista rivales',
-                      style: GoogleFonts.inter(fontSize: 8,
-                          color: _p.goldDim.withValues(alpha: 0.7))),
-                ]),
-              ),
             ),
-          ),
-          Container(width: 1, height: 50, color: _p.goldDim.withValues(alpha: 0.3)),
-          Expanded(
-            child: GestureDetector(
+            _modeSegment(
+              label: 'Solitario',
+              active: _modoSolitario,
+              activeColor: _kVerde,
               onTap: () {
                 setState(() {
                   _modoSolitario = true;
-                  // Quitar fantasmas de la lista al pasar a solitario
-                  _territorios = _territorios
-                      .where((t) => !t.esFantasma)
-                      .toList();
+                  _territorios = _territorios.where((t) => !t.esFantasma).toList();
                 });
                 _dibujarTerritoriosEnMapa();
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: _modoSolitario
-                      ? _kVerde.withValues(alpha: 0.25) : Colors.transparent,
-                ),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('🗺️', style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 4),
-                  Text('SOLITARIO',
-                      style: GoogleFonts.inter(fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: _modoSolitario ? _kVerde : _p.goldDim,
-                          letterSpacing: 1.5)),
-                  Text('Explora tu ciudad',
-                      style: GoogleFonts.inter(fontSize: 8,
-                          color: _p.goldDim.withValues(alpha: 0.7))),
-                ]),
-              ),
             ),
-          ),
-          Container(width: 1, height: 50, color: _p.goldDim.withValues(alpha: 0.3)),
-          Expanded(
-            child: GestureDetector(
+            _modeSegment(
+              label: 'Global',
+              active: isGlobal,
+              activeColor: const Color(0xFFFF453A),
               onTap: _elegirTerritorioGlobal,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: const BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.horizontal(right: Radius.circular(13)),
-                ),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 4),
-                  Text('GLOBAL',
-                      style: GoogleFonts.inter(fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: _p.goldDim,
-                          letterSpacing: 1.5)),
-                  Text('Guerra global',
-                      style: GoogleFonts.inter(fontSize: 8,
-                          color: _p.goldDim.withValues(alpha: 0.7))),
-                ]),
-              ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       ),
       if (SubscriptionService.estilosMapaActivos) ...[
         _buildSelectorEstiloMapa(),
@@ -3888,6 +3830,42 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ),
     ]);
   }
+
+  Widget _modeSegment({
+    required String label,
+    required bool active,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) =>
+      Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: active
+                  ? activeColor.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: active
+                  ? Border.all(
+                      color: activeColor.withValues(alpha: 0.35), width: 1)
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight:
+                      active ? FontWeight.w700 : FontWeight.w400,
+                  color: active ? activeColor : _p.goldDim,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _buildSelectorEstiloMapa() {
     final estilos = [
