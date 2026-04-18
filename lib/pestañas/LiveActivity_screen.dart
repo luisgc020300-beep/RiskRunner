@@ -2153,7 +2153,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _barriosCargados = false;
         });
       }
-    } else if (_objetivoGlobal == null) {
+    } else if (_objetivoGlobal == null && distanciaFinal >= 0.3) {
       conquistados =
           await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
       await _actualizarPuntosDesafio(conquistados, distanciaFinal);
@@ -3187,7 +3187,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ),
       // Stats en la parte inferior
       Positioned(
-        bottom: 148, left: 0, right: 0,
+        bottom: 265, left: 0, right: 0,
         child: IgnorePointer(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),

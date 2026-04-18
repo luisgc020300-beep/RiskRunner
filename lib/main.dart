@@ -11,8 +11,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'theme/theme_notifier.dart';
 import 'firebase_options.dart';
+import 'config/env.dart';
 import 'pestañas/notifications_screen.dart';
 import 'pestañas/Logging.dart';
 import 'pestañas/Home_screen.dart';
@@ -29,6 +31,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await ThemeNotifier.instance.init();
+  mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
