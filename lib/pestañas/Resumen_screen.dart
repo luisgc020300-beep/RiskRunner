@@ -40,9 +40,8 @@ const _kGlobalRedDim  = Color(0xFF7A1414);
 // MAPBOX
 // =============================================================================
 const _kMapboxToken   = Env.mapboxPublicToken;
-const _kMapboxStyleId = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/$_kMapboxStyleId/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PANTALLA
