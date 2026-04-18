@@ -26,12 +26,11 @@ import '../config/env.dart';
 // =============================================================================
 const String _kMapboxToken = Env.mapboxPublicToken;
 const String _kMapboxUrl =
-    'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
-    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 const String _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PALETA
