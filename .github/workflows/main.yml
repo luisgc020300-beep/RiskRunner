@@ -18,6 +18,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Generate Flutter iOS config
+        run: flutter build ios --config-only --release --no-codesign
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -26,131 +38,47 @@ jobs:
       - name: Install CocoaPods
         run: gem install cocoapods --no-document
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
-
-      - name: Flutter version info
-        run: flutter --version
-
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      - name: Generate iOS native config
-        run: flutter build ios --config-only --release --no-codesign
-
-      - name: Restore Podfile from repo
-        run: git checkout ios/Podfile
-
-      # Fix crítico: el problema es que flutter_install_all_ios_pods
-      # no funciona cuando hay custom xcconfig. Lo reemplazamos con
-      # flutter_install_plugin_pods que solo instala los pods sin tocar xcconfig
-      - name: Patch podhelper call in Podfile
+      - name: Pod install
         run: |
-          python3 << 'PYEOF'
-          import json, os
+          cd ios
+          rm -rf Pods Podfile.lock
+          pod install --repo-update
+        env:
+          COCOAPODS_DISABLE_STATS: true
 
-          # Leer los plugins desde el archivo generado por Flutter
-          with open('.flutter-plugins-dependencies') as f:
-              data = json.load(f)
+      - name: Flutter build iOS
+        run: flutter build ios --release --no-codesign
 
-          ios_plugins = data['plugins']['ios']
-          pub_cache = os.environ.get('PUB_CACHE', os.path.expanduser('~/.pub-cache'))
+      - name: Build with xcodebuild
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath $GITHUB_WORKSPACE/build/Runner.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            archive
 
-          # Generar líneas de pod para cada plugin
-          pod_lines = []
-          for plugin in ios_plugins:
-              name = plugin['name']
-              path = plugin['path']
-              pod_lines.append(f"  pod '{name}', :path => '{path}'")
+      - name: Package IPA
+        run: |
+          APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
+          fi
+          echo "Using app at: $APP_PATH"
+          mkdir -p $GITHUB_WORKSPACE/build/ipa/Payload
+          cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
+          cd $GITHUB_WORKSPACE/build/ipa
+          zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
 
-          pods_block = '\n'.join(pod_lines)
-          print(f"Pods a instalar:\n{pods_block}")
-
-          podfile_content = f"""load File.join(File.dirname(File.realpath(__FILE__)), 'Flutter', 'podhelper.rb')
-
-          platform :ios, '15.0'
-          
-          target 'Runner' do
-            use_frameworks! :linkage => :static
-            use_modular_headers!
-          
-          {pods_block}
-          
-          end
-          
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              flutter_additional_ios_build_settings(target)
-              target.build_configurations.each do |config|
-                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                config.build_settings['DEFINES_MODULE'] = 'YES'
-                config.build_settings['SWIFT_VERSION'] = '5.0'
-                config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-              end
-            end
-            installer.pods_project.targets.each do |target|
-              if ['BoringSSL-GRPC', 'gRPC-Core', 'gRPC-C++', 'abseil'].include?(target.name)
-                target.build_configurations.each do |config|
-                  config.build_settings['DEFINES_MODULE'] = 'NO'
-                end
-              end
-              if target.name == 'BoringSSL-GRPC'
-                target.source_build_phase.files.each do |file|
-                  if file.settings && file.settings['COMPILER_FLAGS']
-                    flags = file.settings['COMPILER_FLAGS'].split
-                    flags.reject! {{ |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }}
-                    file.settings['COMPILER_FLAGS'] = flags.join(' ')
-                  end
-                end
-              end
-            end
-            installer.pods_project.build_configurations.each do |config|
-              config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-            end
-          end
-          """
-                    with open('ios/Podfile', 'w') as f:
-                        f.write(podfile_content)
-                    print("Podfile generado correctamente")
-                    PYEOF
-          
-                    echo "=== Podfile final ==="
-                    cat ios/Podfile
-          
-                - name: Install CocoaPods dependencies
-                  run: |
-                    cd ios
-                    pod install --repo-update
-                  env:
-                    COCOAPODS_DISABLE_STATS: "true"
-          
-                - name: Verify Pods
-                  run: |
-                    echo "=== Pods instalados ==="
-                    ls ios/Pods/
-                    echo "=== Firebase/gRPC ==="
-                    ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil|cloud" || echo "WARN: no encontrados"
-          
-                - name: Build iOS with xcodebuild
-                  run: |
-                    xcodebuild \
-                      -workspace ios/Runner.xcworkspace \
-                      -scheme Runner \
-                      -configuration Release \
-                      -sdk iphoneos \
-                      -destination "generic/platform=iOS" \
-                      CODE_SIGNING_ALLOWED=NO \
-                      CODE_SIGNING_REQUIRED=NO \
-                      CODE_SIGN_IDENTITY="" \
-                      PROVISIONING_PROFILE=""
-          
-                - name: Upload iOS build artifact
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ios-release-app
-                    path: build/ios/iphoneos/Runner.app
-                    retention-days: 7
-                    if-no-files-found: warn
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk_runner_ipa
+          path: ${{ github.workspace }}/risk_runner.ipa
+          retention-days: 7
