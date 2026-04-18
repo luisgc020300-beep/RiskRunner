@@ -38,16 +38,19 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
-      # Genera GeneratedPluginRegistrant.m sin tocar el Podfile
       - name: Generate iOS native config
         run: flutter build ios --config-only --release --no-codesign
 
-      # Restaura el Podfile correcto del repo (por si config-only lo sobreescribió)
+      # DIAGNÓSTICO: ver qué hay en .flutter-plugins-dependencies
+      - name: Show flutter plugins dependencies
+        run: |
+          echo "=== .flutter-plugins-dependencies ==="
+          cat .flutter-plugins-dependencies || echo "ARCHIVO NO EXISTE"
+          echo "=== .flutter-plugins ==="
+          cat .flutter-plugins || echo "ARCHIVO NO EXISTE"
+
       - name: Restore Podfile from repo
         run: git checkout ios/Podfile
-
-      - name: Show Podfile
-        run: cat ios/Podfile
 
       - name: Install CocoaPods dependencies
         run: |
@@ -60,7 +63,6 @@ jobs:
         run: |
           echo "=== Pods instalados ==="
           ls ios/Pods/
-          echo "=== Firebase/gRPC ==="
           ls ios/Pods/ | grep -i -E "firebase|firestore|grpc|boring|abseil|cloud" || echo "WARN: no encontrados"
 
       - name: Build iOS with xcodebuild
