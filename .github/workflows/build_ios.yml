@@ -1,18 +1,28 @@
 name: Build iOS IPA
 
 on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build_ios:
+  build-ios:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
       - name: Flutter pub get
         run: flutter pub get
@@ -20,14 +30,13 @@ jobs:
       - name: Generate Flutter iOS config
         run: flutter build ios --config-only --release --no-codesign
 
-      - name: Setup Ruby and CocoaPods
+      - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: false
 
       - name: Install CocoaPods
-        run: gem install cocoapods
+        run: gem install cocoapods --no-document
 
       - name: Pod install
         run: |
@@ -59,7 +68,6 @@ jobs:
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "No .app found in Products/Applications, searching broader..."
             APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive -name "*.app" -type d | head -1)
           fi
           echo "Using app at: $APP_PATH"
@@ -67,12 +75,6 @@ jobs:
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
-          echo "IPA created successfully"
-
-      - name: Verify IPA structure
-        run: |
-          echo "IPA contents:"
-          unzip -l $GITHUB_WORKSPACE/risk_runner.ipa | head -20
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
