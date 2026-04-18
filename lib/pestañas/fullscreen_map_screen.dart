@@ -939,8 +939,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
     _state.setLoadingTerritorios(true);
     try {
+      final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
       final lista = await TerritoryService.cargarTodosLosTerritorios(
-          centro: _state.centro);
+          centro: _state.centro, modo: modo);
       _state.setTerritorios(lista);
     } catch (_) {
       _state.setError('No se pudieron cargar los territorios');
@@ -958,6 +959,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Future<void> _rellenarConFantasmas() async {
+    if (_state.modoSolitario) return;
     if (widget.territorios.isNotEmpty) return;
     final centro = _state.centro;
     if (centro.latitude == 0 && centro.longitude == 0) return;
@@ -1771,9 +1773,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
             // ── MI CIUDAD ─────────────────────────────────────────────────
             Expanded(child: GestureDetector(
-              onTap: isCiudad ? null : () {
+              onTap: isCiudad ? null : () async {
                 if (isGlobal) _toggleModo();           // global → ciudad
-                if (isSolitario) _state.setModoSolitario(false);
+                if (isSolitario) {
+                  _state.setModoSolitario(false);
+                  await _cargarTerritorios();
+                }
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1882,6 +1887,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
     _state.setModoSolitario(true);
+    await _cargarTerritorios();
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
     }

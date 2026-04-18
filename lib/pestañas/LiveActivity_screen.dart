@@ -497,7 +497,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         } catch (_) {}
       }
 
-      final lista = await TerritoryService.cargarTodosLosTerritorios(centro: centro);
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
       if (mounted) {
         setState(() { _territorios = lista; _territoriosCargados = true; });
         _dibujarTerritoriosEnMapa();
@@ -530,7 +531,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           TerritoryService.invalidarCache();
           final centro = LatLng(pos.latitude, pos.longitude);
           final lista  = await TerritoryService.cargarTodosLosTerritorios(
-              centro: centro);
+              centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
           if (mounted) {
             setState(() => _territorios = lista);
             _dibujarTerritoriosEnMapa();
@@ -967,7 +968,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       // crearTerritoriosFantasmaEnZona ya invalida el caché
       final lista = await TerritoryService.cargarTodosLosTerritorios(
-          centro: centro);
+          centro: centro, modo: 'competitivo');
       if (mounted) {
         setState(() => _territorios = lista);
         _dibujarTerritoriosEnMapa();
@@ -2112,7 +2113,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         conquistados = 1;
         // Recargar territorios e incluir el nuevo en el cálculo de barrios
         final nuevosTerritorios =
-            await TerritoryService.cargarTodosLosTerritorios();
+            await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
         if (mounted) setState(() => _territorios = nuevosTerritorios);
         await _verificarBarriosCompletados();
         if (mounted) await ConquistaOverlay.mostrar(context, esInvasion: false);
@@ -2304,7 +2305,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (data['ok'] == true) {
             if (accion == 'conquista_total' || accion == 'robo_parcial') {
               _narrador.eventoConquista(t.ownerNickname);
-              final nuevos = await TerritoryService.cargarTodosLosTerritorios();
+              final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+                  modo: _modoSolitario ? 'solitario' : 'competitivo');
                 if (mounted) {
                   setState(() => _territorios = nuevos);
                   _territoriosLayersCreated = false;
@@ -2828,7 +2830,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           territorioId: territorioId, horas: horas);
       if (!mounted) return;
       // Recargar para reflejar el escudo en el modelo
-      final nuevos = await TerritoryService.cargarTodosLosTerritorios();
+      final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+          modo: _modoSolitario ? 'solitario' : 'competitivo');
       if (!mounted) return;
       setState(() => _territorios = nuevos);
       final messenger = ScaffoldMessenger.of(context);
@@ -3755,8 +3758,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               label: 'Competitivo',
               active: isCompetitivo,
               activeColor: _kGoldLight,
-              onTap: () {
+              onTap: () async {
                 setState(() => _modoSolitario = false);
+                TerritoryService.invalidarCache();
+                final centro = _currentPosition != null
+                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                    : null;
+                final lista = await TerritoryService.cargarTodosLosTerritorios(
+                    centro: centro, modo: 'competitivo');
+                if (mounted) setState(() => _territorios = lista);
                 _aplicarTerritoriosFantasma();
               },
             ),
@@ -3764,11 +3774,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               label: 'Solitario',
               active: _modoSolitario,
               activeColor: _kVerde,
-              onTap: () {
-                setState(() {
-                  _modoSolitario = true;
-                  _territorios = _territorios.where((t) => !t.esFantasma).toList();
-                });
+              onTap: () async {
+                setState(() => _modoSolitario = true);
+                TerritoryService.invalidarCache();
+                final centro = _currentPosition != null
+                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                    : null;
+                final lista = await TerritoryService.cargarTodosLosTerritorios(
+                    centro: centro, modo: 'solitario');
+                if (mounted) setState(() => _territorios = lista);
                 _dibujarTerritoriosEnMapa();
               },
             ),

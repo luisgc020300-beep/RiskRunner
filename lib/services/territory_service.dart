@@ -121,6 +121,9 @@ class TerritoryData {
   /// true → territorio fantasma local (solo visual, no existe en Firestore)
   final bool esFantasma;
 
+  /// 'competitivo' | 'solitario' | null (legacy = competitivo)
+  final String? modo;
+
   TerritoryData({
     required this.docId,
     required this.ownerId,
@@ -141,6 +144,7 @@ class TerritoryData {
     this.fechaDesdeDueno,
     this.escudoActivo = false,
     this.escudoExpira,
+    this.modo,
   });
 
   // ── HP calculado en tiempo real ───────────────────────────────────────────
@@ -416,12 +420,20 @@ class TerritoryService {
   // Si [centro] es null se devuelve solo el territorio propio (fallback seguro
   // para cuando la posición GPS aún no está disponible).
   // ──────────────────────────────────────────────────────────────────────────
+  static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
+    if (modo == 'solitario') return lista.where((t) => t.modo == 'solitario').toList();
+    // competitivo: incluye territorios sin modo (legacy) y los marcados explícitamente
+    return lista.where((t) => t.modo != 'solitario').toList();
+  }
+
   static Future<List<TerritoryData>> cargarTodosLosTerritorios({
     LatLng? centro,
+    String? modo,
   }) async {
     if (_cacheValido) {
       debugPrint('✅ TerritoryService: caché hit (${_cachedTerritorios!.length} territorios)');
-      return _cachedTerritorios!;
+      final cached = _cachedTerritorios!;
+      return modo != null ? _filtrarPorModo(cached, modo) : cached;
     }
 
     final user = FirebaseAuth.instance.currentUser;
@@ -436,7 +448,7 @@ class TerritoryService {
       final propios = _parsearDocs(snap.docs, user.uid, {});
       _cachedTerritorios = propios;
       _cacheTimestamp    = DateTime.now();
-      return propios;
+      return modo != null ? _filtrarPorModo(propios, modo) : propios;
     }
 
     // ── Con posición: query geográfica sin filtro de amistad ─────────────
@@ -484,7 +496,7 @@ class TerritoryService {
     _cachedTerritorios = resultado;
     _cacheTimestamp    = DateTime.now();
     debugPrint('🌍 TerritoryService: ${resultado.length} territorios en radio de ${(kRadGrados * 111).round()} km');
-    return resultado;
+    return modo != null ? _filtrarPorModo(resultado, modo) : resultado;
   }
 
   /// Convierte documentos Firestore en [TerritoryData].
@@ -578,6 +590,7 @@ class TerritoryService {
         fechaDesdeDueno:        fechaDesdeDueno,
         escudoActivo:           escudoActivo,
         escudoExpira:           escudoExpira,
+        modo:                   data['modo'] as String?,
       ));
     }
 
