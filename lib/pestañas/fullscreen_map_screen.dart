@@ -911,6 +911,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _initData() async {
     await _resolverCentro();
     await _cargarTerritorios();
+    await _rellenarConFantasmas();
     _escucharJugadores();
     _escucharDesafio();
     _sheetEntryCtrl.forward();
@@ -952,7 +953,20 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     TerritoryService.invalidarCache();
     _MapState.invalidarDetallesCache();
     await _cargarTerritorios();
+    await _rellenarConFantasmas();
     if (mounted) setState(() => _refreshing = false);
+  }
+
+  Future<void> _rellenarConFantasmas() async {
+    if (widget.territorios.isNotEmpty) return;
+    final centro = _state.centro;
+    if (centro.latitude == 0 && centro.longitude == 0) return;
+    await TerritoryService.crearTerritoriosFantasmaEnZona(
+      centro: centro,
+      todosExistentes: _state.territorios,
+    );
+    TerritoryService.invalidarCache();
+    await _cargarTerritorios();
   }
 
   void _escucharJugadores() {
@@ -1875,16 +1889,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.018; // ~2 km
+      const delta = 0.045; // ~5 km
 
+      final bbox = '${lat - delta},${lng - delta},${lat + delta},${lng + delta}';
       final url = Uri.parse(
         'https://overpass-api.de/api/interpreter?data='
-        '[out:json][timeout:15];'
+        '[out:json][timeout:25];'
         '('
-        '  way["place"~"suburb|neighbourhood|quarter"]'
-        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
-        '  relation["place"~"suburb|neighbourhood|quarter"]'
-        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
+        '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
+        '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
+        '  relation["boundary"="administrative"]["admin_level"~"^(8|9|10)\$"]($bbox);'
+        '  way["boundary"="administrative"]["admin_level"~"^(8|9|10)\$"]($bbox);'
         ');'
         'out geom;',
       );
