@@ -622,16 +622,16 @@ class _PerfilScreenState extends State<PerfilScreen>
       onTap: _mostrarModalReto,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: _kAccent.withValues(alpha: 0.07),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
+          color: _p.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _p.border),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Text('', style: TextStyle(fontSize: 14)),
-          const SizedBox(width: 8),
-          Text('RETAR', style: _rajdhani(12, FontWeight.w900, _kAccent, spacing: 1.5)),
+          const Text('', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 6),
+          Text('RETAR', style: _rajdhani(12, FontWeight.w700, _kAccent, spacing: 1.2)),
         ]),
       ),
     );
@@ -1143,10 +1143,12 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Column(children: [
                 _buildFriendshipButton(),
-                const SizedBox(height: 10),
-                _buildBotonRetar(),
-                const SizedBox(height: 10),
-                _socialBtn('Enviar mensaje', Icons.chat_bubble_outline_rounded, _p.text, _abrirChat),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: _buildBotonRetar()),
+                  const SizedBox(width: 8),
+                  Expanded(child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, _p.text, _abrirChat)),
+                ]),
               ]),
             ),
           ),
@@ -2788,9 +2790,17 @@ class _PerfilScreenState extends State<PerfilScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 13),
-        decoration: BoxDecoration(color: outlined ? Colors.transparent : color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: outlined ? 0.30 : 0.18))),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, color: color, size: 15), const SizedBox(width: 8), Text(label, style: _rajdhani(12, FontWeight.w700, color, spacing: 0.5))]),
+        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: outlined ? Colors.transparent : _p.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _p.border),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 15),
+          const SizedBox(width: 7),
+          Text(label, style: _rajdhani(12, FontWeight.w600, color, spacing: 0.3)),
+        ]),
       ),
     );
   }

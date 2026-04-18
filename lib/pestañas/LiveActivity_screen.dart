@@ -6,8 +6,11 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
@@ -236,18 +239,28 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   late AnimationController _globoAnim;
 
   // ── Capas de mapa
-  static const String _routeSourceId      = 'route-source';
-  static const String _routeLayerId       = 'route-layer';
-  static const String _buildingsLayerId   = 'buildings-3d';
-  static const String _fillLayerId        = 'territorios-fill';
-  static const String _fillInnerLayerId   = 'territorios-fill-inner';
-  static const String _borderLayerId      = 'territorios-border';
-  static const String _borderPulseLayerId = 'territorios-border-pulse';
-  static const String _sourceId          = 'territorios-source';
+  static const String _routeSourceId       = 'route-source';
+  static const String _routeLayerId        = 'route-layer';
+  static const String _buildingsLayerId    = 'buildings-3d';
+  static const String _fillLayerId         = 'territorios-fill';
+  static const String _fillInnerLayerId    = 'territorios-fill-inner';
+  static const String _borderLayerId       = 'territorios-border';
+  static const String _borderPulseLayerId  = 'territorios-border-pulse';
+  static const String _sourceId            = 'territorios-source';
+  static const String _centrosSourceId     = 'territorios-centros-source';
+  static const String _centrosLayerId      = 'territorios-centros-layer';
+  static const String _kTileUrl =
+      'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
+      '/tiles/256/{z}/{x}/{y}@2x?access_token='
+      'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
 
-  bool _routeLayerCreated  = false;
-  bool _buildings3dCreated = false;
+  bool _routeLayerCreated       = false;
+  bool _buildings3dCreated      = false;
   bool _territoriosLayersCreated = false;
+  bool _centrosLayerCreated     = false;
+
+  // Web fallback (flutter_map)
+  MapController? _webMapCtrl;
 
   Timer? _pulsoTimer;
   double _pulsoOpacity = 0.9;
@@ -383,7 +396,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // HELPERS
   // ==========================================================================
   void _rotarGlobo() {
-    if (isTracking || _mapboxMap == null) return;
+    if (isTracking) return;
+    if (kIsWeb) return; // flutter_map no soporta bearing continuo
+    if (_mapboxMap == null) return;
     final bearing = _globoAnim.value * 360.0;
     _mapboxMap!.setCamera(mapbox.CameraOptions(bearing: bearing));
   }
@@ -778,8 +793,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _mapboxMap = map;
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
-    await map.gestures.updateSettings(
-        mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: true,
+      pitchEnabled: false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+    ));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
     await _moverCamara(
@@ -806,6 +826,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     int duracion = 600,
     bool forzar = false,
   }) async {
+    if (kIsWeb) {
+      final ctrl = _webMapCtrl;
+      if (ctrl == null) return;
+      ctrl.move(LatLng(lat, lng), zoom ?? ctrl.camera.zoom);
+      return;
+    }
     if (_mapboxMap == null) return;
     if (!forzar && animated) {
       final ahora  = DateTime.now();
@@ -1055,6 +1081,45 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       _territoriosLayersCreated = true;
       _actualizarCoronesMapa();
+
+      // Marcadores en el globo (visibles a zoom bajo, desaparecen al correr)
+      if (!_centrosLayerCreated) {
+        final misTerr = _territorios.where((t) => t.esMio).toList();
+        if (misTerr.isNotEmpty) {
+          final feats = misTerr.map((t) {
+            final c = t.centro;
+            return '{"type":"Feature","properties":{},"geometry":{'
+                '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
+          }).join(',');
+          final gj = '{"type":"FeatureCollection","features":[$feats]}';
+          await _mapboxMap!.style.addSource(
+              mapbox.GeoJsonSource(id: _centrosSourceId, data: gj));
+          await _mapboxMap!.style.addLayer(
+              mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-color', '#FFD60A');
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-radius',
+              ['interpolate', ['linear'], ['zoom'], 1, 2.5, 5, 5.0, 9, 0.0]);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-opacity',
+              ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 0.0]);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-blur', 0.3);
+          _centrosLayerCreated = true;
+        }
+      } else {
+        final misTerr = _territorios.where((t) => t.esMio).toList();
+        final feats = misTerr.map((t) {
+          final c = t.centro;
+          return '{"type":"Feature","properties":{},"geometry":{'
+              '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
+        }).join(',');
+        final gj = '{"type":"FeatureCollection","features":[$feats]}';
+        final src = await _mapboxMap!.style
+            .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(gj);
+      }
 
       _pulsoTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
         if (!mounted || _mapboxMap == null) return;
@@ -1567,7 +1632,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         color:  _p.parchMid,
         border: Border.all(color: _p.globalRed.withValues(alpha: 0.5)),
         child: Row(children: [
-          Icon(Icons.warning_amber_rounded, color: _p.globalRed, size: 18),
+          Icon(CupertinoIcons.exclamationmark_triangle, color: _p.globalRed, size: 18),
           const SizedBox(width: 10),
           Expanded(child: Text(msg,
               style: GoogleFonts.inter(color: _kGoldLight,
@@ -1767,6 +1832,23 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _stopwatch.reset();
     _stopwatch.start();
     _timerController.start();
+    // Transición globo → calle
+    if (!kIsWeb && _mapboxMap != null && _currentPosition != null) {
+      _mapboxMap!.flyTo(
+        mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _currentPosition!.longitude, _currentPosition!.latitude)),
+          zoom: _kZoomCorrer,
+          pitch: _kPitchCorrer,
+        ),
+        mapbox.MapAnimationOptions(duration: 2500),
+      );
+    } else if (kIsWeb && _webMapCtrl != null && _currentPosition != null) {
+      _webMapCtrl!.move(
+        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        _kZoomCorrer,
+      );
+    }
     _iniciarPublicacionPosicion();
     _narrador.iniciar();
     _minutosResistenciaNotificados = 0;
@@ -2799,7 +2881,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       body: Stack(children: [
         Positioned.fill(child: _buildMapbox()),
         if (!isTracking && !_mostrandoCuentaAtras)
-          Positioned.fill(child: _buildGloboOverlay()),
+          Positioned.fill(child: IgnorePointer(child: _buildGloboOverlay())),
         Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
         Positioned(top: 200, left: 14, child: _buildChips()),
         Positioned(
@@ -3072,33 +3154,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: IgnorePointer(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (_modoSolitario) ...[
-              _globoChip(Icons.place_outlined, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
+              _globoChip(CupertinoIcons.map_pin, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
               const SizedBox(height: 6),
-              _globoChip(Icons.explore_outlined, 'Explora y conquista', Colors.white70),
+              _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
             ] else if (_objetivoGlobal != null) ...[
-              _globoChip(Icons.flag_outlined,
+              _globoChip(CupertinoIcons.flag,
                   _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
                   _p.globalRed),
               const SizedBox(height: 6),
-              _globoChip(Icons.directions_run,
+              _globoChip(CupertinoIcons.person,
                   '${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km requeridos',
                   Colors.white70),
               const SizedBox(height: 6),
-              _globoChip(Icons.toll,
+              _globoChip(CupertinoIcons.circle,
                   '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes',
                   _kGold),
             ] else ...[
-              _globoChip(Icons.shield_outlined,
+              _globoChip(CupertinoIcons.shield,
                   '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
                   _p.terracotta),
               const SizedBox(height: 6),
-              _globoChip(Icons.people_outline, '${_jugadoresActivos.length} activos ahora', _kWaterLight),
+              _globoChip(CupertinoIcons.person_2, '${_jugadoresActivos.length} activos ahora', _kWaterLight),
               const SizedBox(height: 6),
-              _globoChip(Icons.map_outlined, '${_territorios.length} territorios', Colors.white70),
+              _globoChip(CupertinoIcons.map, '${_territorios.length} territorios', Colors.white70),
             ],
             if (_retoActivo != null) ...[
               const SizedBox(height: 6),
-              _globoChip(Icons.bolt, _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
+              _globoChip(CupertinoIcons.bolt, _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
             ],
           ]),
         ),
@@ -3158,16 +3240,70 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             color: _kGold.withValues(alpha: 0.4))),
       ]);
 
-  Widget _buildMapbox() => mapbox.MapWidget(
-        styleUri: _mapStyle,
-        cameraOptions: mapbox.CameraOptions(
-          center: mapbox.Point(coordinates: mapbox.Position(
-              _currentPosition?.longitude ?? -3.70325,
-              _currentPosition?.latitude  ?? 40.4167)),
-          zoom: _kZoomGlobo, pitch: _kPitchNormal,
+  Widget _buildMapbox() {
+    if (kIsWeb) return _buildWebMap();
+    return mapbox.MapWidget(
+      styleUri: _mapStyle,
+      cameraOptions: mapbox.CameraOptions(
+        center: mapbox.Point(coordinates: mapbox.Position(
+            _currentPosition?.longitude ?? -3.70325,
+            _currentPosition?.latitude  ?? 40.4167)),
+        zoom: _kZoomGlobo, pitch: _kPitchNormal,
+      ),
+      onMapCreated: _onMapCreated,
+    );
+  }
+
+  Widget _buildWebMap() {
+    _webMapCtrl ??= MapController();
+    return FlutterMap(
+      mapController: _webMapCtrl!,
+      options: MapOptions(
+        initialCenter: LatLng(
+          _currentPosition?.latitude  ?? 40.4167,
+          _currentPosition?.longitude ?? -3.70325,
         ),
-        onMapCreated: _onMapCreated,
-      );
+        initialZoom: isTracking ? _kZoomCorrer : 3.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        ),
+      ),
+      children: [
+        TileLayer(urlTemplate: _kTileUrl,
+            userAgentPackageName: 'com.runner_risk.app'),
+        if (_territorios.isNotEmpty) PolygonLayer(
+          polygons: _territorios.map((t) {
+            final col = t.esMio ? t.color : t.colorEstadoHp;
+            return Polygon(
+              points: t.puntos,
+              color: col.withValues(alpha: 0.22),
+              borderColor: col,
+              borderStrokeWidth: t.esMio ? 2.5 : 1.5,
+            );
+          }).toList(),
+        ),
+        if (isTracking && routePoints.isNotEmpty) PolylineLayer(
+          polylines: [Polyline(points: routePoints,
+              color: _colorTerritorio, strokeWidth: 4.5)],
+        ),
+        if (isTracking && _currentPosition != null) MarkerLayer(
+          markers: [
+            Marker(
+              point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+              width: 28, height: 28,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _kGold, shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
   Widget _buildHUD() {
     if (!isTracking) return const SizedBox.shrink();
@@ -3256,7 +3392,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   Text('SOLO', style: GoogleFonts.inter(color: _kVerde,
                       fontWeight: FontWeight.w900, fontSize: 11)),
                 ],
-                Icon(Icons.expand_more_rounded, color: _p.goldDim, size: 15),
+                Icon(CupertinoIcons.chevron_down, color: _p.goldDim, size: 15),
               ],
             ),
           ),
@@ -3328,7 +3464,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 Image.asset('assets/avatars/explorador.png',
                     width: 110, height: 110, fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) =>
-                        Icon(Icons.directions_run_rounded, color: _kGold, size: 80)),
+                        Icon(CupertinoIcons.person, color: _kGold, size: 80)),
                 Container(
                   width: 52, height: 9,
                   decoration: BoxDecoration(

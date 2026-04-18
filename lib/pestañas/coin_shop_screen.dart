@@ -24,21 +24,39 @@ import '../widgets/custom_navbar.dart';
 // PALETA
 // =============================================================================
 class _C {
-  static const bg0    = Color(0xFFE8E8ED);
-  static const bg1    = Color(0xFFFFFFFF);
-  static const bg2    = Color(0xFFE5E5EA);
-  static const parch  = Color(0xFF1C1C1E);
+  // Fixed accent colors — never change with theme
   static const bronze = Color(0xFF636366);
   static const gold   = Color(0xFFFFD60A);
   static const silver = Color(0xFFB0BEC5);
-  static const border = Color(0xFFC6C6C8);
-  static const border2= Color(0xFFD1D1D6);
-  static const t1     = Color(0xFF1C1C1E);   // texto primario
-  static const t2     = Color(0xFF3C3C43);   // texto secundario
-  static const t3     = Color(0xFF636366);   // texto terciario
-  static const dim    = Color(0xFF8E8E93);   // texto atenuado
-  static const dimTxt = Color(0xFFAEAEB2);   // texto muy atenuado
   static const green  = Color(0xFF4CAF50);
+
+  // Adaptive theme colors
+  final Color bg0, bg1, bg2, border, t1, dim, dimTxt;
+  const _C._({
+    required this.bg0, required this.bg1, required this.bg2,
+    required this.border, required this.t1, required this.dim,
+    required this.dimTxt,
+  });
+  static const light = _C._(
+    bg0:    Color(0xFFE8E8ED),
+    bg1:    Color(0xFFFFFFFF),
+    bg2:    Color(0xFFE5E5EA),
+    border: Color(0xFFC6C6C8),
+    t1:     Color(0xFF1C1C1E),
+    dim:    Color(0xFF8E8E93),
+    dimTxt: Color(0xFFAEAEB2),
+  );
+  static const dark = _C._(
+    bg0:    Color(0xFF090807),
+    bg1:    Color(0xFF1C1C1E),
+    bg2:    Color(0xFF2C2C2E),
+    border: Color(0xFF38383A),
+    t1:     Color(0xFFEEEEEE),
+    dim:    Color(0xFF8E8E93),
+    dimTxt: Color(0xFF8E8E93),
+  );
+  static _C of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
 }
 
 // =============================================================================
@@ -97,6 +115,8 @@ class CoinShopScreen extends StatefulWidget {
 
 class _CoinShopScreenState extends State<CoinShopScreen>
     with SingleTickerProviderStateMixin {
+
+  _C get _c => _C.of(context);
 
   late AnimationController _glowCtrl;
   late Animation<double>   _glow;
@@ -238,7 +258,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _C.bg0,
+      backgroundColor: _c.bg0,
       appBar: _appBar(),
       body: Stack(children: [
         Positioned.fill(child: CustomPaint(painter: _BgPainter())),
@@ -275,7 +295,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                 'no afectan a la conquista de territorios.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                    color: _C.dimTxt.withValues(alpha: 0.6),
+                    color: _c.dimTxt.withValues(alpha: 0.6),
                     fontSize: 10, height: 1.5)),
             ]),
           ),
@@ -301,13 +321,13 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     actions: [
       IconButton(
         icon: Icon(Icons.help_outline_rounded,
-            color: _C.dimTxt, size: 20),
+            color: _c.dimTxt, size: 20),
         onPressed: _mostrarAyuda,
       ),
     ],
     bottom: PreferredSize(
       preferredSize: const Size.fromHeight(1),
-      child: Container(height: 1, color: _C.border),
+      child: Container(height: 1, color: _c.border),
     ),
   );
 
@@ -317,7 +337,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     builder: (_, child) => Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _C.bg1,
+        color: _c.bg1,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _C.gold.withValues(alpha: 0.2 + _glow.value * 0.15),
@@ -340,14 +360,14 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       const SizedBox(width: 14),
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('TUS MONEDAS', style: GoogleFonts.inter(
-          color: _C.dimTxt, fontSize: 9,
+          color: _c.dimTxt, fontSize: 9,
           fontWeight: FontWeight.w700, letterSpacing: 2)),
         const SizedBox(height: 3),
         _loadingMonedas
             ? Container(
                 width: 64, height: 26,
                 decoration: BoxDecoration(
-                  color: _C.bg2,
+                  color: _c.bg2,
                   borderRadius: BorderRadius.circular(4),
                 ),
               )
@@ -363,12 +383,12 @@ class _CoinShopScreenState extends State<CoinShopScreen>
         decoration: BoxDecoration(
           color: _rcDisponible
               ? _C.green.withValues(alpha: 0.08)
-              : _C.dim.withValues(alpha: 0.2),
+              : _c.dim.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: _rcDisponible
                 ? _C.green.withValues(alpha: 0.3)
-                : _C.border,
+                : _c.border,
           ),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -376,14 +396,14 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             width: 6, height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _rcDisponible ? _C.green : _C.dimTxt,
+              color: _rcDisponible ? _C.green : _c.dimTxt,
             ),
           ),
           const SizedBox(width: 5),
           Text(
             _rcDisponible ? 'Activa' : 'Próximamente',
             style: GoogleFonts.inter(
-              color: _rcDisponible ? _C.green : _C.dimTxt,
+              color: _rcDisponible ? _C.green : _c.dimTxt,
               fontSize: 10, fontWeight: FontWeight.w700)),
         ]),
       ),
@@ -401,7 +421,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     ),
     const SizedBox(width: 10),
     Text(text, style: GoogleFonts.inter(
-      color: _C.dimTxt, fontSize: 10,
+      color: _c.dimTxt, fontSize: 10,
       fontWeight: FontWeight.w700, letterSpacing: 2)),
   ]);
 
@@ -415,7 +435,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
 
     return Container(
       decoration: BoxDecoration(
-        color: _C.bg1,
+        color: _c.bg1,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: pack.accent.withValues(alpha: 0.3)),
       ),
@@ -433,7 +453,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             child: Text(pack.etiqueta!,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                color: _C.bg0, fontSize: 10,
+                color: Colors.white, fontSize: 10,
                 fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ),
 
@@ -477,11 +497,11 @@ class _CoinShopScreenState extends State<CoinShopScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
               Text(pack.titulo, style: GoogleFonts.inter(
-                color: _C.t1, fontSize: 15,
+                color: _c.t1, fontSize: 15,
                 fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(pack.descripcion, style: GoogleFonts.inter(
-                  color: _C.dimTxt, fontSize: 12, height: 1.3)),
+                  color: _c.dimTxt, fontSize: 12, height: 1.3)),
             ])),
 
             const SizedBox(width: 12),
@@ -512,7 +532,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             horizontal: 16, vertical: 9),
         decoration: BoxDecoration(
           color: bloqueado
-              ? _C.dim
+              ? _c.dim
               : comprando
                   ? pack.accent.withValues(alpha: 0.5)
                   : pack.accent,
@@ -523,7 +543,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                 child: CircularProgressIndicator(
                     color: Colors.white, strokeWidth: 2))
             : Text('COMPRAR', style: GoogleFonts.inter(
-                color: _C.bg0, fontSize: 11,
+                color: Colors.white, fontSize: 11,
                 fontWeight: FontWeight.w900, letterSpacing: 1)),
       ),
     );
@@ -577,9 +597,9 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       const SizedBox(height: 12),
       Container(
         decoration: BoxDecoration(
-          color: _C.bg1,
+          color: _c.bg1,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _C.border),
+          border: Border.all(color: _c.border),
         ),
         child: Column(
           children: usos.asMap().entries.map((e) {
@@ -606,16 +626,16 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                     Text(titulo, style: GoogleFonts.inter(
-                      color: _C.t1, fontSize: 13,
+                      color: _c.t1, fontSize: 13,
                       fontWeight: FontWeight.w700)),
                     const SizedBox(height: 1),
                     Text(sub, style: GoogleFonts.inter(
-                        color: _C.dimTxt, fontSize: 11)),
+                        color: _c.dimTxt, fontSize: 11)),
                   ])),
                 ]),
               ),
               if (!isLast)
-                Divider(height: 1, color: _C.border,
+                Divider(height: 1, color: _c.border,
                     indent: 14, endIndent: 14),
             ]);
           }).toList(),
@@ -639,19 +659,19 @@ class _CoinShopScreenState extends State<CoinShopScreen>
   Widget _pill(String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
-      color: _C.bg2,
+      color: _c.bg2,
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: _C.border),
+      border: Border.all(color: _c.border),
     ),
     child: Text(text, style: GoogleFonts.inter(
-        color: _C.dimTxt, fontSize: 10, fontWeight: FontWeight.w600)),
+        color: _c.dimTxt, fontSize: 10, fontWeight: FontWeight.w600)),
   );
 
   // ── Ayuda ─────────────────────────────────────────────────────────────────
   void _mostrarAyuda() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _C.bg1,
+      backgroundColor: _c.bg1,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -661,13 +681,13 @@ class _CoinShopScreenState extends State<CoinShopScreen>
           Container(
             width: 36, height: 4,
             decoration: BoxDecoration(
-              color: _C.dim,
+              color: _c.dim,
               borderRadius: BorderRadius.circular(2),
             )),
           const SizedBox(height: 20),
           Text('Preguntas frecuentes',
             style: GoogleFonts.inter(
-              color: _C.t1, fontSize: 15,
+              color: _c.t1, fontSize: 15,
               fontWeight: FontWeight.w800, letterSpacing: 1)),
           const SizedBox(height: 18),
           _faq('¿Las monedas caducan?',
@@ -695,7 +715,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
         fontWeight: FontWeight.w700)),
       const SizedBox(height: 3),
       Text(a, style: GoogleFonts.inter(
-          color: _C.dimTxt, fontSize: 12, height: 1.4)),
+          color: _c.dimTxt, fontSize: 12, height: 1.4)),
     ]),
   );
 

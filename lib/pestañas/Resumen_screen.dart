@@ -745,30 +745,6 @@ class _ResumenScreenState extends State<ResumenScreen>
       ]);
 
   // ==========================================================================
-  // NAVEGACIÓN — Volver al mapa con el territorio global actualizado
-  // ==========================================================================
-
-  /// Si venimos de Guerra Global y conquistamos, volvemos al mapa en modo
-  /// global para que el usuario vea su territorio en el mapa.
-  /// En cualquier otro caso, volvemos a Home.
-  void _volverAlInicio() {
-    HapticFeedback.mediumImpact();
-
-    if (widget.esDesdeCarrera && _esGuerraGlobal && widget.globalConquistado) {
-      // Ir al mapa en modo global para que vea el territorio conquistado
-      Navigator.pushNamedAndRemoveUntil(
-        context, '/mapa', (route) => false,
-        arguments: {
-          'modoGlobal': true,   // FullscreenMapScreen lo leerá en initState
-        },
-      );
-    } else {
-      Navigator.pushNamedAndRemoveUntil(
-          context, '/home', (route) => false);
-    }
-  }
-
-  // ==========================================================================
   // BUILD PRINCIPAL
   // ==========================================================================
   @override
@@ -776,28 +752,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     if (isLoading || _centroMapa == null) return _buildLoading();
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton.small(
-        onPressed: _volverAlInicio,
-        backgroundColor: _kSurface2,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(
-            color: (_esGuerraGlobal && widget.globalConquistado
-                    ? _kGold : _kRed)
-                .withOpacity(0.4),
-          ),
-        ),
-        child: Icon(
-          _esGuerraGlobal && widget.globalConquistado
-              ? Icons.map_rounded
-              : Icons.home_rounded,
-          color: _esGuerraGlobal && widget.globalConquistado
-              ? _kGold : _kRed,
-          size: 18,
-        ),
-      ),
       body: RefreshIndicator(
         onRefresh: _cargarHistorialTotal,
         color: _kRed,
@@ -2024,56 +1978,6 @@ class _ResumenScreenState extends State<ResumenScreen>
       Expanded(child: Container(height: 1, color: _kBorder2)),
     ]),
 
-    const SizedBox(height: 20),
-
-    // ── Botón principal: varía según si es Guerra Global y si conquistó
-    GestureDetector(
-      onTap: _volverAlInicio,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: (_esGuerraGlobal && widget.globalConquistado
-                    ? _kGold
-                    : _kRed)
-                .withOpacity(0.4),
-          ),
-          color: (_esGuerraGlobal && widget.globalConquistado
-                  ? _kGold
-                  : _kRed)
-              .withOpacity(0.06),
-        ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(
-            _esGuerraGlobal && widget.globalConquistado
-                ? Icons.map_rounded
-                : Icons.home_rounded,
-            color: _esGuerraGlobal && widget.globalConquistado
-                ? _kGold
-                : _kRed,
-            size: 18,
-          ),
-          const SizedBox(width: 10),
-          Text(
-            _esGuerraGlobal && widget.globalConquistado
-                ? 'VER MI TERRITORIO GLOBAL'
-                : 'VOLVER AL INICIO',
-            style: TextStyle(
-              color: _esGuerraGlobal && widget.globalConquistado
-                  ? _kGold
-                  : _kRed,
-              fontSize:      11,
-              fontWeight:    FontWeight.w900,
-              letterSpacing: 3,
-            ),
-          ),
-        ]),
-      ),
-    ),
-
-    const SizedBox(height: 8),
   ]);
 
   Widget _sectionLabel(String t) => Row(children: [

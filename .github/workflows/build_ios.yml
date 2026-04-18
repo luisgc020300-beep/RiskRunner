@@ -17,6 +17,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Generate Flutter iOS config
+        run: flutter build ios --config-only --release --no-codesign
+
       - name: Setup Ruby and CocoaPods
         uses: ruby/setup-ruby@v1
         with:
@@ -34,7 +37,7 @@ jobs:
         env:
           COCOAPODS_DISABLE_STATS: true
 
-      - name: Flutter build iOS (genera GeneratedPluginRegistrant)
+      - name: Flutter build iOS
         run: flutter build ios --release --no-codesign
 
       - name: Build with xcodebuild
