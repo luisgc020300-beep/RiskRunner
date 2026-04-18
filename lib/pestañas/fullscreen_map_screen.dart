@@ -912,6 +912,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _resolverCentro();
     await _cargarTerritorios();
     await _rellenarConFantasmas();
+    if (!mounted) return;
     _escucharJugadores();
     _escucharDesafio();
     _sheetEntryCtrl.forward();
@@ -1910,8 +1911,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         '('
         '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
         '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
-        '  relation["boundary"="administrative"]["admin_level"~"^(8|9|10)\$"]($bbox);'
-        '  way["boundary"="administrative"]["admin_level"~"^(8|9|10)\$"]($bbox);'
+        '  relation["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
+        '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
         ');'
         'out geom;',
       );
@@ -1954,7 +1955,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         if (puntos.length < 4) continue;
         final area = TerritoryService.calcularAreaM2(puntos);
-        if (area < 10000) continue;
+        if (area < 10000) continue;   // muy pequeño (< 0.01 km²)
+        if (area > 8000000) continue; // demasiado grande (> 8 km²) = municipio/provincia
 
         // Calcular % cubierto con territorios propios
         final misTers = _state.territorios.where((t) => t.esMio).toList();
@@ -2036,9 +2038,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         : pct > 0 ? _kWarn : _kDim;
                     return Polygon(
                       points: b.puntos,
-                      color: color.withValues(alpha: 0.10),
-                      borderColor: color.withValues(alpha: 0.55),
-                      borderStrokeWidth: 1.5,
+                      color: color.withValues(alpha: 0.08),
+                      borderColor: Colors.black.withValues(alpha: 0.75),
+                      borderStrokeWidth: 2.0,
                     );
                   }).toList(),
                 ),

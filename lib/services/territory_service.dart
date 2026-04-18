@@ -175,17 +175,17 @@ class TerritoryData {
 
 double get opacidadRelleno {
   switch (estadoHp) {
-    case EstadoHp.saludable: return esMio ? 0.38 : 0.18;
-    case EstadoHp.danado:    return esMio ? 0.24 : 0.14;
-    case EstadoHp.critico:   return esMio ? 0.14 : 0.08;
+    case EstadoHp.saludable: return esMio ? 0.60 : 0.38;
+    case EstadoHp.danado:    return esMio ? 0.35 : 0.22;
+    case EstadoHp.critico:   return esMio ? 0.18 : 0.10;
   }
 }
 
 double get opacidadBorde {
   switch (estadoHp) {
-    case EstadoHp.saludable: return esMio ? 0.95 : 0.55;
-    case EstadoHp.danado:    return esMio ? 0.70 : 0.45;
-    case EstadoHp.critico:   return esMio ? 0.45 : 0.25;
+    case EstadoHp.saludable: return esMio ? 1.00 : 0.80;
+    case EstadoHp.danado:    return esMio ? 0.80 : 0.55;
+    case EstadoHp.critico:   return esMio ? 0.55 : 0.30;
   }
 }
 
@@ -421,9 +421,13 @@ class TerritoryService {
   // para cuando la posición GPS aún no está disponible).
   // ──────────────────────────────────────────────────────────────────────────
   static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
-    if (modo == 'solitario') return lista.where((t) => t.modo == 'solitario').toList();
-    // competitivo: incluye territorios sin modo (legacy) y los marcados explícitamente
-    return lista.where((t) => t.modo != 'solitario').toList();
+    // Los territorios propios SIEMPRE se muestran en cualquier modo.
+    // Los ajenos se filtran por modo para no mezclar competitivo y solitario.
+    if (modo == 'solitario') {
+      return lista.where((t) => t.esMio || t.modo == 'solitario').toList();
+    }
+    // competitivo: propios + ajenos sin modo (legacy) + ajenos marcados competitivo
+    return lista.where((t) => t.esMio || t.modo != 'solitario').toList();
   }
 
   static Future<List<TerritoryData>> cargarTodosLosTerritorios({
