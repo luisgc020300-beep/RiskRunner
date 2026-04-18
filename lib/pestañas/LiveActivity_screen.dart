@@ -250,7 +250,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _centrosSourceId     = 'territorios-centros-source';
   static const String _centrosLayerId      = 'territorios-centros-layer';
   static const String _kTileUrl =
-      'https://api.mapbox.com/styles/v1/mapbox/streets-v12'
+      'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
       '/tiles/256/{z}/{x}/{y}@2x?access_token='
       'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
 
