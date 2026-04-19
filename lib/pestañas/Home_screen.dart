@@ -1725,16 +1725,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         RichText(
           text: TextSpan(
             style: GoogleFonts.inter(
-              fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+              fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: 0.5),
             children: [
-              const TextSpan(text: '[', style: TextStyle(color: Color(0xFF636366))),
-              const TextSpan(text: 'RISK', style: TextStyle(color: Color(0xFFE02020))),
-              TextSpan(text: ' RUNNER', style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white
-                    : const Color(0xFF1C1C1E),
-              )),
-              const TextSpan(text: ']', style: TextStyle(color: Color(0xFF636366))),
+              const TextSpan(
+                text: 'RISK',
+                style: TextStyle(color: Color(0xFFE02020)),
+              ),
+              TextSpan(
+                text: 'RUNNER',
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : const Color(0xFF1C1C1E),
+                  letterSpacing: 0.5,
+                ),
+              ),
             ],
           ),
         ),
@@ -2074,13 +2079,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Stack(children: [
       Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         decoration: BoxDecoration(
           color: _T.bg1,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _T.border2),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.3),
-                blurRadius: 12, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withOpacity(0.18),
+                blurRadius: 16, offset: const Offset(0, 4)),
           ],
         ),
         clipBehavior: Clip.antiAlias,
@@ -2162,8 +2168,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       Positioned(
         left: 16, top: 0, bottom: 0,
         child: Container(
-          width: 2,
-          color: _T.bronze.withOpacity(0.7),
+          width: 3,
+          decoration: BoxDecoration(
+            color: _T.red.withValues(alpha: 0.75),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              bottomLeft: Radius.circular(16),
+            ),
+          ),
         ),
       ),
     ]);
@@ -2211,16 +2223,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           : '${m}m ${s.toString().padLeft(2, '0')}s';
     }
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      margin: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       decoration: BoxDecoration(
         color: _T.bg0,
-        border: Border(
-          left: BorderSide(color: _T.bronze, width: 2),
-          top: BorderSide(color: _T.border2),
-          right: BorderSide(color: _T.border2),
-          bottom: BorderSide(color: _T.border2),
-        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _T.border2),
       ),
       child: Row(children: [
         if (post.distanciaKm != null)

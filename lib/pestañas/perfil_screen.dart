@@ -2353,9 +2353,18 @@ class _PerfilScreenState extends State<PerfilScreen>
     final hito     = ((_kmTotales ~/ 100) + 1) * 100;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border(left: BorderSide(color: _kAccent, width: 1))),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+        ]),
         const SizedBox(height: 4),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: _AnimatedCounter(
@@ -2426,19 +2435,31 @@ class _PerfilScreenState extends State<PerfilScreen>
     final numVal = double.tryParse(val.replaceAll('#', '').replaceAll(RegExp(r'[^0-9.]'), ''));
     return Container(
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: accentColor.withValues(alpha: 0.12))),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: accentColor.withValues(alpha: 0.40), size: 14),
-        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: accentColor.withValues(alpha: 0.80), size: 14),
+        ),
+        const SizedBox(height: 16),
         numVal != null && !val.startsWith('#')
           ? _AnimatedCounter(
               value: numVal,
-              style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w700, color: _p.title, height: 1),
+              style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w800, color: _p.title, height: 1),
               duration: const Duration(milliseconds: 1100),
             )
-          : Text(val, style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w700, color: _p.title, height: 1)),
-        const SizedBox(height: 4),
-        Text(label, style: _rajdhani(9, FontWeight.w600, accentColor.withValues(alpha: 0.60), spacing: 1.5, height: 1.4)),
+          : Text(val, style: GoogleFonts.inter(fontSize: 52, fontWeight: FontWeight.w800, color: _p.title, height: 1)),
+        const SizedBox(height: 6),
+        Text(label, style: _rajdhani(9, FontWeight.w700, _p.sub, spacing: 1.5, height: 1.4)),
       ]),
     );
   }
@@ -2446,13 +2467,26 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildStatPequena(String val, String label, IconData icon, Color accentColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
       child: Row(children: [
-        Icon(icon, color: accentColor.withValues(alpha: 0.50), size: 13),
-        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(icon, color: accentColor.withValues(alpha: 0.80), size: 13),
+        ),
+        const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(val, style: _rajdhani(22, FontWeight.w700, _p.title, height: 1)),
-          Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1, height: 1.3)),
+          Text(val, style: _rajdhani(22, FontWeight.w800, _p.title, height: 1)),
+          const SizedBox(height: 2),
+          Text(label, style: _rajdhani(8, FontWeight.w600, _p.sub, spacing: 1, height: 1.3)),
         ])),
       ]),
     );

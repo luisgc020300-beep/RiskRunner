@@ -3907,17 +3907,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                       _kVerde.withValues(alpha: 0.8),
                       const Color(0xFF2A6A2A),
                     ], begin: Alignment.topLeft, end: Alignment.bottomRight)
-                  : const LinearGradient(colors: [
-                      Color(0xFF7A4A00), Color(0xFFD4A84C), Color(0xFFD4722A),
+                  : LinearGradient(colors: [
+                      const Color(0xFF8B0000),
+                      const Color(0xFFE02020),
+                      const Color(0xFFC0392B),
                     ], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                  color: (_modoSolitario ? _kVerde : _kGoldLight)
+                  color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
                       .withValues(alpha: 0.35 + _pulso.value * 0.2),
                   width: 1.5),
               boxShadow: [
                 BoxShadow(
-                    color: (_modoSolitario ? _kVerde : _kGold)
+                    color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
                         .withValues(alpha: 0.12 + _pulso.value * 0.28),
                     blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
                 BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
@@ -3928,7 +3930,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           child: Center(
             child: Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
                 style: GoogleFonts.inter(fontSize: 16,
-                    color: _modoSolitario ? Colors.white : _p.ink,
+                    color: Colors.white,
                     fontWeight: FontWeight.w900, letterSpacing: 2.5)),
           ),
         ),
