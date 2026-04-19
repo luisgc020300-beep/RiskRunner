@@ -1027,10 +1027,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
     return AppBar(
       backgroundColor: appBarBg, elevation: 0,
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: _kAccent),
-      ),
       leading: !isOwnProfile
           ? IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
