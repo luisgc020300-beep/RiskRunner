@@ -220,11 +220,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   late Animation<double>  _pulse;
   late Animation<double>  _scan;
 
-  String get _operativeId {
-    final uid = viewedUserId ?? '';
-    return uid.length >= 6 ? uid.substring(0, 6).toUpperCase() : 'UNKNWN';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -2182,8 +2177,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.15), Colors.black.withValues(alpha: 0.60)]))),
         AnimatedBuilder(animation: Listenable.merge([_loopAnim, _scanAnim]), builder: (_, __) => CustomPaint(painter: _DossierBgPainter(accent: _kAccent, pulse: _pulse.value, scan: _scan.value))),
         Align(alignment: Alignment.bottomCenter, child: Container(height: h * 0.22, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, _p.bg])))),
-        Positioned(top: 58, left: 20, child: _buildOperativeId()),
-        Positioned(top: 58, right: 20, child: _buildLigaBadge()),
         Positioned(bottom: 0, left: 0, right: 0,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _buildAvatar(),
@@ -2255,40 +2248,6 @@ class _PerfilScreenState extends State<PerfilScreen>
             const SizedBox(height: 28),
           ]),
         ),
-      ]),
-    );
-  }
-
-  Widget _buildOperativeId() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: _p.bg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _p.border2)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text('OPERATIVE ID', style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 2)),
-        Text(_operativeId, style: _rajdhani(16, FontWeight.w700, _p.text, spacing: 2)),
-        Row(children: [
-          Container(width: 5, height: 5, decoration: BoxDecoration(color: _rachaActual > 0 ? const Color(0xFF39FF14) : _p.muted, shape: BoxShape.circle)),
-          const SizedBox(width: 5),
-          Text(_rachaActual > 0 ? 'ACTIVO' : 'INACTIVO', style: _rajdhani(8, FontWeight.w700, _rachaActual > 0 ? const Color(0xFF39FF14).withValues(alpha: 0.8) : _p.muted, spacing: 1.5)),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _buildLigaBadge() {
-    final liga = _ligaInfo;
-    if (liga == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: _p.bg.withValues(alpha: 0.80), borderRadius: BorderRadius.circular(4), border: Border.all(color: _p.border2)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-        Text('LIGA', style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 2)),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(liga.emoji, style: const TextStyle(fontSize: 13)),
-          const SizedBox(width: 4),
-          Text(liga.name.toUpperCase(), style: _rajdhani(14, FontWeight.w700, liga.color, spacing: 1)),
-        ]),
-        if (_rangoEnLiga > 0) Text('#$_rangoEnLiga EN LIGA', style: _rajdhani(8, FontWeight.w700, liga.color.withValues(alpha: 0.7), spacing: 1)),
       ]),
     );
   }

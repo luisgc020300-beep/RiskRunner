@@ -1529,7 +1529,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       .length;
                   return isGlobal
                       ? _buildSheetGlobal(scrollCtrl)
-                      : _buildSheet(scrollCtrl, mios, det, pel);
+                      : _state.modoSolitario
+                          ? _buildSheetSolitario(scrollCtrl)
+                          : _buildSheet(scrollCtrl, mios, det, pel);
                 },
               );
             },
@@ -2354,7 +2356,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           minZoom: 1.5, maxZoom: 8,
           onTap: (_, __) { if (sel != null) _cerrarSeleccion(); },
           onPositionChanged: (position, hasGesture) {
-            final newZoom = position.zoom ?? _zoomGlobal;
+            final newZoom = position.zoom;
             if ((newZoom - _zoomGlobal).abs() > 0.3) {
               setState(() => _zoomGlobal = newZoom);
             }
@@ -2790,12 +2792,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
               decoration: BoxDecoration(
-                color: _kSurface.withValues(alpha: 0.88),
+                color: _shBg.withValues(alpha: 0.95),
                 border: Border.all(color: t.color.withValues(alpha: 0.5)),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                      color: t.color.withValues(alpha: 0.15), blurRadius: 20),
+                      color: t.color.withValues(alpha: 0.18), blurRadius: 20),
                   const BoxShadow(
                       color: Colors.black87, blurRadius: 16),
                 ],
@@ -2804,12 +2806,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 Container(
                   padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
                   decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.08),
+                    color: t.color.withValues(alpha: 0.10),
                     borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(8)),
                     border: Border(
                         bottom: BorderSide(
-                            color: t.color.withValues(alpha: 0.2))),
+                            color: t.color.withValues(alpha: 0.25))),
                   ),
                   child: Row(children: [
                     Container(width: 3, height: 20, color: t.color,
@@ -2821,7 +2823,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           t.esMio
                               ? 'MI TERRITORIO'
                               : t.ownerNickname.toUpperCase(),
-                          style: _raj(13, FontWeight.w900, _kWhite,
+                          style: _raj(13, FontWeight.w900, _shText,
                               spacing: 1.5)),
                       Text(
                           t.esMio
@@ -2836,10 +2838,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       child: Container(
                         width: 28, height: 28,
                         decoration: BoxDecoration(
-                            color: _kBorder,
+                            color: _shBorder,
                             borderRadius: BorderRadius.circular(4)),
-                        child: const Icon(Icons.close_rounded,
-                            color: _kText, size: 14)),
+                        child: Icon(Icons.close_rounded,
+                            color: _shText, size: 14)),
                     ),
                   ]),
                 ),
@@ -2849,7 +2851,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   child: Row(children: [
                     _cardStat(estadoEmoji, estadoLabel, cEstado),
                     _vDiv(),
-                    _cardStat('🏴', '${t.puntos.length} PTS', _kText),
+                    _cardStat('🏴', '${t.puntos.length} PTS', _shText),
                     _vDiv(),
                     t.esMio
                         ? _cardStat('⚔️', 'DEFENDER', _kGold)
@@ -2895,7 +2897,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           Container(
                             height: 4,
                             decoration: BoxDecoration(
-                              color: _kBorder2,
+                              color: _shBorder,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -3154,7 +3156,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       );
 
   Widget _vDiv() => Container(
-      width: 1, height: 36, color: _kBorder2,
+      width: 1, height: 36, color: _shBorder,
       margin: const EdgeInsets.symmetric(horizontal: 4));
 
   // ==========================================================================
@@ -3190,6 +3192,155 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
           _buildBotonCercanos(),
           if (_state.cercanosVisible) _buildPanelCercanos(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // SHEET MODO SOLITARIO — barrios OSM
+  // ==========================================================================
+  Widget _buildSheetSolitario(ScrollController scrollCtrl) {
+    final barriosOrdenados = List<_BarrioData>.from(_barriosCercanos)
+      ..sort((a, b) => b.porcentajeCubierto.compareTo(a.porcentajeCubierto));
+    final completados = barriosOrdenados.where((b) => b.porcentajeCubierto >= 1.0).length;
+    final enProgreso  = barriosOrdenados.where((b) => b.porcentajeCubierto > 0 && b.porcentajeCubierto < 1.0).length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _shBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        border: Border(
+          top:   BorderSide(color: _kSafe, width: 1),
+          left:  BorderSide(color: _shBorder),
+          right: BorderSide(color: _shBorder),
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black87, blurRadius: 30, offset: Offset(0, -4))
+        ],
+      ),
+      child: ListView(
+        controller: scrollCtrl,
+        padding: EdgeInsets.zero,
+        physics: const ClampingScrollPhysics(),
+        children: [
+          // Handle con resumen
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Column(children: [
+              Center(child: Container(
+                width: 36, height: 3,
+                decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2)),
+              )),
+              const SizedBox(height: 14),
+              Row(children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('MODO EXPLORADOR',
+                      style: _raj(9, FontWeight.w800, _kSafe, spacing: 2.5)),
+                  const SizedBox(height: 2),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('${barriosOrdenados.length}',
+                        style: _raj(28, FontWeight.w900, _shText, height: 1)),
+                    const SizedBox(width: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text('ZONAS', style: _raj(10, FontWeight.w700, _kSub, spacing: 1.5)),
+                    ),
+                  ]),
+                ]),
+                const Spacer(),
+                if (completados > 0)
+                  _quickBadge('$completados ✓', _kSafe, Icons.check_circle_rounded),
+                if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
+                if (enProgreso > 0)
+                  _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
+              ]),
+            ]),
+          ),
+
+          // Stats row
+          if (barriosOrdenados.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(children: [
+                _sheetStat('$completados', 'CONQUISTADAS', _kSafe),
+                const SizedBox(width: 8),
+                _sheetStat('$enProgreso', 'EN PROGRESO', _kWarn),
+                const SizedBox(width: 8),
+                _sheetStat(
+                  '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
+                  '% MEDIO', _kSafe,
+                ),
+              ]),
+            ),
+
+            // Cargando barrios
+            if (_cargandoBarrios)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const SizedBox(width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 1.5, color: _kSafe)),
+                  const SizedBox(width: 10),
+                  Text('Cargando zonas cercanas…', style: _raj(11, FontWeight.w600, _kSub)),
+                ]),
+              ),
+
+            // Lista de barrios
+            ...barriosOrdenados.map((b) {
+              final pct = b.porcentajeCubierto;
+              final Color color = pct >= 1.0 ? _kSafe : pct > 0 ? _kWarn : _kSub;
+              return Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _shSurf,
+                  border: Border.all(color: color.withValues(alpha: pct > 0 ? 0.3 : 0.12)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(children: [
+                  Container(width: 3, height: 32, color: color,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(2))),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(b.nombre,
+                        style: _raj(12, FontWeight.w700, _shText),
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 3),
+                    Stack(children: [
+                      Container(height: 3,
+                          decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2))),
+                      FractionallySizedBox(
+                        widthFactor: pct.clamp(0.0, 1.0),
+                        child: Container(height: 3,
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(2),
+                              boxShadow: pct > 0 ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)] : null,
+                            )),
+                      ),
+                    ]),
+                  ])),
+                  const SizedBox(width: 12),
+                  Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
+                      style: _raj(13, FontWeight.w900, color)),
+                ]),
+              );
+            }),
+          ] else if (!_cargandoBarrios) ...[
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(children: [
+                Icon(Icons.explore_rounded, color: _kSafe.withValues(alpha: 0.5), size: 36),
+                const SizedBox(height: 10),
+                Text('Sal a explorar para descubrir zonas cercanas',
+                    style: _raj(12, FontWeight.w600, _kSub),
+                    textAlign: TextAlign.center),
+              ]),
+            ),
+          ],
+
           const SizedBox(height: 24),
         ],
       ),

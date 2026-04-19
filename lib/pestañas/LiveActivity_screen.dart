@@ -671,14 +671,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         coords.add(coords.first);
       }
       final pct = b.porcentajeCubierto;
-      // Capa barrios: gris oscuro semitransparente en todos los casos
-      // (solo diferenciamos el borde con opacity para distinguir % cubierto)
-      const String color = '#888888';
+      final String color = pct >= 1.0
+          ? '#30D158'   // verde — zona completa
+          : pct > 0
+              ? '#FF9500' // naranja — en progreso
+              : '#8E8E93'; // gris   — sin explorar
+      final String label = pct >= 1.0
+          ? '${b.nombre} ✓'
+          : pct > 0
+              ? '${b.nombre} ${(pct * 100).toInt()}%'
+              : b.nombre;
 
       return _encodeJson({
         'type': 'Feature',
         'properties': {
           'nombre':     b.nombre,
+          'label':      label,
           'color':      color,
           'porcentaje': (pct * 100).toInt(),
         },
@@ -710,19 +718,39 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _barrioFillLayerId, 'fill-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioFillLayerId, 'fill-opacity', 0.10);
+          _barrioFillLayerId, 'fill-opacity', 0.12);
 
-      // Borde discontinuo
+      // Borde — sólido y visible
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _barrioLineLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
           _barrioLineLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-width', 1.5);
+          _barrioLineLayerId, 'line-width', 2.0);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-opacity', 0.55);
+          _barrioLineLayerId, 'line-opacity', 0.75);
+
+      // Etiqueta: nombre + porcentaje
+      await _mapboxMap!.style.addLayer(
+          mapbox.SymbolLayer(id: _barrioLabelLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-dasharray', [4.0, 2.0]);
+          _barrioLabelLayerId, 'text-field', ['get', 'label']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-size', 11.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-halo-color', 'rgba(0,0,0,0.8)');
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-halo-width', 1.5);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-font', ['DIN Pro Medium', 'Arial Unicode MS Regular']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-anchor', 'center');
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-max-width', 8.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'symbol-placement', 'point');
 
       _barriosLayerCreated = true;
     } catch (e) {
@@ -2071,7 +2099,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         logId = logRef.id;
 
         if (_objetivoGlobal != null && _globalKmAlcanzados && logId != null) {
-          await _conquistarTerritorioGlobal(logId!, kmCorridosEnSesion: distanciaFinal);
+          await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
         }
 
         if (rutaFinal.isNotEmpty) {
@@ -2941,7 +2969,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Widget _buildChipObjetivoGlobal() {
   final nombre      = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
-  final kmReq       = (_objetivoGlobal?['kmRequeridos'] as num?)?.toDouble() ?? 0;
   final progreso    = _progresoGlobal;
 
   // Estado 3: confirmado por Cloud Function
@@ -3159,7 +3186,25 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (_modoSolitario) ...[
               _globoChip(CupertinoIcons.map_pin, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
               const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
+              if (_barriosCercanos.isNotEmpty) ...[
+                _globoChip(
+                  CupertinoIcons.map,
+                  '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}/${_barriosCercanos.length} barrios',
+                  const Color(0xFF30D158),
+                ),
+                const SizedBox(height: 6),
+                if (_barrioActual != null)
+                  _globoChip(
+                    CupertinoIcons.compass,
+                    '${_barrioActual!.nombre} · ${(_barrioActual!.porcentajeCubierto * 100).toInt()}%',
+                    _barrioActual!.porcentajeCubierto >= 1.0
+                        ? const Color(0xFF30D158)
+                        : _barrioActual!.porcentajeCubierto > 0
+                            ? const Color(0xFFFF9500)
+                            : Colors.white70,
+                  ),
+              ] else
+                _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
             ] else if (_objetivoGlobal != null) ...[
               _globoChip(CupertinoIcons.flag,
                   _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
@@ -3198,18 +3243,41 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: _objetivoGlobal != null
                   ? [
-                      _globoStat('${_distanciaTotal.toStringAsFixed(2)}', 'KM HECHOS', _kGold),
-                      _globoStat('${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"}', 'KM META', _kWaterLight),
+                      _globoStat(_distanciaTotal.toStringAsFixed(2), 'KM HECHOS', _kGold),
+                      _globoStat(
+                        (_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? '?',
+                        'KM META', _kWaterLight,
+                      ),
                       _globoStat('${(_progresoGlobal * 100).toInt()}%', 'PROGRESO', _kGoldLight),
                       _globoStat(_globalConquistado ? 'OK' : '···', 'ESTADO',
                           _globalConquistado ? _kVerde : _p.terracotta),
                     ]
-                  : [
-                      _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
-                      _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
-                      _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
-                      _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
-                    ],
+                  : _modoSolitario && _barriosCercanos.isNotEmpty
+                      ? [
+                          _globoStat(
+                            '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}',
+                            'COMPLETAS', const Color(0xFF30D158),
+                          ),
+                          _globoStat(
+                            '${_barriosCercanos.length}',
+                            'ZONAS', _kGoldLight,
+                          ),
+                          _globoStat(
+                            '${_territorios.where((t) => t.esMio).length}',
+                            'MIS TERR.', _kGold,
+                          ),
+                          _globoStat(
+                            _barriosCercanos.isEmpty ? '0%'
+                              : '${(_barriosCercanos.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / _barriosCercanos.length * 100).toInt()}%',
+                            'MEDIA', _kWaterLight,
+                          ),
+                        ]
+                      : [
+                          _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
+                          _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
+                          _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
+                          _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
+                        ],
             ),
           ),
         ),
