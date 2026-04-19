@@ -75,14 +75,14 @@ class _LP {
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
 // =============================================================================
-const double _kPitchCorrer = 50.0;
+const double _kPitchCorrer = 55.0;
 const double _kPitchNormal = 0.0;
 const double _kZoomCorrer  = 18.5;
 const double _kZoomPausado = 16.5;
 const double _kZoomGlobo   = 2.5;
 
-const String _kEstiloPersonalizado =
-    'mapbox://styles/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
+// Outdoors-v12: colores cartográficos estilo tablero RISK (tierras, agua, relieve)
+const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
 const _kGpsMovimiento = LocationSettings(
   accuracy: LocationAccuracy.bestForNavigation,
@@ -918,6 +918,43 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _addBuildings3D() async {
     if (_mapboxMap == null || _buildings3dCreated) return;
     try {
+      // ── Terrain DEM: elevación real de montañas/colinas en 3D ──────────────
+      try {
+        await _mapboxMap!.style.addSource(mapbox.RasterDemSource(
+          id: 'mapbox-dem',
+          url: 'mapbox://mapbox.terrain-dem-v1',
+          tileSize: 512,
+          maxzoom: 14.0,
+        ));
+      } catch (_) {} // ya existe en el estilo
+
+      try {
+        await _mapboxMap!.style.setStyleTerrain(
+          '{"source":"mapbox-dem","exaggeration":1.8}');
+      } catch (e) {
+        debugPrint('Terrain: $e');
+      }
+
+      // ── Hillshade: sombreado topográfico estilo tablero RISK ───────────────
+      try { await _mapboxMap!.style.removeStyleLayer('hillshade-risk'); } catch (_) {}
+      try {
+        await _mapboxMap!.style.addLayer(
+          mapbox.HillshadeLayer(id: 'hillshade-risk', sourceId: 'mapbox-dem'));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-exaggeration', 0.45);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-highlight-color', '#F5E8C8');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-shadow-color', '#7A5230');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-accent-color', '#C4965A');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-illumination-anchor', 'viewport');
+      } catch (e) {
+        debugPrint('Hillshade: $e');
+      }
+
+      // ── Edificios 3D: paleta sandstone RISK con degradado por altura ───────
       try { await _mapboxMap!.style.removeStyleLayer(_buildingsLayerId); } catch (_) {}
       await _mapboxMap!.style.addLayer(mapbox.FillExtrusionLayer(
           id: _buildingsLayerId,
@@ -931,14 +968,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-height',
           ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
+      // Degradado de color según altura: pergamino claro → sandstone → caoba oscura
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-color', '#C8B89A');
+          _buildingsLayerId, 'fill-extrusion-color',
+          ['interpolate', ['linear'], ['get', 'height'],
+            0,   '#EDE0C4',   // 1 planta: pergamino claro
+            8,   '#D4B896',   // 2-3 plantas: tan cálido
+            25,  '#B8996A',   // altura media: sandstone
+            60,  '#8B6B45',   // alto: caramelo oscuro
+            120, '#6B4E2E',   // rascacielos: caoba
+          ]);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-opacity', 0.75);
+          _buildingsLayerId, 'fill-extrusion-opacity', 0.92);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-intensity', 0.3);
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-intensity', 0.55);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 3.0);
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 4.5);
       _buildings3dCreated = true;
     } catch (e) {
       debugPrint('Error edificios 3D: $e');
