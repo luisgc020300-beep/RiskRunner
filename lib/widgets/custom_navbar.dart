@@ -246,7 +246,7 @@ class _NavbarContent extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bg : const Color(0xC8F2F2F7),
+        color: isDark ? AppColors.bg : const Color(0xEAD1D1D6),
         border: Border(top: BorderSide(
           color: isDark ? AppColors.surface2 : const Color(0xFFC6C6C8),
           width: 1,

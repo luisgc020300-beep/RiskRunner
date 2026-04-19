@@ -2786,22 +2786,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       scale: _selAnim,
       child: FadeTransition(
         opacity: _selAnim,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _shBg.withValues(alpha: 0.95),
-                border: Border.all(color: t.color.withValues(alpha: 0.5)),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: t.color.withValues(alpha: 0.18), blurRadius: 20),
-                  const BoxShadow(
-                      color: Colors.black87, blurRadius: 16),
-                ],
-              ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _shBg,
+            border: Border.all(color: t.color.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                  color: t.color.withValues(alpha: 0.18), blurRadius: 20),
+              const BoxShadow(
+                  color: Colors.black54, blurRadius: 16),
+            ],
+          ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Container(
                   padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
@@ -2922,10 +2918,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
                 if (t.esMio) const SizedBox(height: 14),
               ]),
-            ),
           ),
         ),
-      ),
     );
   }
 
