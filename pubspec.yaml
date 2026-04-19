@@ -36,11 +36,21 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  web:
+    generate: false
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/Mapa_risk.png
+    - assets/images/app_icon.png
     - assets/avatars/
     - assets/avatars/base/
     - assets/avatars/hair/
