@@ -1021,58 +1021,65 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  AppBar _buildAppBar() => AppBar(
-    backgroundColor: const Color(0xFF0D0D0D), elevation: 0,
-    bottom: PreferredSize(
-      preferredSize: const Size.fromHeight(1),
-      child: Container(height: 1, color: _kAccent),
-    ),
-    leading: !isOwnProfile ? IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18), onPressed: () => Navigator.pop(context)) : null,
-    actions: isOwnProfile ? [
-      IconButton(
-        icon: const Icon(Icons.settings_outlined, color: Colors.white70, size: 20),
-        onPressed: () => SettingsScreen.mostrar(context),
+  AppBar _buildAppBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appBarBg = isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF2F2F7);
+    final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
+    return AppBar(
+      backgroundColor: appBarBg, elevation: 0,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: _kAccent),
       ),
-      PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: Colors.white54, size: 20),
-        color: _p.surface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: _p.border2)),
-        onSelected: (v) async {
-          switch (v) {
-            case 'avatar': _abrirCustomizador(); break;
-            case 'guerra': Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())); break;
-            case 'liga':
-              _mostrarSnackbar('Inicializando ligas...');
-              await LeagueService.migrarJugadoresSinLiga();
-              await _cargarTodo();
-              _mostrarSnackbar('Ligas inicializadas');
-              break;
-            case 'temporada': _mostrarDialogoCerrarTemporada(); break;
-            case 'seed_fantasmas':
-            await SeedFantasmasGranada.ejecutar();
-            _mostrarSnackbar(' Fantasmas creados');
-             break;
-            case 'logout':
-              await FirebaseAuth.instance.signOut();
-              if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-              break;
-          }
-        },
-        itemBuilder: (_) => [
-          PopupMenuItem(value: 'avatar', child: _popupItem(Icons.palette_rounded, 'Personalizar avatar', _p.text)),
-          PopupMenuItem(value: 'guerra', child: _popupItem(Icons.history_rounded, 'Historial de guerra', Colors.redAccent)),
-          PopupMenuItem(value: 'liga', child: _popupItem(Icons.sync_rounded, 'Inicializar puntos de liga', Colors.tealAccent)),
-          if (_esAdmin)
-            PopupMenuItem(value: 'temporada', child: _popupItem(Icons.emoji_events_rounded, 'Cerrar temporada', _kGold)),
+      leading: !isOwnProfile
+          ? IconButton(
+              icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
+              onPressed: () => Navigator.pop(context))
+          : null,
+      actions: isOwnProfile ? [
+        PopupMenuButton<String>(
+          icon: Icon(Icons.settings_outlined, color: iconColor, size: 20),
+          color: _p.surface2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: _p.border2)),
+          onSelected: (v) async {
+            switch (v) {
+              case 'avatar': _abrirCustomizador(); break;
+              case 'settings': SettingsScreen.mostrar(context); break;
+              case 'guerra': Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())); break;
+              case 'liga':
+                _mostrarSnackbar('Inicializando ligas...');
+                await LeagueService.migrarJugadoresSinLiga();
+                await _cargarTodo();
+                _mostrarSnackbar('Ligas inicializadas');
+                break;
+              case 'temporada': _mostrarDialogoCerrarTemporada(); break;
+              case 'seed_fantasmas':
+                await SeedFantasmasGranada.ejecutar();
+                _mostrarSnackbar(' Fantasmas creados');
+                break;
+              case 'logout':
+                await FirebaseAuth.instance.signOut();
+                if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+                break;
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'avatar', child: _popupItem(Icons.palette_rounded, 'Personalizar avatar', _p.text)),
+            PopupMenuItem(value: 'settings', child: _popupItem(Icons.settings_outlined, 'Configuración', _p.text)),
+            PopupMenuItem(value: 'guerra', child: _popupItem(Icons.history_rounded, 'Historial de guerra', Colors.redAccent)),
+            PopupMenuItem(value: 'liga', child: _popupItem(Icons.sync_rounded, 'Inicializar puntos de liga', Colors.tealAccent)),
+            if (_esAdmin)
+              PopupMenuItem(value: 'temporada', child: _popupItem(Icons.emoji_events_rounded, 'Cerrar temporada', _kGold)),
             if (_esAdmin)
               PopupMenuItem(value: 'seed_fantasmas', child: _popupItem(Icons.blur_on, 'Seed fantasmas Granada', Colors.purpleAccent)),
-          const PopupMenuDivider(),
-          PopupMenuItem(value: 'logout', child: _popupItem(Icons.logout_rounded, 'Cerrar sesión', Colors.redAccent)),
-        ],
-      ),
-      const SizedBox(width: 4),
-    ] : [],
-  );
+            const PopupMenuDivider(),
+            PopupMenuItem(value: 'logout', child: _popupItem(Icons.logout_rounded, 'Cerrar sesión', Colors.redAccent)),
+          ],
+        ),
+        const SizedBox(width: 4),
+      ] : [],
+    );
+  }
 
   void _mostrarDialogoCerrarTemporada() async {
     final temporada = await ZonaService.getTemporadaActiva();
