@@ -3514,16 +3514,23 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Widget _sectionHeader(String title, Color color, String emoji) =>
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 11)),
-          const SizedBox(width: 7),
-          Text(title,
-              style: _raj(9, FontWeight.w800, color, spacing: 2)),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Container(
-                  height: 1, color: color.withValues(alpha: 0.2))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withValues(alpha: 0.25)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(emoji, style: const TextStyle(fontSize: 10)),
+              const SizedBox(width: 5),
+              Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
+            ]),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.15))),
         ]),
       );
 
@@ -3546,23 +3553,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       },
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: _kSurface,
           border: Border.all(
               color: t.isMine
-                  ? _kGold.withValues(alpha: 0.35)
+                  ? _kGold.withValues(alpha: 0.40)
                   : t.isOwned
-                      ? baseColor.withValues(alpha: 0.25)
+                      ? baseColor.withValues(alpha: 0.30)
                       : _kBorder2),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: t.isMine
-              ? [BoxShadow(
-                  color: _kGold.withValues(alpha: 0.08), blurRadius: 12)]
+              ? [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 16)]
               : t.isOwned
-                  ? [BoxShadow(
-                      color: baseColor.withValues(alpha: 0.05), blurRadius: 8)]
-                  : null,
+                  ? [BoxShadow(color: baseColor.withValues(alpha: 0.07), blurRadius: 12)]
+                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Container(

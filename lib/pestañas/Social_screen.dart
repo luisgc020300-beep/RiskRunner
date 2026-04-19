@@ -1206,23 +1206,29 @@ class _RankCard extends StatelessWidget {
     final double aSize = top3 ? 42.0 : 35.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: EdgeInsets.only(bottom: top3 ? 8 : 5),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         child: Stack(children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: top3 ? 14 : 10),
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: top3 ? 16 : 10),
             decoration: BoxDecoration(
               color: top3 ? p.surface2 : esYo ? _kAccent.withValues(alpha: 0.06) : p.surface,
-              border: Border.all(color: top3 ? medal.withValues(alpha: 0.2) : esYo ? _kAccent.withValues(alpha: 0.3) : p.line2),
-              borderRadius: BorderRadius.circular(10)),
+              border: Border.all(color: top3 ? medal.withValues(alpha: 0.28) : esYo ? _kAccent.withValues(alpha: 0.3) : p.line2),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: top3
+                ? [BoxShadow(color: medal.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 3))]
+                : esYo
+                  ? [BoxShadow(color: _kAccent.withValues(alpha: 0.08), blurRadius: 10)]
+                  : null,
+            ),
             child: Row(children: [
               SizedBox(width: 38, child: top3
-                ? Text(['','',''][posicion-1], style: TextStyle(fontSize: posicion==1?26:22), textAlign: TextAlign.center)
+                ? Text(['🥇','🥈','🥉'][posicion-1], style: TextStyle(fontSize: posicion==1?28:24), textAlign: TextAlign.center)
                 : Text('#$posicion', style: TextStyle(color: esYo ? _kAccent : p.text3, fontWeight: FontWeight.w900, fontSize: 12), textAlign: TextAlign.center)),
               const SizedBox(width: 8),
               _Avatar(fotoBase64: fotoBase64, nickname: nickname, size: aSize,
-                ringColor: top3 ? medal.withValues(alpha: 0.5) : esYo ? _kAccent.withValues(alpha: 0.6) : ligaInfo.color.withValues(alpha: 0.35),
+                ringColor: top3 ? medal.withValues(alpha: 0.55) : esYo ? _kAccent.withValues(alpha: 0.6) : ligaInfo.color.withValues(alpha: 0.35),
                 glow: top3 || esYo),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1239,7 +1245,7 @@ class _RankCard extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text('$puntosLiga',
                   style: TextStyle(color: top3 ? medal : esYo ? _kAccent : p.text2,
-                    fontWeight: FontWeight.w900, fontSize: top3 ? 20 : 15, letterSpacing: -0.5)),
+                    fontWeight: FontWeight.w900, fontSize: top3 ? 22 : 15, letterSpacing: -0.5)),
                 Text('pts', style: TextStyle(color: p.dim, fontSize: 9)),
               ]),
             ])),
@@ -1249,8 +1255,8 @@ class _RankCard extends StatelessWidget {
                 width: top3 ? 3 : 2,
                 decoration: BoxDecoration(
                   color: bar,
-                  boxShadow: top3 ? [BoxShadow(color: bar.withValues(alpha: 0.5), blurRadius: 8)] : null,
-                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10))))),
+                  boxShadow: top3 ? [BoxShadow(color: bar.withValues(alpha: 0.55), blurRadius: 10)] : null,
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), bottomLeft: Radius.circular(14))))),
         ])));
   }
 }

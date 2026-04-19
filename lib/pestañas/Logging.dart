@@ -7,19 +7,17 @@ import 'Home_screen.dart';
 import 'Registrarse_screen.dart';
 
 // =============================================================================
-// PALETA — Pergamino de Guerra v2 (sincronizada con HTML)
+// PALETA — Dark unified
 // =============================================================================
-const _kBg        = Color(0xFFE8E8ED);
-const _kParch     = Color(0xFF1C1C1E);
-const _kParchDark = Color(0xFF3C3C43);
-const _kInk       = Color(0xFF1C1C1E);
+const _kBg        = Color(0xFF080808);
+const _kParch     = Color(0xFF111113);
+const _kParchDark = Color(0xFF1C1C1E);
+const _kInk       = Color(0xFFEEEEEE);
 const _kMuted     = Color(0xFF8E8E93);
-const _kBorder    = Color(0xFFFFFFFF);
+const _kBorder    = Color(0xFF38383A);
 const _kAccent    = Color(0xFFE02020);
-const _kAccent2   = Color(0xFF636366);
 const _kGold      = Color(0xFFFFD60A);
-const _kGoldDim   = Color(0xFFAEAEB2);
-const _kError     = Color(0xFF7A1A0A);
+const _kError     = Color(0xFFFF6B6B);
 
 // Hero typewriter strings
 const _kHeroLine1 = 'Corre.\nConquista.\n';
@@ -57,132 +55,98 @@ class _HeroPainter extends CustomPainter {
     final W = size.width;
     final H = size.height;
 
-    // Fondo
+    // Fondo oscuro
     canvas.drawRect(
       Rect.fromLTWH(0, 0, W, H),
       Paint()..color = _kBg,
     );
 
-    // Cuadrícula táctica
+    // Cuadrícula táctica — rojo muy suave
     final gridPaint = Paint()
-      ..color = _kGold.withValues(alpha: 0.07)
+      ..color = _kAccent.withValues(alpha: 0.045)
       ..strokeWidth = 0.5;
-    for (double x = 0; x < W; x += 22) {
+    for (double x = 0; x < W; x += 28) {
       canvas.drawLine(Offset(x, 0), Offset(x, H), gridPaint);
     }
-    for (double y = 0; y < H; y += 22) {
+    for (double y = 0; y < H; y += 28) {
       canvas.drawLine(Offset(0, y), Offset(W, y), gridPaint);
     }
 
-    // Scanlines CRT (cada 3 px, 4.5 % opacidad)
-    final scanPaint = Paint()
-      ..color = const Color(0xFF000000).withValues(alpha: 0.045)
-      ..strokeWidth = 1;
-    for (double y = 0; y < H; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(W, y), scanPaint);
-    }
-
-    // Arco cartográfico exterior
+    // Arco grande rojo — top-right
     canvas.drawCircle(
-      Offset(W + 80, -80),
-      300,
+      Offset(W + 60, -60),
+      280,
       Paint()
-        ..color = _kGold.withValues(alpha: 0.06)
+        ..color = _kAccent.withValues(alpha: 0.07)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 40,
+        ..strokeWidth = 60,
     );
 
-    // Arco interior dorado
+    // Arco delgado rojo — complementario
     canvas.drawCircle(
       Offset(W - 10, 10),
-      110,
+      120,
       Paint()
-        ..color = _kGold.withValues(alpha: 0.15)
+        ..color = _kAccent.withValues(alpha: 0.12)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
 
-    // Arco inferior izquierdo (naranja sutil)
+    // Arco inferior izquierdo
     canvas.drawCircle(
-      Offset(-60, H + 120),
-      260,
+      Offset(-40, H + 100),
+      240,
       Paint()
-        ..color = _kAccent.withValues(alpha: 0.10)
+        ..color = _kAccent.withValues(alpha: 0.07)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
-
-    // Meridianos centrales
-    canvas.drawLine(
-        Offset(0, H * 0.5),
-        Offset(W, H * 0.5),
-        Paint()
-          ..color = _kGold.withValues(alpha: 0.05)
-          ..strokeWidth = 0.5);
-    canvas.drawLine(
-        Offset(W * 0.5, 0),
-        Offset(W * 0.5, H),
-        Paint()
-          ..color = _kGold.withValues(alpha: 0.05)
-          ..strokeWidth = 0.5);
-
-    // Grain
-    final rng = math.Random(42);
-    final grainPaint = Paint()..color = _kGold.withValues(alpha: 0.018);
-    for (int i = 0; i < 300; i++) {
-      canvas.drawCircle(
-        Offset(rng.nextDouble() * W, rng.nextDouble() * H),
-        rng.nextDouble() * 0.7,
-        grainPaint,
-      );
-    }
 
     // Heat line inferior
     final heatPaint = Paint()
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          _kAccent.withValues(alpha: 0.5),
-          _kGoldDim.withValues(alpha: 0.5),
+          _kAccent.withValues(alpha: 0.6),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.3, 0.6, 1.0],
+        stops: const [0.0, 0.5, 1.0],
       ).createShader(Rect.fromLTWH(0, H - 2, W, 2))
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.5;
     canvas.drawLine(Offset(0, H - 1), Offset(W, H - 1), heatPaint);
 
-    // Punto pulsante con anillo doble
+    // Punto pulsante
     const px = 24.0;
-    const py = 50.0;
+    const py = 52.0;
     canvas.drawCircle(
       const Offset(px, py),
-      4 + 18 * pulse,
-      Paint()..color = _kAccent.withValues(alpha: 0.15 * (1 - pulse)),
+      4 + 20 * pulse,
+      Paint()..color = _kAccent.withValues(alpha: 0.12 * (1 - pulse)),
     );
     canvas.drawCircle(
       const Offset(px, py),
-      4 + 19 * pulse,
+      4 + 21 * pulse,
       Paint()
-        ..color = _kAccent.withValues(alpha: 0.30 * (1 - pulse))
+        ..color = _kAccent.withValues(alpha: 0.25 * (1 - pulse))
         ..strokeWidth = 0.8
         ..style = PaintingStyle.stroke,
     );
-    canvas.drawCircle(Offset(px, py), 4, Paint()..color = _kAccent);
+    canvas.drawCircle(const Offset(px, py), 4, Paint()..color = _kAccent);
     final pulse2 = (pulse + 0.4) % 1.0;
     canvas.drawCircle(
       const Offset(px, py),
-      4 + 18 * pulse2,
-      Paint()..color = _kAccent.withValues(alpha: 0.10 * (1 - pulse2)),
+      4 + 20 * pulse2,
+      Paint()..color = _kAccent.withValues(alpha: 0.08 * (1 - pulse2)),
     );
 
-    // Vignette radial
+    // Vignette radial suave
     final vignette = Paint()
       ..shader = RadialGradient(
         colors: [
           Colors.transparent,
-          const Color(0xFF000000).withValues(alpha: 0.55),
+          const Color(0xFF000000).withValues(alpha: 0.45),
         ],
-        stops: const [0.45, 1.0],
+        stops: const [0.5, 1.0],
       ).createShader(Rect.fromLTWH(0, 0, W, H));
     canvas.drawRect(Rect.fromLTWH(0, 0, W, H), vignette);
   }
@@ -369,7 +333,7 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: BoxDecoration(
           color: _kBg,
           border: Border.all(color: _kGold.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Text(msg, style: _bebas(13, _kGold, spacing: 2.0)),
       ),
@@ -432,11 +396,11 @@ class _LoginScreenState extends State<LoginScreen>
                             children: [
                               Text("40°25'N",
                                   style: _sans(7,
-                                      _kParch.withValues(alpha: 0.15),
+                                      Colors.white.withValues(alpha: 0.18),
                                       spacing: 1.0)),
                               Text("3°41'W",
                                   style: _sans(7,
-                                      _kParch.withValues(alpha: 0.15),
+                                      Colors.white.withValues(alpha: 0.18),
                                       spacing: 1.0)),
                             ],
                           ),
@@ -457,14 +421,14 @@ class _LoginScreenState extends State<LoginScreen>
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: _kAccent.withValues(
-                                        alpha: 0.4 + 0.6 * _pulse.value),
+                                        alpha: 0.5 + 0.5 * _pulse.value),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Text('EN VIVO',
                                   style: _sans(7.5,
-                                      _kParch.withValues(alpha: 0.2),
+                                      Colors.white.withValues(alpha: 0.28),
                                       weight: FontWeight.w500, spacing: 1.5)),
                             ],
                           ),
@@ -474,37 +438,26 @@ class _LoginScreenState extends State<LoginScreen>
                         Positioned(
                           left: 28,
                           right: 28,
-                          bottom: 36,
+                          bottom: 48,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text('RISKRUNNER',
                                   style: _sans(9.5,
-                                      _kBorder.withValues(alpha: 0.18),
+                                      Colors.white.withValues(alpha: 0.22),
                                       weight: FontWeight.w600, spacing: 5.0)),
                               const SizedBox(height: 10),
                               _buildTypewriterText(),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 16),
                               Text(
                                 'Traza perímetros. Roba territorio.\nCompite en tu ciudad.',
                                 style: _sans(11,
-                                    _kBorder.withValues(alpha: 0.28),
+                                    Colors.white.withValues(alpha: 0.35),
                                     weight: FontWeight.w300,
                                     style: FontStyle.italic),
                               ),
                             ],
-                          ),
-                        ),
-
-                        // Corte diagonal
-                        Positioned(
-                          bottom: -1,
-                          left: 0,
-                          right: 0,
-                          child: ClipPath(
-                            clipper: const _DiagonalClipper(),
-                            child: Container(height: 40, color: _kParch),
                           ),
                         ),
                       ],
@@ -553,29 +506,28 @@ class _LoginScreenState extends State<LoginScreen>
       final done = n == _kHeroLine1.length + _kHeroLine2.length;
       return RichText(
         text: TextSpan(
-          style: _bebas(50, _kParch, spacing: 1.5),
+          style: _bebas(50, Colors.white, spacing: 1.5),
           children: [
             TextSpan(text: _kHeroLine1.substring(0, n1)),
             TextSpan(
               text: _kHeroLine2.substring(0, n2),
-              style: _bebas(50, _kAccent2, spacing: 1.5),
+              style: _bebas(50, _kAccent, spacing: 1.5),
             ),
-            // Cursor: siempre visible mientras escribe, parpadea al terminar
             if (!done)
               TextSpan(
                 text: '|',
                 style: _bebas(
                   50,
                   n < _kHeroLine1.length
-                      ? _kParch.withValues(alpha: 0.7)
-                      : _kAccent2.withValues(alpha: 0.7),
+                      ? Colors.white.withValues(alpha: 0.6)
+                      : _kAccent.withValues(alpha: 0.7),
                   spacing: 0,
                 ),
               )
             else if (_pulse.value > 0.5)
               TextSpan(
                 text: '|',
-                style: _bebas(50, _kAccent2.withValues(alpha: 0.9),
+                style: _bebas(50, _kAccent.withValues(alpha: 0.9),
                     spacing: 0),
               ),
           ],
@@ -757,11 +709,11 @@ class _LoginScreenState extends State<LoginScreen>
           suffixIconConstraints:
               const BoxConstraints(minWidth: 40, minHeight: 0),
           enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4)),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
             borderSide: BorderSide(color: _kBorder, width: 1.5),
           ),
           focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4)),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
             borderSide: BorderSide(color: _kAccent, width: 1.5),
           ),
           contentPadding:
@@ -781,7 +733,7 @@ class _LoginScreenState extends State<LoginScreen>
         foregroundColor:         Colors.white,
         elevation:               0,
         shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4))),
+            borderRadius: BorderRadius.all(Radius.circular(12))),
         padding: const EdgeInsets.only(left: 20, right: 8),
       ),
       child: _loading
@@ -835,7 +787,7 @@ class _LoginScreenState extends State<LoginScreen>
         foregroundColor: Colors.white,
         backgroundColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4))),
+            borderRadius: BorderRadius.all(Radius.circular(12))),
         padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
       child: Row(
@@ -880,26 +832,6 @@ class _LoginScreenState extends State<LoginScreen>
       ),
     ),
   );
-}
-
-// =============================================================================
-// DIAGONAL CLIPPER
-// =============================================================================
-class _DiagonalClipper extends CustomClipper<Path> {
-  const _DiagonalClipper();
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.moveTo(0, size.height);
-    path.lineTo(size.width, 0);
-    path.lineTo(size.width, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(_) => false;
 }
 
 // =============================================================================
