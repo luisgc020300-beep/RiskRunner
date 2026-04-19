@@ -1093,6 +1093,27 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     });
   }
 
+  void _toggleSheet() {
+    HapticFeedback.selectionClick();
+    if (_sheetEntryCtrl.value > 0.5) {
+      if (_sheetCtrl.isAttached) {
+        _sheetCtrl.animateTo(0.0,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInCubic);
+      }
+      _sheetEntryCtrl.reverse();
+    } else {
+      _sheetEntryCtrl.forward();
+      Future.delayed(const Duration(milliseconds: 160), () {
+        if (_sheetCtrl.isAttached) {
+          _sheetCtrl.animateTo(0.35,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic);
+        }
+      });
+    }
+  }
+
   bool _pointInPolygon(LatLng point, List<LatLng> polygon) {
     int intersections = 0;
     final int n = polygon.length;
@@ -1591,7 +1612,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Column(children: [
           Row(children: [
-            ClipRRect(
+            GestureDetector(
+              onTap: _toggleSheet,
+              child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
@@ -1658,6 +1681,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ),
               ),
             ),
+            ), // GestureDetector
 
             const Spacer(),
 
