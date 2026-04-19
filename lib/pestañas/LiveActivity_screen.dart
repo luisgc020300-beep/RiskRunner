@@ -552,15 +552,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.018; // ~2 km
+      const delta = 0.12; // ~13 km — suficiente para capturar municipios cercanos
 
       final url = Uri.parse(
         'https://overpass-api.de/api/interpreter?data='
-        '[out:json][timeout:15];'
+        '[out:json][timeout:25];'
         '('
-        '  way["place"~"suburb|neighbourhood|quarter"]'
-        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
-        '  relation["place"~"suburb|neighbourhood|quarter"]'
+        '  relation["boundary"="administrative"]["admin_level"="8"]'
         '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
         ');'
         'out geom;',
