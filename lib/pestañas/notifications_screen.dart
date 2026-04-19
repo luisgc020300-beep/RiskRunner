@@ -840,26 +840,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // =============================================================================
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appBarBg = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7);
+    final appBarFg = isDark ? Colors.white : const Color(0xFF1C1C1E);
+    final scaffoldBg = isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0D0D),
+        backgroundColor: appBarBg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 18),
+          icon: Icon(Icons.arrow_back_ios_new_rounded,
+              color: appBarFg, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('NOTIFICACIONES',
-            style: _raj(14, FontWeight.w900, Colors.white, spacing: 3)),
+            style: _raj(14, FontWeight.w900, appBarFg, spacing: 3)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: _kRed),
+          child: Container(height: 1,
+              color: isDark ? const Color(0xFF38383A) : const Color(0xFFC6C6C8)),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.done_all_rounded, color: _kDim, size: 20),
+            icon: Icon(Icons.done_all_rounded, color: isDark ? _kDim : _kSub, size: 20),
             tooltip: 'Marcar todas como leídas',
             onPressed: _marcarTodasLeidas,
           ),
@@ -890,6 +895,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ]));
           }
 
+          final cardBg   = isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFFFFF);
+          final cardBdr  = isDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
+          final textMain = isDark ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
+
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
             itemCount: items.length,
@@ -909,17 +918,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: item.leida
-                        ? _kSurface
-                        : color.withValues(alpha: 0.06),
+                        ? cardBg
+                        : color.withValues(alpha: isDark ? 0.10 : 0.06),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border(
                       left: BorderSide(
                           color: item.leida
-                              ? _kBorder2
+                              ? cardBdr
                               : color.withValues(alpha: 0.6),
                           width: 2),
-                      top: BorderSide(color: _kBorder2),
-                      right: BorderSide(color: _kBorder2),
-                      bottom: BorderSide(color: _kBorder2),
+                      top: BorderSide(color: cardBdr),
+                      right: BorderSide(color: cardBdr),
+                      bottom: BorderSide(color: cardBdr),
                     ),
                   ),
                   child: Column(
@@ -944,7 +954,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         const SizedBox(height: 3),
                         Text(item.mensaje, style: _raj(13,
                             item.leida ? FontWeight.w500 : FontWeight.w700,
-                            item.leida ? _kText : _kWhite)),
+                            textMain)),
                         const SizedBox(height: 3),
                         Text(_formatearTiempo(item.timestamp),
                             style: _raj(10, FontWeight.w500, _kSub)),

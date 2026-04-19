@@ -2070,9 +2070,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         : pct > 0 ? _kWarn : _kDim;
                     return Polygon(
                       points: b.puntos,
-                      color: color.withValues(alpha: 0.08),
-                      borderColor: Colors.black.withValues(alpha: 0.75),
-                      borderStrokeWidth: 2.0,
+                      color: color.withValues(alpha: 0.10),
+                      borderColor: Colors.white.withValues(alpha: 0.90),
+                      borderStrokeWidth: 3.5,
                     );
                   }).toList(),
                 ),
@@ -3309,7 +3309,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ...barriosOrdenados.map((b) {
               final pct = b.porcentajeCubierto;
               final Color color = pct >= 1.0 ? _kSafe : pct > 0 ? _kWarn : _kSub;
-              return Container(
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _mapController.move(b.centro, 13.5);
+                  if (_sheetCtrl.isAttached) {
+                    _sheetCtrl.animateTo(0.13,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic);
+                  }
+                },
+              child: Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
@@ -3344,6 +3354,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
                       style: _raj(13, FontWeight.w900, color)),
                 ]),
+              ),
               );
             }),
           ] else if (!_cargandoBarrios) ...[

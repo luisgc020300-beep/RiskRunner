@@ -722,11 +722,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _barrioLineLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-color', ['get', 'color']);
+          _barrioLineLayerId, 'line-color', '#FFFFFF');
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-width', 2.0);
+          _barrioLineLayerId, 'line-width', 3.0);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _barrioLineLayerId, 'line-opacity', 0.75);
+          _barrioLineLayerId, 'line-opacity', 0.88);
 
       // Etiqueta: nombre + porcentaje
       await _mapboxMap!.style.addLayer(
@@ -1812,6 +1812,34 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         _comenzarTracking();
       }
     });
+  }
+
+  void _confirmarYComenzar() {
+    HapticFeedback.lightImpact();
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(_modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
+        content: Text(_modoSolitario
+            ? 'Vas a iniciar una sesión en modo explorador.'
+            : 'Vas a iniciar una conquista de territorio.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _iniciarCuentaAtras();
+            },
+            child: Text(_modoSolitario ? '¡Explorar!' : '¡Conquistar!'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _comenzarTracking() async {
@@ -3866,7 +3894,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         const SizedBox(height: 14),
       ],
       GestureDetector(
-        onTap: _mostrandoCuentaAtras ? null : _iniciarCuentaAtras,
+        onTap: _mostrandoCuentaAtras ? null : _confirmarYComenzar,
         child: AnimatedBuilder(
           animation: _pulsoAnim,
           builder: (_, child) => Container(

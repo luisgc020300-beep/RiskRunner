@@ -1726,11 +1726,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           text: TextSpan(
             style: GoogleFonts.inter(
               fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.5),
-            children: const [
-              TextSpan(text: '[', style: TextStyle(color: Color(0xFF636366))),
-              TextSpan(text: 'RISK', style: TextStyle(color: Color(0xFFE02020))),
-              TextSpan(text: ' RUNNER', style: TextStyle(color: Colors.white)),
-              TextSpan(text: ']', style: TextStyle(color: Color(0xFF636366))),
+            children: [
+              const TextSpan(text: '[', style: TextStyle(color: Color(0xFF636366))),
+              const TextSpan(text: 'RISK', style: TextStyle(color: Color(0xFFE02020))),
+              TextSpan(text: ' RUNNER', style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : const Color(0xFF1C1C1E),
+              )),
+              const TextSpan(text: ']', style: TextStyle(color: Color(0xFF636366))),
             ],
           ),
         ),

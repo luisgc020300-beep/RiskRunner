@@ -219,7 +219,8 @@ class _NavbarContent extends StatelessWidget {
         break;
 
       case 1:
-        CustomBottomNavbar.confirmarInicioCarrera(context);
+        Navigator.pushNamedAndRemoveUntil(
+            context, '/correr', ModalRoute.withName('/home'));
         break;
 
       case 2:
