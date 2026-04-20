@@ -3256,7 +3256,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               Row(children: [
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('MODO EXPLORADOR',
-                      style: _raj(9, FontWeight.w800, _kSafe, spacing: 2.5)),
+                      style: _raj(9, FontWeight.w800, _kText, spacing: 2.5)),
                   const SizedBox(height: 2),
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text('${barriosOrdenados.length}',
@@ -3309,7 +3309,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             // Lista de barrios
             ...barriosOrdenados.map((b) {
               final pct = b.porcentajeCubierto;
-              final Color color = pct >= 1.0 ? _kSafe : pct > 0 ? _kWarn : _kSub;
+              final Color color = pct >= 1.0 ? _kText : pct > 0 ? _kWarn : _kSub;
               return GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -3734,7 +3734,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _sheetStat('${_state.territorios.length}', 'TOTAL', _kText),
       const SizedBox(width: 8),
       _sheetStat(
-          '${_state.jugadoresEnVivo.length}', 'EN VIVO', _kSafe),
+          '${_state.jugadoresEnVivo.length}', 'EN VIVO', _kText),
       const SizedBox(width: 8),
       _sheetStat('$mios', 'MÍO', widget.colorTerritorio),
     ]),
