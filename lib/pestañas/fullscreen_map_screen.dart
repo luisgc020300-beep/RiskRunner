@@ -3231,7 +3231,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         color: _shBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         border: Border(
-          top:   BorderSide(color: _kSafe, width: 1),
+          top:   BorderSide(color: _shBorder),
           left:  BorderSide(color: _shBorder),
           right: BorderSide(color: _shBorder),
         ),
@@ -3704,10 +3704,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _quickBadge('$pel CRÍTICO', _kRed, Icons.dangerous_rounded),
         if (pel > 0 && det > 0) const SizedBox(width: 6),
         if (det > 0)
-          _quickBadge(
-              '$det DESGASTE', _kWarn, Icons.warning_amber_rounded),
+          _quickBadge('$det DESGASTE', _kSub, Icons.warning_amber_rounded),
         if (pel == 0 && det == 0)
-          _quickBadge('TODO OK', _kSafe, Icons.shield_rounded),
+          _quickBadge('TODO OK', _kSub, Icons.shield_rounded),
       ]),
     ]),
   );
