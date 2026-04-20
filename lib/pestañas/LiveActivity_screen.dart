@@ -32,14 +32,12 @@ import '../services/desafios_service.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-// Colores fijos (no cambian con el tema)
 const _kGold       = Color(0xFFFFD60A);
 const _kGoldLight  = Color(0xFFFFD60A);
 const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
 
-// Paleta adaptativa dark / light
 class _LP {
   final Color ink, parchment, parchMid, cosmicBg, cosmicMid, goldDim, terracotta, globalRed;
   const _LP._({
@@ -81,7 +79,6 @@ const double _kZoomCorrer  = 18.5;
 const double _kZoomPausado = 16.5;
 const double _kZoomGlobo   = 2.5;
 
-// Outdoors-v12: colores cartográficos estilo tablero RISK (tierras, agua, relieve)
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
 const _kGpsMovimiento = LocationSettings(
@@ -97,7 +94,6 @@ const _kGpsPausado = LocationSettings(
 const _kPresenciaMovimientoSeg = 10;
 const _kPresenciaPausadoSeg    = 30;
 
-// Cache limitado a 50 entradas para evitar memory leak en sesiones largas
 final Map<int, Uint8List> _avatarCache = {};
 const int _kAvatarCacheMax = 50;
 
@@ -121,6 +117,137 @@ class _BarrioData {
     final lat = puntos.map((p) => p.latitude).reduce((a, b) => a + b)  / puntos.length;
     final lng = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
     return LatLng(lat, lng);
+  }
+}
+
+// =============================================================================
+// MODELO ESTRELLA
+// =============================================================================
+class _StarData {
+  final double x;   // fracción [0,1] del ancho
+  final double y;   // fracción [0,1] del alto
+  final double r;   // radio base
+  final double speed; // velocidad de twinkle
+  final double phase; // fase inicial
+  const _StarData({
+    required this.x,
+    required this.y,
+    required this.r,
+    required this.speed,
+    required this.phase,
+  });
+}
+
+// =============================================================================
+// PAINTER DE ESTRELLAS
+// =============================================================================
+class _StarfieldPainter extends CustomPainter {
+  final List<_StarData> stars;
+  final double animValue; // 0..1 de la animación continua
+  final bool nightMode;
+
+  const _StarfieldPainter({
+    required this.stars,
+    required this.animValue,
+    required this.nightMode,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (final s in stars) {
+      // Twinkle: seno desfasado por estrella
+      final twinkle = (math.sin((animValue * math.pi * 2 * s.speed) + s.phase) + 1) / 2;
+
+      // Opacidad: modo noche más brillantes, modo día más sutiles en el borde
+      final double baseOpacity = nightMode ? 0.55 : 0.28;
+      final double opacity = (baseOpacity + twinkle * (nightMode ? 0.45 : 0.22)).clamp(0.0, 1.0);
+
+      // Color: blanco azulado en noche, dorado muy sutil en día
+      final Color starColor = nightMode
+          ? Color.fromRGBO(210, 230, 255, opacity)
+          : Color.fromRGBO(255, 245, 200, opacity);
+
+      // Halo difuso para las estrellas grandes
+      if (s.r > 1.8) {
+        paint.color = starColor.withValues(alpha: opacity * 0.3);
+        canvas.drawCircle(
+          Offset(s.x * size.width, s.y * size.height),
+          s.r * 2.8,
+          paint,
+        );
+      }
+
+      // Núcleo de la estrella
+      paint.color = starColor;
+      canvas.drawCircle(
+        Offset(s.x * size.width, s.y * size.height),
+        s.r * (0.7 + twinkle * 0.55),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StarfieldPainter old) =>
+      old.animValue != animValue || old.nightMode != nightMode;
+}
+
+// =============================================================================
+// WIDGET STARFIELD
+// =============================================================================
+class _StarfieldWidget extends StatefulWidget {
+  final bool nightMode;
+  const _StarfieldWidget({required this.nightMode});
+
+  @override
+  State<_StarfieldWidget> createState() => _StarfieldWidgetState();
+}
+
+class _StarfieldWidgetState extends State<_StarfieldWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final List<_StarData> _stars;
+
+  @override
+  void initState() {
+    super.initState();
+    // Generar 160 estrellas con semilla fija para que sean estables
+    final rnd = math.Random(12345);
+    _stars = List.generate(160, (_) => _StarData(
+      x:     rnd.nextDouble(),
+      y:     rnd.nextDouble(),
+      r:     0.6 + rnd.nextDouble() * 2.0,
+      speed: 0.4 + rnd.nextDouble() * 1.2,
+      phase: rnd.nextDouble() * math.pi * 2,
+    ));
+
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => CustomPaint(
+        painter: _StarfieldPainter(
+          stars:     _stars,
+          animValue: _ctrl.value,
+          nightMode: widget.nightMode,
+        ),
+        size: Size.infinite,
+      ),
+    );
   }
 }
 
@@ -154,7 +281,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   mapbox.MapboxMap? _mapboxMap;
   mapbox.PointAnnotationManager? _annotationManager;
   final Map<String, mapbox.PointAnnotation> _anotacionesJugadores = {};
-  // Anotaciones de corona para territorios con Rey
   final Map<String, mapbox.PointAnnotation> _anotacionesReyes = {};
   Uint8List? _coronaBytes;
 
@@ -277,7 +403,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Map<String, dynamic>? _retoActivo;
   bool _retoCompletado = false;
 
-  // ── GUERRA GLOBAL — estado del objetivo de conquista
+  // ── GUERRA GLOBAL
   Map<String, dynamic>? _objetivoGlobal;
   bool _globalConquistado   = false;
   bool _globalConquistando  = false;
@@ -285,7 +411,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   double? _nuevaClausula;
   StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
   String? _globalTerritoryLastOwner;
-  // FIX: guard contra doble tap en stopTracking
   bool _stopping = false;
 
   // ==========================================================================
@@ -397,7 +522,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   void _rotarGlobo() {
     if (isTracking) return;
-    if (kIsWeb) return; // flutter_map no soporta bearing continuo
+    if (kIsWeb) return;
     if (_mapboxMap == null) return;
     final bearing = _globoAnim.value * 360.0;
     _mapboxMap!.setCamera(mapbox.CameraOptions(bearing: bearing));
@@ -485,8 +610,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
         _miClanId = doc.data()?['clanId'] as String?;
       }
-      // Intentar posición rápida para el query global; si no hay, el service
-      // carga solo los territorios propios como fallback.
       LatLng? centro;
       if (_currentPosition != null) {
         centro = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
@@ -522,7 +645,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         final anteriorCentro = _currentPosition;
         setState(() => _currentPosition = pos);
 
-        // Si la posición difiere >500 m de la usada al cargar, recargar territorios
         final debeCargarse = anteriorCentro == null ||
             Geolocator.distanceBetween(anteriorCentro.latitude,
                 anteriorCentro.longitude, pos.latitude, pos.longitude) > 500;
@@ -552,7 +674,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.12; // ~13 km — suficiente para capturar municipios cercanos
+      const delta = 0.12;
 
       final url = Uri.parse(
         'https://overpass-api.de/api/interpreter?data='
@@ -614,14 +736,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       if (!mounted) return;
 
-      // Calcular porcentaje inicial
       final misTerritorios = _territorios.where((t) => t.esMio).toList();
       for (final barrio in barrios) {
         barrio.porcentajeCubierto =
             _calcularPorcentajeBarrio(barrio, misTerritorios);
       }
 
-      // Ordenar por distancia
       barrios.sort((a, b) {
         final dA = Geolocator.distanceBetween(
             lat, lng, a.centro.latitude, a.centro.longitude);
@@ -650,7 +770,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (barrio.areaM2 <= 0) return 0.0;
     double areaCubierta = 0.0;
     for (final ter in misTerritorios) {
-      // Si el centro del territorio está dentro del barrio, sumamos su área
       if (_puntoEnPoligono(ter.centro, barrio.puntos)) {
         areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
       }
@@ -670,10 +789,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
       final pct = b.porcentajeCubierto;
       final String color = pct >= 1.0
-          ? '#30D158'   // verde — zona completa
+          ? '#30D158'
           : pct > 0
-              ? '#FF9500' // naranja — en progreso
-              : '#8E8E93'; // gris   — sin explorar
+              ? '#FF9500'
+              : '#8E8E93';
       final String label = pct >= 1.0
           ? '${b.nombre} ✓'
           : pct > 0
@@ -710,7 +829,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.addSource(
           mapbox.GeoJsonSource(id: _barrioSourceId, data: geojson));
 
-      // Relleno semitransparente
       await _mapboxMap!.style.addLayer(
           mapbox.FillLayer(id: _barrioFillLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -718,7 +836,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _barrioFillLayerId, 'fill-opacity', 0.12);
 
-      // Borde — sólido y visible
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _barrioLineLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -728,7 +845,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _barrioLineLayerId, 'line-opacity', 0.88);
 
-      // Etiqueta: nombre + porcentaje
       await _mapboxMap!.style.addLayer(
           mapbox.SymbolLayer(id: _barrioLabelLayerId, sourceId: _barrioSourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -898,7 +1014,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
-        // Estrellas modo oscuro: muy visibles con sky-stars-intensity nativo
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
               'sky-layer', 'sky-stars-intensity', 0.85);
@@ -914,7 +1029,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'sky-layer', 'sky-atmosphere-sun-intensity', 15.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
-        // Estrellas modo día: sutiles en la zona espacial del globo
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
               'sky-layer', 'sky-stars-intensity', 0.45);
@@ -928,7 +1042,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _addBuildings3D() async {
     if (_mapboxMap == null || _buildings3dCreated) return;
     try {
-      // ── Terrain DEM: elevación real de montañas/colinas en 3D ──────────────
       try {
         await _mapboxMap!.style.addSource(mapbox.RasterDemSource(
           id: 'mapbox-dem',
@@ -936,7 +1049,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           tileSize: 512,
           maxzoom: 14.0,
         ));
-      } catch (_) {} // ya existe en el estilo
+      } catch (_) {}
 
       try {
         await _mapboxMap!.style.setStyleTerrain(
@@ -945,7 +1058,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         debugPrint('Terrain: $e');
       }
 
-      // ── Hillshade: sombreado topográfico estilo tablero RISK ───────────────
       try { await _mapboxMap!.style.removeStyleLayer('hillshade-risk'); } catch (_) {}
       try {
         await _mapboxMap!.style.addLayer(
@@ -964,7 +1076,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         debugPrint('Hillshade: $e');
       }
 
-      // ── Edificios 3D: paleta sandstone RISK con degradado por altura ───────
       try { await _mapboxMap!.style.removeStyleLayer(_buildingsLayerId); } catch (_) {}
       await _mapboxMap!.style.addLayer(mapbox.FillExtrusionLayer(
           id: _buildingsLayerId,
@@ -978,15 +1089,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-height',
           ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
-      // Degradado de color según altura: pergamino claro → sandstone → caoba oscura
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-color',
           ['interpolate', ['linear'], ['get', 'height'],
-            0,   '#EDE0C4',   // 1 planta: pergamino claro
-            8,   '#D4B896',   // 2-3 plantas: tan cálido
-            25,  '#B8996A',   // altura media: sandstone
-            60,  '#8B6B45',   // alto: caramelo oscuro
-            120, '#6B4E2E',   // rascacielos: caoba
+            0,   '#EDE0C4',
+            8,   '#D4B896',
+            25,  '#B8996A',
+            60,  '#8B6B45',
+            120, '#6B4E2E',
           ]);
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-opacity', 0.92);
@@ -1000,10 +1110,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
-  // ── Territorios fantasma ─────────────────────────────────────────────────
-  // El query global ya incluye los fantasmas de Firestore en _territorios.
-  // Este método solo comprueba si hay que CREAR más (mapa escaso) y, si los
-  // crea, invalida el caché y recarga para que aparezcan.
+  // ── Territorios fantasma
   Future<void> _aplicarTerritoriosFantasma() async {
     if (_modoSolitario) {
       final sinF = _territorios.where((t) => !t.esFantasma).toList();
@@ -1021,17 +1128,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final centro = LatLng(
           _currentPosition!.latitude, _currentPosition!.longitude);
 
-      const double radioVisible = 0.022; // ~2.4 km
+      const double radioVisible = 0.022;
       const int    kUmbral      = 18;
 
-      // Contar territorios reales (no bot) ya cargados cerca
       final realesCercanos = _territorios.where((t) =>
         !t.esFantasma &&
         (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
         (t.centro.longitude - centro.longitude).abs() < radioVisible,
       ).length;
 
-      // Contar fantasmas ya presentes en _territorios
       final fantasmasCercanos = _territorios.where((t) =>
         t.esFantasma &&
         (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
@@ -1039,15 +1144,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ).length;
 
       final faltan = kUmbral - realesCercanos - fantasmasCercanos;
-      if (faltan <= 0) return; // ya hay suficientes
+      if (faltan <= 0) return;
 
-      // Crear los que faltan y recargar el mapa
       await TerritoryService.crearTerritoriosFantasmaEnZona(
         centro:          centro,
         todosExistentes: _territorios,
         max:             faltan,
       );
-      // crearTerritoriosFantasmaEnZona ya invalida el caché
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: centro, modo: 'competitivo');
       if (mounted) {
@@ -1068,7 +1171,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
       coords.add(coords.first);
 
-      // Los fantasmas son rivales normales visualmente (HP, color, opacidad iguales)
       final colorHex    = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
       final borderWidth = t.esMio
           ? 2.8
@@ -1164,7 +1266,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _territoriosLayersCreated = true;
       _actualizarCoronesMapa();
 
-      // Marcadores en el globo (visibles a zoom bajo, desaparecen al correr)
       if (!_centrosLayerCreated) {
         final misTerr = _territorios.where((t) => t.esMio).toList();
         if (misTerr.isNotEmpty) {
@@ -1272,13 +1373,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       for (final doc in snap.docs) {
         if (doc.id == user?.uid) continue;
         final d  = doc.data();
-        // Filtro dinámico: descartar jugadores inactivos hace >5 min
         final ts = d['timestamp'] as Timestamp?;
         if (ts == null ||
             DateTime.now().difference(ts.toDate()).inMinutes >= 5) { continue; }
         final lat = (d['lat'] as num?)?.toDouble();
         final lng = (d['lng'] as num?)?.toDouble();
-        // Filtro geográfico client-side: solo jugadores a <5 km
         if (myLat != null && myLng != null && lat != null && lng != null) {
           final dist = Geolocator.distanceBetween(myLat, myLng, lat, lng);
           if (dist > 5000) continue;
@@ -1361,7 +1460,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         .toList();
     final idsConRey = conRey.map((t) => t.docId).toSet();
 
-    // Eliminar coronas de territorios que ya no tienen Rey
     for (final docId in _anotacionesReyes.keys
         .where((k) => !idsConRey.contains(k))
         .toList()) {
@@ -1369,7 +1467,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _anotacionesReyes.remove(docId);
     }
 
-    // Crear / actualizar coronas
     for (final t in conRey) {
       final pos = mapbox.Point(
         coordinates: mapbox.Position(
@@ -1396,13 +1493,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final recorder = ui.PictureRecorder();
     final canvas   = Canvas(recorder);
 
-    // Fondo circular semitransparente
     canvas.drawCircle(
       const Offset(sz / 2, sz / 2),
       sz / 2,
       Paint()..color = const Color(0xCC1A1000),
     );
-    // Borde dorado
     canvas.drawCircle(
       const Offset(sz / 2, sz / 2),
       sz / 2 - 2,
@@ -1412,7 +1507,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ..strokeWidth = 2.5,
     );
 
-    // Emoji 👑 centrado
     final tp = TextPainter(
       text: const TextSpan(
         text: '👑',
@@ -1548,7 +1642,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final retadorNick   = data['retadorNick'] as String? ?? 'Rival';
       final retadoNick    = data['retadoNick'] as String? ?? 'Rival';
       final String ganadorId, ganadorNick, perdedorId, perdedorNick;
-      // En empate gana el retado (defensor), igual que en Risk clásico
       if (puntosRetador > puntosRetado) {
         ganadorId = retadorId; ganadorNick = retadorNick;
         perdedorId = retadoId; perdedorNick = retadoNick;
@@ -1628,7 +1721,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'territorioId':        territorioId,
       'activityLogId':       activityLogId,
       'ownerColor':          _colorTerritorio.value,
-      'kmCorridosEnSesion':  kmCorridosEnSesion,   // ← añadido
+      'kmCorridosEnSesion':  kmCorridosEnSesion,
     });
       if (!mounted) return;
       final data = result.data as Map<String, dynamic>;
@@ -1808,18 +1901,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
 
         if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
-  final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
-  if (kmReq > 0 && _distanciaTotal >= kmReq) {
-    setState(() => _globalKmAlcanzados = true);
-    final nombreTer =
-        _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
-    _narrador.anunciarReto(
-        '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
-    HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
-    Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
-  }
-}
+          final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+          if (kmReq > 0 && _distanciaTotal >= kmReq) {
+            setState(() => _globalKmAlcanzados = true);
+            final nombreTer =
+                _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
+            _narrador.anunciarReto(
+                '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
+            HapticFeedback.heavyImpact();
+            Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
+            Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+          }
+        }
 
         if (!_modoSolitario) _procesarPosicionEnTerritorios(newPt);
 
@@ -1942,7 +2035,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _stopwatch.reset();
     _stopwatch.start();
     _timerController.start();
-    // Transición globo → calle
     if (!kIsWeb && _mapboxMap != null && _currentPosition != null) {
       _mapboxMap!.flyTo(
         mapbox.CameraOptions(
@@ -1984,7 +2076,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
     }
 
-    // ── Cargar barrios OSM si estamos en modo solitario
     if (_modoSolitario && _currentPosition != null) {
       _cargarBarriosOSM(LatLng(
         _currentPosition!.latitude,
@@ -1994,7 +2085,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     _positionStream = _crearStreamGPS();
 
-    // ── Listener en tiempo real del territorio global objetivo
     if (_objetivoGlobal != null) {
       final tId = _objetivoGlobal!['territorioId'] as String?;
       if (tId != null) {
@@ -2010,7 +2100,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           final data    = snap.data()!;
           final newOwner = data['ownerUid'] as String?;
           final uid      = FirebaseAuth.instance.currentUser?.uid;
-          // Si cambió de dueño y no somos nosotros quienes lo tomamos
           if (newOwner != null &&
               newOwner != _globalTerritoryLastOwner &&
               newOwner != uid &&
@@ -2104,7 +2193,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _pulsoTimer?.cancel();
     await _limpiarPresenciaFirestore();
 
-    // Limpiar capas de barrios si era solitario
     if (_modoSolitario) {
       await _limpiarCapasBarrios();
     }
@@ -2123,7 +2211,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
     await _mapboxMap?.gestures.updateSettings(
         mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
-    // Volver al globo terráqueo al terminar la sesión
     await _moverCamara(
       lat: _currentPosition?.latitude  ?? 40.4167,
       lng: _currentPosition?.longitude ?? -3.70325,
@@ -2131,7 +2218,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       animated: true, duracion: 1200,
     );
 
-    // ── Guardar log de actividad
     String? logId;
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -2192,7 +2278,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       debugPrint('Error log: $e');
     }
 
-    // ── Validación post-sesión anticheat
     if (distanciaFinal > 0 && !_sesionInvalidadaPorCheat) {
       final sesionCheck = AntiCheatService.analizarSesionCompleta(
         ruta: rutaFinal, tiempo: tiempoFinal, distanciaKm: distanciaFinal,
@@ -2209,7 +2294,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
     }
 
-    // ── Conquistas locales
     int conquistados = 0;
 
     if (_modoSolitario) {
@@ -2220,7 +2304,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       if (creado) {
         conquistados = 1;
-        // Recargar territorios e incluir el nuevo en el cálculo de barrios
         final nuevosTerritorios =
             await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
         if (mounted) setState(() => _territorios = nuevosTerritorios);
@@ -2255,7 +2338,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ));
         }
       }
-      // Limpiar estado de barrios
       if (mounted) {
         setState(() {
           _barriosCercanos = [];
@@ -2283,8 +2365,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (!mounted) { _stopping = false; return; }
 
-    // En guerra global los puntos de liga se entregan el lunes (CF liquidarGuerraGlobal),
-    // no en el momento de la conquista. Solo se computan para los otros modos.
     final puntosLigaGanados = _modoSolitario
         ? 0
         : _objetivoGlobal != null
@@ -2360,7 +2440,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } else {
       if (!_territoriosNotificadosEnSesion.contains(t.docId)) {
         _territoriosNotificadosEnSesion.add(t.docId);
-        // Los fantasmas no tienen dueño real → no enviar notificación Firestore
         if (!t.esFantasma) {
           TerritoryService.crearNotificacionInvasion(
             toUserId: t.ownerId, fromNickname: _miNickname, territoryId: t.docId,
@@ -2539,7 +2618,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ));
   }
 
-  // Corrección 1 — snack territorio rival con HP y estado
   void _mostrarSnackTerritorioRival(TerritoryData t) {
     if (!mounted) return;
     final String estadoLabel;
@@ -2635,7 +2713,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ));
   }
 
-  // Corrección 1 — radar de territorios próximos
   Widget _buildRadarTerritoriosProximos() {
     if (_modoSolitario || !isTracking || isPaused) return const SizedBox.shrink();
     if (_territoriosRivalesCercanos.isEmpty && _territorioActualBajoPie == null) {
@@ -2737,7 +2814,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     );
   }
 
-  // Corrección 2 — chip barrio actual (modo solitario)
   Widget _buildChipBarrioActual() {
     if (!_modoSolitario || !isTracking || _barrioActual == null) {
       return const SizedBox.shrink();
@@ -2790,7 +2866,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     );
   }
 
-  // Corrección 2 — notificación barrio completado al 100%
   void _mostrarNotificacionBarrioCompletado(_BarrioData barrio, int bonusMonedas) {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
@@ -2938,7 +3013,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await TerritoryService.activarEscudo(
           territorioId: territorioId, horas: horas);
       if (!mounted) return;
-      // Recargar para reflejar el escudo en el modelo
       final nuevos = await TerritoryService.cargarTodosLosTerritorios(
           modo: _modoSolitario ? 'solitario' : 'competitivo');
       if (!mounted) return;
@@ -2992,6 +3066,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       backgroundColor: Colors.black,
       body: Stack(children: [
         Positioned.fill(child: _buildMapbox()),
+        // ── STARFIELD: visible solo cuando el globo está activo (no tracking)
+        if (!isTracking && !_mostrandoCuentaAtras)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _StarfieldWidget(nightMode: _modoNoche),
+            ),
+          ),
         if (!isTracking && !_mostrandoCuentaAtras)
           Positioned.fill(child: IgnorePointer(child: _buildGloboOverlay())),
         Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
@@ -3019,7 +3100,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (isTracking && !isPaused && _mensajeNarrador != null)
           Positioned(bottom: 130, left: 0, right: 0,
               child: NarradorOverlay(mensaje: _mensajeNarrador)),
-        // Corrección 2 — chip barrio (solo modo solitario)
         if (isTracking && _modoSolitario && _barrioActual != null)
           Positioned(top: 160, left: 0, right: 0,
               child: Center(child: _buildChipBarrioActual())),
@@ -3030,14 +3110,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             child: Center(child: _buildChipRetoActivo()),
           ),
         if (_objetivoGlobal != null && !_globalConquistado)
-  Positioned(
-    // si está corriendo, debajo del chip de barrio/reto; si no, centrado arriba
-    top: isTracking
-        ? (_retoActivo != null ? 260 : 160)
-        : 120,
-    left: 0, right: 0,
-    child: Center(child: _buildChipObjetivoGlobal()),
-  ),
+          Positioned(
+            top: isTracking
+                ? (_retoActivo != null ? 260 : 160)
+                : 120,
+            left: 0, right: 0,
+            child: Center(child: _buildChipObjetivoGlobal()),
+          ),
         if (_globalConquistando)
           Positioned.fill(child: _buildConquistadoOverlay()),
         Positioned(bottom: 0, left: 0, right: 0, child: _buildBotonera()),
@@ -3049,97 +3128,94 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // GUERRA GLOBAL — widgets
   // ==========================================================================
   Widget _buildChipObjetivoGlobal() {
-  final nombre      = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
-  final progreso    = _progresoGlobal;
+    final nombre      = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
+    final progreso    = _progresoGlobal;
 
-  // Estado 3: confirmado por Cloud Function
-  if (_globalConquistado) {
+    if (_globalConquistado) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kVerde.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kVerde.withValues(alpha: 0.7)),
+          boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.35), blurRadius: 16)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('✅', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 8),
+          Text('¡$nombre CONQUISTADO!',
+              style: GoogleFonts.cinzel(color: _kVerde, fontSize: 11,
+                  fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        ]),
+      );
+    }
+
+    if (_globalKmAlcanzados) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kGold.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kGold.withValues(alpha: 0.8)),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.40), blurRadius: 18)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏁', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, children: [
+            Text('¡META ALCANZADA!',
+                style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 11,
+                    fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text('Finaliza la carrera para reclamar',
+                style: GoogleFonts.inter(color: _kGold, fontSize: 9,
+                    fontWeight: FontWeight.w700)),
+          ]),
+        ]),
+      );
+    }
+
+    final kmRestantes = _kmRestantesGlobal;
+    final restanteStr = kmRestantes >= 1
+        ? '${kmRestantes.toStringAsFixed(2)} km'
+        : '${(kmRestantes * 1000).toInt()} m';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: _kVerde.withValues(alpha: 0.18),
+        color: _p.ink.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _kVerde.withValues(alpha: 0.7)),
-        boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.35), blurRadius: 16)],
+        border: Border.all(color: _p.globalRed.withValues(alpha: 0.6)),
+        boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.25), blurRadius: 14)],
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('✅', style: TextStyle(fontSize: 13)),
-        const SizedBox(width: 8),
-        Text('¡$nombre CONQUISTADO!',
-            style: GoogleFonts.cinzel(color: _kVerde, fontSize: 11,
-                fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-      ]),
-    );
-  }
-
-  // Estado 2: km alcanzados, esperando que el usuario finalice
-  if (_globalKmAlcanzados) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: _kGold.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _kGold.withValues(alpha: 0.8)),
-        boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.40), blurRadius: 18)],
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🏁', style: TextStyle(fontSize: 13)),
+        const Text('⚔️', style: TextStyle(fontSize: 13)),
         const SizedBox(width: 8),
         Column(crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min, children: [
-          Text('¡META ALCANZADA!',
-              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 11,
-                  fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          Text('Finaliza la carrera para reclamar',
-              style: GoogleFonts.inter(color: _kGold, fontSize: 9,
-                  fontWeight: FontWeight.w700)),
+          Text(nombre, style: GoogleFonts.inter(color: _kGoldLight,
+              fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 120,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progreso,
+                backgroundColor: _p.globalRed.withValues(alpha: 0.2),
+                valueColor: AlwaysStoppedAnimation(_p.globalRed),
+                minHeight: 4,
+              ),
+            ),
+          ),
         ]),
+        const SizedBox(width: 8),
+        Text(restanteStr,
+            style: GoogleFonts.orbitron(color: _kGoldLight,
+                fontSize: 10, fontWeight: FontWeight.w900)),
       ]),
     );
   }
-
-  // Estado 1: en progreso (comportamiento original)
-  final kmRestantes = _kmRestantesGlobal;
-  final restanteStr = kmRestantes >= 1
-      ? '${kmRestantes.toStringAsFixed(2)} km'
-      : '${(kmRestantes * 1000).toInt()} m';
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      color: _p.ink.withValues(alpha: 0.92),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: _p.globalRed.withValues(alpha: 0.6)),
-      boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.25), blurRadius: 14)],
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      const Text('⚔️', style: TextStyle(fontSize: 13)),
-      const SizedBox(width: 8),
-      Column(crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, children: [
-        Text(nombre, style: GoogleFonts.inter(color: _kGoldLight,
-            fontSize: 11, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 3),
-        SizedBox(
-          width: 120,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: progreso,
-              backgroundColor: _p.globalRed.withValues(alpha: 0.2),
-              valueColor: AlwaysStoppedAnimation(_p.globalRed),
-              minHeight: 4,
-            ),
-          ),
-        ),
-      ]),
-      const SizedBox(width: 8),
-      Text(restanteStr,
-          style: GoogleFonts.orbitron(color: _kGoldLight,
-              fontSize: 10, fontWeight: FontWeight.w900)),
-    ]),
-  );
-}
 
   Widget _buildConquistadoOverlay() => Container(
         color: Colors.black.withValues(alpha: 0.65),
@@ -3221,20 +3297,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   // ==========================================================================
-  // GLOBO 3D
-  // ==========================================================================
-  // GLOBO UI — overlay transparente sobre el MapboxMap globe real
+  // GLOBO 3D — overlay sobre el MapboxMap globe real
   // ==========================================================================
   Widget _buildGloboOverlay() {
     return Stack(children: [
-      // Viñeta espacial en los bordes (sin tapar el globo central)
+      // Viñeta espacial en los bordes
       Positioned.fill(
         child: IgnorePointer(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
                 center: Alignment.center, radius: 0.82,
-                colors: [Colors.transparent, Colors.black.withValues(alpha: 0.72)],
+                colors: [
+                  Colors.transparent,
+                  // En modo noche más oscuro; en día ligeramente más sutil
+                  Colors.black.withValues(alpha: _modoNoche ? 0.72 : 0.55),
+                ],
               ),
             ),
           ),
@@ -3259,7 +3337,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ),
-      // Chips de info — esquina superior izquierda
+      // Chips de info
       Positioned(
         top: 148, left: 14,
         child: IgnorePointer(
@@ -3782,9 +3860,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ),
       );
 
-  /// Abre FullscreenMapScreen en modo selección global.
-  /// Cuando el usuario pulsa "INICIAR CONQUISTA" allí, la pantalla hace pop()
-  /// con el mapa del objetivo y aquí lo recibimos para arrancar la carrera.
   Future<void> _elegirTerritorioGlobal() async {
     final resultado = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -4160,6 +4235,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ]);
 }
 
+// =============================================================================
+// SPEED LINES PAINTER
+// =============================================================================
 class _SpeedLinesPainter extends CustomPainter {
   final Color color;
   const _SpeedLinesPainter({required this.color});
