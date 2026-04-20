@@ -26,7 +26,8 @@ import '../config/env.dart';
 // =============================================================================
 const String _kMapboxToken = Env.mapboxPublicToken;
 const String _kMapboxUrl =
-    'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
+    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
 
 const String _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
@@ -1106,7 +1107,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _sheetEntryCtrl.forward();
       Future.delayed(const Duration(milliseconds: 160), () {
         if (_sheetCtrl.isAttached) {
-          _sheetCtrl.animateTo(0.35,
+          _sheetCtrl.animateTo(0.4,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutCubic);
         }
@@ -1533,7 +1534,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               return DraggableScrollableSheet(
                 key: ValueKey(isGlobal),
                 controller: _sheetCtrl,
-                initialChildSize: 0.35,
+                initialChildSize: 0.4,
                 minChildSize: 0.08,
                 maxChildSize: 0.75,
                 snap: true,

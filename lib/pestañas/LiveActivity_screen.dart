@@ -898,6 +898,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
+        // Estrellas modo oscuro: muy visibles con sky-stars-intensity nativo
+        try {
+          await _mapboxMap!.style.setStyleLayerProperty(
+              'sky-layer', 'sky-stars-intensity', 0.85);
+        } catch (_) {}
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-type', 'atmosphere');
@@ -909,6 +914,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'sky-layer', 'sky-atmosphere-sun-intensity', 15.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
+        // Estrellas modo día: sutiles en la zona espacial del globo
+        try {
+          await _mapboxMap!.style.setStyleLayerProperty(
+              'sky-layer', 'sky-stars-intensity', 0.45);
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('Error atmosfera: $e');
