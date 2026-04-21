@@ -2193,7 +2193,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       mapController: _mapController,
       options: MapOptions(
         initialCenter: _state.centro,
-        initialZoom: 6,
+        initialZoom: 5,
         minZoom: 3, maxZoom: 19,
         cameraConstraint: CameraConstraint.containCenter(   // ← añades esto
           bounds: LatLngBounds(

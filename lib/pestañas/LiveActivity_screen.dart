@@ -1132,7 +1132,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 0.95);
+              'sky-layer', 'sky-stars-intensity', 1.95);
         } catch (_) {}
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
@@ -1147,7 +1147,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 0.95);
+              'sky-layer', 'sky-stars-intensity', 1.95);
         } catch (_) {}
       }
     } catch (e) {
@@ -2188,7 +2188,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _moverCamara(
         lat: _currentPosition!.latitude, lng: _currentPosition!.longitude,
         zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer,
-        duracion: 2800, forzar: true,
+        duracion: 4000, forzar: true,
       );
     }
 
