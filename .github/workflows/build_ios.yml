@@ -1,5 +1,4 @@
 name: Build iOS IPA
-
 on:
   push:
     branches:
@@ -9,14 +8,15 @@ on:
     branches:
       - main
   workflow_dispatch:
-
 jobs:
   build-ios:
-    runs-on: macos-latest
-
+    runs-on: macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -48,6 +48,11 @@ jobs:
 
       - name: Flutter build iOS
         run: flutter build ios --release --no-codesign
+        env:
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: NO
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: NO
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: ""
+          FLUTTER_XCODE_DEVELOPMENT_TEAM: ""
 
       - name: Build with xcodebuild
         run: |
@@ -60,6 +65,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             archive
