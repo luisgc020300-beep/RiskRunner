@@ -1,234 +1,104 @@
-// lib/screens/fullscreen_map_screen.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui';
+import 'dart:ui' as ui;
 
-import 'package:http/http.dart' as http;
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:custom_timer/custom_timer.dart';
+import 'package:http/http.dart' as http;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
-import '../widgets/custom_navbar.dart';
-import '../config/env.dart';
-
-// =============================================================================
-// MAPBOX
-// =============================================================================
-const String _kMapboxToken = Env.mapboxPublicToken;
-const String _kMapboxUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
-    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
-
-const String _kMapboxDarkUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
+import 'fullscreen_map_screen.dart';
+import '../services/anticheat_service.dart';
+import '../services/stats_service.dart';
+import '../services/subscription_service.dart';
+import '../widgets/conquista_overlay.dart';
+import '../widgets/anticheat_warning_overlay.dart';
+import '../widgets/narrador_overlay.dart';
+import '../services/narrador_service.dart';
+import '../services/desafios_service.dart';
 
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kBg       = Color(0xFFE8E8ED);
-const _kSurface  = Color(0xFFFFFFFF);
-const _kSurface2 = Color(0xFFE5E5EA);
-const _kBorder   = Color(0xFFC6C6C8);
-const _kBorder2  = Color(0xFFD1D1D6);
-const _kDim      = Color(0xFFAEAEB2);
-const _kSub      = Color(0xFF8E8E93);
-const _kText     = Color(0xFF3C3C43);
-const _kWhite    = Color(0xFF1C1C1E);
-const _kRed      = Color(0xFFE02020);
-const _kSafe     = Color(0xFF30D158);
-const _kWarn     = Color(0xFFFF9500);
-const _kGold     = Color(0xFFFFD60A);
-const _kGoldDim  = Color(0xFFAEAEB2);
-const _kGoldLight = Color(0xFFFFD60A);
-const _kPurple   = Color(0xFF636366);
-const _kCyan     = Color(0xFF636366);
+const _kGold       = Color(0xFFFFD60A);
+const _kGoldLight  = Color(0xFFFFD60A);
+const _kWater      = Color(0xFF5BA3A0);
+const _kWaterLight = Color(0xFF8ECFCC);
+const _kVerde      = Color(0xFF8FAF4A);
 
-// =============================================================================
-// COLORES MODO OSCURO (usados en dark mode para no ser negro puro)
-// =============================================================================
-const _kSpaceBg1    = Color(0xFF040D1A); // azul marino muy oscuro
-const _kSpaceBg2    = Color(0xFF091630); // azul marino profundo
-const _kSpaceBg3    = Color(0xFF0D1F42); // azul oscuro cálido
-const _kSpaceBg4    = Color(0xFF081428); // oscuro nuevamente
-const _kDarkSurface = Color(0xFF0D1729); // surfaces en modo oscuro
-const _kDarkScaffold = Color(0xFF080F1E); // fondo scaffold oscuro
-
-TextStyle _raj(double size, FontWeight weight, Color color,
-    {double spacing = 0, double? height}) =>
-    GoogleFonts.inter(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing, height: height);
-
-TextStyle _cinzel(double size, FontWeight weight, Color color,
-    {double spacing = 0}) =>
-    GoogleFonts.cinzel(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing);
-
-TextStyle _orbitron(double size, FontWeight weight, Color color,
-    {double spacing = 0}) =>
-    GoogleFonts.orbitron(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing);
-
-// =============================================================================
-// SPACE BACKGROUND — estrellas realistas detrás del globo con parallax
-// =============================================================================
-
-/// Modelo de una estrella individual
-class _Star {
-  _Star({
-    required this.x,
-    required this.y,
-    required this.radius,
-    required this.opacity,
-    required this.parallaxFactor,
+class _LP {
+  final Color ink, parchment, parchMid, cosmicBg, cosmicMid, goldDim, terracotta, globalRed;
+  const _LP._({
+    required this.ink,        required this.parchment,
+    required this.parchMid,   required this.cosmicBg,
+    required this.cosmicMid,  required this.goldDim,
+    required this.terracotta, required this.globalRed,
   });
-  double x, y;
-  final double radius, opacity, parallaxFactor;
-}
-
-/// CustomPainter que dibuja las estrellas con efecto parallax
-class _StarPainter extends CustomPainter {
-  _StarPainter(this.stars, this.offset);
-  final List<_Star> stars;
-  final Offset offset;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final star in stars) {
-      // Parallax: cada estrella se desplaza según su factor (lejanas = poco movimiento)
-      final dx = offset.dx * star.parallaxFactor;
-      final dy = offset.dy * star.parallaxFactor;
-      // wrap en pantalla para que no desaparezcan por los bordes
-      final px = ((star.x * size.width  + dx) % size.width  + size.width)  % size.width;
-      final py = ((star.y * size.height + dy) % size.height + size.height) % size.height;
-
-      // Color ligeramente azulado-blanco, como estrellas reales
-      final paint = Paint()
-        ..color = Color.fromRGBO(
-          200, 220, 255,
-          star.opacity * (0.6 + star.parallaxFactor * 3.0),
-        )
-        ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(Offset(px, py), star.radius, paint);
-
-      // Halo muy sutil solo en las estrellas más grandes
-      if (star.radius > 1.2) {
-        canvas.drawCircle(
-          Offset(px, py),
-          star.radius * 2.8,
-          Paint()
-            ..color = Color.fromRGBO(180, 210, 255, star.opacity * 0.07)
-            ..style = PaintingStyle.fill,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StarPainter old) => old.offset != offset;
-}
-
-/// Widget público: fondo espacial azul marino + estrellas con parallax.
-/// Úsalo envolviendo cualquier widget que deba aparecer "en el espacio".
-/// Las estrellas siempre quedan DETRÁS de [child].
-class SpaceBackground extends StatefulWidget {
-  const SpaceBackground({
-    super.key,
-    required this.child,
-    this.parallaxOffset = Offset.zero,
-  });
-
-  /// Offset del mapa (longitud × escala, latitud × escala).
-  /// Al mover el globo, actualiza este valor para el efecto parallax.
-  final Offset parallaxOffset;
-  final Widget child;
-
-  @override
-  State<SpaceBackground> createState() => _SpaceBackgroundState();
-}
-
-class _SpaceBackgroundState extends State<SpaceBackground> {
-  late final List<_Star> _stars;
-
-  // 90 estrellas: suficientes para realismo, sin saturar la pantalla
-  static const int _kStarCount = 90;
-
-  @override
-  void initState() {
-    super.initState();
-    final rng = math.Random(42); // seed fijo → mismo patrón siempre
-    _stars = List.generate(_kStarCount, (_) {
-      // Distribución realista: la mayoría son muy pequeñas
-      final sizeBias = rng.nextDouble();
-      final radius = sizeBias < 0.70
-          ? 0.35 + rng.nextDouble() * 0.50  // 70% microscópicas
-          : sizeBias < 0.95
-              ? 0.85 + rng.nextDouble() * 0.55 // 25% medianas
-              : 1.40 + rng.nextDouble() * 0.80; // 5% brillantes
-
-      return _Star(
-        x: rng.nextDouble(),
-        y: rng.nextDouble(),
-        radius: radius,
-        opacity: 0.30 + rng.nextDouble() * 0.70,
-        // Estrellas "lejanas" (pequeñas) se mueven muy poco → profundidad
-        parallaxFactor: 0.015 + rng.nextDouble() * 0.055,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // ── 1. Fondo azul marino (gradiente sutil) ─────────────────────
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                _kSpaceBg1, // 0xFF040D1A
-                _kSpaceBg2, // 0xFF091630
-                _kSpaceBg3, // 0xFF0D1F42
-                _kSpaceBg4, // 0xFF081428
-              ],
-              stops: [0.0, 0.35, 0.70, 1.0],
-            ),
-          ),
-        ),
-
-        // ── 2. Estrellas (z-index 1 → siempre DETRÁS del globo/mapa) ───
-        RepaintBoundary(
-          child: CustomPaint(
-            painter: _StarPainter(_stars, widget.parallaxOffset),
-          ),
-        ),
-
-        // ── 3. Contenido del mapa encima de las estrellas ───────────────
-        widget.child,
-      ],
-    );
-  }
+  static const light = _LP._(
+    ink:        Color(0xFF1C1C1E),
+    parchment:  Color(0xFFFFFFFF),
+    parchMid:   Color(0xFFE5E5EA),
+    cosmicBg:   Color(0xFFE8E8ED),
+    cosmicMid:  Color(0xFFFFFFFF),
+    goldDim:    Color(0xFFAEAEB2),
+    terracotta: Color(0xFF636366),
+    globalRed:  Color(0xFF636366),
+  );
+  static const dark = _LP._(
+    ink:        Color(0xFFEEEEEE),
+    parchment:  Color(0xFF1C1C1E),
+    parchMid:   Color(0xFF2C2C2E),
+    cosmicBg:   Color(0xFF090807),
+    cosmicMid:  Color(0xFF1C1C1E),
+    goldDim:    Color(0xFF636366),
+    terracotta: Color(0xFF8E8E93),
+    globalRed:  Color(0xFF8E8E93),
+  );
+  static _LP of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
 }
 
 // =============================================================================
-// MODELO BARRIO (modo solitario)
+// CONSTANTES GPS / CÁMARA
+// =============================================================================
+const double _kPitchCorrer = 55.0;
+const double _kPitchNormal = 0.0;
+const double _kZoomCorrer  = 18.5;
+const double _kZoomPausado = 16.5;
+const double _kZoomGlobo   = 2.5;
+
+const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
+
+const _kGpsMovimiento = LocationSettings(
+  accuracy: LocationAccuracy.bestForNavigation,
+  distanceFilter: 8,
+);
+const _kGpsPausado = LocationSettings(
+  accuracy: LocationAccuracy.reduced,
+  distanceFilter: 20,
+  timeLimit: Duration(seconds: 30),
+);
+
+const _kPresenciaMovimientoSeg = 10;
+const _kPresenciaPausadoSeg    = 30;
+
+final Map<int, Uint8List> _avatarCache = {};
+const int _kAvatarCacheMax = 50;
+
+// =============================================================================
+// MODELO BARRIO
 // =============================================================================
 class _BarrioData {
   final String       nombre;
@@ -244,1845 +114,574 @@ class _BarrioData {
   });
 
   LatLng get centro {
-    final lat = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
+    final lat = puntos.map((p) => p.latitude).reduce((a, b) => a + b)  / puntos.length;
     final lng = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
     return LatLng(lat, lng);
   }
 }
 
 // =============================================================================
-// MODELOS GUERRA GLOBAL
+// MODELO ESTRELLA
 // =============================================================================
-
-enum TerritoryTier { pequeno, mediano, legendario }
-
-class GlobalTerritory {
-  final String id;
-  final String name;
-  final String epicName;
-  final String inspiration;
-  final String icon;
-  final TerritoryTier tier;
-  final double baseKm;
-  final int baseReward;
-  final bool rewardLeague;
-  final LatLng center;
-  final List<LatLng> points;
-  final String? ownerNickname;
-  final String? ownerUid;
-  final Color? ownerColor;
-  final int difficultyLevel;
-  final int conquestCount;
-  final Color territoryColor;
-
-  /// Cláusula real leída de Firestore (km que hay que correr para conquistar).
-  /// Arranca igual a baseKm y sube ×1.15 con cada conquista.
-  final double clausulaKm;
-
-  const GlobalTerritory({
-    required this.id,
-    required this.name,
-    required this.epicName,
-    required this.inspiration,
-    required this.icon,
-    required this.tier,
-    required this.baseKm,
-    required this.baseReward,
-    required this.rewardLeague,
-    required this.center,
-    required this.points,
-    this.ownerNickname,
-    this.ownerUid,
-    this.ownerColor,
-    this.difficultyLevel = 1,
-    this.conquestCount = 0,
-    required this.territoryColor,
-    double? clausulaKm,
-  }) : clausulaKm = clausulaKm ?? baseKm;
-
-  GlobalTerritory copyWith({
-    String? ownerNickname,
-    String? ownerUid,
-    Color?  ownerColor,
-    bool    clearOwner = false,
-    int?    difficultyLevel,
-    int?    conquestCount,
-    double? clausulaKm,
-  }) {
-    return GlobalTerritory(
-      id:              id,
-      name:            name,
-      epicName:        epicName,
-      inspiration:     inspiration,
-      icon:            icon,
-      tier:            tier,
-      baseKm:          baseKm,
-      baseReward:      baseReward,
-      rewardLeague:    rewardLeague,
-      center:          center,
-      points:          points,
-      ownerNickname:   clearOwner ? null : (ownerNickname  ?? this.ownerNickname),
-      ownerUid:        clearOwner ? null : (ownerUid       ?? this.ownerUid),
-      ownerColor:      clearOwner ? null : (ownerColor     ?? this.ownerColor),
-      difficultyLevel: difficultyLevel ?? this.difficultyLevel,
-      conquestCount:   conquestCount  ?? this.conquestCount,
-      territoryColor:  territoryColor,
-      clausulaKm:      clausulaKm ?? this.clausulaKm,
-    );
-  }
-
-  // Color efectivo: color del dueño si existe, sino color base del tier
-  Color get displayColor {
-    if (ownerColor != null) return ownerColor!;
-    return territoryColor;
-  }
-
-  /// KM requeridos — lee directamente clausulaKm de Firestore.
-  double get kmRequired => clausulaKm;
-
-  int get rewardActual {
-    return (baseReward * (1 + (difficultyLevel - 1) * 0.15)).round();
-  }
-
-  bool get isOwned => ownerUid != null;
-  bool get isMine  => ownerUid == FirebaseAuth.instance.currentUser?.uid;
-
-  Color get tierColor {
-    switch (tier) {
-      case TerritoryTier.pequeno:    return _kSafe;
-      case TerritoryTier.mediano:    return _kCyan;
-      case TerritoryTier.legendario: return _kGold;
-    }
-  }
-
-  String get tierLabel {
-    switch (tier) {
-      case TerritoryTier.pequeno:    return 'COMÚN';
-      case TerritoryTier.mediano:    return 'ÉPICO';
-      case TerritoryTier.legendario: return 'LEGENDARIO';
-    }
-  }
-}
-
-List<GlobalTerritory> _buildSampleTerritories() {
-  return [
-    GlobalTerritory(
-      id: 'gt_001', name: 'El Pueblo del Río', epicName: 'La Aldea del Río Eterno',
-      inspiration: 'Pueblo europeo', icon: '🌉', tier: TerritoryTier.pequeno,
-      baseKm: 5, baseReward: 50, rewardLeague: false,
-      center: const LatLng(48.8566, 2.3522),
-      points: _buildHexPoints(const LatLng(48.8566, 2.3522), 0.01),
-      territoryColor: _kSafe, difficultyLevel: 3, conquestCount: 2,
-      clausulaKm: 5,
-    ),
-    GlobalTerritory(
-      id: 'gt_002', name: 'La Fortaleza del Norte', epicName: 'La Gran Fortaleza Septentrional',
-      inspiration: 'Nueva York', icon: '🗼', tier: TerritoryTier.mediano,
-      baseKm: 12, baseReward: 180, rewardLeague: false,
-      center: const LatLng(40.7128, -74.0060),
-      points: _buildHexPoints(const LatLng(40.7128, -74.0060), 0.015),
-      territoryColor: _kCyan, difficultyLevel: 5, conquestCount: 4,
-      clausulaKm: 12,
-    ),
-    GlobalTerritory(
-      id: 'gt_003', name: 'El Corazón del Mapa', epicName: 'El Núcleo Eterno',
-      inspiration: 'Centro del mundo virtual', icon: '💎', tier: TerritoryTier.legendario,
-      baseKm: 40, baseReward: 1200, rewardLeague: true,
-      center: const LatLng(35.6762, 139.6503),
-      points: _buildHexPoints(const LatLng(35.6762, 139.6503), 0.02),
-      territoryColor: _kGold, difficultyLevel: 8, conquestCount: 7,
-      clausulaKm: 40,
-    ),
-    GlobalTerritory(
-      id: 'gt_004', name: 'La Ciudad de las Espadas', epicName: 'La Ciudadela de Acero',
-      inspiration: 'Madrid', icon: '⚔️', tier: TerritoryTier.mediano,
-      baseKm: 10, baseReward: 150, rewardLeague: false,
-      center: const LatLng(40.4168, -3.7038),
-      points: _buildHexPoints(const LatLng(40.4168, -3.7038), 0.012),
-      territoryColor: _kCyan, difficultyLevel: 2, conquestCount: 1,
-      clausulaKm: 10,
-    ),
-    GlobalTerritory(
-      id: 'gt_005', name: 'El Oasis del Desierto', epicName: 'El Oasis de los Mil Soles',
-      inspiration: 'Oasis africano', icon: '🌴', tier: TerritoryTier.pequeno,
-      baseKm: 7, baseReward: 70, rewardLeague: false,
-      center: const LatLng(30.0444, 31.2357),
-      points: _buildHexPoints(const LatLng(30.0444, 31.2357), 0.01),
-      territoryColor: _kSafe, difficultyLevel: 1, conquestCount: 0,
-      clausulaKm: 7,
-    ),
-    GlobalTerritory(
-      id: 'gt_006', name: 'La Ciudadela Eterna', epicName: 'La Ciudadela Inexpugnable',
-      inspiration: 'Ciudad épica', icon: '🏰', tier: TerritoryTier.legendario,
-      baseKm: 25, baseReward: 500, rewardLeague: true,
-      center: const LatLng(-33.8688, 151.2093),
-      points: _buildHexPoints(const LatLng(-33.8688, 151.2093), 0.018),
-      territoryColor: _kGold, difficultyLevel: 10, conquestCount: 9,
-      clausulaKm: 25,
-    ),
-  ];
-}
-
-List<LatLng> _buildHexPoints(LatLng center, double radius) {
-  return List.generate(6, (i) {
-    final angle = (i * 60 - 30) * math.pi / 180;
-    return LatLng(
-      center.latitude  + radius * math.sin(angle),
-      center.longitude + radius * math.cos(angle),
-    );
+class _StarData {
+  final double x;   // fracción [0,1] del ancho
+  final double y;   // fracción [0,1] del alto
+  final double r;   // radio base
+  final double speed; // velocidad de twinkle
+  final double phase; // fase inicial
+  const _StarData({
+    required this.x,
+    required this.y,
+    required this.r,
+    required this.speed,
+    required this.phase,
   });
 }
 
 // =============================================================================
-// MODELOS MI CIUDAD
+// PAINTER DE ESTRELLAS
 // =============================================================================
-class _UserGroup {
-  final String ownerId, nickname;
-  final int nivel;
-  final bool esMio;
-  final List<_TerDet> territorios;
-  _UserGroup({required this.ownerId, required this.nickname,
-      required this.nivel, required this.esMio, required this.territorios});
-}
+class _StarfieldPainter extends CustomPainter {
+  final List<_StarData> stars;
+  final double animValue; // 0..1 de la animación continua
+  final bool nightMode;
 
-class _TerDet {
-  final String docId;
-  final double dist;
-  final int? diasSinVisitar;
-  final List<LatLng> puntos;
-  final String ownerId;
-  final String? nombreTerritorio;
-  _TerDet({required this.docId, required this.dist,
-      this.diasSinVisitar, this.puntos = const [],
-      this.ownerId = '', this.nombreTerritorio});
-}
+  const _StarfieldPainter({
+    required this.stars,
+    required this.animValue,
+    required this.nightMode,
+  });
 
-// =============================================================================
-// SERVICIO DE DATOS
-// =============================================================================
-class _MapDataService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  static const double _kRadGrados = 0.045;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
 
-  Future<List<_UserGroup>> cargarGruposCercanos(LatLng centro, String myUid) async {
-    final latMin = centro.latitude  - _kRadGrados;
-    final latMax = centro.latitude  + _kRadGrados;
-    QuerySnapshot snap;
-    try {
-      snap = await _db.collection('territories')
-          .where('centroLat', isGreaterThan: latMin)
-          .where('centroLat', isLessThan:    latMax)
-          .get();
-    } catch (e) {
-      snap = await _db.collection('territories').get();
-    }
-    final Map<String, List<_TerDet>> tersPorOwner = {};
-    for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final rawPts = data['puntos'] as List<dynamic>?;
-      if (rawPts == null || rawPts.isEmpty) continue;
-      final pts = _parsePuntos(rawPts);
-      final c = _centroide(pts);
-      final dist = Geolocator.distanceBetween(
-          centro.latitude, centro.longitude, c.latitude, c.longitude);
-      if (dist > 5000) continue;
-      final ownerId = data['userId'] as String? ?? '';
-      if (ownerId.isEmpty) continue;
-      tersPorOwner.putIfAbsent(ownerId, () => []).add(
-          _TerDet(docId: doc.id, dist: dist / 1000, puntos: pts, ownerId: ownerId));
-    }
-    if (tersPorOwner.isEmpty) return [];
-    final ownerIds = tersPorOwner.keys.toList();
-    final chunks = _chunked(ownerIds, 30);
-    final Map<String, Map<String, dynamic>> playersMap = {};
-    for (final chunk in chunks) {
-      try {
-        final pd = await _db.collection('players')
-            .where(FieldPath.documentId, whereIn: chunk).get();
-        for (final p in pd.docs) { playersMap[p.id] = p.data(); }
-      } catch (_) {}
-    }
-    final Map<String, _UserGroup> grupos = {};
-    for (final ownerId in tersPorOwner.keys) {
-      final pData = playersMap[ownerId];
-      final nick = ownerId == myUid ? 'YO' : (pData?['nickname'] as String? ?? ownerId);
-      final nivel = (pData?['nivel'] as num? ?? 1).toInt();
-      grupos[ownerId] = _UserGroup(
-        ownerId: ownerId, nickname: nick, nivel: nivel,
-        esMio: ownerId == myUid, territorios: tersPorOwner[ownerId]!,
+    for (final s in stars) {
+      // Twinkle: seno desfasado por estrella
+      final twinkle = (math.sin((animValue * math.pi * 2 * s.speed) + s.phase) + 1) / 2;
+
+      // Opacidad: modo noche más brillantes, modo día más sutiles en el borde
+      final double baseOpacity = nightMode ? 0.55 : 0.28;
+      final double opacity = (baseOpacity + twinkle * (nightMode ? 0.45 : 0.22)).clamp(0.0, 1.0);
+
+      // Color: blanco azulado en noche, dorado muy sutil en día
+      final Color starColor = nightMode
+          ? Color.fromRGBO(210, 230, 255, opacity)
+          : Color.fromRGBO(255, 245, 200, opacity);
+
+      // Halo difuso para las estrellas grandes
+      if (s.r > 1.8) {
+        paint.color = starColor.withValues(alpha: opacity * 0.3);
+        canvas.drawCircle(
+          Offset(s.x * size.width, s.y * size.height),
+          s.r * 2.8,
+          paint,
+        );
+      }
+
+      // Núcleo de la estrella
+      paint.color = starColor;
+      canvas.drawCircle(
+        Offset(s.x * size.width, s.y * size.height),
+        s.r * (0.7 + twinkle * 0.55),
+        paint,
       );
     }
-    return grupos.values.toList()
-      ..sort((a, b) {
-        if (a.esMio) return -1;
-        if (b.esMio) return 1;
-        return a.nickname.compareTo(b.nickname);
-      });
-  }
-
-  Future<List<_TerDet>> cargarDetalles(String ownerId, LatLng centro) async {
-    final snap = await _db.collection('territories')
-        .where('userId', isEqualTo: ownerId).get();
-    final List<_TerDet> dets = [];
-    for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final rawPts = data['puntos'] as List<dynamic>?;
-      List<LatLng> pts = [];
-      double dist = 0;
-      if (rawPts != null && rawPts.isNotEmpty) {
-        pts = _parsePuntos(rawPts);
-        final c = _centroide(pts);
-        dist = Geolocator.distanceBetween(
-            centro.latitude, centro.longitude, c.latitude, c.longitude) / 1000;
-      }
-      final tsV = data['ultima_visita'] as Timestamp?;
-      final dias = tsV == null ? 0 : DateTime.now().difference(tsV.toDate()).inDays;
-      dets.add(_TerDet(
-        docId: doc.id, dist: dist, diasSinVisitar: dias,
-        puntos: pts, ownerId: ownerId,
-        nombreTerritorio: data['nombre_territorio'] as String?,
-      ));
-    }
-    return dets;
-  }
-
-  static List<LatLng> _parsePuntos(List<dynamic> raw) => raw.map((p) {
-    final m = p as Map<String, dynamic>;
-    return LatLng((m['lat'] as num).toDouble(), (m['lon'] != null
-        ? (m['lon'] as num).toDouble()
-        : (m['lng'] as num).toDouble()));
-  }).toList();
-
-  static LatLng _centroide(List<LatLng> pts) => LatLng(
-    pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length,
-    pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length,
-  );
-
-  static List<List<T>> _chunked<T>(List<T> list, int size) {
-    final chunks = <List<T>>[];
-    for (var i = 0; i < list.length; i += size) {
-      chunks.add(list.sublist(i, math.min(i + size, list.length)));
-    }
-    return chunks;
-  }
-}
-
-// =============================================================================
-// CHANGENOTIFIER
-// =============================================================================
-class _MapState extends ChangeNotifier {
-  final _MapDataService _service = _MapDataService();
-
-  List<TerritoryData> territorios             = [];
-  bool loadingTerritorios                     = true;
-  Map<String, Map<String, dynamic>> jugadoresEnVivo = {};
-  Map<String, dynamic>? desafioActivo;
-  List<_UserGroup> grupos                     = [];
-  bool loadingCercanos                        = false;
-  bool cercanosVisible                        = false;
-  String? userExpandido;
-  TerritoryData? territorioSeleccionado;
-  LatLng centro = const LatLng(40.4167, -3.70325);
-  String? errorMessage;
-
-  bool modoGlobal                             = false;
-  bool modoSolitario                          = false;
-  List<GlobalTerritory> territoriosGlobales   = [];
-  bool loadingGlobal                          = false;
-  GlobalTerritory? territorioGlobalSeleccionado;
-  int territoriosMios                         = 0;
-  static const int maxTerritoriosPorJugador   = 5;
-
-  int diasRestantesSemana  = 0;
-  int totalJugadoresGlobal = 0;
-
-  StreamSubscription? _globalStream;
-
-  static final Map<String, List<_TerDet>> _detallesCache = {};
-  static final Map<String, DateTime> _detallesTimestamp = {};
-  static const Duration _detallesTTL = Duration(minutes: 2);
-
-  static bool _detallesCacheValido(String ownerId) {
-    final ts = _detallesTimestamp[ownerId];
-    if (ts == null || !_detallesCache.containsKey(ownerId)) return false;
-    return DateTime.now().difference(ts) < _detallesTTL;
-  }
-
-  List<_TerDet>? detallesDe(String ownerId) => _detallesCache[ownerId];
-
-  static void invalidarDetallesCache() {
-    _detallesCache.clear();
-    _detallesTimestamp.clear();
-  }
-
-  void setCentro(LatLng c) { centro = c; notifyListeners(); }
-  void setLoadingTerritorios(bool v) { loadingTerritorios = v; notifyListeners(); }
-  void seleccionarTerritorio(TerritoryData? t) { territorioSeleccionado = t; notifyListeners(); }
-  void seleccionarTerritoryGlobal(GlobalTerritory? t) { territorioGlobalSeleccionado = t; notifyListeners(); }
-  void setLoadingCercanos(bool v) { loadingCercanos = v; notifyListeners(); }
-  void setUserExpandido(String? id) { userExpandido = id; notifyListeners(); }
-  void clearError() { errorMessage = null; }
-
-  void setModoSolitario(bool v) {
-    modoSolitario = v;
-    if (v) {
-      modoGlobal = false;
-      _globalStream?.cancel();
-    }
-    territorioSeleccionado = null;
-    notifyListeners();
-  }
-
-  void toggleModoGlobal() {
-    modoGlobal = !modoGlobal;
-    if (modoGlobal) modoSolitario = false;
-    territorioSeleccionado = null;
-    territorioGlobalSeleccionado = null;
-    if (modoGlobal) {
-      if (territoriosGlobales.isEmpty) _cargarTerritoriosGlobales();
-      _escucharTerritoriosGlobales();
-    } else {
-      _globalStream?.cancel();
-    }
-    notifyListeners();
-  }
-
-  // ── Stream en tiempo real de global_territories ──────────────────────────
-  void _escucharTerritoriosGlobales() {
-    _globalStream?.cancel();
-    _globalStream = FirebaseFirestore.instance
-        .collection('global_territories')
-        .snapshots()
-        .listen((snap) {
-      if (territoriosGlobales.isEmpty) return;
-
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-      final Map<String, Map<String, dynamic>> ownershipMap = {
-        for (final doc in snap.docs) doc.id: doc.data(),
-      };
-
-      territoriosGlobales = territoriosGlobales.map((t) {
-        final data = ownershipMap[t.id];
-        if (data == null) {
-          return t.copyWith(clearOwner: true);
-        }
-
-        final ownerUid      = data['ownerUid']      as String?;
-        final ownerNickname = data['ownerNickname']  as String?;
-        final ownerColorInt = data['ownerColor']     as int?;
-        final difficulty    = (data['difficultyLevel'] as num?)?.toInt();
-        final count         = (data['conquestCount']   as num?)?.toInt();
-        final clausula      = (data['clausulaKm'] as num?)?.toDouble() ?? t.baseKm;
-
-        if (ownerUid == null) {
-          return t.copyWith(
-            clearOwner:      true,
-            difficultyLevel: difficulty,
-            conquestCount:   count,
-            clausulaKm:      clausula,
-          );
-        }
-
-        return t.copyWith(
-          ownerUid:        ownerUid,
-          ownerNickname:   ownerNickname,
-          ownerColor:      ownerColorInt != null ? Color(ownerColorInt) : null,
-          difficultyLevel: difficulty,
-          conquestCount:   count,
-          clausulaKm:      clausula,
-        );
-      }).toList();
-
-      territoriosMios = territoriosGlobales.where((t) => t.ownerUid == uid).length;
-      notifyListeners();
-    });
-  }
-
-  Future<void> _cargarTerritoriosGlobales() async {
-    loadingGlobal = true;
-    notifyListeners();
-
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('global_territories')
-          .where('activo', isEqualTo: true)
-          .get();
-
-      if (snap.docs.isNotEmpty) {
-        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-        final List<GlobalTerritory> fromDb = [];
-
-        for (final doc in snap.docs) {
-          final data = doc.data();
-
-          final tierStr = data['tier'] as String? ?? 'pequeno';
-          final tier = tierStr == 'legendario'
-              ? TerritoryTier.legendario
-              : tierStr == 'mediano'
-                  ? TerritoryTier.mediano
-                  : TerritoryTier.pequeno;
-
-          final rawPts = data['puntos'] as List<dynamic>?;
-          List<LatLng> pts = [];
-          if (rawPts != null && rawPts.isNotEmpty) {
-            pts = rawPts.map((p) {
-              final m = p as Map<String, dynamic>;
-              return LatLng(
-                (m['lat'] as num).toDouble(),
-                (m['lng'] as num? ?? m['latitude'] as num? ?? 0).toDouble(),
-              );
-            }).toList();
-          }
-
-          final centroMap = data['centro'] as Map<String, dynamic>?;
-          final centerLat = centroMap != null
-              ? (centroMap['lat'] as num?)?.toDouble() ?? 0.0
-              : (data['centroLat'] as num?)?.toDouble() ?? 0.0;
-          final centerLng = centroMap != null
-              ? (centroMap['lng'] as num?)?.toDouble() ?? 0.0
-              : (data['centroLng'] as num?)?.toDouble() ?? 0.0;
-
-          final center = LatLng(centerLat, centerLng);
-
-          if (pts.isEmpty && (centerLat != 0 || centerLng != 0)) {
-            pts = _buildHexPoints(center, tier == TerritoryTier.legendario ? 0.02 : 0.012);
-          }
-
-          final baseKm     = (data['baseKm']     as num?)?.toDouble() ?? 5.0;
-          final clausulaKm = (data['clausulaKm'] as num?)?.toDouble() ?? baseKm;
-
-          final ownerUid      = data['ownerUid']     as String?;
-          final ownerColorInt = data['ownerColor']   as int?;
-
-          final tierColor = tier == TerritoryTier.legendario
-              ? _kGold
-              : tier == TerritoryTier.mediano
-                  ? _kCyan
-                  : _kSafe;
-
-          fromDb.add(GlobalTerritory(
-            id:              doc.id,
-            name:            data['nombre']   as String? ?? data['epicName'] as String? ?? doc.id,
-            epicName:        data['epicName'] as String? ?? data['nombre']   as String? ?? doc.id,
-            inspiration:     data['inspiration'] as String? ?? '',
-            icon:            data['icon']     as String? ?? '🏴',
-            tier:            tier,
-            baseKm:          baseKm,
-            clausulaKm:      clausulaKm,
-            baseReward:      (data['baseReward'] as num?)?.toInt() ?? 50,
-            rewardLeague:    data['rewardLeague'] as bool? ?? false,
-            center:          center,
-            points:          pts,
-            ownerNickname:   data['ownerNickname'] as String?,
-            ownerUid:        ownerUid,
-            ownerColor:      ownerColorInt != null ? Color(ownerColorInt) : null,
-            difficultyLevel: (data['difficultyLevel'] as num?)?.toInt() ?? 1,
-            conquestCount:   (data['conquestCount']   as num?)?.toInt() ?? 0,
-            territoryColor:  tierColor,
-          ));
-        }
-
-        territoriosGlobales  = fromDb;
-        territoriosMios      = fromDb.where((t) => t.ownerUid == uid).length;
-      } else {
-        territoriosGlobales = _buildSampleTerritories();
-      }
-    } catch (e) {
-      debugPrint('Error cargando territorios globales: $e');
-      territoriosGlobales = _buildSampleTerritories();
-    }
-
-    final now = DateTime.now();
-    final nextMonday = now.add(Duration(
-        days: (8 - now.weekday) % 7 == 0 ? 7 : (8 - now.weekday) % 7));
-    diasRestantesSemana = nextMonday.difference(now).inDays;
-
-    try {
-      final cutoff = Timestamp.fromDate(now.subtract(const Duration(days: 7)));
-      final logsSnap = await FirebaseFirestore.instance
-          .collection('activity_logs')
-          .where('timestamp', isGreaterThan: cutoff)
-          .limit(500)
-          .get();
-      final uids = logsSnap.docs
-          .map((d) => d.data()['userId'] as String?)
-          .whereType<String>()
-          .toSet();
-      totalJugadoresGlobal = uids.length;
-    } catch (_) {
-      totalJugadoresGlobal = 0;
-    }
-
-    loadingGlobal = false;
-    notifyListeners();
   }
 
   @override
-  void dispose() {
-    _globalStream?.cancel();
-    super.dispose();
-  }
-
-  void setTerritorios(List<TerritoryData> lista) {
-    territorios = lista;
-    loadingTerritorios = false;
-    errorMessage = null;
-    notifyListeners();
-  }
-
-  void setError(String msg) {
-    errorMessage = msg;
-    loadingTerritorios = false;
-    loadingCercanos = false;
-    notifyListeners();
-  }
-
-  void setJugadores(Map<String, Map<String, dynamic>> j) {
-    jugadoresEnVivo = j;
-    notifyListeners();
-  }
-
-  void setDesafio(Map<String, dynamic>? d) {
-    desafioActivo = d;
-    notifyListeners();
-  }
-
-  void setGrupos(List<_UserGroup> g) {
-    grupos = g;
-    loadingCercanos = false;
-    cercanosVisible = true;
-    errorMessage = null;
-    notifyListeners();
-  }
-
-  void toggleCercanos() {
-    cercanosVisible = !cercanosVisible;
-    if (!cercanosVisible) userExpandido = null;
-    notifyListeners();
-  }
-
-  void _setDetalles(String ownerId, List<_TerDet> dets) {
-    _detallesCache[ownerId] = dets;
-    _detallesTimestamp[ownerId] = DateTime.now();
-    notifyListeners();
-  }
-
-  Future<void> cargarCercanos(String myUid) async {
-    setLoadingCercanos(true);
-    try {
-      final result = await _service.cargarGruposCercanos(centro, myUid);
-      setGrupos(result);
-    } catch (e) {
-      setError('No se pudieron cargar los territorios cercanos');
-    }
-  }
-
-  Future<void> cargarDetalles(String ownerId) async {
-    if (_detallesCacheValido(ownerId)) { notifyListeners(); return; }
-    try {
-      final dets = await _service.cargarDetalles(ownerId, centro);
-      _setDetalles(ownerId, dets);
-    } catch (e) {
-      setError('No se pudieron cargar los detalles');
-    }
-  }
+  bool shouldRepaint(_StarfieldPainter old) =>
+      old.animValue != animValue || old.nightMode != nightMode;
 }
 
 // =============================================================================
-// PANTALLA PRINCIPAL
+// WIDGET STARFIELD
 // =============================================================================
-class FullscreenMapScreen extends StatefulWidget {
-  final List<TerritoryData> territorios;
-  final Color colorTerritorio;
-  final LatLng? centroInicial;
-  final List<LatLng> ruta;
-  final bool mostrarRuta;
-  final bool selectionMode;
-
-  const FullscreenMapScreen({
-    super.key,
-    this.territorios     = const [],
-    this.colorTerritorio = const Color(0xFFCC2222),
-    this.centroInicial,
-    this.ruta            = const [],
-    this.mostrarRuta     = false,
-    this.selectionMode   = false,
-  });
+class _StarfieldWidget extends StatefulWidget {
+  final bool nightMode;
+  const _StarfieldWidget({required this.nightMode});
 
   @override
-  State<FullscreenMapScreen> createState() => _FullscreenMapScreenState();
+  State<_StarfieldWidget> createState() => _StarfieldWidgetState();
 }
 
-class _FullscreenMapScreenState extends State<FullscreenMapScreen>
-    with TickerProviderStateMixin {
-
-  final MapController                 _mapController = MapController();
-  final DraggableScrollableController _sheetCtrl     = DraggableScrollableController();
-  late final _MapState                _state;
-
-  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-
-  bool   get _isDark   => Theme.of(context).brightness == Brightness.dark;
-  Color  get _shBg     => _isDark ? _kDarkSurface : const Color(0xFFFFFFFF);
-  Color  get _shSurf   => _isDark ? const Color(0xFF0F1E35) : const Color(0xFFF2F2F7);
-  Color  get _shBorder => _isDark ? const Color(0xFF1E2E48) : const Color(0xFFC6C6C8);
-  Color  get _shText   => _isDark ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
-
-  StreamSubscription? _presenciaStream;
-  StreamSubscription? _desafioStreamRetador;
-  StreamSubscription? _desafioStreamRetado;
-
-  Map<String, dynamic>? _desafioComoRetador;
-  Map<String, dynamic>? _desafioComoRetado;
-
-  late AnimationController _pulseCtrl;
-  late Animation<double>   _pulse;
-  late AnimationController _selCtrl;
-  late Animation<double>   _selAnim;
-  late AnimationController _sheetEntryCtrl;
-  late Animation<double>   _sheetEntryAnim;
-  late AnimationController _toggleCtrl;
-  late Animation<double>   _toggleAnim;
-  late AnimationController _globalEntryCtrl;
-  late Animation<double>   _globalEntryAnim;
-
-  bool _refreshing = false;
-  double _zoomGlobal = 2.5;
-
-  // ── Offset parallax para el fondo espacial ────────────────────────────────
-  Offset _spaceOffset = Offset.zero;
-
-  static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
-
-  // ── Modo solitario — barrios OSM ──────────────────────────────────────────
-  List<_BarrioData> _barriosCercanos  = [];
-  bool _barriosCargados               = false;
-  bool _cargandoBarrios               = false;
+class _StarfieldWidgetState extends State<_StarfieldWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final List<_StarData> _stars;
 
   @override
   void initState() {
     super.initState();
-    _state = _MapState();
-    _state.addListener(_onErrorCheck);
+    // Generar 160 estrellas con semilla fija para que sean estables
+    final rnd = math.Random(12345);
+    _stars = List.generate(160, (_) => _StarData(
+      x:     rnd.nextDouble(),
+      y:     rnd.nextDouble(),
+      r:     0.6 + rnd.nextDouble() * 2.0,
+      speed: 0.4 + rnd.nextDouble() * 1.2,
+      phase: rnd.nextDouble() * math.pi * 2,
+    ));
 
-    _pulseCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000))
-      ..repeat(reverse: true);
-    _pulse = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
-
-    _selCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 280));
-    _selAnim = CurvedAnimation(parent: _selCtrl, curve: Curves.easeOutCubic);
-
-    _sheetEntryCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
-    _sheetEntryAnim = CurvedAnimation(
-        parent: _sheetEntryCtrl, curve: Curves.easeOutCubic);
-
-    _toggleCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 400));
-    _toggleAnim = CurvedAnimation(parent: _toggleCtrl, curve: Curves.easeInOut);
-
-    _globalEntryCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
-    _globalEntryAnim = CurvedAnimation(
-        parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
-
-    _initData();
-
-    if (widget.selectionMode) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_state.modoGlobal) _toggleModo();
-      });
-    }
-  }
-
-  void _onErrorCheck() {
-    if (!mounted) return;
-    if (_state.errorMessage != null) {
-      _mostrarError(_state.errorMessage!);
-      _state.clearError();
-    }
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _state.removeListener(_onErrorCheck);
-    _state.dispose();
-    _pulseCtrl.dispose();
-    _selCtrl.dispose();
-    _sheetEntryCtrl.dispose();
-    _toggleCtrl.dispose();
-    _globalEntryCtrl.dispose();
-    _presenciaStream?.cancel();
-    _desafioStreamRetador?.cancel();
-    _desafioStreamRetado?.cancel();
-    _sheetCtrl.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(children: [
-        const Icon(Icons.warning_amber_rounded, color: _kWarn, size: 16),
-        const SizedBox(width: 10),
-        Expanded(child: Text(mensaje, style: _raj(12, FontWeight.w600, _kWhite))),
-      ]),
-      backgroundColor: _kSurface,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: _kWarn, width: 1),
-      ),
-      duration: const Duration(seconds: 3),
-    ));
-  }
-
-  void _mostrarExito(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(children: [
-        const Icon(Icons.check_circle_rounded, color: _kSafe, size: 16),
-        const SizedBox(width: 10),
-        Expanded(child: Text(mensaje, style: _raj(12, FontWeight.w600, _kWhite))),
-      ]),
-      backgroundColor: _kSurface,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: _kSafe, width: 1),
-      ),
-      duration: const Duration(seconds: 3),
-    ));
-  }
-
-  Future<void> _initData() async {
-    await _resolverCentro();
-    await _cargarTerritorios();
-    await _rellenarConFantasmas();
-    if (!mounted) return;
-    _escucharJugadores();
-    _escucharDesafio();
-    _sheetEntryCtrl.forward();
-  }
-
-  Future<void> _resolverCentro() async {
-    if (widget.centroInicial != null) {
-      _state.setCentro(widget.centroInicial!);
-      return;
-    }
-    try {
-      final perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
-        _state.setCentro(LatLng(pos.latitude, pos.longitude));
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _cargarTerritorios() async {
-    if (widget.territorios.isNotEmpty) {
-      _state.setTerritorios(widget.territorios);
-      return;
-    }
-    _state.setLoadingTerritorios(true);
-    try {
-      final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
-      final lista = await TerritoryService.cargarTodosLosTerritorios(
-          centro: _state.centro, modo: modo);
-      _state.setTerritorios(lista);
-    } catch (_) {
-      _state.setError('No se pudieron cargar los territorios');
-    }
-  }
-
-  Future<void> _refrescarTerritorios() async {
-    if (_refreshing) return;
-    setState(() => _refreshing = true);
-    TerritoryService.invalidarCache();
-    _MapState.invalidarDetallesCache();
-    await _cargarTerritorios();
-    await _rellenarConFantasmas();
-    if (mounted) setState(() => _refreshing = false);
-  }
-
-  Future<void> _rellenarConFantasmas() async {
-    if (_state.modoSolitario) return;
-    if (widget.territorios.isNotEmpty) return;
-    final centro = _state.centro;
-    if (centro.latitude == 0 && centro.longitude == 0) return;
-    final actuales = List<TerritoryData>.from(_state.territorios);
-    await TerritoryService.crearTerritoriosFantasmaEnZona(
-      centro: centro,
-      todosExistentes: actuales,
-    );
-    final fantasmas = await TerritoryService.cargarTerritoriosFantasmaCercanos(
-      centro: centro,
-    );
-    if (!mounted) return;
-    final sinFantasmas = actuales.where((t) => !t.esFantasma).toList();
-    _state.setTerritorios([...sinFantasmas, ...fantasmas]);
-  }
-
-  void _escucharJugadores() {
-    const double radioGrados = 0.09;
-    final latMin = _state.centro.latitude  - radioGrados;
-    final latMax = _state.centro.latitude  + radioGrados;
-    _presenciaStream = FirebaseFirestore.instance
-        .collection('presencia_activa')
-        .where('lat', isGreaterThan: latMin)
-        .where('lat', isLessThan: latMax)
-        .snapshots()
-        .listen((snap) {
-      final nuevos = <String, Map<String, dynamic>>{};
-      for (final doc in snap.docs) {
-        if (doc.id == _uid) continue;
-        final d = doc.data();
-        final ts = d['timestamp'] as Timestamp?;
-        if (ts != null && DateTime.now().difference(ts.toDate()).inMinutes < 5) {
-          nuevos[doc.id] = d;
-        }
-      }
-      _state.setJugadores(nuevos);
-    });
-  }
-
-  void _escucharDesafio() {
-    final uid = _uid;
-    if (uid == null) return;
-
-    final db = FirebaseFirestore.instance;
-
-    _desafioStreamRetador = db
-        .collection('desafios')
-        .where('retadorId', isEqualTo: uid)
-        .where('estado', isEqualTo: 'activo')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      _desafioComoRetador = snap.docs.isEmpty ? null : snap.docs.first.data();
-      _mergeDesafio();
-    });
-
-    _desafioStreamRetado = db
-        .collection('desafios')
-        .where('retadoId', isEqualTo: uid)
-        .where('estado', isEqualTo: 'activo')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      _desafioComoRetado = snap.docs.isEmpty ? null : snap.docs.first.data();
-      _mergeDesafio();
-    });
-  }
-
-  void _mergeDesafio() {
-    _state.setDesafio(_desafioComoRetador ?? _desafioComoRetado);
-  }
-
-  void _toggleModo() {
-    HapticFeedback.mediumImpact();
-    _state.toggleModoGlobal();
-    if (_state.modoGlobal) {
-      _toggleCtrl.forward();
-      _globalEntryCtrl.forward(from: 0);
-      _mapController.move(_kGlobalCenter, 2.5);
-      setState(() {
-        _zoomGlobal = 2.5;
-        _spaceOffset = Offset.zero; // reset parallax al entrar en global
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_sheetCtrl.isAttached) {
-          _sheetCtrl.animateTo(0.35,
-              duration: const Duration(milliseconds: 400),
-              curve: Curves.easeOut);
-        }
-      });
-    } else {
-      _toggleCtrl.reverse();
-      _mapController.move(_state.centro, 14);
-    }
-  }
-
-  void _onTerritoryTap(TerritoryData t) {
-    HapticFeedback.lightImpact();
-    _state.seleccionarTerritorio(t);
-    _selCtrl.forward(from: 0);
-    _mapController.move(t.centro, 15);
-  }
-
-  void _onGlobalTerritoryTap(GlobalTerritory t) {
-    HapticFeedback.lightImpact();
-    _state.seleccionarTerritoryGlobal(t);
-    _selCtrl.forward(from: 0);
-    _mapController.move(t.center, 5);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_sheetCtrl.isAttached) {
-        _sheetCtrl.animateTo(0.08,
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOut);
-      }
-    });
-  }
-
-  void _cerrarSeleccion() {
-    _selCtrl.reverse();
-    Future.delayed(const Duration(milliseconds: 280), () {
-      _state.seleccionarTerritorio(null);
-      _state.seleccionarTerritoryGlobal(null);
-    });
-  }
-
-  void _toggleSheet() {
-    HapticFeedback.selectionClick();
-    if (_sheetEntryCtrl.value > 0.5) {
-      if (_sheetCtrl.isAttached) {
-        _sheetCtrl.animateTo(0.0,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeInCubic);
-      }
-      _sheetEntryCtrl.reverse();
-    } else {
-      _sheetEntryCtrl.forward();
-      Future.delayed(const Duration(milliseconds: 160), () {
-        if (_sheetCtrl.isAttached) {
-          _sheetCtrl.animateTo(0.4,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic);
-        }
-      });
-    }
-  }
-
-  bool _pointInPolygon(LatLng point, List<LatLng> polygon) {
-    int intersections = 0;
-    final int n = polygon.length;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-      final double xi = polygon[i].longitude, yi = polygon[i].latitude;
-      final double xj = polygon[j].longitude, yj = polygon[j].latitude;
-      final bool cruza = ((yi > point.latitude) != (yj > point.latitude)) &&
-          (point.longitude < (xj - xi) * (point.latitude - yi) / (yj - yi) + xi);
-      if (cruza) intersections++;
-    }
-    return intersections % 2 == 1;
-  }
-
-  Future<void> _intentarConquistarGlobal(GlobalTerritory t) async {
-    final uid = _uid;
-    if (uid == null) return;
-
-    if (_state.territoriosMios >= _MapState.maxTerritoriosPorJugador && !t.isMine) {
-      _mostrarDialogoLimiteAlcanzado();
-      return;
-    }
-
-    if (t.isMine) {
-      _mostrarError('Ya eres el dueño de este territorio');
-      return;
-    }
-
-    if (!mounted) return;
-    _mostrarDialogoConquistaGlobal(t);
-  }
-
-  void _mostrarDialogoLimiteAlcanzado() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: _kSurface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border.all(color: _kBorder2),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 36, height: 3,
-                decoration: BoxDecoration(color: _kBorder2,
-                    borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 20),
-            Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(
-                color: _kWarn.withValues(alpha: 0.1), shape: BoxShape.circle,
-                border: Border.all(color: _kWarn.withValues(alpha: 0.4))),
-              child: const Icon(Icons.lock_rounded, color: _kWarn, size: 26)),
-            const SizedBox(height: 16),
-            Text('LÍMITE ALCANZADO',
-                style: _cinzel(16, FontWeight.w900, _kWarn, spacing: 2)),
-            const SizedBox(height: 8),
-            Text(
-              'Ya controlas ${_MapState.maxTerritoriosPorJugador} territorios, '
-              'el máximo permitido.\n\nDefiende los que tienes o pierde alguno '
-              'para poder conquistar uno nuevo.',
-              textAlign: TextAlign.center,
-              style: _raj(12, FontWeight.w500, _kSub, height: 1.6),
-            ),
-            const SizedBox(height: 20),
-            GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: _kWarn.withValues(alpha: 0.1),
-                  border: Border.all(color: _kWarn.withValues(alpha: 0.4)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(child: Text('ENTENDIDO',
-                    style: _raj(13, FontWeight.w900, _kWarn, spacing: 2))),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  void _mostrarDialogoConquistaGlobal(GlobalTerritory t) {
-    final kmReq = t.kmRequired;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: _kSurface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border.all(color: t.tierColor.withValues(alpha: 0.4)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 16),
-            width: 36, height: 3,
-            decoration: BoxDecoration(color: _kBorder2,
-                borderRadius: BorderRadius.circular(2))),
-
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 18),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [t.tierColor.withValues(alpha: 0.08), Colors.transparent],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: t.tierColor.withValues(alpha: 0.3)),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(children: [
-              Text(t.icon, style: const TextStyle(fontSize: 32)),
-              const SizedBox(width: 14),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: t.tierColor.withValues(alpha: 0.12),
-                    border: Border.all(color: t.tierColor.withValues(alpha: 0.4)),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(t.tierLabel,
-                      style: _raj(8, FontWeight.w900, t.tierColor, spacing: 1.5)),
-                ),
-                const SizedBox(height: 6),
-                Text(t.epicName,
-                    style: _cinzel(13, FontWeight.w700, _kWhite, spacing: 0.5)),
-                const SizedBox(height: 2),
-                Text(t.inspiration, style: _raj(10, FontWeight.w500, _kSub)),
-              ])),
-            ]),
-          ),
-
-          const SizedBox(height: 16),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(children: [
-              _globalStatCard('DIFICULTAD', '${t.difficultyLevel}/10',
-                  _dificultadColor(t.difficultyLevel),
-                  Icons.whatshot_rounded),
-              const SizedBox(width: 10),
-              _globalStatCard(
-                'KM NECESARIOS',
-                '${kmReq.toStringAsFixed(1)} km',
-                _kCyan,
-                Icons.directions_run_rounded,
-                sub: t.conquestCount > 0 ? '×1.15 por conquista' : null,
-              ),
-              const SizedBox(width: 10),
-              _globalStatCard('RECOMPENSA', '+${t.rewardActual} 🪙',
-                  _kGold, Icons.monetization_on_rounded),
-            ]),
-          ),
-
-          const SizedBox(height: 12),
-
-          if (t.isOwned && !t.isMine)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _kRed.withValues(alpha: 0.04),
-                  border: Border.all(color: _kBorder2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(children: [
-                  Container(
-                    width: 3, height: 38,
-                    decoration: const BoxDecoration(
-                      color: _kRed,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(4),
-                        bottomLeft: Radius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.shield_rounded, color: _kRed, size: 14),
-                  const SizedBox(width: 8),
-                  Text('Controlado por ',
-                      style: _raj(11, FontWeight.w500, _kSub)),
-                  Text(t.ownerNickname!.toUpperCase(),
-                      style: _raj(11, FontWeight.w900, _kWhite)),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 14),
-                    child: Text('⚔️ INVADIR',
-                        style: _raj(10, FontWeight.w900, _kRed)),
-                  ),
-                ]),
-              ),
-            ),
-
-          const SizedBox(height: 16),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _kSurface2,
-                border: Border.all(color: _kBorder2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.info_outline_rounded,
-                    color: _kGold, size: 16),
-                const SizedBox(width: 10),
-                Expanded(child: Text(
-                  'Sal a correr ${kmReq.toStringAsFixed(1)} km en cualquier '
-                  'dirección desde tu ciudad. Al finalizar la carrera el '
-                  'territorio será tuyo automáticamente.',
-                  style: _raj(11, FontWeight.w500, _kText, height: 1.5),
-                )),
-              ]),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: GestureDetector(
-              onTap: () {
-                final objetivo = {
-                  'territorioId':    t.id,
-                  'territorioNombre': t.epicName,
-                  'kmRequeridos':    t.kmRequired,
-                  'recompensa':      t.rewardActual,
-                  'ownerUid':        t.ownerUid,
-                };
-                Navigator.of(context).pop();
-                if (widget.selectionMode) {
-                  Navigator.of(context).pop(objetivo);
-                } else {
-                  Navigator.pushNamed(context, '/correr',
-                      arguments: {'objetivoGlobal': objetivo});
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      t.tierColor.withValues(alpha: 0.3),
-                      t.tierColor.withValues(alpha: 0.15)
-                    ],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(color: t.tierColor.withValues(alpha: 0.6)),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(color: t.tierColor.withValues(alpha: 0.2),
-                        blurRadius: 20),
-                  ],
-                ),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text(t.icon, style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'CONQUISTAR · ${kmReq.toStringAsFixed(1)} KM',
-                    style: _cinzel(14, FontWeight.w900, t.tierColor,
-                        spacing: 1.5),
-                  ),
-                ]),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ]),
-      ),
-    );
-  }
-
-  Color _dificultadColor(int level) {
-    if (level <= 3) return _kSafe;
-    if (level <= 6) return _kWarn;
-    return _kRed;
-  }
-
-  Widget _globalStatCard(
-    String label,
-    String value,
-    Color color,
-    IconData icon, {
-    String? sub,
-  }) =>
-      Expanded(child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(height: 6),
-          Text(value,
-              style: _raj(13, FontWeight.w900, color),
-              textAlign: TextAlign.center),
-          const SizedBox(height: 2),
-          Text(label,
-              style: _raj(7, FontWeight.w700, _kSub, spacing: 0.5),
-              textAlign: TextAlign.center),
-          if (sub != null) ...[
-            const SizedBox(height: 2),
-            Text(sub,
-                style: _raj(6, FontWeight.w600, color.withValues(alpha: 0.55)),
-                textAlign: TextAlign.center),
-          ],
-        ]),
-      ));
-
-  Future<void> _ejecutarConquista(_TerDet det, String ownerNick) async {
-    Position? pos;
-    try {
-      final perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.always ||
-          perm == LocationPermission.whileInUse) {
-        pos = await Geolocator.getCurrentPosition(
-            locationSettings:
-                const LocationSettings(accuracy: LocationAccuracy.high));
-      }
-    } catch (_) {}
-
-    if (pos == null) {
-      _mostrarError('No se pudo obtener tu ubicación.');
-      return;
-    }
-    if (!mounted) return;
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (_) => _DialogoConfirmarConquista(
-          ownerNick: ownerNick,
-          diasSinVisitar: det.diasSinVisitar ?? 0),
-    );
-    if (confirmar != true) return;
-    if (!mounted) return;
-    showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const _DialogoConquistando());
-    try {
-      await TerritoryService.conquistarTerritorio(
-        docId: det.docId, duenoAnteriorId: det.ownerId,
-        latUsuario: pos!.latitude, lngUsuario: pos.longitude,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      _mostrarExito('⚔️ ¡Territorio conquistado!');
-      HapticFeedback.heavyImpact();
-      Navigator.of(context).pop();
-      await _refrescarTerritorios();
-    } on FirebaseFunctionsException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      _mostrarError(e.message ?? 'No puedes conquistar este territorio');
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      _mostrarError('Error inesperado. Inténtalo de nuevo.');
-    }
-  }
-
-  // ==========================================================================
-  // BUILD
-  // ==========================================================================
   @override
   Widget build(BuildContext context) {
-    // En modo oscuro el scaffold es azul marino, no negro
-    return Scaffold(
-      backgroundColor: _isDark ? _kDarkScaffold : Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(children: [
-
-        Positioned.fill(child: _buildMapa()),
-
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: ListenableBuilder(
-            listenable: _state,
-            builder: (_, __) {
-              final mios = _state.territorios.where((t) => t.esMio).length;
-              final det  = _state.territorios
-                  .where((t) => t.esMio && t.estaDeterirado).length;
-              final pel  = _state.territorios
-                  .where((t) => t.esMio && t.esConquistableSinPasar).length;
-              return _buildFloatingBar(mios, det, pel);
-            },
-          ),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => CustomPaint(
+        painter: _StarfieldPainter(
+          stars:     _stars,
+          animValue: _ctrl.value,
+          nightMode: widget.nightMode,
         ),
-
-        SlideTransition(
-          position: Tween<Offset>(
-                  begin: const Offset(0, 1), end: Offset.zero)
-              .animate(_sheetEntryAnim),
-          child: ListenableBuilder(
-            listenable: _state,
-            builder: (_, __) {
-              final isGlobal = _state.modoGlobal;
-              return DraggableScrollableSheet(
-                key: ValueKey(isGlobal),
-                controller: _sheetCtrl,
-                initialChildSize: 0.4,
-                minChildSize: 0.08,
-                maxChildSize: 0.75,
-                snap: true,
-                snapSizes: isGlobal
-                    ? const [0.08, 0.35, 0.75]
-                    : const [0.08, 0.13, 0.4, 0.75],
-                builder: (ctx, scrollCtrl) {
-                  final mios = _state.territorios
-                      .where((t) => t.esMio).length;
-                  final det  = _state.territorios
-                      .where((t) => t.esMio && t.estaDeterirado).length;
-                  final pel  = _state.territorios
-                      .where((t) => t.esMio && t.esConquistableSinPasar)
-                      .length;
-                  return isGlobal
-                      ? _buildSheetGlobal(scrollCtrl)
-                      : _state.modoSolitario
-                          ? _buildSheetSolitario(scrollCtrl)
-                          : _buildSheet(scrollCtrl, mios, det, pel);
-                },
-              );
-            },
-          ),
-        ),
-
-        ListenableBuilder(
-          listenable: _state,
-          builder: (_, __) {
-            final screenH = MediaQuery.of(context).size.height;
-            if (_state.modoGlobal) {
-              if (_state.territorioGlobalSeleccionado == null) {
-                return const SizedBox.shrink();
-              }
-              return Positioned(
-                bottom: screenH * 0.14 + 12, left: 16, right: 16,
-                child: _buildGlobalTerritoryCard(
-                    _state.territorioGlobalSeleccionado!),
-              );
-            } else {
-              if (_state.territorioSeleccionado == null) {
-                return const SizedBox.shrink();
-              }
-              return Positioned(
-                bottom: screenH * 0.14 + 12, left: 16, right: 16,
-                child: _buildTerritoryCard(_state.territorioSeleccionado!),
-              );
-            }
-          },
-        ),
-
-        ListenableBuilder(
-          listenable: _state,
-          builder: (_, __) {
-            final screenH = MediaQuery.of(context).size.height;
-            final hasCard = _state.modoGlobal
-                ? _state.territorioGlobalSeleccionado != null
-                : _state.territorioSeleccionado != null;
-            return Positioned(
-              right: 16,
-              bottom: screenH * 0.14 + (hasCard ? 160 : 12),
-              child: _buildFab(),
-            );
-          },
-        ),
-      ]),
-      bottomNavigationBar: const CustomBottomNavbar(currentIndex: 2),
-    );
-  }
-
-  // ==========================================================================
-  // FLOATING BAR
-  // ==========================================================================
-  Widget _buildFloatingBar(int mios, int det, int pel) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Column(children: [
-          Row(children: [
-            GestureDetector(
-              onTap: _toggleSheet,
-              child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                  decoration: BoxDecoration(
-                    color: _kBg.withValues(alpha: 0.72),
-                    border: Border.all(color: _kBorder2),
-                    borderRadius: BorderRadius.circular(4),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black54, blurRadius: 20)
-                    ],
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    AnimatedBuilder(
-                      animation: _toggleCtrl,
-                      builder: (_, __) => Container(
-                        width: 2, height: 18,
-                        color: Color.lerp(
-                            _kRed, _kGold, _toggleAnim.value),
-                        margin: const EdgeInsets.only(right: 10),
-                      ),
-                    ),
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      AnimatedBuilder(
-                        animation: _toggleCtrl,
-                        builder: (_, __) => Text(
-                          _toggleAnim.value > 0.5
-                              ? 'GUERRA GLOBAL'
-                              : 'MAPA DE GUERRA',
-                          style: _raj(13, FontWeight.w900, _kWhite,
-                              spacing: 2),
-                        ),
-                      ),
-                      AnimatedBuilder(
-                        animation: _pulseCtrl,
-                        builder: (_, __) => Row(children: [
-                          Container(
-                            width: 5, height: 5,
-                            decoration: BoxDecoration(
-                              color: (_state.modoGlobal
-                                      ? _kGold
-                                      : _kSafe)
-                                  .withValues(alpha: 0.4 + 0.6 * _pulse.value),
-                              shape: BoxShape.circle,
-                            ),
-                            margin: const EdgeInsets.only(right: 5),
-                          ),
-                          Text(
-                            _state.modoGlobal
-                                ? '${_state.totalJugadoresGlobal} GUERREROS · '
-                                  '${_state.territoriosGlobales.length} TERRITORIOS'
-                                : '${_state.jugadoresEnVivo.length} EN VIVO · '
-                                  '${_state.territorios.length} ZONAS',
-                            style: _raj(8, FontWeight.w700, _kSub,
-                                spacing: 1.5),
-                          ),
-                        ]),
-                      ),
-                    ]),
-                  ]),
-                ),
-              ),
-            ),
-            ), // GestureDetector
-
-            const Spacer(),
-
-            if (!_state.modoGlobal && (det > 0 || pel > 0)) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _kBg.withValues(alpha: 0.72),
-                      border: Border.all(
-                          color: (pel > 0 ? _kRed : _kWarn)
-                              .withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (pel > 0) ...[
-                        const Icon(Icons.dangerous_rounded,
-                            color: _kRed, size: 12),
-                        const SizedBox(width: 4),
-                        Text('$pel',
-                            style: _raj(11, FontWeight.w900, _kRed)),
-                        const SizedBox(width: 8),
-                      ],
-                      if (det > 0) ...[
-                        const Icon(Icons.warning_amber_rounded,
-                            color: _kWarn, size: 12),
-                        const SizedBox(width: 4),
-                        Text('$det',
-                            style: _raj(11, FontWeight.w900, _kWarn)),
-                      ],
-                    ]),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-
-            if (_state.modoGlobal &&
-                _state.diasRestantesSemana > 0) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _kBg.withValues(alpha: 0.72),
-                      border: Border.all(
-                          color: _kGold.withValues(alpha: 0.35)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.timer_rounded,
-                          color: _kGold, size: 12),
-                      const SizedBox(width: 5),
-                      Text('${_state.diasRestantesSemana}d',
-                          style: _raj(11, FontWeight.w900, _kGold)),
-                    ]),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    _refrescarTerritorios();
-                  },
-                  child: Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(
-                      color: _kBg.withValues(alpha: 0.72),
-                      border: Border.all(color: _kBorder2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: _refreshing
-                        ? const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: CircularProgressIndicator(
-                                strokeWidth: 1.5, color: _kText))
-                        : const Icon(Icons.refresh_rounded,
-                            color: _kText, size: 16),
-                  ),
-                ),
-              ),
-            ),
-          ]),
-
-          const SizedBox(height: 10),
-          _buildModeToggle(),
-        ]),
+        size: Size.infinite,
       ),
     );
   }
+}
 
-  Widget _buildModeToggle() {
-    final isCiudad    = !_state.modoGlobal && !_state.modoSolitario;
-    final isSolitario = _state.modoSolitario;
-    final isGlobal    = _state.modoGlobal;
+// =============================================================================
+// WIDGET PRINCIPAL
+// =============================================================================
+class LiveActivityScreen extends StatefulWidget {
+  final Function(double distancia, Duration tiempo, List<LatLng> ruta)? onFinish;
+  const LiveActivityScreen({super.key, this.onFinish});
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _kBg.withValues(alpha: 0.82),
-            border: Border.all(color: _kBorder2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(children: [
+  @override
+  State<LiveActivityScreen> createState() => _LiveActivityScreenState();
+}
 
-            Expanded(child: GestureDetector(
-              onTap: isCiudad ? null : () async {
-                if (isGlobal) _toggleModo();
-                if (isSolitario) {
-                  _state.setModoSolitario(false);
-                  await _cargarTerritorios();
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isCiudad
-                      ? _kRed.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(7)),
-                  border: isCiudad
-                      ? Border.all(color: _kRed.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.location_on_rounded,
-                      color: isCiudad ? _kRed : _kSub, size: 13),
-                  const SizedBox(width: 5),
-                  Text('MI CIUDAD',
-                      style: _raj(9, FontWeight.w900,
-                          isCiudad ? _kWhite : _kSub, spacing: 1.0)),
-                ]),
-              ),
-            )),
+class _LiveActivityScreenState extends State<LiveActivityScreen>
+    with TickerProviderStateMixin {
 
-            Container(width: 1, height: 30, color: _kBorder2),
+  _LP get _p => _LP.of(context);
 
-            Expanded(child: GestureDetector(
-              onTap: isSolitario ? null : () async {
-                if (isGlobal) _toggleModo();
-                await _activarModoSolitario();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isSolitario
-                      ? _kSafe.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  border: isSolitario
-                      ? Border.all(color: _kSafe.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('🗺️', style: const TextStyle(fontSize: 11)),
-                  const SizedBox(width: 5),
-                  Text('SOLITARIO',
-                      style: _raj(9, FontWeight.w900,
-                          isSolitario ? _kSafe : _kSub, spacing: 1.0)),
-                ]),
-              ),
-            )),
+  // ── Timer
+  late final CustomTimerController _timerController = CustomTimerController(
+    vsync: this,
+    begin: const Duration(),
+    end: const Duration(hours: 24),
+    initialState: CustomTimerState.reset,
+    interval: CustomTimerInterval.milliseconds,
+  );
+  final Stopwatch _stopwatch = Stopwatch();
 
-            Container(width: 1, height: 30, color: _kBorder2),
+  // ── Mapbox
+  mapbox.MapboxMap? _mapboxMap;
+  mapbox.PointAnnotationManager? _annotationManager;
+  final Map<String, mapbox.PointAnnotation> _anotacionesJugadores = {};
+  final Map<String, mapbox.PointAnnotation> _anotacionesReyes = {};
+  Uint8List? _coronaBytes;
 
-            Expanded(child: GestureDetector(
-              onTap: isGlobal ? null : () {
-                if (isSolitario) _state.setModoSolitario(false);
-                _toggleModo();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isGlobal
-                      ? _kGold.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(7)),
-                  border: isGlobal
-                      ? Border.all(color: _kGold.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 11)),
-                  const SizedBox(width: 5),
-                  Text('GLOBAL',
-                      style: _raj(9, FontWeight.w900,
-                          isGlobal ? _kGoldLight : _kSub, spacing: 1.0)),
-                  if (isGlobal && _state.territoriosMios > 0) ...[
-                    const SizedBox(width: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: _kGold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text('${_state.territoriosMios}/5',
-                          style: _raj(8, FontWeight.w900, _kGold)),
-                    ),
-                  ],
-                ]),
-              ),
-            )),
+  // ── GPS
+  List<TerritoryData> _territoriosRivalesCercanos = [];
+  TerritoryData? _territorioActualBajoPie;
+  List<LatLng> routePoints           = [];
+  bool isTracking                    = false;
+  bool isPaused                      = false;
+  double _distanciaTotal             = 0.0;
+  double _velocidadActualKmh         = 0.0;
+  double _bearing                    = 0.0;
+  StreamSubscription<Position>? _positionStream;
+  Position? _currentPosition;
+  Position? _ultimaPosicionVelocidad;
 
-          ]),
-        ),
-      ),
-    );
+  // ── Barrios OSM (modo solitario)
+  List<_BarrioData> _barriosCercanos   = [];
+  _BarrioData?      _barrioActual;
+  bool              _cargandoBarrios   = false;
+  bool              _barriosCargados   = false;
+  static const String _barrioSourceId     = 'barrios-source';
+  static const String _barrioFillLayerId  = 'barrios-fill';
+  static const String _barrioLineLayerId  = 'barrios-line';
+  static const String _barrioLabelLayerId = 'barrios-label';
+  bool _barriosLayerCreated            = false;
+
+  int _puntosDesdeUltimoUpdate       = 0;
+  static const int _kActualizarMapaCadaN = 3;
+  DateTime _ultimoMovCamara = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _kMinMsCamara = 800;
+
+  // ── Modo de juego
+  bool _modoSolitario = false;
+
+  // ── Jugador
+  Color  _colorTerritorio      = const Color(0xFF636366);
+  List<TerritoryData> _territorios     = [];
+  bool   _territoriosCargados  = false;
+  bool   _fantasmasCargando    = false;
+  String _miNickname           = 'Alguien';
+  String? _miClanId;
+  bool   _boostXpActivo        = false;
+
+  final Set<String> _territoriosNotificadosEnSesion = {};
+  final Set<String> _territoriosVisitadosEnSesion   = {};
+
+  StreamSubscription? _jugadoresStream;
+  final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
+
+  Timer? _timerPublicarPosicion;
+  int    _presenciaIntervaloSeg = _kPresenciaMovimientoSeg;
+
+  // ── Anti-cheat
+  final AntiCheatService _antiCheat = AntiCheatService();
+  bool _sesionInvalidadaPorCheat    = false;
+
+  // ── Modo noche
+  late bool _modoNoche;
+  bool _modoManual = false;
+
+  // ── Estilo de mapa
+  String _estiloMapa = 'normal';
+
+  // ── Animaciones
+  late AnimationController _cuentaAtrasAnim;
+  late Animation<double>   _cuentaAtrasScale;
+  bool   _mostrandoCuentaAtras = false;
+  int    _cuentaAtras          = 3;
+  Timer? _timerCuentaAtras;
+
+  late AnimationController _hudAnim;
+  late Animation<double>   _hudFade;
+  bool _hudMinimizado = false;
+
+  late AnimationController _bounceAnim;
+  late Animation<double>   _bounceOffset;
+
+  late AnimationController _pulsoAnim;
+  late Animation<double>   _pulso;
+
+  late AnimationController _globoAnim;
+
+  // ── Capas de mapa
+  static const String _routeSourceId       = 'route-source';
+  static const String _routeLayerId        = 'route-layer';
+  static const String _buildingsLayerId    = 'buildings-3d';
+  static const String _fillLayerId         = 'territorios-fill';
+  static const String _fillInnerLayerId    = 'territorios-fill-inner';
+  static const String _borderLayerId       = 'territorios-border';
+  static const String _borderPulseLayerId  = 'territorios-border-pulse';
+  static const String _sourceId            = 'territorios-source';
+  static const String _centrosSourceId     = 'territorios-centros-source';
+  static const String _centrosLayerId      = 'territorios-centros-layer';
+  static const String _kTileUrl =
+      'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
+      '/tiles/256/{z}/{x}/{y}@2x?access_token='
+      'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+
+  bool _routeLayerCreated       = false;
+  bool _buildings3dCreated      = false;
+  bool _territoriosLayersCreated = false;
+  bool _centrosLayerCreated     = false;
+
+  // Web fallback (flutter_map)
+  MapController? _webMapCtrl;
+
+  Timer? _pulsoTimer;
+  double _pulsoOpacity = 0.9;
+  bool   _pulsoUp      = false;
+
+  // ── Narrador
+  final NarradorService _narrador = NarradorService();
+  MensajeNarrador? _mensajeNarrador;
+  double _distanciaUltimoAnalisisRitmo  = 0;
+  int    _minutosResistenciaNotificados = 0;
+  Timer? _timerResistencia;
+
+  // ── Reto activo desde Home
+  Map<String, dynamic>? _retoActivo;
+  bool _retoCompletado = false;
+
+  // ── GUERRA GLOBAL
+  Map<String, dynamic>? _objetivoGlobal;
+  bool _globalConquistado   = false;
+  bool _globalConquistando  = false;
+  bool _globalKmAlcanzados  = false;
+  double? _nuevaClausula;
+  StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
+  String? _globalTerritoryLastOwner;
+  bool _stopping = false;
+
+  // ==========================================================================
+  // INIT / DISPOSE
+  // ==========================================================================
+  @override
+  void initState() {
+    super.initState();
+    _modoNoche = _esHoraNoche();
+
+    StatsService.mapboxToken =
+        'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+
+    _cuentaAtrasAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _cuentaAtrasScale = CurvedAnimation(
+        parent: _cuentaAtrasAnim, curve: Curves.elasticOut);
+
+    _hudAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
+    _hudFade = CurvedAnimation(parent: _hudAnim, curve: Curves.easeOut);
+    _hudAnim.forward();
+
+    _bounceAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 420));
+    _bounceOffset = Tween<double>(begin: 0, end: -7).animate(
+        CurvedAnimation(parent: _bounceAnim, curve: Curves.easeInOut));
+    _bounceAnim.repeat(reverse: true);
+
+    _pulsoAnim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat(reverse: true);
+    _pulso = Tween<double>(begin: 0.2, end: 1.0).animate(
+        CurvedAnimation(parent: _pulsoAnim, curve: Curves.easeInOut));
+
+    _globoAnim = AnimationController(
+        vsync: this, duration: const Duration(seconds: 90))
+      ..repeat()
+      ..addListener(_rotarGlobo);
+
+    _determinePosition();
+    _cargarDatosIniciales();
+    _escucharJugadoresActivos();
+
+    _narrador.onMensaje = (msg) {
+      if (mounted) setState(() => _mensajeNarrador = msg);
+    };
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args == null) return;
+
+      if (args['retoActivo'] != null) {
+        final reto = args['retoActivo'] as Map<String, dynamic>;
+        setState(() => _retoActivo = reto);
+        final titulo         = reto['titulo'] as String? ?? 'Reto';
+        final objetivoMetros =
+            (reto['objetivo_valor'] as num?)?.toDouble() ?? 0;
+        _narrador.configurarReto(titulo, objetivoMetros);
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) _narrador.anunciarReto(titulo);
+        });
+      }
+
+      if (args['objetivoGlobal'] != null) {
+        final objetivo = args['objetivoGlobal'] as Map<String, dynamic>;
+        setState(() {
+          _objetivoGlobal     = objetivo;
+          _globalConquistado  = false;
+          _globalConquistando = false;
+          _modoSolitario      = false;
+        });
+        final nombre = objetivo['territorioNombre'] as String? ?? 'Territorio';
+        final kmReq  = (objetivo['kmRequeridos'] as num?)?.toDouble() ?? 0;
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            _narrador.anunciarReto(
+                '⚔️ Objetivo: conquistar $nombre — ${kmReq.toStringAsFixed(1)} km');
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timerController.dispose();
+    _timerCuentaAtras?.cancel();
+    _positionStream?.cancel();
+    _jugadoresStream?.cancel();
+    _globalTerritoryStream?.cancel();
+    _timerPublicarPosicion?.cancel();
+    _pulsoTimer?.cancel();
+    _timerResistencia?.cancel();
+    _narrador.resetear();
+    _cuentaAtrasAnim.dispose();
+    _hudAnim.dispose();
+    _bounceAnim.dispose();
+    _pulsoAnim.dispose();
+    _globoAnim.dispose();
+    _limpiarPresenciaFirestore();
+    super.dispose();
   }
 
   // ==========================================================================
-  // MODO SOLITARIO — barrios OSM
+  // HELPERS
   // ==========================================================================
-  Future<void> _activarModoSolitario() async {
-    _state.setModoSolitario(true);
-    await _cargarTerritorios();
-    if (!_barriosCargados && !_cargandoBarrios) {
-      await _cargarBarriosSolitario(_state.centro);
+  void _rotarGlobo() {
+    if (isTracking) return;
+    if (kIsWeb) return;
+    if (_mapboxMap == null) return;
+    final bearing = _globoAnim.value * 360.0;
+    _mapboxMap!.setCamera(mapbox.CameraOptions(bearing: bearing));
+  }
+
+  bool _esHoraNoche() {
+    final h = DateTime.now().hour;
+    return h >= 21 || h < 6;
+  }
+
+  void _toggleModoNoche() {
+    setState(() { _modoManual = true; _modoNoche = !_modoNoche; });
+    if (_estiloMapa == 'normal') {
+      _mapboxMap?.loadStyleURI(_mapStyle);
+    }
+    _buildings3dCreated       = false;
+    _territoriosLayersCreated = false;
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      _addBuildings3D();
+      _configurarAtmosfera();
+      _dibujarTerritoriosEnMapa();
+    });
+  }
+
+  String get _mapStyle {
+    if (_estiloMapa == 'satelite') return mapbox.MapboxStyles.SATELLITE_STREETS;
+    if (_estiloMapa == 'militar')  return mapbox.MapboxStyles.DARK;
+    return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
+  }
+
+  String get _ritmoStr {
+    if (_velocidadActualKmh < 0.5 || !isTracking || isPaused) return '--:--';
+    final mpk = 60.0 / _velocidadActualKmh;
+    final min = mpk.floor();
+    final seg = ((mpk - min) * 60).round();
+    return "$min'${seg.toString().padLeft(2, '0')}\"";
+  }
+
+  double _calcularBearing(LatLng a, LatLng b) {
+    final lat1 = a.latitude  * math.pi / 180;
+    final lat2 = b.latitude  * math.pi / 180;
+    final dLng = (b.longitude - a.longitude) * math.pi / 180;
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
+  }
+
+  String _colorToHex(Color c) =>
+      '#${c.red.toRadixString(16).padLeft(2, '0')}'
+      '${c.green.toRadixString(16).padLeft(2, '0')}'
+      '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
+  String _encodeJson(dynamic obj) {
+    if (obj is Map)
+      return '{${obj.entries.map((e) => '"${e.key}":${_encodeJson(e.value)}').join(',')}}';
+    if (obj is List)   return '[${obj.map(_encodeJson).join(',')}]';
+    if (obj is String) return '"$obj"';
+    if (obj is bool)   return obj.toString();
+    return obj.toString();
+  }
+
+  // ==========================================================================
+  // CARGA INICIAL
+  // ==========================================================================
+  Future<void> _cargarDatosIniciales() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('players')
+          .doc(user.uid)
+          .get();
+      if (doc.exists) {
+        _miNickname = doc.data()?['nickname'] ?? 'Alguien';
+        final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
+        if (colorInt != null && mounted) {
+          setState(() => _colorTerritorio = Color(colorInt));
+        }
+        final boost  = doc.data()?['boost_xp_activo'] as bool? ?? false;
+        final expira = doc.data()?['boost_xp_expira'] as Timestamp?;
+        if (boost && expira != null && expira.toDate().isAfter(DateTime.now())) {
+          if (mounted) setState(() => _boostXpActivo = true);
+        }
+        _miClanId = doc.data()?['clanId'] as String?;
+      }
+      LatLng? centro;
+      if (_currentPosition != null) {
+        centro = LatLng(_currentPosition!.latitude, _currentPosition!.longitude);
+      } else {
+        try {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) centro = LatLng(last.latitude, last.longitude);
+        } catch (_) {}
+      }
+
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
+      if (mounted) {
+        setState(() { _territorios = lista; _territoriosCargados = true; });
+        _dibujarTerritoriosEnMapa();
+        _aplicarTerritoriosFantasma();
+      }
+    } catch (e) {
+      debugPrint('Error datos iniciales: $e');
     }
   }
 
-  Future<void> _cargarBarriosSolitario(LatLng pos) async {
+  Future<void> _determinePosition() async {
+    LocationPermission p = await Geolocator.checkPermission();
+    if (p == LocationPermission.denied) {
+      p = await Geolocator.requestPermission();
+    }
+    if (p == LocationPermission.always || p == LocationPermission.whileInUse) {
+      final pos = await Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.high));
+      if (mounted) {
+        final anteriorCentro = _currentPosition;
+        setState(() => _currentPosition = pos);
+
+        final debeCargarse = anteriorCentro == null ||
+            Geolocator.distanceBetween(anteriorCentro.latitude,
+                anteriorCentro.longitude, pos.latitude, pos.longitude) > 500;
+
+        if (debeCargarse && _territoriosCargados) {
+          TerritoryService.invalidarCache();
+          final centro = LatLng(pos.latitude, pos.longitude);
+          final lista  = await TerritoryService.cargarTodosLosTerritorios(
+              centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
+          if (mounted) {
+            setState(() => _territorios = lista);
+            _dibujarTerritoriosEnMapa();
+          }
+        }
+        _aplicarTerritoriosFantasma();
+      }
+    }
+  }
+
+  // ==========================================================================
+  // BARRIOS OSM — modo solitario
+  // ==========================================================================
+  Future<void> _cargarBarriosOSM(LatLng pos) async {
     if (_cargandoBarrios || _barriosCargados) return;
     _cargandoBarrios = true;
-    if (mounted) setState(() {});
 
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.045;
+      const delta = 0.12;
 
-      final bbox = '${lat - delta},${lng - delta},${lat + delta},${lng + delta}';
       final url = Uri.parse(
         'https://overpass-api.de/api/interpreter?data='
         '[out:json][timeout:25];'
         '('
-        '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
-        '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
-        '  relation["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
-        '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
+        '  relation["boundary"="administrative"]["admin_level"="8"]'
+        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
         ');'
         'out geom;',
       );
@@ -2090,8 +689,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final response = await http.get(url).timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) return;
 
-      final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-      final elements = (jsonData['elements'] as List<dynamic>? ?? []);
+      final jsonData  = jsonDecode(response.body) as Map<String, dynamic>;
+      final elements  = (jsonData['elements'] as List<dynamic>? ?? []);
       final List<_BarrioData> barrios = [];
 
       for (final el in elements) {
@@ -2100,12 +699,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         if (nombre.isEmpty) continue;
 
         List<LatLng> puntos = [];
+
         if (el['type'] == 'way') {
           final geometry = el['geometry'] as List<dynamic>? ?? [];
           puntos = geometry.map((g) {
             final m = g as Map<String, dynamic>;
-            return LatLng((m['lat'] as num).toDouble(),
-                          (m['lon'] as num).toDouble());
+            return LatLng(
+              (m['lat'] as num).toDouble(),
+              (m['lon'] as num).toDouble(),
+            );
           }).toList();
         } else if (el['type'] == 'relation') {
           final members = el['members'] as List<dynamic>? ?? [];
@@ -2115,8 +717,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               final geom = m['geometry'] as List<dynamic>;
               puntos = geom.map((g) {
                 final gm = g as Map<String, dynamic>;
-                return LatLng((gm['lat'] as num).toDouble(),
-                              (gm['lon'] as num).toDouble());
+                return LatLng(
+                  (gm['lat'] as num).toDouble(),
+                  (gm['lon'] as num).toDouble(),
+                );
               }).toList();
               break;
             }
@@ -2126,18 +730,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         if (puntos.length < 4) continue;
         final area = TerritoryService.calcularAreaM2(puntos);
         if (area < 10000) continue;
-        if (area > 8000000) continue;
 
-        final misTers = _state.territorios.where((t) => t.esMio).toList();
-        double areaCubierta = 0.0;
-        for (final ter in misTers) {
-          if (_puntoEnPoligonoSol(ter.centro, puntos)) {
-            areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
-          }
-        }
-        final pct = (areaCubierta / area).clamp(0.0, 1.0);
-        barrios.add(_BarrioData(nombre: nombre, puntos: puntos, areaM2: area,
-            porcentajeCubierto: pct));
+        barrios.add(_BarrioData(nombre: nombre, puntos: puntos, areaM2: area));
+      }
+
+      if (!mounted) return;
+
+      final misTerritorios = _territorios.where((t) => t.esMio).toList();
+      for (final barrio in barrios) {
+        barrio.porcentajeCubierto =
+            _calcularPorcentajeBarrio(barrio, misTerritorios);
       }
 
       barrios.sort((a, b) {
@@ -2148,2728 +750,3513 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         return dA.compareTo(dB);
       });
 
-      if (!mounted) return;
       setState(() {
         _barriosCercanos = barrios;
+        _barrioActual    = barrios.isNotEmpty ? barrios.first : null;
         _barriosCargados = true;
       });
+
+      await _dibujarBarriosEnMapa();
+
     } catch (e) {
-      debugPrint('FullscreenMap barrios error: $e');
+      debugPrint('Error cargando barrios OSM: $e');
     } finally {
       _cargandoBarrios = false;
-      if (mounted) setState(() {});
     }
   }
 
-  bool _puntoEnPoligonoSol(LatLng punto, List<LatLng> polygon) {
-    int cruces = 0;
-    final n = polygon.length;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-      final xi = polygon[i].longitude; final yi = polygon[i].latitude;
-      final xj = polygon[j].longitude; final yj = polygon[j].latitude;
-      if (((yi > punto.latitude) != (yj > punto.latitude)) &&
-          (punto.longitude < (xj - xi) * (punto.latitude - yi) / (yj - yi) + xi)) {
-        cruces++;
+  double _calcularPorcentajeBarrio(
+      _BarrioData barrio, List<TerritoryData> misTerritorios) {
+    if (barrio.areaM2 <= 0) return 0.0;
+    double areaCubierta = 0.0;
+    for (final ter in misTerritorios) {
+      if (_puntoEnPoligono(ter.centro, barrio.puntos)) {
+        areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
       }
     }
-    return cruces.isOdd;
+    return (areaCubierta / barrio.areaM2).clamp(0.0, 1.0);
   }
 
-  Widget _buildMapaSolitario() {
-    return ListenableBuilder(
-      listenable: _state,
-      builder: (_, __) {
-        final territorios = _state.territorios;
-        return Stack(children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _state.centro,
-              initialZoom: 13,
-              minZoom: 3, maxZoom: 19,
+  Future<void> _dibujarBarriosEnMapa() async {
+    if (_mapboxMap == null || _barriosCercanos.isEmpty) return;
+    if (!_modoSolitario) return;
+
+    final features = _barriosCercanos.map((b) {
+      final coords = b.puntos.map((p) => [p.longitude, p.latitude]).toList();
+      if (coords.first[0] != coords.last[0] ||
+          coords.first[1] != coords.last[1]) {
+        coords.add(coords.first);
+      }
+      final pct = b.porcentajeCubierto;
+      final String color = pct >= 1.0
+          ? '#30D158'
+          : pct > 0
+              ? '#FF9500'
+              : '#8E8E93';
+      final String label = pct >= 1.0
+          ? '${b.nombre} ✓'
+          : pct > 0
+              ? '${b.nombre} ${(pct * 100).toInt()}%'
+              : b.nombre;
+
+      return _encodeJson({
+        'type': 'Feature',
+        'properties': {
+          'nombre':     b.nombre,
+          'label':      label,
+          'color':      color,
+          'porcentaje': (pct * 100).toInt(),
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      });
+    }).join(',');
+
+    final geojson = '{"type":"FeatureCollection","features":[$features]}';
+
+    try {
+      if (_barriosLayerCreated) {
+        final src = await _mapboxMap!.style
+            .getSource(_barrioSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+        return;
+      }
+
+      for (final id in [_barrioLabelLayerId, _barrioLineLayerId, _barrioFillLayerId]) {
+        try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+      }
+      try { await _mapboxMap!.style.removeStyleSource(_barrioSourceId); } catch (_) {}
+
+      await _mapboxMap!.style.addSource(
+          mapbox.GeoJsonSource(id: _barrioSourceId, data: geojson));
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.FillLayer(id: _barrioFillLayerId, sourceId: _barrioSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioFillLayerId, 'fill-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioFillLayerId, 'fill-opacity', 0.12);
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.LineLayer(id: _barrioLineLayerId, sourceId: _barrioSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-color', '#FFFFFF');
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-width', 3.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLineLayerId, 'line-opacity', 0.88);
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.SymbolLayer(id: _barrioLabelLayerId, sourceId: _barrioSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-field', ['get', 'label']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-size', 11.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-halo-color', 'rgba(0,0,0,0.8)');
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-halo-width', 1.5);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-font', ['DIN Pro Medium', 'Arial Unicode MS Regular']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-anchor', 'center');
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'text-max-width', 8.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _barrioLabelLayerId, 'symbol-placement', 'point');
+
+      _barriosLayerCreated = true;
+    } catch (e) {
+      debugPrint('Error dibujando barrios: $e');
+    }
+  }
+
+  Future<void> _limpiarCapasBarrios() async {
+    if (!_barriosLayerCreated || _mapboxMap == null) return;
+    for (final id in [_barrioLabelLayerId, _barrioLineLayerId, _barrioFillLayerId]) {
+      try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+    }
+    try { await _mapboxMap!.style.removeStyleSource(_barrioSourceId); } catch (_) {}
+    _barriosLayerCreated = false;
+  }
+
+  Future<void> _verificarBarriosCompletados() async {
+    if (!_modoSolitario || _barriosCercanos.isEmpty) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final misTerritorios = _territorios.where((t) => t.esMio).toList();
+
+    for (final barrio in _barriosCercanos) {
+      final pctAntes = barrio.porcentajeCubierto;
+      final pctAhora = _calcularPorcentajeBarrio(barrio, misTerritorios);
+      barrio.porcentajeCubierto = pctAhora;
+
+      if (pctAhora >= 1.0 && pctAntes < 1.0) {
+        final bonusMonedas = _calcularBonusBarrio(barrio);
+        try {
+          await FirebaseFirestore.instance
+              .collection('players')
+              .doc(user.uid)
+              .update({'monedas': FieldValue.increment(bonusMonedas)});
+
+          await FirebaseFirestore.instance
+              .collection('notifications')
+              .add({
+            'toUserId':     user.uid,
+            'type':         'barrio_completado',
+            'message':      '🏆 ¡Has conquistado el barrio de ${barrio.nombre}! +$bonusMonedas 🪙',
+            'read':         false,
+            'timestamp':    FieldValue.serverTimestamp(),
+            'barrioNombre': barrio.nombre,
+            'bonusMonedas': bonusMonedas,
+          });
+        } catch (e) {
+          debugPrint('Error dando bonus barrio: $e');
+        }
+
+        if (mounted) _mostrarNotificacionBarrioCompletado(barrio, bonusMonedas);
+      }
+    }
+
+    await _dibujarBarriosEnMapa();
+  }
+
+  int _calcularBonusBarrio(_BarrioData barrio) {
+    if (barrio.areaM2 > 2000000) return 1000;
+    if (barrio.areaM2 > 50000)   return 600;
+    return 300;
+  }
+
+  // ==========================================================================
+  // MAPBOX
+  // ==========================================================================
+  void _onMapCreated(mapbox.MapboxMap map) async {
+    _mapboxMap = map;
+    await map.style.setProjection(
+        mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: true,
+      pitchEnabled: false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+    ));
+    _annotationManager =
+        await map.annotations.createPointAnnotationManager();
+    await _moverCamara(
+      lat: _currentPosition?.latitude ?? 40.4167,
+      lng: _currentPosition?.longitude ?? -3.70325,
+      zoom: _kZoomGlobo,
+      bearing: 0,
+      pitch: _kPitchNormal,
+      animated: false,
+    );
+    await Future.delayed(const Duration(milliseconds: 500));
+    await _addBuildings3D();
+    await _configurarAtmosfera();
+    await _dibujarTerritoriosEnMapa();
+  }
+
+  Future<void> _moverCamara({
+    required double lat,
+    required double lng,
+    double? zoom,
+    double? bearing,
+    double? pitch,
+    bool animated = true,
+    int duracion = 600,
+    bool forzar = false,
+  }) async {
+    if (kIsWeb) {
+      final ctrl = _webMapCtrl;
+      if (ctrl == null) return;
+      ctrl.move(LatLng(lat, lng), zoom ?? ctrl.camera.zoom);
+      return;
+    }
+    if (_mapboxMap == null) return;
+    if (!forzar && animated) {
+      final ahora  = DateTime.now();
+      final msDiff = ahora.difference(_ultimoMovCamara).inMilliseconds;
+      if (msDiff < _kMinMsCamara) return;
+      _ultimoMovCamara = ahora;
+    }
+    final cam = mapbox.CameraOptions(
+      center: mapbox.Point(coordinates: mapbox.Position(lng, lat)),
+      zoom: zoom,
+      bearing: bearing,
+      pitch: pitch,
+    );
+    if (animated) {
+      await _mapboxMap!.flyTo(
+          cam, mapbox.MapAnimationOptions(duration: duracion));
+    } else {
+      await _mapboxMap!.setCamera(cam);
+    }
+  }
+
+  Future<void> _configurarAtmosfera() async {
+    if (_mapboxMap == null) return;
+    try {
+      final layers = await _mapboxMap!.style.getStyleLayers();
+      if (!layers.any((l) => l?.id == 'sky-layer')) {
+        await _mapboxMap!.style.addLayer(mapbox.SkyLayer(id: 'sky-layer'));
+      }
+      if (_modoNoche) {
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-type', 'atmosphere');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-color', 'rgba(2,2,15,1)');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(5,5,30,0.8)');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
+        await _mapboxMap!.style
+            .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
+        try {
+          await _mapboxMap!.style.setStyleLayerProperty(
+              'sky-layer', 'sky-stars-intensity', 0.85);
+        } catch (_) {}
+      } else {
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-type', 'atmosphere');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-color', 'rgba(135,206,250,1)');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(200,230,255,0.9)');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'sky-layer', 'sky-atmosphere-sun-intensity', 15.0);
+        await _mapboxMap!.style
+            .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
+        try {
+          await _mapboxMap!.style.setStyleLayerProperty(
+              'sky-layer', 'sky-stars-intensity', 0.45);
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('Error atmosfera: $e');
+    }
+  }
+
+  Future<void> _addBuildings3D() async {
+    if (_mapboxMap == null || _buildings3dCreated) return;
+    try {
+      try {
+        await _mapboxMap!.style.addSource(mapbox.RasterDemSource(
+          id: 'mapbox-dem',
+          url: 'mapbox://mapbox.terrain-dem-v1',
+          tileSize: 512,
+          maxzoom: 14.0,
+        ));
+      } catch (_) {}
+
+      try {
+        await _mapboxMap!.style.setStyleTerrain(
+          '{"source":"mapbox-dem","exaggeration":1.8}');
+      } catch (e) {
+        debugPrint('Terrain: $e');
+      }
+
+      try { await _mapboxMap!.style.removeStyleLayer('hillshade-risk'); } catch (_) {}
+      try {
+        await _mapboxMap!.style.addLayer(
+          mapbox.HillshadeLayer(id: 'hillshade-risk', sourceId: 'mapbox-dem'));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-exaggeration', 0.45);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-highlight-color', '#F5E8C8');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-shadow-color', '#7A5230');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-accent-color', '#C4965A');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            'hillshade-risk', 'hillshade-illumination-anchor', 'viewport');
+      } catch (e) {
+        debugPrint('Hillshade: $e');
+      }
+
+      try { await _mapboxMap!.style.removeStyleLayer(_buildingsLayerId); } catch (_) {}
+      await _mapboxMap!.style.addLayer(mapbox.FillExtrusionLayer(
+          id: _buildingsLayerId,
+          sourceId: 'composite',
+          sourceLayer: 'building'));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'filter', ['==', ['get', 'extrude'], 'true']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-base',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']]);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-height',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-color',
+          ['interpolate', ['linear'], ['get', 'height'],
+            0,   '#EDE0C4',
+            8,   '#D4B896',
+            25,  '#B8996A',
+            60,  '#8B6B45',
+            120, '#6B4E2E',
+          ]);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-opacity', 0.92);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-intensity', 0.55);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 4.5);
+      _buildings3dCreated = true;
+    } catch (e) {
+      debugPrint('Error edificios 3D: $e');
+    }
+  }
+
+  // ── Territorios fantasma
+  Future<void> _aplicarTerritoriosFantasma() async {
+    if (_modoSolitario) {
+      final sinF = _territorios.where((t) => !t.esFantasma).toList();
+      if (sinF.length != _territorios.length) {
+        if (mounted) setState(() => _territorios = sinF);
+        _dibujarTerritoriosEnMapa();
+      }
+      return;
+    }
+    if (_currentPosition == null || !_territoriosCargados) return;
+    if (_fantasmasCargando) return;
+
+    _fantasmasCargando = true;
+    try {
+      final centro = LatLng(
+          _currentPosition!.latitude, _currentPosition!.longitude);
+
+      const double radioVisible = 0.022;
+      const int    kUmbral      = 18;
+
+      final realesCercanos = _territorios.where((t) =>
+        !t.esFantasma &&
+        (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
+        (t.centro.longitude - centro.longitude).abs() < radioVisible,
+      ).length;
+
+      final fantasmasCercanos = _territorios.where((t) =>
+        t.esFantasma &&
+        (t.centro.latitude  - centro.latitude).abs()  < radioVisible &&
+        (t.centro.longitude - centro.longitude).abs() < radioVisible,
+      ).length;
+
+      final faltan = kUmbral - realesCercanos - fantasmasCercanos;
+      if (faltan <= 0) return;
+
+      await TerritoryService.crearTerritoriosFantasmaEnZona(
+        centro:          centro,
+        todosExistentes: _territorios,
+        max:             faltan,
+      );
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: centro, modo: 'competitivo');
+      if (mounted) {
+        setState(() => _territorios = lista);
+        _dibujarTerritoriosEnMapa();
+      }
+    } catch (e) {
+      debugPrint('Error gestionando fantasmas: $e');
+    } finally {
+      _fantasmasCargando = false;
+    }
+  }
+
+  Future<void> _dibujarTerritoriosEnMapa() async {
+    if (_mapboxMap == null || _territorios.isEmpty) return;
+
+    final features = _territorios.map((t) {
+      final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
+      coords.add(coords.first);
+
+      final colorHex    = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+      final borderWidth = t.esMio
+          ? 2.8
+          : switch (t.estadoHp) {
+              EstadoHp.saludable => 1.4,
+              EstadoHp.danado    => 1.8,
+              EstadoHp.critico   => 2.2,
+            };
+      final innerOpacity = t.esMio ? t.opacidadRelleno * 0.55 : 0.0;
+
+      return _encodeJson({
+        'type': 'Feature',
+        'properties': {
+          'color':         colorHex,
+          'fillOpacity':   t.opacidadRelleno,
+          'innerOpacity':  innerOpacity,
+          'borderOpacity': t.opacidadBorde,
+          'borderWidth':   borderWidth,
+          'esMio':         t.esMio,
+          'estadoHp':      t.estadoHp.name,
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      });
+    }).join(',');
+
+    final geojson = '{"type":"FeatureCollection","features":[$features]}';
+
+    try {
+      if (_territoriosLayersCreated) {
+        final src = await _mapboxMap!.style
+            .getSource(_sourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+        _actualizarCoronesMapa();
+        return;
+      }
+
+      _pulsoTimer?.cancel();
+      for (final id in [
+        _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
+      ]) {
+        try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+      }
+      try { await _mapboxMap!.style.removeStyleSource(_sourceId); } catch (_) {}
+
+      await _mapboxMap!.style
+          .addSource(mapbox.GeoJsonSource(id: _sourceId, data: geojson));
+
+      await _mapboxMap!.style
+          .addLayer(mapbox.FillLayer(id: _fillLayerId, sourceId: _sourceId));
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_fillLayerId, 'fill-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _fillLayerId, 'fill-opacity', ['get', 'fillOpacity']);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_fillLayerId, 'fill-antialias', true);
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.FillLayer(id: _fillInnerLayerId, sourceId: _sourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _fillInnerLayerId, 'fill-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _fillInnerLayerId, 'fill-opacity', ['get', 'innerOpacity']);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_fillInnerLayerId, 'fill-antialias', true);
+
+      await _mapboxMap!.style
+          .addLayer(mapbox.LineLayer(id: _borderLayerId, sourceId: _sourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderLayerId, 'line-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderLayerId, 'line-width', ['get', 'borderWidth']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderLayerId, 'line-opacity', ['get', 'borderOpacity']);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderLayerId, 'line-join', 'round');
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderLayerId, 'line-cap', 'round');
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderPulseLayerId, 'line-color', ['get', 'color']);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 6.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderPulseLayerId, 'line-opacity',
+          ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 3.0);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'round');
+
+      _territoriosLayersCreated = true;
+      _actualizarCoronesMapa();
+
+      if (!_centrosLayerCreated) {
+        final misTerr = _territorios.where((t) => t.esMio).toList();
+        if (misTerr.isNotEmpty) {
+          final feats = misTerr.map((t) {
+            final c = t.centro;
+            return '{"type":"Feature","properties":{},"geometry":{'
+                '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
+          }).join(',');
+          final gj = '{"type":"FeatureCollection","features":[$feats]}';
+          await _mapboxMap!.style.addSource(
+              mapbox.GeoJsonSource(id: _centrosSourceId, data: gj));
+          await _mapboxMap!.style.addLayer(
+              mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-color', '#FFD60A');
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-radius',
+              ['interpolate', ['linear'], ['zoom'], 1, 2.5, 5, 5.0, 9, 0.0]);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-opacity',
+              ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 0.0]);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-blur', 0.3);
+          _centrosLayerCreated = true;
+        }
+      } else {
+        final misTerr = _territorios.where((t) => t.esMio).toList();
+        final feats = misTerr.map((t) {
+          final c = t.centro;
+          return '{"type":"Feature","properties":{},"geometry":{'
+              '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
+        }).join(',');
+        final gj = '{"type":"FeatureCollection","features":[$feats]}';
+        final src = await _mapboxMap!.style
+            .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(gj);
+      }
+
+      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+        if (!mounted || _mapboxMap == null) return;
+        if (_pulsoUp) {
+          _pulsoOpacity += 0.025;
+          if (_pulsoOpacity >= 0.60) _pulsoUp = false;
+        } else {
+          _pulsoOpacity -= 0.025;
+          if (_pulsoOpacity <= 0.15) _pulsoUp = true;
+        }
+        try {
+          _mapboxMap!.style.setStyleLayerProperty(
+              _borderPulseLayerId, 'line-opacity',
+              ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
+        } catch (_) {}
+      });
+    } catch (e) {
+      debugPrint('Error territorios: $e');
+    }
+  }
+
+  Future<void> _actualizarRutaEnMapa() async {
+    if (_mapboxMap == null || routePoints.length < 2) return;
+    final coords = routePoints.map((p) => [p.longitude, p.latitude]).toList();
+    final geojson = _encodeJson({
+      'type': 'Feature',
+      'geometry': {'type': 'LineString', 'coordinates': coords}
+    });
+    try {
+      if (!_routeLayerCreated) {
+        await _mapboxMap!.style
+            .addSource(mapbox.GeoJsonSource(id: _routeSourceId, data: geojson));
+        await _mapboxMap!.style.addLayer(
+            mapbox.LineLayer(id: _routeLayerId, sourceId: _routeSourceId));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _routeLayerId, 'line-color', _colorToHex(_colorTerritorio));
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_routeLayerId, 'line-width', 4.5);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_routeLayerId, 'line-opacity', 0.9);
+        _routeLayerCreated = true;
+      } else {
+        final src = await _mapboxMap!.style
+            .getSource(_routeSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+      }
+    } catch (e) {
+      debugPrint('Error ruta mapa: $e');
+    }
+  }
+
+  // ==========================================================================
+  // JUGADORES ACTIVOS
+  // ==========================================================================
+  void _escucharJugadoresActivos() {
+    final cutoff = Timestamp.fromDate(
+        DateTime.now().subtract(const Duration(minutes: 5)));
+    _jugadoresStream = FirebaseFirestore.instance
+        .collection('presencia_activa')
+        .where('timestamp', isGreaterThan: cutoff)
+        .snapshots()
+        .listen((snap) async {
+      if (!mounted) return;
+      final user   = FirebaseAuth.instance.currentUser;
+      final myLat  = _currentPosition?.latitude;
+      final myLng  = _currentPosition?.longitude;
+      final nuevos = <String, Map<String, dynamic>>{};
+      for (final doc in snap.docs) {
+        if (doc.id == user?.uid) continue;
+        final d  = doc.data();
+        final ts = d['timestamp'] as Timestamp?;
+        if (ts == null ||
+            DateTime.now().difference(ts.toDate()).inMinutes >= 5) { continue; }
+        final lat = (d['lat'] as num?)?.toDouble();
+        final lng = (d['lng'] as num?)?.toDouble();
+        if (myLat != null && myLng != null && lat != null && lng != null) {
+          final dist = Geolocator.distanceBetween(myLat, myLng, lat, lng);
+          if (dist > 5000) continue;
+        }
+        nuevos[doc.id] = d;
+      }
+      setState(() => _jugadoresActivos
+        ..clear()
+        ..addAll(nuevos));
+      _actualizarAvataresMapa(nuevos);
+    });
+  }
+
+  void _actualizarAvataresMapa(
+      Map<String, Map<String, dynamic>> jugadores) async {
+    if (_annotationManager == null) return;
+    final activos = jugadores.keys.toSet();
+    for (final uid in _anotacionesJugadores.keys
+        .where((k) => !activos.contains(k))
+        .toList()) {
+      _eliminarAvatarJugador(uid);
+    }
+    for (final entry in jugadores.entries) {
+      final uid   = entry.key;
+      final data  = entry.value;
+      final lat   = (data['lat'] as num?)?.toDouble();
+      final lng   = (data['lng'] as num?)?.toDouble();
+      final color = Color((data['color'] as num?)?.toInt() ?? _kWater.value);
+      if (lat == null || lng == null) continue;
+      final bytes = await _getAvatarBytes(color);
+      if (_anotacionesJugadores.containsKey(uid)) {
+        final ann = _anotacionesJugadores[uid]!;
+        await _annotationManager?.update(ann
+          ..geometry = mapbox.Point(coordinates: mapbox.Position(lng, lat))
+          ..image    = bytes);
+      } else {
+        _crearAvatarJugador(uid, lat, lng, bytes);
+      }
+    }
+  }
+
+  Future<Uint8List> _getAvatarBytes(Color color) async {
+    final key = color.value;
+    if (_avatarCache.containsKey(key)) return _avatarCache[key]!;
+    final bytes = await _generarImagenAvatar(color);
+    if (_avatarCache.length >= _kAvatarCacheMax) _avatarCache.remove(_avatarCache.keys.first);
+    _avatarCache[key] = bytes;
+    return bytes;
+  }
+
+  void _crearAvatarJugador(
+      String uid, double lat, double lng, Uint8List bytes) async {
+    if (_annotationManager == null) return;
+    final ann = await _annotationManager!.create(
+        mapbox.PointAnnotationOptions(
+          geometry: mapbox.Point(coordinates: mapbox.Position(lng, lat)),
+          image:    bytes,
+          iconSize: 1.0,
+        ));
+    _anotacionesJugadores[uid] = ann;
+  }
+
+  void _eliminarAvatarJugador(String uid) async {
+    if (_anotacionesJugadores.containsKey(uid)) {
+      await _annotationManager?.delete(_anotacionesJugadores[uid]!);
+      _anotacionesJugadores.remove(uid);
+    }
+  }
+
+  // ==========================================================================
+  // CORONAS DE REYES EN EL MAPA
+  // ==========================================================================
+  Future<void> _actualizarCoronesMapa() async {
+    if (_annotationManager == null || _modoSolitario) return;
+
+    final bytes = _coronaBytes ??= await _generarImagenCorona();
+
+    final conRey = _territorios
+        .where((t) => t.tieneRey && !t.esFantasma)
+        .toList();
+    final idsConRey = conRey.map((t) => t.docId).toSet();
+
+    for (final docId in _anotacionesReyes.keys
+        .where((k) => !idsConRey.contains(k))
+        .toList()) {
+      await _annotationManager?.delete(_anotacionesReyes[docId]!);
+      _anotacionesReyes.remove(docId);
+    }
+
+    for (final t in conRey) {
+      final pos = mapbox.Point(
+        coordinates: mapbox.Position(
+            t.centro.longitude, t.centro.latitude),
+      );
+      if (_anotacionesReyes.containsKey(t.docId)) {
+        final ann = _anotacionesReyes[t.docId]!;
+        await _annotationManager?.update(ann..geometry = pos);
+      } else {
+        final ann = await _annotationManager!.create(
+          mapbox.PointAnnotationOptions(
+            geometry: pos,
+            image:    bytes,
+            iconSize: 0.9,
+          ),
+        );
+        _anotacionesReyes[t.docId] = ann;
+      }
+    }
+  }
+
+  Future<Uint8List> _generarImagenCorona() async {
+    const sz = 48.0;
+    final recorder = ui.PictureRecorder();
+    final canvas   = Canvas(recorder);
+
+    canvas.drawCircle(
+      const Offset(sz / 2, sz / 2),
+      sz / 2,
+      Paint()..color = const Color(0xCC1A1000),
+    );
+    canvas.drawCircle(
+      const Offset(sz / 2, sz / 2),
+      sz / 2 - 2,
+      Paint()
+        ..color       = const Color(0xFFD4A84C)
+        ..style       = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: '👑',
+        style: TextStyle(fontSize: 24, height: 1),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas,
+        Offset((sz - tp.width) / 2, (sz - tp.height) / 2 - 1));
+
+    final pic      = recorder.endRecording();
+    final img      = await pic.toImage(sz.toInt(), sz.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _generarImagenAvatar(Color color) async {
+    final recorder = ui.PictureRecorder();
+    final canvas   = Canvas(recorder);
+    const sz       = 48.0;
+    canvas.drawCircle(Offset(sz / 2, sz / 2), sz / 2,
+        Paint()..color = color.withValues(alpha: 0.25));
+    canvas.drawCircle(
+        Offset(sz / 2, sz / 2), sz / 2 - 6, Paint()..color = _p.parchment);
+    canvas.drawCircle(
+        Offset(sz / 2, sz / 2), sz / 2 - 6,
+        Paint()
+          ..color       = color
+          ..style       = PaintingStyle.stroke
+          ..strokeWidth = 3);
+    final pic      = recorder.endRecording();
+    final img      = await pic.toImage(sz.toInt(), sz.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  // ==========================================================================
+  // PRESENCIA
+  // ==========================================================================
+  void _iniciarPublicacionPosicion() {
+    _timerPublicarPosicion?.cancel();
+    _presenciaIntervaloSeg = _kPresenciaMovimientoSeg;
+    _timerPublicarPosicion = Timer.periodic(
+        Duration(seconds: _presenciaIntervaloSeg), (_) => _publicarPosicion());
+  }
+
+  void _ajustarPresenciaPausado() {
+    _timerPublicarPosicion?.cancel();
+    _presenciaIntervaloSeg = _kPresenciaPausadoSeg;
+    _timerPublicarPosicion = Timer.periodic(
+        Duration(seconds: _presenciaIntervaloSeg), (_) => _publicarPosicion());
+  }
+
+  void _ajustarPresenciaMovimiento() {
+    if (_presenciaIntervaloSeg == _kPresenciaMovimientoSeg) return;
+    _timerPublicarPosicion?.cancel();
+    _presenciaIntervaloSeg = _kPresenciaMovimientoSeg;
+    _timerPublicarPosicion = Timer.periodic(
+        Duration(seconds: _presenciaIntervaloSeg), (_) => _publicarPosicion());
+  }
+
+  Future<void> _publicarPosicion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || _currentPosition == null || !isTracking) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('presencia_activa')
+          .doc(user.uid)
+          .set({
+        'lat':       _currentPosition!.latitude,
+        'lng':       _currentPosition!.longitude,
+        'color':     _colorTerritorio.value,
+        'nickname':  _miNickname,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error presencia: $e');
+    }
+  }
+
+  Future<void> _actualizarPuntosDesafio(
+      int conquistados, double distanciaKm) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final snapRetador = await FirebaseFirestore.instance
+          .collection('desafios')
+          .where('retadorId', isEqualTo: user.uid)
+          .where('estado', isEqualTo: 'activo')
+          .limit(1)
+          .get();
+      final snapRetado = await FirebaseFirestore.instance
+          .collection('desafios')
+          .where('retadoId', isEqualTo: user.uid)
+          .where('estado', isEqualTo: 'activo')
+          .limit(1)
+          .get();
+      final doc = snapRetador.docs.isNotEmpty
+          ? snapRetador.docs.first
+          : snapRetado.docs.isNotEmpty
+              ? snapRetado.docs.first
+              : null;
+      if (doc == null) return;
+      final data = doc.data();
+      final fin  = (data['fin'] as Timestamp?)?.toDate();
+      if (fin != null && DateTime.now().isAfter(fin)) {
+        await _finalizarDesafio(doc.id, data);
+        return;
+      }
+      final int puntos = (conquistados * 10) + (distanciaKm * 5).round();
+      if (puntos == 0) return;
+      final bool soyRetador = data['retadorId'] == user.uid;
+      await FirebaseFirestore.instance
+          .collection('desafios')
+          .doc(doc.id)
+          .update({
+        soyRetador ? 'puntosRetador' : 'puntosRetado':
+            FieldValue.increment(puntos),
+      });
+    } catch (e) {
+      debugPrint('Error actualizando desafío: $e');
+    }
+  }
+
+  Future<void> _finalizarDesafio(
+      String desafioId, Map<String, dynamic> data) async {
+    try {
+      final puntosRetador = (data['puntosRetador'] as num?)?.toInt() ?? 0;
+      final puntosRetado  = (data['puntosRetado'] as num?)?.toInt() ?? 0;
+      final apuesta       = (data['apuesta'] as num?)?.toInt() ?? 0;
+      final retadorId     = data['retadorId'] as String;
+      final retadoId      = data['retadoId'] as String;
+      final retadorNick   = data['retadorNick'] as String? ?? 'Rival';
+      final retadoNick    = data['retadoNick'] as String? ?? 'Rival';
+      final String ganadorId, ganadorNick, perdedorId, perdedorNick;
+      if (puntosRetador > puntosRetado) {
+        ganadorId = retadorId; ganadorNick = retadorNick;
+        perdedorId = retadoId; perdedorNick = retadoNick;
+      } else {
+        ganadorId = retadoId; ganadorNick = retadoNick;
+        perdedorId = retadorId; perdedorNick = retadorNick;
+      }
+      await FirebaseFirestore.instance
+          .collection('players')
+          .doc(ganadorId)
+          .update({'monedas': FieldValue.increment(apuesta * 2)});
+      await FirebaseFirestore.instance
+          .collection('desafios')
+          .doc(desafioId)
+          .update({'estado': 'finalizado', 'ganadorId': ganadorId});
+      for (final n in [
+        {
+          'toUserId': ganadorId, 'type': 'desafio_ganado',
+          'message': '🏆 ¡Ganaste el desafío contra $perdedorNick! +${apuesta * 2} 🪙'
+        },
+        {
+          'toUserId': perdedorId, 'type': 'desafio_perdido',
+          'message': '💀 Perdiste el desafío contra $ganadorNick. $ganadorNick se lleva ${apuesta * 2} 🪙'
+        },
+      ]) {
+        await FirebaseFirestore.instance.collection('notifications').add(
+            {...n, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      }
+    } catch (e) {
+      debugPrint('Error finalizando desafío: $e');
+    }
+  }
+
+  Future<void> _limpiarPresenciaFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('presencia_activa')
+          .doc(user.uid)
+          .delete();
+    } catch (_) {}
+  }
+
+  // ==========================================================================
+  // GUERRA GLOBAL
+  // ==========================================================================
+  double get _progresoGlobal {
+    if (_objetivoGlobal == null) return 0;
+    final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    if (kmReq <= 0) return 0;
+    return (_distanciaTotal / kmReq).clamp(0.0, 1.0);
+  }
+
+  double get _kmRestantesGlobal {
+    if (_objetivoGlobal == null) return 0;
+    final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    return (kmReq - _distanciaTotal).clamp(0.0, kmReq);
+  }
+
+  Future<void> _conquistarTerritorioGlobal(
+  String activityLogId, {
+  required double kmCorridosEnSesion,
+}) async {
+  if (_globalConquistando) return;
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return;
+  final territorioId = _objetivoGlobal?['territorioId'] as String?;
+  if (territorioId == null) return;
+
+  setState(() => _globalConquistando = true);
+
+  try {
+    final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('conquistarTerritorioGlobal');
+    final result = await callable.call({
+      'territorioId':        territorioId,
+      'activityLogId':       activityLogId,
+      'ownerColor':          _colorTerritorio.value,
+      'kmCorridosEnSesion':  kmCorridosEnSesion,
+    });
+      if (!mounted) return;
+      final data = result.data as Map<String, dynamic>;
+      if (data['ok'] == true) {
+        final nuevaClausula = (data['nuevaClausula'] as num?)?.toDouble();
+        setState(() {
+          _globalConquistado = true;
+          _nuevaClausula = nuevaClausula;
+        });
+        HapticFeedback.heavyImpact();
+        Future.delayed(const Duration(milliseconds: 150),
+            () => HapticFeedback.heavyImpact());
+        Future.delayed(const Duration(milliseconds: 300),
+            () => HapticFeedback.heavyImpact());
+        _narrador.eventoConquista(
+            _objetivoGlobal?['territorioNombre'] as String? ?? '');
+        _mostrarNotificacionConquistaGlobal();
+      }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) _mostrarError(e.message ?? 'Error al conquistar.');
+    } catch (e) {
+      debugPrint('Error conquista global: $e');
+      if (mounted) _mostrarError('Error inesperado. Inténtalo de nuevo.');
+    } finally {
+      if (mounted) setState(() => _globalConquistando = false);
+    }
+  }
+
+  void _mostrarNotificacionConquistaGlobal() {
+    if (!mounted) return;
+    final nombre     = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
+    final recompensa = (_objetivoGlobal?['recompensa'] as num?)?.toInt() ?? 0;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 8),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF3A2800), Color(0xFFD4A84C)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: _kGold, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.55), blurRadius: 28)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('⚔️', style: TextStyle(fontSize: 38)),
+          const SizedBox(height: 8),
+          Text('¡TERRITORIO CONQUISTADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 16,
+                  fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+          const SizedBox(height: 4),
+          Text(nombre, textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.30),
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(6),
             ),
-            children: [
-              TileLayer(
-                urlTemplate: _kMapboxUrl,
-                userAgentPackageName: 'com.runner_risk.app',
-                tileDimension: 256,
+            child: Text('+$recompensa 🪙 el lunes si sigues siendo dueño  ·  +50 pts de liga',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: _kGoldLight.withValues(alpha: 0.9),
+                    fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  void _mostrarError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: _snackWrap(
+        color:  _p.parchMid,
+        border: Border.all(color: _p.globalRed.withValues(alpha: 0.5)),
+        child: Row(children: [
+          Icon(CupertinoIcons.exclamationmark_triangle, color: _p.globalRed, size: 18),
+          const SizedBox(width: 10),
+          Expanded(child: Text(msg,
+              style: GoogleFonts.inter(color: _kGoldLight,
+                  fontSize: 12, fontWeight: FontWeight.w600))),
+        ]),
+      ),
+    ));
+  }
+
+  // ==========================================================================
+  // TRACKING
+  // ==========================================================================
+  StreamSubscription<Position> _crearStreamGPS() {
+    return Geolocator.getPositionStream(
+        locationSettings: _kGpsMovimiento).listen(
+      (Position pos) async {
+        if (isPaused || !mounted) return;
+
+        final acResultado = _antiCheat.analizarPunto(pos);
+        if (!acResultado.esValido) {
+          if (_antiCheat.sesionCancelada && !_sesionInvalidadaPorCheat) {
+            _sesionInvalidadaPorCheat = true;
+            _positionStream?.cancel();
+            _timerPublicarPosicion?.cancel();
+            _stopwatch.stop();
+            _timerController.pause();
+            await AntiCheatWarningOverlay.mostrar(
+              context,
+              motivo: acResultado.detalle ?? 'Actividad sospechosa detectada',
+            );
+            if (mounted) {
+              setState(() {
+                isTracking     = false;
+                isPaused       = false;
+                _hudMinimizado = false;
+                routePoints.clear();
+              });
+              await _limpiarPresenciaFirestore();
+            }
+          }
+          return;
+        }
+
+        final newPt = LatLng(pos.latitude, pos.longitude);
+        setState(() {
+          if (routePoints.isNotEmpty) {
+            final dist = Geolocator.distanceBetween(
+              routePoints.last.latitude, routePoints.last.longitude,
+              newPt.latitude, newPt.longitude,
+            );
+            _distanciaTotal += dist / 1000;
+            _bearing = _calcularBearing(routePoints.last, newPt);
+            if (_ultimaPosicionVelocidad != null) {
+              final dt = pos.timestamp
+                      .difference(_ultimaPosicionVelocidad!.timestamp)
+                      .inMilliseconds / 3600000.0;
+              if (dt > 0) {
+                final vel = (dist / 1000) / dt;
+                _velocidadActualKmh =
+                    (_velocidadActualKmh * 0.6 + vel * 0.4).clamp(0, 40);
+              }
+            }
+          }
+          routePoints.add(newPt);
+          _currentPosition         = pos;
+          _ultimaPosicionVelocidad = pos;
+          _puntosDesdeUltimoUpdate++;
+        });
+
+        _moverCamara(lat: pos.latitude, lng: pos.longitude,
+            zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer);
+        if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
+          _puntosDesdeUltimoUpdate = 0;
+          _actualizarRutaEnMapa();
+        }
+
+        if (_retoActivo != null && !_retoCompletado) {
+          final objetivoMetros =
+              (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
+          final distanciaMetros = _distanciaTotal * 1000;
+          if (objetivoMetros > 0) {
+            _narrador.eventoMitadReto(distanciaMetros);
+            _narrador.eventoFinalReto(distanciaMetros);
+            if (distanciaMetros >= objetivoMetros) {
+              setState(() => _retoCompletado = true);
+              final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
+              _narrador.anunciarRetoCompletado(titulo);
+              _mostrarNotificacionRetoCompletado();
+            }
+          }
+        }
+
+        if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
+          final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+          if (kmReq > 0 && _distanciaTotal >= kmReq) {
+            setState(() => _globalKmAlcanzados = true);
+            final nombreTer =
+                _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
+            _narrador.anunciarReto(
+                '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
+            HapticFeedback.heavyImpact();
+            Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
+            Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+          }
+        }
+
+        if (!_modoSolitario) _procesarPosicionEnTerritorios(newPt);
+
+        final kmActual = _distanciaTotal.floor();
+        if (kmActual > 0) _narrador.eventoKilometro(kmActual);
+        if (_distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
+          _distanciaUltimoAnalisisRitmo = _distanciaTotal;
+          _narrador.analizarRitmo(_velocidadActualKmh);
+        }
+
+        if (!_modoSolitario) {
+          final double radioRadar = SubscriptionService.radioRadar;
+          for (final entry in _jugadoresActivos.entries) {
+            final lat2 = (entry.value['lat'] as num?)?.toDouble();
+            final lng2 = (entry.value['lng'] as num?)?.toDouble();
+            if (lat2 == null || lng2 == null) continue;
+            final dist = Geolocator.distanceBetween(
+                pos.latitude, pos.longitude, lat2, lng2);
+            if (dist < radioRadar) {
+              _narrador.eventoRivalCerca(entry.value['nickname'] as String?, dist);
+              break;
+            }
+          }
+        }
+
+        if (!_modoManual) {
+          final esNoche = _esHoraNoche();
+          if (esNoche != _modoNoche) setState(() => _modoNoche = esNoche);
+        }
+      },
+      onError: (e) => debugPrint('GPS error: $e'),
+    );
+  }
+
+  void _iniciarCuentaAtras() {
+    setState(() { _mostrandoCuentaAtras = true; _cuentaAtras = 3; });
+    _cuentaAtrasAnim.forward(from: 0);
+    _timerCuentaAtras = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) { t.cancel(); return; }
+      setState(() => _cuentaAtras--);
+      _cuentaAtrasAnim.forward(from: 0);
+      if (_cuentaAtras <= 0) {
+        t.cancel();
+        setState(() => _mostrandoCuentaAtras = false);
+        _comenzarTracking();
+      }
+    });
+  }
+
+  void _confirmarYComenzar() {
+    HapticFeedback.lightImpact();
+    showCupertinoDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(_modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
+        content: Text(_modoSolitario
+            ? 'Vas a iniciar una sesión en modo explorador.'
+            : 'Vas a iniciar una conquista de territorio.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              _iniciarCuentaAtras();
+            },
+            child: Text(_modoSolitario ? '¡Explorar!' : '¡Conquistar!'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _comenzarTracking() async {
+    LocationPermission p = await Geolocator.checkPermission();
+    if (p == LocationPermission.denied) {
+      p = await Geolocator.requestPermission();
+    }
+    if (p == LocationPermission.denied || p == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      setState(() => _mostrandoCuentaAtras = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Necesitas activar la ubicación para correr.\nVe a Ajustes del teléfono → Permisos → Ubicación.',
+              style: TextStyle(fontSize: 13)),
+          backgroundColor: const Color(0xFFCC2222),
+          duration: const Duration(seconds: 5),
+          action: p == LocationPermission.deniedForever
+              ? SnackBarAction(
+                  label: 'AJUSTES',
+                  textColor: Colors.white,
+                  onPressed: () => Geolocator.openAppSettings(),
+                )
+              : null,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _globalKmAlcanzados = false;
+      isTracking               = true;
+      isPaused                 = false;
+      _distanciaTotal          = 0;
+      _velocidadActualKmh      = 0;
+      _bearing                 = 0;
+      routePoints.clear();
+      _puntosDesdeUltimoUpdate = 0;
+      _territoriosNotificadosEnSesion.clear();
+      _territoriosVisitadosEnSesion.clear();
+      _hudMinimizado           = true;
+      _retoCompletado          = false;
+    });
+    _antiCheat.resetear();
+    _sesionInvalidadaPorCheat = false;
+    _stopping = false;
+    _stopwatch.reset();
+    _stopwatch.start();
+    _timerController.start();
+    if (!kIsWeb && _mapboxMap != null && _currentPosition != null) {
+      _mapboxMap!.flyTo(
+        mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _currentPosition!.longitude, _currentPosition!.latitude)),
+          zoom: _kZoomCorrer,
+          pitch: _kPitchCorrer,
+        ),
+        mapbox.MapAnimationOptions(duration: 2500),
+      );
+    } else if (kIsWeb && _webMapCtrl != null && _currentPosition != null) {
+      _webMapCtrl!.move(
+        LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        _kZoomCorrer,
+      );
+    }
+    _iniciarPublicacionPosicion();
+    _narrador.iniciar();
+    _minutosResistenciaNotificados = 0;
+    _distanciaUltimoAnalisisRitmo  = 0;
+
+    _timerResistencia?.cancel();
+    _timerResistencia = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!isTracking || isPaused || !mounted) return;
+      final mins = _stopwatch.elapsed.inMinutes;
+      if (mins >= 20 && mins % 10 == 0 && mins != _minutosResistenciaNotificados) {
+        _minutosResistenciaNotificados = mins;
+        _narrador.eventoResistencia(mins);
+      }
+    });
+
+    await _mapboxMap?.gestures.updateSettings(
+        mapbox.GesturesSettings(rotateEnabled: false, pitchEnabled: false));
+    if (_currentPosition != null) {
+      await _moverCamara(
+        lat: _currentPosition!.latitude, lng: _currentPosition!.longitude,
+        zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer,
+        duracion: 2800, forzar: true,
+      );
+    }
+
+    if (_modoSolitario && _currentPosition != null) {
+      _cargarBarriosOSM(LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      ));
+    }
+
+    _positionStream = _crearStreamGPS();
+
+    if (_objetivoGlobal != null) {
+      final tId = _objetivoGlobal!['territorioId'] as String?;
+      if (tId != null) {
+        _globalTerritoryLastOwner =
+            _objetivoGlobal!['ownerUid'] as String?;
+        _globalTerritoryStream = FirebaseFirestore.instance
+            .collection('global_territories')
+            .doc(tId)
+            .snapshots()
+            .listen((snap) {
+          if (!mounted || !isTracking) return;
+          if (!snap.exists) return;
+          final data    = snap.data()!;
+          final newOwner = data['ownerUid'] as String?;
+          final uid      = FirebaseAuth.instance.currentUser?.uid;
+          if (newOwner != null &&
+              newOwner != _globalTerritoryLastOwner &&
+              newOwner != uid &&
+              !_globalConquistado) {
+            _globalTerritoryLastOwner = newOwner;
+            final nick = data['ownerNickname'] as String? ?? 'otro jugador';
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                duration: const Duration(seconds: 5),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                content: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A0000),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: const Color(0xFFCC2222).withValues(alpha: 0.7)),
+                  ),
+                  child: Row(children: [
+                    const Text('⚔️', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '¡$nick acaba de conquistar este territorio!',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFFF5252),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ));
+            }
+          } else if (newOwner != null) {
+            _globalTerritoryLastOwner = newOwner;
+          }
+        });
+      }
+    }
+  }
+
+  void togglePause() {
+    setState(() {
+      isPaused       = !isPaused;
+      _hudMinimizado = !isPaused;
+    });
+    if (isPaused) {
+      _timerController.pause();
+      _stopwatch.stop();
+      _velocidadActualKmh = 0;
+      _bounceAnim.stop();
+      _positionStream?.cancel();
+      _positionStream = Geolocator.getPositionStream(
+          locationSettings: _kGpsPausado).listen((pos) {
+        if (mounted) setState(() => _currentPosition = pos);
+      });
+      _ajustarPresenciaPausado();
+      if (_currentPosition != null) {
+        _moverCamara(lat: _currentPosition!.latitude,
+            lng: _currentPosition!.longitude,
+            zoom: _kZoomPausado, pitch: _kPitchNormal, bearing: 0, forzar: true);
+      }
+      _hudAnim.forward();
+    } else {
+      _timerController.start();
+      _stopwatch.start();
+      _bounceAnim.repeat(reverse: true);
+      _positionStream?.cancel();
+      _positionStream = _crearStreamGPS();
+      _ajustarPresenciaMovimiento();
+      if (_currentPosition != null) {
+        _moverCamara(lat: _currentPosition!.latitude,
+            lng: _currentPosition!.longitude,
+            zoom: _kZoomCorrer, pitch: _kPitchCorrer, bearing: _bearing, forzar: true);
+      }
+    }
+  }
+
+  Future<void> stopTracking() async {
+    if (_stopping) return;
+    _stopping = true;
+
+    _stopwatch.stop();
+    _timerController.pause();
+    _positionStream?.cancel();
+    _timerPublicarPosicion?.cancel();
+    _pulsoTimer?.cancel();
+    await _limpiarPresenciaFirestore();
+
+    if (_modoSolitario) {
+      await _limpiarCapasBarrios();
+    }
+
+    final tiempoFinal    = _stopwatch.elapsed;
+    final rutaFinal      = List<LatLng>.from(routePoints);
+    final distanciaFinal = _distanciaTotal;
+
+    if (mounted) {
+      setState(() {
+        isTracking          = false;
+        isPaused            = false;
+        _velocidadActualKmh = 0;
+        _hudMinimizado      = false;
+      });
+    }
+    await _mapboxMap?.gestures.updateSettings(
+        mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
+    await _moverCamara(
+      lat: _currentPosition?.latitude  ?? 40.4167,
+      lng: _currentPosition?.longitude ?? -3.70325,
+      zoom: _kZoomGlobo, bearing: 0, pitch: _kPitchNormal,
+      animated: true, duracion: 1200,
+    );
+
+    String? logId;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && distanciaFinal > 0) {
+        final monedasBase    = (distanciaFinal * 10).round();
+        final bool esPremium = SubscriptionService.currentStatus.isPremium;
+        final int multiplicador = (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
+        final double factorModo = multiplicadorMonedas(_modoSolitario);
+        final int monedasFinales =
+            (monedasBase * multiplicador * factorModo).round();
+        await FirebaseFirestore.instance
+            .collection('players')
+            .doc(user.uid)
+            .update({'monedas': FieldValue.increment(monedasFinales)});
+
+        final now = DateTime.now();
+        final logRef = await FirebaseFirestore.instance
+            .collection('activity_logs')
+            .add({
+          'userId':          user.uid,
+          'distancia':       distanciaFinal,
+          'tiempo_segundos': tiempoFinal.inSeconds,
+          'velocidad_media': tiempoFinal.inSeconds > 0
+              ? distanciaFinal / (tiempoFinal.inSeconds / 3600)
+              : 0.0,
+          'boost_activo':    _boostXpActivo,
+          'latFinal':        _currentPosition?.latitude,
+          'lngFinal':        _currentPosition?.longitude,
+          'timestamp':       FieldValue.serverTimestamp(),
+          'ownerColor':      _colorTerritorio.value,
+          'titulo': _modoSolitario
+              ? 'Exploración Solitaria'
+              : _objetivoGlobal != null
+                  ? 'Guerra Global · ${_objetivoGlobal!['territorioNombre']}'
+                  : 'Carrera Libre',
+          'modo': _modoSolitario
+              ? 'solitario'
+              : _objetivoGlobal != null ? 'guerra_global' : 'competitivo',
+          'fecha_dia':
+              '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+          if (_objetivoGlobal != null) ...{
+            'objetivo_global_id':           _objetivoGlobal!['territorioId'],
+            'objetivo_global_conquistado':  _globalConquistado,
+          },
+        });
+        logId = logRef.id;
+
+        if (_objetivoGlobal != null && _globalKmAlcanzados && logId != null) {
+          await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
+        }
+
+        if (rutaFinal.isNotEmpty) {
+          StatsService.enriquecerLog(logId: logId, ruta: rutaFinal)
+              .catchError((e) => debugPrint('Error enriquecerLog: $e'));
+        }
+      }
+    } catch (e) {
+      debugPrint('Error log: $e');
+    }
+
+    if (distanciaFinal > 0 && !_sesionInvalidadaPorCheat) {
+      final sesionCheck = AntiCheatService.analizarSesionCompleta(
+        ruta: rutaFinal, tiempo: tiempoFinal, distanciaKm: distanciaFinal,
+      );
+      if (!sesionCheck.esValida) {
+        _sesionInvalidadaPorCheat = true;
+        if (mounted) {
+          await AntiCheatWarningOverlay.mostrar(
+              context, motivo: sesionCheck.motivo ?? 'Sesión inválida');
+          if (mounted) Navigator.of(context).pop();
+        }
+        _stopping = false;
+        return;
+      }
+    }
+
+    int conquistados = 0;
+
+    if (_modoSolitario) {
+      final creado = await TerritoryService.crearTerritorioSolitario(
+        ruta:            rutaFinal,
+        colorTerritorio: _colorTerritorio,
+        nickname:        _miNickname,
+      );
+      if (creado) {
+        conquistados = 1;
+        final nuevosTerritorios =
+            await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
+        if (mounted) setState(() => _territorios = nuevosTerritorios);
+        await _verificarBarriosCompletados();
+        if (mounted) await ConquistaOverlay.mostrar(context, esInvasion: false);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            content: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: _p.parchMid,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _p.goldDim),
               ),
-
-              if (_barriosCercanos.isNotEmpty)
-                PolygonLayer(
-                  polygons: _barriosCercanos.map((b) {
-                    final pct = b.porcentajeCubierto;
-                    final Color color = pct >= 1.0
-                        ? _kSafe
-                        : pct > 0 ? _kWarn : _kDim;
-                    return Polygon(
-                      points: b.puntos,
-                      color: color.withValues(alpha: 0.10),
-                      borderColor: Colors.white.withValues(alpha: 0.90),
-                      borderStrokeWidth: 3.5,
-                    );
-                  }).toList(),
-                ),
-
-              if (territorios.isNotEmpty)
-                PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) =>
-                    Polygon(
-                      points: t.puntos,
-                      color: t.color.withValues(alpha: t.opacidadRelleno),
-                      borderColor: t.color,
-                      borderStrokeWidth: 2.5,
-                    ),
-                  ).toList(),
-                ),
-
-              MarkerLayer(markers: [
-                Marker(
-                  point: _state.centro, width: 24, height: 24,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white, shape: BoxShape.circle,
-                      border: Border.all(color: _kRed, width: 2),
-                      boxShadow: [BoxShadow(
-                          color: _kRed.withValues(alpha: 0.5),
-                          blurRadius: 12, spreadRadius: 2)],
-                    ),
+              child: Row(children: [
+                const Text('🗺️', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Área insuficiente para crear territorio.\n'
+                    '¡Explora más calles y rodea una zona más amplia!',
+                    style: GoogleFonts.inter(color: _kGoldLight,
+                        fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ]),
+            ),
+          ));
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _barriosCercanos = [];
+          _barrioActual    = null;
+          _barriosCargados = false;
+        });
+      }
+    } else if (_objetivoGlobal == null && distanciaFinal >= 0.3) {
+      conquistados =
+          await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
+      await _actualizarPuntosDesafio(conquistados, distanciaFinal);
+      if (mounted && distanciaFinal > 0) {
+        String? nombreRival;
+        if (conquistados > 0) {
+          final rivalT = _territorios
+              .where((t) => !t.esMio)
+              .cast<TerritoryData?>()
+              .firstWhere((_) => true, orElse: () => null);
+          nombreRival = rivalT?.ownerNickname;
+        }
+        await ConquistaOverlay.mostrar(context,
+            esInvasion: conquistados > 0, nombreTerritorio: nombreRival);
+      }
+    }
 
-              if (_barriosCercanos.isNotEmpty)
-                MarkerLayer(
-                  markers: _barriosCercanos.map((b) {
-                    final pct = b.porcentajeCubierto;
-                    final Color color = pct >= 1.0
-                        ? _kText : pct > 0 ? _kWarn : _kSub;
-                    return Marker(
-                      point: b.centro,
-                      width: 120, height: 40,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(b.nombre,
-                            textAlign: TextAlign.center,
-                            style: _raj(9, FontWeight.w700, color, spacing: 0.5),
-                          ),
-                          if (pct > 0)
-                            Text('${(pct * 100).toInt()}%',
-                              style: _raj(8, FontWeight.w600, color)),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-            ],
-          ),
+    if (!mounted) { _stopping = false; return; }
 
-          if (_cargandoBarrios)
-            Positioned(
-              top: 90, left: 0, right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _kSurface.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kBorder),
+    final puntosLigaGanados = _modoSolitario
+        ? 0
+        : _objetivoGlobal != null
+            ? 0
+            : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && distanciaFinal > 0) {
+      DesafiosService.acumularPuntos(
+        uid:                     user.uid,
+        distanciaKm:             distanciaFinal,
+        territoriosConquistados: conquistados,
+      );
+      DesafiosService.verificarExpirados(user.uid);
+    }
+
+    _stopping = false;
+
+    Navigator.pushReplacementNamed(context, '/resumen', arguments: {
+      'distancia':               distanciaFinal,
+      'tiempo':                  tiempoFinal,
+      'ruta':                    rutaFinal,
+      'esDesdeCarrera':          true,
+      'territoriosConquistados': conquistados,
+      'puntosLigaGanados':       puntosLigaGanados,
+      'retoCompletado':          _retoCompletado ? _retoActivo : null,
+      'objetivoGlobal':          _objetivoGlobal,
+      'globalConquistado':       _globalConquistado,
+      'nuevaClausula':           _nuevaClausula,
+    });
+  }
+
+  // ==========================================================================
+  // TERRITORIOS LÓGICA LOCAL
+  // ==========================================================================
+  void _procesarPosicionEnTerritorios(LatLng pos) {
+    if (_territorios.isEmpty) return;
+
+    final t = TerritoryService.territorioEnPosicion(_territorios, pos);
+
+    final cercanos = _territorios.where((ter) {
+      if (ter.esMio) return false;
+      final dist = Geolocator.distanceBetween(
+        pos.latitude, pos.longitude,
+        ter.centro.latitude, ter.centro.longitude,
+      );
+      return dist < 400;
+    }).toList()
+      ..sort((a, b) {
+        final dA = Geolocator.distanceBetween(pos.latitude, pos.longitude,
+            a.centro.latitude, a.centro.longitude);
+        final dB = Geolocator.distanceBetween(pos.latitude, pos.longitude,
+            b.centro.latitude, b.centro.longitude);
+        return dA.compareTo(dB);
+      });
+
+    if (mounted) {
+      setState(() {
+        _territoriosRivalesCercanos = cercanos.take(3).toList();
+        _territorioActualBajoPie    = (t != null && !t.esMio) ? t : null;
+      });
+    }
+
+    if (t == null) return;
+
+    if (t.esMio) {
+      if (!_territoriosVisitadosEnSesion.contains(t.docId)) {
+        _territoriosVisitadosEnSesion.add(t.docId);
+        TerritoryService.actualizarUltimaVisita(t.docId);
+        _narrador.eventoTerritorioPropio();
+        _mostrarSnackRefuerzo(t);
+      }
+    } else {
+      if (!_territoriosNotificadosEnSesion.contains(t.docId)) {
+        _territoriosNotificadosEnSesion.add(t.docId);
+        if (!t.esFantasma) {
+          TerritoryService.crearNotificacionInvasion(
+            toUserId: t.ownerId, fromNickname: _miNickname, territoryId: t.docId,
+          );
+        }
+        _narrador.eventoTerritorioRival(t.ownerNickname);
+        _mostrarSnackTerritorioRival(t);
+      }
+    }
+  }
+
+  Future<int> _procesarConquistas(
+      List<LatLng> ruta, Duration tiempo, double distancia) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || ruta.isEmpty || _territorios.isEmpty) return 0;
+
+    final rutaParaCloud = ruta
+        .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+        .toList();
+
+    final double velocidadMedia = _velocidadActualKmh > 0
+        ? _velocidadActualKmh
+        : (distancia > 0 && tiempo.inSeconds > 0
+            ? distancia / (tiempo.inSeconds / 3600)
+            : 5.0);
+
+    final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('atacarTerritorio',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 30)));
+
+    final territoriosObjetivo = _territorios.where((t) {
+      if (t.esMio) return false;
+      final paso    = _rutaPasaPorPoligono(ruta, t.puntos);
+      final cercano = t.esConquistableSinPasar &&
+          _rutaPasaCercaDe(ruta, t.centro, radioMetros: 50);
+      return paso || cercano;
+    }).toList();
+
+    if (territoriosObjetivo.isEmpty) return 0;
+
+    final resultados = await Future.wait(
+      territoriosObjetivo.map((t) async {
+        try {
+          final result = await callable.call({
+            'territorioDefensorId':      t.docId,
+            'rutaAtacante':              rutaParaCloud,
+            'velocidadMediaAtacanteKmh': velocidadMedia,
+          });
+          final data   = result.data as Map<String, dynamic>;
+          final accion = data['accion'] as String?;
+          if (data['ok'] == true) {
+            if (accion == 'conquista_total' || accion == 'robo_parcial') {
+              _narrador.eventoConquista(t.ownerNickname);
+              final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+                  modo: _modoSolitario ? 'solitario' : 'competitivo');
+                if (mounted) {
+                  setState(() => _territorios = nuevos);
+                  _territoriosLayersCreated = false;
+                  await _dibujarTerritoriosEnMapa();
+                }
+              return 1;
+            } else if (accion == 'daño') {
+              final hpDespues     = data['hpDespues'] as int? ?? 0;
+              final bajoDeEstado  = data['bajoDeEstado'] as bool? ?? false;
+              final estadoDespues = data['estadoDespues'] as String? ?? '';
+              if (mounted) {
+                final mensaje = bajoDeEstado
+                    ? '⚠️ Territorio debilitado a estado ${estadoDespues.toUpperCase()}'
+                    : '⚔️ Daño causado. HP rival: $hpDespues%';
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  duration: const Duration(seconds: 3),
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  content: _snackWrap(
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
+                    shadow: _p.terracotta,
+                    child: Row(children: [
+                      const Text('⚔️', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(mensaje,
+                          style: const TextStyle(color: Color(0xFFFFE8C0),
+                              fontWeight: FontWeight.bold, fontSize: 13))),
+                    ]),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const SizedBox(
-                      width: 12, height: 12,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 1.5, color: _kSub),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Cargando barrios…',
-                        style: _raj(10, FontWeight.w600, _kSub)),
-                  ]),
-                ),
-              ),
-            ),
-        ]);
-      },
-    );
-  }
-
-  // ==========================================================================
-  // MAPA — dispatcher principal
-  // ==========================================================================
-  Widget _buildMapa() {
-    final tieneRuta = widget.ruta.length > 1 && widget.mostrarRuta;
-    return ListenableBuilder(
-      listenable: _state,
-      builder: (_, __) {
-        if (_state.modoGlobal)     return _buildMapaGlobal();
-        if (_state.modoSolitario)  return _buildMapaSolitario();
-        return _buildMapaCiudad(tieneRuta);
-      },
-    );
-  }
-
-  Widget _buildMapaCiudad(bool tieneRuta) {
-    final territorios  = _state.territorios;
-    final seleccionado = _state.territorioSeleccionado;
-
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _state.centro,
-        initialZoom: 14,
-        minZoom: 3, maxZoom: 19,
-        onTap: (_, __) { if (seleccionado != null) _cerrarSeleccion(); },
-        onMapReady: () {
-          if (tieneRuta) {
-            try {
-              _mapController.fitCamera(CameraFit.bounds(
-                  bounds: LatLngBounds.fromPoints(widget.ruta),
-                  padding: const EdgeInsets.all(60)));
-            } catch (_) {}
+                ));
+              }
+            }
           }
-        },
-      ),
-      children: [
-        TileLayer(
-            urlTemplate: _kMapboxUrl,
-            userAgentPackageName: 'com.runner_risk.app',
-            tileDimension: 256),
+          return 0;
+        } on FirebaseFunctionsException catch (e) {
+          debugPrint('Error atacarTerritorio [${t.docId}]: ${e.message}');
+          return 0;
+        } catch (e) {
+          debugPrint('Error atacarTerritorio: $e');
+          return 0;
+        }
+      }),
+      eagerError: false,
+    );
 
-        if (territorios.isNotEmpty)
-          GestureDetector(
-            onTapUp: (details) {
-              final tapLatLng =
-                  _mapController.camera.offsetToCrs(details.localPosition);
-              TerritoryData? encontrado;
-              for (final t in territorios) {
-                if (_pointInPolygon(tapLatLng, t.puntos)) {
-                  encontrado = t;
-                  break;
-                }
-              }
-              if (encontrado == null) {
-                double minDist = double.infinity;
-                for (final t in territorios) {
-                  final d = Geolocator.distanceBetween(
-                      tapLatLng.latitude, tapLatLng.longitude,
-                      t.centro.latitude, t.centro.longitude);
-                  if (d < minDist && d < 200) {
-                    minDist = d;
-                    encontrado = t;
-                  }
-                }
-              }
-              if (encontrado != null) _onTerritoryTap(encontrado);
-            },
-            child: PolygonLayer(
-              polygons: territorios.map((t) {
-                final bool sel = seleccionado?.docId == t.docId;
-                return Polygon(
-                  points: t.puntos,
-                  color: sel
-                      ? t.color.withValues(alpha: 0.45)
-                      : t.color.withValues(alpha: t.opacidadRelleno),
-                  borderColor: sel
-                      ? t.color
-                      : t.color.withValues(alpha: t.opacidadBorde),
-                  borderStrokeWidth:
-                      sel ? 3.5 : (t.estaDeterirado ? 1.5 : 2.5),
-                );
-              }).toList(),
+    return resultados.fold<int>(0, (sum, val) => sum + val);
+  }
+
+  bool _rutaPasaPorPoligono(List<LatLng> ruta, List<LatLng> pol) =>
+      ruta.any((p) => _puntoEnPoligono(p, pol));
+
+  bool _puntoEnPoligono(LatLng punto, List<LatLng> pol) {
+    int n = pol.length, inter = 0;
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+      final xi = pol[i].longitude, yi = pol[i].latitude;
+      final xj = pol[j].longitude, yj = pol[j].latitude;
+      if (((yi > punto.latitude) != (yj > punto.latitude)) &&
+          punto.longitude < (xj - xi) * (punto.latitude - yi) / (yj - yi) + xi) {
+        inter++;
+      }
+    }
+    return inter % 2 == 1;
+  }
+
+  bool _rutaPasaCercaDe(List<LatLng> ruta, LatLng obj,
+          {required double radioMetros}) =>
+      ruta.any((p) => Geolocator.distanceBetween(
+              p.latitude, p.longitude, obj.latitude, obj.longitude) <=
+          radioMetros);
+
+  // ==========================================================================
+  // SNACKS Y NOTIFICACIONES
+  // ==========================================================================
+  void _mostrarNotificacionRetoCompletado() {
+    if (!mounted || _retoActivo == null) return;
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
+    final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 7),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF3A2800), Color(0xFFD4A84C)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: _kGold, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.55), blurRadius: 28)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏆', style: TextStyle(fontSize: 38)),
+          const SizedBox(height: 8),
+          Text('¡RETO COMPLETADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 17,
+                  fontWeight: FontWeight.w900, letterSpacing: 3)),
+          const SizedBox(height: 4),
+          Text(titulo, textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.30),
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('Puedes seguir corriendo o finalizar la carrera',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: _kGoldLight.withValues(alpha: 0.85),
+                    fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  void _mostrarSnackTerritorioRival(TerritoryData t) {
+    if (!mounted) return;
+    final String estadoLabel;
+    final Color  estadoColor;
+    final String emoji;
+    final String consejo;
+    switch (t.estadoHp) {
+      case EstadoHp.saludable:
+        estadoLabel = 'FUERTE'; estadoColor = _kVerde;
+        emoji = '🟢'; consejo = 'Necesitas >7 km/h para dañarlo';
+      case EstadoHp.danado:
+        estadoLabel = 'MEDIO'; estadoColor = _kGold;
+        emoji = '🟡'; consejo = 'Necesitas >5 km/h';
+      case EstadoHp.critico:
+        estadoLabel = '¡LEVE!'; estadoColor = _p.globalRed;
+        emoji = '🔴'; consejo = '¡Cualquier paso lo conquista!';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 4),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _p.parchment.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: estadoColor.withValues(alpha: 0.7), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: estadoColor.withValues(alpha: 0.25), blurRadius: 16),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color:  estadoColor.withValues(alpha: 0.15),
+              shape:  BoxShape.circle,
+              border: Border.all(color: estadoColor.withValues(alpha: 0.5)),
+            ),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  const Text('⚔️ ', style: TextStyle(fontSize: 12)),
+                  Expanded(child: Text(t.ownerNickname,
+                      style: GoogleFonts.inter(color: _kGoldLight,
+                          fontSize: 13, fontWeight: FontWeight.w900),
+                      overflow: TextOverflow.ellipsis)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: estadoColor.withValues(alpha: 0.15),
+                      border: Border.all(color: estadoColor.withValues(alpha: 0.6)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(estadoLabel,
+                        style: GoogleFonts.inter(color: estadoColor,
+                            fontSize: 10, fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2)),
+                  ),
+                ]),
+                const SizedBox(height: 3),
+                Text(consejo,
+                    style: GoogleFonts.inter(
+                        color: _kGoldLight.withValues(alpha: 0.75),
+                        fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Stack(children: [
+                  Container(height: 3,
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2))),
+                  FractionallySizedBox(
+                    widthFactor: (t.hpActual / 100.0).clamp(0.0, 1.0),
+                    child: Container(height: 3,
+                        decoration: BoxDecoration(color: estadoColor,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [BoxShadow(
+                                color: estadoColor.withValues(alpha: 0.6),
+                                blurRadius: 4)])),
+                  ),
+                ]),
+              ],
             ),
           ),
+        ]),
+      ),
+    ));
+  }
 
-        if (tieneRuta)
-          PolylineLayer(polylines: [
-            Polyline(points: widget.ruta, strokeWidth: 4, color: _kRed),
-          ]),
+  Widget _buildRadarTerritoriosProximos() {
+    if (_modoSolitario || !isTracking || isPaused) return const SizedBox.shrink();
+    if (_territoriosRivalesCercanos.isEmpty && _territorioActualBajoPie == null) {
+      return const SizedBox.shrink();
+    }
+    final todos = [
+      if (_territorioActualBajoPie != null) _territorioActualBajoPie!,
+      ..._territoriosRivalesCercanos
+          .where((t) => t.docId != _territorioActualBajoPie?.docId),
+    ].take(3).toList();
 
-        MarkerLayer(markers: [
-          Marker(
-            point: _state.centro, width: 24, height: 24,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white, shape: BoxShape.circle,
-                border: Border.all(color: _kRed, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: _kRed.withValues(alpha: 0.5),
-                      blurRadius: 12, spreadRadius: 2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: todos.map((t) {
+        final bool bajoPie = t.docId == _territorioActualBajoPie?.docId;
+        final Color estadoColor;
+        final String estadoEmoji;
+        final String estadoLabel;
+        switch (t.estadoHp) {
+          case EstadoHp.saludable:
+            estadoColor = _kVerde; estadoEmoji = '🟢'; estadoLabel = 'FUERTE';
+          case EstadoHp.danado:
+            estadoColor = _kGold; estadoEmoji = '🟡'; estadoLabel = 'MEDIO';
+          case EstadoHp.critico:
+            estadoColor = _p.globalRed; estadoEmoji = '🔴'; estadoLabel = 'LEVE';
+        }
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: bajoPie
+                ? estadoColor.withValues(alpha: 0.18)
+                : _p.parchment.withValues(alpha: 0.88),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: estadoColor.withValues(alpha: bajoPie ? 0.9 : 0.45),
+                width: bajoPie ? 1.5 : 1.0),
+            boxShadow: bajoPie
+                ? [BoxShadow(color: estadoColor.withValues(alpha: 0.3), blurRadius: 12)]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6)],
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(estadoEmoji, style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 6),
+            Column(crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min, children: [
+              Text(bajoPie ? '¡PISANDO!' : 'CERCA',
+                  style: GoogleFonts.inter(
+                      color: bajoPie ? estadoColor : _p.goldDim,
+                      fontSize: 8, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5)),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                if (t.tieneRey) ...[
+                  const Text('👑', style: TextStyle(fontSize: 9)),
+                  const SizedBox(width: 3),
                 ],
+                if (t.escudoVigente) ...[
+                  const Text('🛡️', style: TextStyle(fontSize: 9)),
+                  const SizedBox(width: 3),
+                ],
+                Text(t.ownerNickname.length > 10
+                    ? '${t.ownerNickname.substring(0, 9)}…'
+                    : t.ownerNickname,
+                    style: GoogleFonts.inter(
+                        color: bajoPie
+                            ? _kGoldLight
+                            : _kGoldLight.withValues(alpha: 0.7),
+                        fontSize: 11, fontWeight: FontWeight.w800)),
+              ]),
+            ]),
+            const SizedBox(width: 8),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: estadoColor.withValues(alpha: 0.15),
+                  border: Border.all(color: estadoColor.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(estadoLabel,
+                    style: GoogleFonts.inter(color: estadoColor,
+                        fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              ),
+              if (t.escudoVigente && t.escudoExpira != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'escudo ${_horasRestantes(t.escudoExpira!)}h',
+                  style: GoogleFonts.inter(
+                      color: Colors.lightBlueAccent,
+                      fontSize: 7, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ]),
+          ]),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildChipBarrioActual() {
+    if (!_modoSolitario || !isTracking || _barrioActual == null) {
+      return const SizedBox.shrink();
+    }
+    final barrio = _barrioActual!;
+    final pct    = barrio.porcentajeCubierto;
+    final pctInt = (pct * 100).toInt();
+    final Color color;
+    final String emoji;
+    if (pct >= 1.0)      { color = _kVerde;     emoji = '🏆'; }
+    else if (pct >= 0.5) { color = _kGold;       emoji = '🗺️'; }
+    else if (pct > 0)    { color = _p.terracotta; emoji = '📍'; }
+    else                 { color = _p.goldDim;    emoji = '🗺️'; }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _p.parchment.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 12)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(emoji, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(barrio.nombre,
+              style: GoogleFonts.inter(color: _kGoldLight,
+                  fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 110,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value:           pct,
+                backgroundColor: color.withValues(alpha: 0.15),
+                valueColor:      AlwaysStoppedAnimation(color),
+                minHeight:       4,
               ),
             ),
           ),
         ]),
+        const SizedBox(width: 8),
+        Text('$pctInt%',
+            style: GoogleFonts.orbitron(color: color,
+                fontSize: 12, fontWeight: FontWeight.w900)),
+      ]),
+    );
+  }
 
-        if (territorios.isNotEmpty)
-          MarkerLayer(
-            markers: territorios.map((t) => Marker(
-              point: t.centro, width: 72, height: 22,
-              child: GestureDetector(
-                onTap: () => _onTerritoryTap(t),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: seleccionado?.docId == t.docId
-                          ? t.color
-                          : t.color.withValues(alpha: 0.5),
-                      width: seleccionado?.docId == t.docId ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Text(
-                    t.esMio ? '[ YO ]' : t.ownerNickname,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: t.color, fontSize: 8,
-                      fontWeight: FontWeight.w800, letterSpacing: 0.5,
+  void _mostrarNotificacionBarrioCompletado(_BarrioData barrio, int bonusMonedas) {
+    if (!mounted) return;
+    HapticFeedback.heavyImpact();
+    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 450), () => HapticFeedback.heavyImpact());
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 10),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1A3A1A), Color(0xFF4CAF50)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          border: Border.all(color: _kVerde, width: 1.5),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.55), blurRadius: 28)],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏆', style: TextStyle(fontSize: 42)),
+          const SizedBox(height: 8),
+          Text('¡BARRIO CONQUISTADO!', textAlign: TextAlign.center,
+              style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 16,
+                  fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+          const SizedBox(height: 4),
+          Text(barrio.nombre.toUpperCase(), textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: Colors.white,
+                  fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text('Has conquistado el 100% de este barrio',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.30),
+              border: Border.all(color: _kVerde.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('🪙', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text('+$bonusMonedas BONUS',
+                  style: GoogleFonts.orbitron(color: _kGoldLight,
+                      fontSize: 16, fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5)),
+            ]),
+          ),
+        ]),
+      ),
+    ));
+  }
+
+  int _horasRestantes(DateTime expira) =>
+      expira.difference(DateTime.now()).inHours.clamp(0, 999);
+
+  void _mostrarSnackRefuerzo(TerritoryData territorio) {
+    if (!mounted) return;
+    final String mensaje;
+    final String emoji;
+    switch (territorio.estadoHp) {
+      case EstadoHp.critico:
+        mensaje = '¡Territorio estabilizado a estado Medio!'; emoji = '🔧';
+      case EstadoHp.danado:
+        mensaje = '¡Territorio reforzado a estado Fuerte!'; emoji = '🛡️';
+      case EstadoHp.saludable:
+        mensaje = '¡Territorio en perfecto estado!'; emoji = '⚔️';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: Duration(seconds: territorio.escudoVigente ? 2 : 5),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: _snackWrap(
+        color:  _p.parchMid,
+        border: Border.all(color: _kGold.withValues(alpha: 0.55)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(mensaje,
+                style: const TextStyle(color: _kGoldLight,
+                    fontWeight: FontWeight.bold, fontSize: 13))),
+            if (territorio.escudoVigente && territorio.escudoExpira != null) ...[
+              const Text('🛡️', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 4),
+              Text('${_horasRestantes(territorio.escudoExpira!)}h',
+                  style: const TextStyle(
+                      color: Colors.lightBlueAccent,
+                      fontSize: 11, fontWeight: FontWeight.w800)),
+            ],
+          ]),
+          if (!territorio.escudoVigente) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              const Text('🛡️', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              Text('Proteger con escudo:',
+                  style: GoogleFonts.inter(
+                      color: _p.goldDim, fontSize: 10, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              ...TerritoryService.kPreciosEscudo.entries.map((e) =>
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: GestureDetector(
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      await _activarEscudo(territorio.docId, e.key, e.value);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _p.goldDim.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: _kGold.withValues(alpha: 0.5)),
+                      ),
+                      child: Text('${e.key}h · ${e.value}🪙',
+                          style: GoogleFonts.inter(
+                              color: _kGold,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900)),
                     ),
                   ),
                 ),
               ),
-            )).toList(),
-          ),
+            ]),
+          ],
+        ]),
+      ),
+    ));
+  }
 
-        if (_state.jugadoresEnVivo.isNotEmpty)
-          MarkerLayer(
-            markers: _state.jugadoresEnVivo.entries.map((e) {
-              final d = e.value;
-              final lat = (d['lat'] as num?)?.toDouble();
-              final lng = (d['lng'] as num?)?.toDouble();
-              final color = d['color'] != null
-                  ? Color(d['color'] as int)
-                  : _kRed;
-              final nick = d['nickname'] as String? ?? '';
-              if (lat == null || lng == null) return null;
-              return Marker(
-                point: LatLng(lat, lng), width: 56, height: 60,
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      border: Border.all(color: color.withValues(alpha: 0.7)),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      nick.length > 6
-                          ? '${nick.substring(0, 6)}..'
-                          : nick,
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  Container(
-                      width: 1.5,
-                      height: 6,
-                      color: color.withValues(alpha: 0.6)),
-                  AnimatedBuilder(
-                    animation: _pulseCtrl,
-                    builder: (_, __) => Container(
-                      width: 10 + 4 * _pulse.value,
-                      height: 10 + 4 * _pulse.value,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.5 * _pulse.value),
-                            blurRadius: 12, spreadRadius: 3)
-                        ],
-                      ),
-                    ),
-                  ),
-                ]),
-              );
-            }).whereType<Marker>().toList(),
+  Future<void> _activarEscudo(
+      String territorioId, int horas, int precio) async {
+    if (!mounted) return;
+    try {
+      await TerritoryService.activarEscudo(
+          territorioId: territorioId, horas: horas);
+      if (!mounted) return;
+      final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+          modo: _modoSolitario ? 'solitario' : 'competitivo');
+      if (!mounted) return;
+      setState(() => _territorios = nuevos);
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: _snackWrap(
+          color: const Color(0xFF0D1A2A),
+          border: Border.all(
+              color: Colors.lightBlueAccent.withValues(alpha: 0.6)),
+          child: Row(children: [
+            const Text('🛡️', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Text('¡Escudo activado $horas horas por $precio 🪙!',
+                style: const TextStyle(
+                    color: Colors.lightBlueAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13)),
+          ]),
+        ),
+      ));
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.message ?? 'Error al activar el escudo.');
+    }
+  }
+
+  Widget _snackWrap({
+    Widget? child, Gradient? gradient, Color? color,
+    BoxBorder? border, Color shadow = Colors.transparent,
+  }) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: gradient, color: color,
+          borderRadius: BorderRadius.circular(14), border: border,
+          boxShadow: [BoxShadow(color: shadow.withValues(alpha: 0.4), blurRadius: 12)],
+        ),
+        child: child,
+      );
+
+  // ==========================================================================
+  // BUILD PRINCIPAL
+  // ==========================================================================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(children: [
+        Positioned.fill(child: _buildMapbox()),
+        // ── STARFIELD: visible solo cuando el globo está activo (no tracking)
+        if (!isTracking && !_mostrandoCuentaAtras)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _StarfieldWidget(nightMode: _modoNoche),
+            ),
           ),
+        if (!isTracking && !_mostrandoCuentaAtras)
+          Positioned.fill(child: IgnorePointer(child: _buildGloboOverlay())),
+        Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
+        Positioned(top: 200, left: 14, child: _buildChips()),
+        Positioned(
+          top: 200, right: 14,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildBotonesMapa(),
+              const SizedBox(height: 12),
+              _buildRadarTerritoriosProximos(),
+            ],
+          ),
+        ),
+        if (isTracking && !isPaused) _buildAvatarOverlay(),
+        if (isTracking)
+          Align(
+            alignment: isPaused
+                ? const Alignment(0, -0.1)
+                : const Alignment(0, -0.55),
+            child: _buildTimerGrande(),
+          ),
+        if (_mostrandoCuentaAtras) _buildCuentaAtras(),
+        if (isTracking && !isPaused && _mensajeNarrador != null)
+          Positioned(bottom: 130, left: 0, right: 0,
+              child: NarradorOverlay(mensaje: _mensajeNarrador)),
+        if (isTracking && _modoSolitario && _barrioActual != null)
+          Positioned(top: 160, left: 0, right: 0,
+              child: Center(child: _buildChipBarrioActual())),
+        if (isTracking && _retoActivo != null && !_retoCompletado)
+          Positioned(
+            top: (_modoSolitario && _barrioActual != null) ? 210 : 160,
+            left: 0, right: 0,
+            child: Center(child: _buildChipRetoActivo()),
+          ),
+        if (_objetivoGlobal != null && !_globalConquistado)
+          Positioned(
+            top: isTracking
+                ? (_retoActivo != null ? 260 : 160)
+                : 120,
+            left: 0, right: 0,
+            child: Center(child: _buildChipObjetivoGlobal()),
+          ),
+        if (_globalConquistando)
+          Positioned.fill(child: _buildConquistadoOverlay()),
+        Positioned(bottom: 0, left: 0, right: 0, child: _buildBotonera()),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // GUERRA GLOBAL — widgets
+  // ==========================================================================
+  Widget _buildChipObjetivoGlobal() {
+    final nombre      = _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio';
+    final progreso    = _progresoGlobal;
+
+    if (_globalConquistado) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kVerde.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kVerde.withValues(alpha: 0.7)),
+          boxShadow: [BoxShadow(color: _kVerde.withValues(alpha: 0.35), blurRadius: 16)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('✅', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 8),
+          Text('¡$nombre CONQUISTADO!',
+              style: GoogleFonts.cinzel(color: _kVerde, fontSize: 11,
+                  fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        ]),
+      );
+    }
+
+    if (_globalKmAlcanzados) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kGold.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kGold.withValues(alpha: 0.8)),
+          boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.40), blurRadius: 18)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🏁', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, children: [
+            Text('¡META ALCANZADA!',
+                style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 11,
+                    fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text('Finaliza la carrera para reclamar',
+                style: GoogleFonts.inter(color: _kGold, fontSize: 9,
+                    fontWeight: FontWeight.w700)),
+          ]),
+        ]),
+      );
+    }
+
+    final kmRestantes = _kmRestantesGlobal;
+    final restanteStr = kmRestantes >= 1
+        ? '${kmRestantes.toStringAsFixed(2)} km'
+        : '${(kmRestantes * 1000).toInt()} m';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _p.ink.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _p.globalRed.withValues(alpha: 0.6)),
+        boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.25), blurRadius: 14)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('⚔️', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(nombre, style: GoogleFonts.inter(color: _kGoldLight,
+              fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 120,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progreso,
+                backgroundColor: _p.globalRed.withValues(alpha: 0.2),
+                valueColor: AlwaysStoppedAnimation(_p.globalRed),
+                minHeight: 4,
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(width: 8),
+        Text(restanteStr,
+            style: GoogleFonts.orbitron(color: _kGoldLight,
+                fontSize: 10, fontWeight: FontWeight.w900)),
+      ]),
+    );
+  }
+
+  Widget _buildConquistadoOverlay() => Container(
+        color: Colors.black.withValues(alpha: 0.65),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+            decoration: BoxDecoration(
+              color: _p.ink,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kGold.withValues(alpha: 0.5)),
+              boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.2), blurRadius: 30)],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const SizedBox(width: 36, height: 36,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _kGold)),
+              const SizedBox(height: 16),
+              Text('CONQUISTANDO...',
+                  style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 14,
+                      fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 6),
+              Text(_objetivoGlobal?['territorioNombre'] as String? ?? '',
+                  style: GoogleFonts.inter(color: _kGold, fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      );
+
+  // ==========================================================================
+  // CHIP RETO ACTIVO
+  // ==========================================================================
+  Widget _buildChipRetoActivo() {
+    final objetivoMetros  = (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
+    final distanciaMetros = _distanciaTotal * 1000;
+    final progreso = objetivoMetros > 0
+        ? (distanciaMetros / objetivoMetros).clamp(0.0, 1.0)
+        : 0.0;
+    final restanteM   = (objetivoMetros - distanciaMetros).clamp(0.0, objetivoMetros);
+    final restanteStr = restanteM >= 1000
+        ? '${(restanteM / 1000).toStringAsFixed(2)} km'
+        : '${restanteM.toInt()} m';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: _p.parchment.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kGold.withValues(alpha: 0.5)),
+        boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.20), blurRadius: 12)],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('⚡', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 8),
+        Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(_retoActivo!['titulo'] as String? ?? 'Reto activo',
+              style: GoogleFonts.inter(color: _kGoldLight,
+                  fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          SizedBox(
+            width: 120,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progreso,
+                backgroundColor: _p.goldDim.withValues(alpha: 0.3),
+                valueColor: const AlwaysStoppedAnimation(_kGold),
+                minHeight: 4,
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(width: 8),
+        Text(restanteStr,
+            style: GoogleFonts.orbitron(color: _kGoldLight,
+                fontSize: 10, fontWeight: FontWeight.w900)),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // GLOBO 3D — overlay sobre el MapboxMap globe real
+  // ==========================================================================
+  Widget _buildGloboOverlay() {
+    return Stack(children: [
+      // Viñeta espacial en los bordes
+      Positioned.fill(
+        child: IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center, radius: 0.82,
+                colors: [
+                  Colors.transparent,
+                  // En modo noche más oscuro; en día ligeramente más sutil
+                  Colors.black.withValues(alpha: _modoNoche ? 0.72 : 0.55),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      // Título
+      Positioned(
+        top: 58, left: 0, right: 0,
+        child: IgnorePointer(
+          child: Column(children: [
+            Text('CAMPO DE BATALLA EN VIVO', textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700,
+                    letterSpacing: 4, color: Colors.white.withValues(alpha: 0.55))),
+            const SizedBox(height: 5),
+            Text('RISK RUNNER', textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900,
+                    letterSpacing: 3, color: Colors.white,
+                    shadows: [
+                      Shadow(blurRadius: 24, color: Colors.black.withValues(alpha: 0.9)),
+                      Shadow(blurRadius: 8,  color: Colors.black),
+                    ])),
+          ]),
+        ),
+      ),
+      // Chips de info
+      Positioned(
+        top: 148, left: 14,
+        child: IgnorePointer(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (_modoSolitario) ...[
+              _globoChip(CupertinoIcons.map_pin, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
+              const SizedBox(height: 6),
+              if (_barriosCercanos.isNotEmpty) ...[
+                _globoChip(
+                  CupertinoIcons.map,
+                  '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}/${_barriosCercanos.length} barrios',
+                  const Color(0xFF30D158),
+                ),
+                const SizedBox(height: 6),
+                if (_barrioActual != null)
+                  _globoChip(
+                    CupertinoIcons.compass,
+                    '${_barrioActual!.nombre} · ${(_barrioActual!.porcentajeCubierto * 100).toInt()}%',
+                    _barrioActual!.porcentajeCubierto >= 1.0
+                        ? const Color(0xFF30D158)
+                        : _barrioActual!.porcentajeCubierto > 0
+                            ? const Color(0xFFFF9500)
+                            : Colors.white70,
+                  ),
+              ] else
+                _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
+            ] else if (_objetivoGlobal != null) ...[
+              _globoChip(CupertinoIcons.flag,
+                  _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
+                  _p.globalRed),
+              const SizedBox(height: 6),
+              _globoChip(CupertinoIcons.person,
+                  '${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km requeridos',
+                  Colors.white70),
+              const SizedBox(height: 6),
+              _globoChip(CupertinoIcons.circle,
+                  '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes',
+                  _kGold),
+            ] else ...[
+              _globoChip(CupertinoIcons.shield,
+                  '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
+                  _p.terracotta),
+              const SizedBox(height: 6),
+              _globoChip(CupertinoIcons.person_2, '${_jugadoresActivos.length} activos ahora', _kWaterLight),
+              const SizedBox(height: 6),
+              _globoChip(CupertinoIcons.map, '${_territorios.length} territorios', Colors.white70),
+            ],
+            if (_retoActivo != null) ...[
+              const SizedBox(height: 6),
+              _globoChip(CupertinoIcons.bolt, _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
+            ],
+          ]),
+        ),
+      ),
+      // Stats en la parte inferior
+      Positioned(
+        bottom: 265, left: 0, right: 0,
+        child: IgnorePointer(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: _objetivoGlobal != null
+                  ? [
+                      _globoStat(_distanciaTotal.toStringAsFixed(2), 'KM HECHOS', _kGold),
+                      _globoStat(
+                        (_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? '?',
+                        'KM META', _kWaterLight,
+                      ),
+                      _globoStat('${(_progresoGlobal * 100).toInt()}%', 'PROGRESO', _kGoldLight),
+                      _globoStat(_globalConquistado ? 'OK' : '···', 'ESTADO',
+                          _globalConquistado ? _kVerde : _p.terracotta),
+                    ]
+                  : _modoSolitario && _barriosCercanos.isNotEmpty
+                      ? [
+                          _globoStat(
+                            '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}',
+                            'COMPLETAS', const Color(0xFF30D158),
+                          ),
+                          _globoStat(
+                            '${_barriosCercanos.length}',
+                            'ZONAS', _kGoldLight,
+                          ),
+                          _globoStat(
+                            '${_territorios.where((t) => t.esMio).length}',
+                            'MIS TERR.', _kGold,
+                          ),
+                          _globoStat(
+                            _barriosCercanos.isEmpty ? '0%'
+                              : '${(_barriosCercanos.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / _barriosCercanos.length * 100).toInt()}%',
+                            'MEDIA', _kWaterLight,
+                          ),
+                        ]
+                      : [
+                          _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
+                          _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
+                          _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
+                          _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
+                        ],
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _globoChip(IconData icon, String texto, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.52),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8)],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 6),
+          Text(texto, style: GoogleFonts.inter(
+              fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+        ]),
+      );
+
+  Widget _globoStat(String valor, String label, Color color) =>
+      Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(valor, style: GoogleFonts.orbitron(
+            fontSize: 18, fontWeight: FontWeight.w900, color: color)),
+        const SizedBox(height: 2),
+        Text(label, style: GoogleFonts.inter(fontSize: 7,
+            fontWeight: FontWeight.w700, letterSpacing: 1.8,
+            color: _kGold.withValues(alpha: 0.4))),
+      ]);
+
+  Widget _buildMapbox() {
+    if (kIsWeb) return _buildWebMap();
+    return mapbox.MapWidget(
+      styleUri: _mapStyle,
+      cameraOptions: mapbox.CameraOptions(
+        center: mapbox.Point(coordinates: mapbox.Position(
+            _currentPosition?.longitude ?? -3.70325,
+            _currentPosition?.latitude  ?? 40.4167)),
+        zoom: _kZoomGlobo, pitch: _kPitchNormal,
+      ),
+      onMapCreated: _onMapCreated,
+    );
+  }
+
+  Widget _buildWebMap() {
+    _webMapCtrl ??= MapController();
+    return FlutterMap(
+      mapController: _webMapCtrl!,
+      options: MapOptions(
+        initialCenter: LatLng(
+          _currentPosition?.latitude  ?? 40.4167,
+          _currentPosition?.longitude ?? -3.70325,
+        ),
+        initialZoom: isTracking ? _kZoomCorrer : 3.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        ),
+      ),
+      children: [
+        TileLayer(urlTemplate: _kTileUrl,
+            userAgentPackageName: 'com.runner_risk.app'),
+        if (_territorios.isNotEmpty) PolygonLayer(
+          polygons: _territorios.map((t) {
+            final col = t.esMio ? t.color : t.colorEstadoHp;
+            return Polygon(
+              points: t.puntos,
+              color: col.withValues(alpha: 0.22),
+              borderColor: col,
+              borderStrokeWidth: t.esMio ? 2.5 : 1.5,
+            );
+          }).toList(),
+        ),
+        if (isTracking && routePoints.isNotEmpty) PolylineLayer(
+          polylines: [Polyline(points: routePoints,
+              color: _colorTerritorio, strokeWidth: 4.5)],
+        ),
+        if (isTracking && _currentPosition != null) MarkerLayer(
+          markers: [
+            Marker(
+              point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+              width: 28, height: 28,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _kGold, shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  // ==========================================================================
-  // MAPA GLOBAL — con SpaceBackground (estrellas detrás del globo)
-  // ==========================================================================
-  Widget _buildMapaGlobal() {
-    final sel = _state.territorioGlobalSeleccionado;
-
-    // SpaceBackground envuelve todo: fondo azul marino + estrellas detrás del globo
-    return SpaceBackground(
-      parallaxOffset: _spaceOffset,
-      child: FadeTransition(
-        opacity: _globalEntryAnim,
-        child: FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _kGlobalCenter,
-            initialZoom: 2.5,
-            minZoom: 1.5, maxZoom: 8,
-            onTap: (_, __) { if (sel != null) _cerrarSeleccion(); },
-            onPositionChanged: (position, hasGesture) {
-              final newZoom = position.zoom;
-              if ((newZoom - _zoomGlobal).abs() > 0.3) {
-                setState(() => _zoomGlobal = newZoom);
-              }
-              // ── Actualizar parallax del universo al mover el globo ──
-              if (hasGesture) {
-                final center = position.center;
-                if (center != null) {
-                  setState(() {
-                    _spaceOffset = Offset(
-                      center.longitude * 3.5,
-                      center.latitude  * 3.5,
-                    );
-                  });
-                }
-              }
-            },
-          ),
-          children: [
-            // Tile transparente mientras cargan — deja ver el fondo espacial
-            ColoredBox(
-            color: const Color(0x00000000), // transparente
-            child: TileLayer(
-              urlTemplate: _kMapboxDarkUrl,
-              userAgentPackageName: 'com.runner_risk.app',
-              tileDimension: 256,
-            ),
-          ),
-
-            if (_state.loadingGlobal)
-              const ColorFiltered(
-                colorFilter:
-                    ColorFilter.mode(Colors.black26, BlendMode.srcOver),
-                child: SizedBox.expand(),
-              ),
-
-            if (!_state.loadingGlobal &&
-                _state.territoriosGlobales.isNotEmpty) ...[
-              GestureDetector(
-                onTapUp: (details) {
-                  final tapLatLng = _mapController.camera
-                      .offsetToCrs(details.localPosition);
-                  GlobalTerritory? encontrado;
-                  for (final t in _state.territoriosGlobales) {
-                    if (_pointInPolygon(tapLatLng, t.points)) {
-                      encontrado = t;
-                      break;
-                    }
-                  }
-                  if (encontrado != null) _onGlobalTerritoryTap(encontrado);
-                },
-                child: PolygonLayer(
-                  polygons: _state.territoriosGlobales.map((t) {
-                    final isSel  = sel?.id == t.id;
-                    final isMine = t.isMine;
-                    final baseColor =
-                        isMine ? _kGold : t.displayColor;
-
-                    return Polygon(
-                      points: t.points,
-                      color: isSel
-                          ? baseColor.withValues(alpha: 0.50)
-                          : baseColor.withValues(alpha: isMine
-                              ? 0.35
-                              : (t.isOwned ? 0.22 : 0.10)),
-                      borderColor: isSel
-                          ? baseColor
-                          : baseColor.withValues(alpha: isMine
-                              ? 1.0
-                              : (t.isOwned ? 0.75 : 0.40)),
-                      borderStrokeWidth: isSel
-                          ? 3.5
-                          : isMine
-                              ? 2.5
-                              : (t.tier == TerritoryTier.legendario
-                                  ? 2.0
-                                  : 1.5),
-                    );
-                  }).toList(),
-                ),
-              ),
-
-              AnimatedBuilder(
-                animation: _pulseCtrl,
-                builder: (_, __) => MarkerLayer(
-                  markers: _state.territoriosGlobales.map((t) {
-                    final isSel  = sel?.id == t.id;
-                    final isMine = t.isMine;
-                    final Color baseColor = isMine
-                        ? _kGold
-                        : t.isOwned
-                            ? (t.ownerColor ?? t.tierColor)
-                            : _kDim;
-
-                    final bool isLegend =
-                        t.tier == TerritoryTier.legendario;
-                    final double circleSize = isLegend ? 44.0 : 36.0;
-                    final double emojiSize  = isLegend ? 20.0 : 16.0;
-
-                    final double glowRadius = (isMine || isLegend)
-                        ? 8.0 + 6.0 * _pulse.value
-                        : (t.isOwned ? 5.0 : 3.0);
-                    final double glowOpacity = (isMine || isLegend)
-                        ? 0.25 + 0.25 * _pulse.value
-                        : (t.isOwned ? 0.12 : 0.05);
-
-                    // ── Modo lejano (zoom < 4) ──────────────────────────
-                    if (_zoomGlobal < 4.0) {
-                      return Marker(
-                        point: t.center,
-                        width: circleSize + 16,
-                        height: circleSize + 16,
-                        child: GestureDetector(
-                          onTap: () => _onGlobalTerritoryTap(t),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (isMine || t.isOwned)
-                                Container(
-                                  width: circleSize + glowRadius * 2,
-                                  height: circleSize + glowRadius * 2,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [BoxShadow(
-                                      color: baseColor
-                                          .withValues(alpha: glowOpacity),
-                                      blurRadius: glowRadius * 2,
-                                      spreadRadius: glowRadius * 0.3,
-                                    )],
-                                  ),
-                                ),
-                              Container(
-                                width: circleSize,
-                                height: circleSize,
-                                decoration: BoxDecoration(
-                                  color: t.isOwned
-                                      ? baseColor.withValues(alpha: isMine ? 0.30 : 0.18)
-                                      : Colors.black.withValues(alpha: 0.55),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSel
-                                        ? baseColor
-                                        : baseColor.withValues(alpha: isMine
-                                            ? 0.90
-                                            : (t.isOwned ? 0.60 : 0.30)),
-                                    width: isSel
-                                        ? 2.5
-                                        : (isMine ? 2.0 : 1.2),
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(t.icon,
-                                      style: TextStyle(
-                                          fontSize: emojiSize)),
-                                ),
-                              ),
-                              if (isMine)
-                                Positioned(
-                                  top: 0, right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: _kGold,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [BoxShadow(
-                                          color: _kGold.withValues(alpha: 0.6),
-                                          blurRadius: 6)],
-                                    ),
-                                    child: const Text('👑',
-                                        style: TextStyle(fontSize: 7)),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    // ── Modo cercano (zoom >= 4) ────────────────────────
-                    final double mW = isLegend ? 120.0 : 105.0;
-                    final double mH = isLegend ? 110.0 : 95.0;
-                    final double fontSize = isLegend ? 8.5 : 7.5;
-
-                    return Marker(
-                      point: t.center,
-                      width: mW,
-                      height: mH,
-                      child: GestureDetector(
-                        onTap: () => _onGlobalTerritoryTap(t),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (isMine || t.isOwned || isLegend)
-                                  Container(
-                                    width: circleSize + glowRadius * 2,
-                                    height: circleSize + glowRadius * 2,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      boxShadow: [BoxShadow(
-                                        color: baseColor
-                                            .withValues(alpha: glowOpacity),
-                                        blurRadius: glowRadius * 2,
-                                        spreadRadius: glowRadius * 0.5,
-                                      )],
-                                    ),
-                                  ),
-                                Container(
-                                  width: circleSize,
-                                  height: circleSize,
-                                  decoration: BoxDecoration(
-                                    color: t.isOwned
-                                        ? baseColor.withValues(alpha: isMine ? 0.30 : 0.18)
-                                        : Colors.black.withValues(alpha: 0.55),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: isSel
-                                          ? baseColor
-                                          : baseColor.withValues(alpha: isMine
-                                              ? 0.90
-                                              : (t.isOwned ? 0.65 : 0.35)),
-                                      width: isSel
-                                          ? 2.5
-                                          : (isMine ? 2.0 : 1.5),
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(t.icon,
-                                        style: TextStyle(
-                                            fontSize: emojiSize)),
-                                  ),
-                                ),
-                                if (isMine)
-                                  Positioned(
-                                    top: 0, right: 0,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 3, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: _kGold,
-                                        borderRadius:
-                                            BorderRadius.circular(4),
-                                        boxShadow: [BoxShadow(
-                                            color: _kGold.withValues(alpha: 0.6),
-                                            blurRadius: 6)],
-                                      ),
-                                      child: const Text('👑',
-                                          style: TextStyle(fontSize: 8)),
-                                    ),
-                                  ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 3),
-
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isMine
-                                    ? _kGold.withValues(alpha: 0.18)
-                                    : t.isOwned
-                                        ? baseColor.withValues(alpha: 0.12)
-                                        : Colors.black.withValues(alpha: 0.82),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: isMine
-                                      ? _kGold.withValues(alpha: 0.60)
-                                      : t.isOwned
-                                          ? baseColor.withValues(alpha: 0.50)
-                                          : _kDim.withValues(alpha: 0.30),
-                                  width: isMine ? 1.2 : 0.8,
-                                ),
-                                boxShadow: isMine
-                                    ? [BoxShadow(
-                                        color: _kGold.withValues(alpha: 0.25),
-                                        blurRadius: 8)]
-                                    : t.isOwned
-                                        ? [BoxShadow(
-                                            color: baseColor.withValues(alpha: 0.15),
-                                            blurRadius: 6)]
-                                        : null,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    t.epicName.length > 14
-                                        ? '${t.epicName.substring(0, 13)}…'
-                                        : t.epicName,
-                                    style: TextStyle(
-                                      color: isMine
-                                          ? _kGoldLight
-                                          : t.isOwned
-                                              ? _kWhite
-                                              : _kSub,
-                                      fontSize: fontSize,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.2,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    isMine
-                                        ? '[ TÚ ]'
-                                        : t.isOwned
-                                            ? t.ownerNickname!
-                                            : 'LIBRE',
-                                    style: TextStyle(
-                                      color: isMine
-                                          ? _kGold
-                                          : t.isOwned
-                                              ? baseColor
-                                              : _kSafe,
-                                      fontSize: fontSize - 1,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.4,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (_zoomGlobal >= 5.0) ...[
-                                    const SizedBox(height: 1),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '${t.difficultyLevel}/10  ',
-                                          style: TextStyle(
-                                            color: _dificultadColor(
-                                                t.difficultyLevel),
-                                            fontSize: fontSize - 2,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${t.kmRequired.toStringAsFixed(1)}km',
-                                          style: TextStyle(
-                                            color: _kSub,
-                                            fontSize: fontSize - 2,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-
-            if (_state.loadingGlobal)
-              MarkerLayer(markers: [
-                Marker(
-                  point: _kGlobalCenter, width: 80, height: 80,
-                  child: const Center(
-                      child: CircularProgressIndicator(
-                          strokeWidth: 1.5, color: _kGold)),
-                ),
-              ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // FAB
-  // ==========================================================================
-  Widget _buildFab() => GestureDetector(
-    onTap: () {
-      HapticFeedback.mediumImpact();
-      if (_state.modoGlobal) {
-        _mapController.move(_kGlobalCenter, 2.5);
-        setState(() {
-          _zoomGlobal = 2.5;
-          _spaceOffset = Offset.zero; // reset parallax al centrar
-        });
-      } else {
-        _mapController.move(_state.centro, 15);
-      }
-    },
-    child: AnimatedBuilder(
-      animation: _pulseCtrl,
-      builder: (_, __) => ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: _kSurface.withValues(alpha: 0.85),
-              border: Border.all(
-                color: (_state.modoGlobal ? _kGold : _kRed)
-                    .withValues(alpha: 0.4 + 0.3 * _pulse.value)),
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: [
-                BoxShadow(
-                    color: (_state.modoGlobal ? _kGold : _kRed)
-                        .withValues(alpha: 0.15 * _pulse.value),
-                    blurRadius: 16),
-                const BoxShadow(color: Colors.black54, blurRadius: 12),
-              ],
-            ),
-            child: Icon(
-              _state.modoGlobal
-                  ? Icons.public_rounded
-                  : Icons.my_location_rounded,
-              color: _state.modoGlobal ? _kGold : _kRed,
-              size: 18,
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  // ==========================================================================
-  // CARD TERRITORIO CIUDAD
-  // ==========================================================================
-  Widget _buildTerritoryCard(TerritoryData t) {
-    String estadoLabel = 'ACTIVO';
-    Color cEstado = _kSafe;
-    String estadoEmoji = '✅';
-    if (t.estadoHp == EstadoHp.critico) {
-      estadoLabel = 'CRÍTICO';
-      cEstado = _kRed;
-      estadoEmoji = '🔴';
-    } else if (t.estadoHp == EstadoHp.danado) {
-      estadoLabel = 'DAÑADO';
-      cEstado = _kWarn;
-      estadoEmoji = '🟡';
-    }
-
-    final double hpFraction = t.hpActual / kHpMax.toDouble();
-
-    return ScaleTransition(
-      scale: _selAnim,
-      child: FadeTransition(
-        opacity: _selAnim,
-        child: Container(
+  Widget _buildHUD() {
+    if (!isTracking) return const SizedBox.shrink();
+    if (_hudMinimizado && !isPaused) return _buildHUDMini();
+    return FadeTransition(
+      opacity: _hudFade,
+      child: AnimatedBuilder(
+        animation: _pulsoAnim,
+        builder: (_, child) => Container(
+          margin:  const EdgeInsets.fromLTRB(14, 50, 14, 0),
+          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
           decoration: BoxDecoration(
-            color: _shBg,
-            border: Border.all(color: t.color.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(8),
+            color: _p.parchment.withValues(alpha: 0.93),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+                color: (_objetivoGlobal != null ? _p.globalRed : _kGold)
+                    .withValues(alpha: 0.18 + _pulso.value * 0.22),
+                width: 1.5),
             boxShadow: [
-              BoxShadow(
-                  color: t.color.withValues(alpha: 0.18), blurRadius: 20),
-              const BoxShadow(
-                  color: Colors.black54, blurRadius: 16),
+              BoxShadow(color: (_objetivoGlobal != null ? _p.globalRed : _kGold)
+                  .withValues(alpha: 0.10 + _pulso.value * 0.08),
+                  blurRadius: 20, spreadRadius: 1),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 10),
             ],
           ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                  decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.10),
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8)),
-                    border: Border(
-                        bottom: BorderSide(
-                            color: t.color.withValues(alpha: 0.25))),
-                  ),
-                  child: Row(children: [
-                    Container(width: 3, height: 20, color: t.color,
-                        margin: const EdgeInsets.only(right: 10)),
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(
-                          t.esMio
-                              ? 'MI TERRITORIO'
-                              : t.ownerNickname.toUpperCase(),
-                          style: _raj(13, FontWeight.w900, _shText,
-                              spacing: 1.5)),
-                      Text(
-                          t.esMio
-                              ? 'ZONA CONTROLADA'
-                              : 'TERRITORIO RIVAL',
-                          style: _raj(8, FontWeight.w700,
-                              t.esMio ? t.color : _kSub, spacing: 2)),
-                    ]),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _cerrarSeleccion,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                            color: _shBorder,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Icon(Icons.close_rounded,
-                            color: _shText, size: 14)),
-                    ),
-                  ]),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                  child: Row(children: [
-                    _cardStat(estadoEmoji, estadoLabel, cEstado),
-                    _vDiv(),
-                    _cardStat('🏴', '${t.puntos.length} PTS', _shText),
-                    _vDiv(),
-                    t.esMio
-                        ? _cardStat('⚔️', 'DEFENDER', _kGold)
-                        : GestureDetector(
-                            onTap: () {
-                              _cerrarSeleccion();
-                              _mapController.move(t.centro, 16);
-                            },
-                            child: _cardStat('👁', 'OBSERVAR', _kSub),
-                          ),
-                  ]),
-                ),
-
-                if (!t.esMio)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Container(
-                            width: 6, height: 6,
-                            decoration: BoxDecoration(
-                              color: cEstado, shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(
-                                  color: cEstado.withValues(alpha: 0.6),
-                                  blurRadius: 4)],
-                            ),
-                            margin: const EdgeInsets.only(right: 6),
-                          ),
-                          Text(
-                            t.estadoHp == EstadoHp.saludable
-                                ? 'Territorio saludable'
-                                : t.estadoHp == EstadoHp.danado
-                                    ? 'Territorio debilitado'
-                                    : 'En estado crítico',
-                            style: _raj(9, FontWeight.w700, cEstado,
-                                spacing: 0.5),
-                          ),
-                        ]),
-                        const SizedBox(height: 5),
-                        Stack(children: [
-                          Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: _shBorder,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          FractionallySizedBox(
-                            widthFactor:
-                                hpFraction.clamp(0.0, 1.0),
-                            child: Container(
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: cEstado,
-                                borderRadius: BorderRadius.circular(2),
-                                boxShadow: [BoxShadow(
-                                    color: cEstado.withValues(alpha: 0.5),
-                                    blurRadius: 6)],
-                              ),
-                            ),
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-
-                if (t.esMio) const SizedBox(height: 14),
-              ]),
-          ),
+          child: child,
         ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _hudStat('KM', _distanciaTotal.toStringAsFixed(2), _kGold),
+            _hudDivider(),
+            _hudStat('MIN/KM', _ritmoStr, _kWaterLight),
+            _hudDivider(),
+            _buildStatTimer(),
+            if (_objetivoGlobal != null) ...[
+              _hudDivider(),
+              _hudStat('META', '${(_progresoGlobal * 100).toInt()}%',
+                  _globalConquistado ? _kVerde : _p.globalRed),
+            ] else if (_modoSolitario) ...[
+              _hudDivider(),
+              _hudStat('MODO', 'SOLO', _kVerde),
+            ],
+            if (_boostXpActivo) ...[
+              _hudDivider(),
+              _hudStat('BOOST', '×2', _kGoldLight),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
-  // ==========================================================================
-  // CARD TERRITORIO GLOBAL
-  // ==========================================================================
-  Widget _buildGlobalTerritoryCard(GlobalTerritory t) {
-    final Color baseColor = t.isMine
-        ? _kGold
-        : t.isOwned
-            ? (t.ownerColor ?? t.tierColor)
-            : t.tierColor;
-
-    return ScaleTransition(
-      scale: _selAnim,
-      child: FadeTransition(
-        opacity: _selAnim,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _kDarkSurface.withValues(alpha: 0.95),
-                border: Border.all(color: baseColor.withValues(alpha: 0.5)),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: baseColor.withValues(alpha: 0.2), blurRadius: 24),
-                  const BoxShadow(
-                      color: Colors.black87, blurRadius: 16),
+  Widget _buildHUDMini() => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 50, 18, 0),
+        child: GestureDetector(
+          onTap: () => setState(() => _hudMinimizado = false),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
+            decoration: BoxDecoration(
+              color: _p.parchment.withValues(alpha: 0.90),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.45)),
+              boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 10)],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Text(_distanciaTotal.toStringAsFixed(2),
+                    style: GoogleFonts.orbitron(color: _kGoldLight,
+                        fontWeight: FontWeight.w900, fontSize: 14)),
+                Text(' km', style: TextStyle(color: _kGold.withValues(alpha: 0.55), fontSize: 11)),
+                Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                Text(_ritmoStr,
+                    style: GoogleFonts.orbitron(color: _kWaterLight,
+                        fontWeight: FontWeight.w900, fontSize: 14)),
+                Text(' /km', style: TextStyle(color: _kWater.withValues(alpha: 0.55), fontSize: 11)),
+                if (_objetivoGlobal != null) ...[
+                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                  Text('${(_progresoGlobal * 100).toInt()}%',
+                      style: GoogleFonts.orbitron(
+                          color: _globalConquistado ? _kVerde : _p.globalRed,
+                          fontWeight: FontWeight.w900, fontSize: 14)),
+                ] else if (_modoSolitario) ...[
+                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                  Text('SOLO', style: GoogleFonts.inter(color: _kVerde,
+                      fontWeight: FontWeight.w900, fontSize: 11)),
                 ],
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        baseColor.withValues(alpha: 0.12),
-                        Colors.transparent
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8)),
-                    border: Border(
-                        bottom: BorderSide(
-                            color: baseColor.withValues(alpha: 0.2))),
-                  ),
-                  child: Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(
-                        color: baseColor.withValues(alpha: 0.10),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: baseColor.withValues(alpha: 0.40)),
-                      ),
-                      child: Center(
-                          child: Text(t.icon,
-                              style: const TextStyle(fontSize: 20))),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: baseColor.withValues(alpha: 0.12),
-                            border: Border.all(
-                                color: baseColor.withValues(alpha: 0.35)),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(t.tierLabel,
-                              style: _raj(7, FontWeight.w900, baseColor,
-                                  spacing: 1)),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _dificultadColor(t.difficultyLevel)
-                                .withValues(alpha: 0.1),
-                            border: Border.all(
-                                color: _dificultadColor(t.difficultyLevel)
-                                    .withValues(alpha: 0.35)),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text('DIF. ${t.difficultyLevel}/10',
-                              style: _raj(7, FontWeight.w900,
-                                  _dificultadColor(t.difficultyLevel),
-                                  spacing: 0.5)),
-                        ),
-                      ]),
-                      const SizedBox(height: 4),
-                      Text(t.epicName,
-                          style: _cinzel(12, FontWeight.w700, Colors.white)),
-                      const SizedBox(height: 1),
-                      Text(t.inspiration,
-                          style: _raj(9, FontWeight.w500, _kSub)),
-                    ])),
-                    GestureDetector(
-                      onTap: _cerrarSeleccion,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                            color: _kBorder,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: const Icon(Icons.close_rounded,
-                            color: _kText, size: 14)),
-                    ),
-                  ]),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                  child: Row(children: [
-                    _cardStat(
-                      '🏃',
-                      '${t.kmRequired.toStringAsFixed(1)} km',
-                      _kCyan,
-                    ),
-                    _vDiv(),
-                    _cardStat('🪙', '+${t.rewardActual}', _kGold),
-                    _vDiv(),
-                    t.isMine
-                        ? _cardStat('👑', 'TUYO', _kGold)
-                        : t.isOwned
-                            ? _cardStat('⚔️', 'INVADIR', _kRed)
-                            : _cardStat('🎯', 'LIBRE', _kSafe),
-                  ]),
-                ),
-
-                if (t.isOwned && !t.isMine)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: baseColor.withValues(alpha: 0.06),
-                        border: Border.all(
-                            color: baseColor.withValues(alpha: 0.25)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(children: [
-                        Container(
-                          width: 8, height: 8,
-                          decoration: BoxDecoration(
-                            color: baseColor, shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(
-                                color: baseColor.withValues(alpha: 0.5),
-                                blurRadius: 4)],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('Controlado por ',
-                            style: _raj(10, FontWeight.w500, _kSub)),
-                        Text(t.ownerNickname!.toUpperCase(),
-                            style:
-                                _raj(10, FontWeight.w900, baseColor)),
-                      ]),
-                    ),
-                  ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: GestureDetector(
-                    onTap: () {
-                      _cerrarSeleccion();
-                      Future.delayed(
-                          const Duration(milliseconds: 300), () {
-                        _intentarConquistarGlobal(t);
-                      });
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 11),
-                      decoration: BoxDecoration(
-                        color: t.isMine
-                            ? _kGold.withValues(alpha: 0.08)
-                            : baseColor.withValues(alpha: 0.15),
-                        border: Border.all(
-                            color: t.isMine
-                                ? _kGold.withValues(alpha: 0.3)
-                                : baseColor.withValues(alpha: 0.5)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Center(
-                          child: Text(
-                        t.isMine
-                            ? '👑  TERRITORIO CONTROLADO'
-                            : '⚔️  CONQUISTAR · '
-                              '${t.kmRequired.toStringAsFixed(1)} KM',
-                        style: _raj(11, FontWeight.w900,
-                            t.isMine ? _kGoldDim : baseColor,
-                            spacing: 1),
-                      )),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _cardStat(String emoji, String label, Color color) =>
-      Expanded(
-        child: Column(children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
-          const SizedBox(height: 4),
-          Text(label,
-              style: _raj(9, FontWeight.w800, color, spacing: 0.5),
-              textAlign: TextAlign.center),
-        ]),
-      );
-
-  Widget _vDiv() => Container(
-      width: 1, height: 36, color: _shBorder,
-      margin: const EdgeInsets.symmetric(horizontal: 4));
-
-  // ==========================================================================
-  // SHEET MI CIUDAD
-  // ==========================================================================
-  Widget _buildSheet(ScrollController scrollCtrl, int mios, int det, int pel) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _shBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border(
-          top:   BorderSide(color: _shBorder),
-          left:  BorderSide(color: _shBorder),
-          right: BorderSide(color: _shBorder),
-        ),
-        boxShadow: const [
-          BoxShadow(color: Colors.black87, blurRadius: 30,
-              offset: Offset(0, -4))
-        ],
-      ),
-      child: ListView(
-        controller: scrollCtrl,
-        padding: EdgeInsets.zero,
-        physics: const ClampingScrollPhysics(),
-        children: [
-          _buildSheetHandle(mios, det, pel),
-          if (_state.desafioActivo != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: _buildBannerDesafio(_state.desafioActivo!),
-            ),
-          _buildStatsRow(mios, det, pel),
-          if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
-          _buildBotonCercanos(),
-          if (_state.cercanosVisible) _buildPanelCercanos(),
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // SHEET MODO SOLITARIO
-  // ==========================================================================
-  Widget _buildSheetSolitario(ScrollController scrollCtrl) {
-    final barriosOrdenados = List<_BarrioData>.from(_barriosCercanos)
-      ..sort((a, b) => b.porcentajeCubierto.compareTo(a.porcentajeCubierto));
-    final completados = barriosOrdenados.where((b) => b.porcentajeCubierto >= 1.0).length;
-    final enProgreso  = barriosOrdenados.where((b) => b.porcentajeCubierto > 0 && b.porcentajeCubierto < 1.0).length;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _shBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border(
-          top:   BorderSide(color: _shBorder),
-          left:  BorderSide(color: _shBorder),
-          right: BorderSide(color: _shBorder),
-        ),
-        boxShadow: const [
-          BoxShadow(color: Colors.black87, blurRadius: 30, offset: Offset(0, -4))
-        ],
-      ),
-      child: ListView(
-        controller: scrollCtrl,
-        padding: EdgeInsets.zero,
-        physics: const ClampingScrollPhysics(),
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(children: [
-              Center(child: Container(
-                width: 36, height: 3,
-                decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2)),
-              )),
-              const SizedBox(height: 14),
-              Row(children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('MODO EXPLORADOR',
-                      style: _raj(9, FontWeight.w800, _kText, spacing: 2.5)),
-                  const SizedBox(height: 2),
-                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('${barriosOrdenados.length}',
-                        style: _raj(28, FontWeight.w900, _shText, height: 1)),
-                    const SizedBox(width: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text('ZONAS', style: _raj(10, FontWeight.w700, _kSub, spacing: 1.5)),
-                    ),
-                  ]),
-                ]),
-                const Spacer(),
-                if (completados > 0)
-                  _quickBadge('$completados ✓', _kSafe, Icons.check_circle_rounded),
-                if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
-                if (enProgreso > 0)
-                  _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
-              ]),
-            ]),
-          ),
-
-          if (barriosOrdenados.isNotEmpty) ...[
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(children: [
-                _sheetStat('$completados', 'CONQUISTADAS', _kSafe),
-                const SizedBox(width: 8),
-                _sheetStat('$enProgreso', 'EN PROGRESO', _kWarn),
-                const SizedBox(width: 8),
-                _sheetStat(
-                  '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
-                  '% MEDIO', _kSafe,
-                ),
-              ]),
-            ),
-
-            if (_cargandoBarrios)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 1.5, color: _kSafe)),
-                  const SizedBox(width: 10),
-                  Text('Cargando zonas cercanas…', style: _raj(11, FontWeight.w600, _kSub)),
-                ]),
-              ),
-
-            ...barriosOrdenados.map((b) {
-              final pct = b.porcentajeCubierto;
-              final Color color = pct >= 1.0 ? _kText : pct > 0 ? _kWarn : _kSub;
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  _mapController.move(b.centro, 13.5);
-                  if (_sheetCtrl.isAttached) {
-                    _sheetCtrl.animateTo(0.13,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic);
-                  }
-                },
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _shSurf,
-                  border: Border.all(color: color.withValues(alpha: pct > 0 ? 0.3 : 0.12)),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(children: [
-                  Container(width: 3, height: 32, color: color,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(2))),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(b.nombre,
-                        style: _raj(12, FontWeight.w700, _shText),
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 3),
-                    Stack(children: [
-                      Container(height: 3,
-                          decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2))),
-                      FractionallySizedBox(
-                        widthFactor: pct.clamp(0.0, 1.0),
-                        child: Container(height: 3,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                              boxShadow: pct > 0 ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)] : null,
-                            )),
-                      ),
-                    ]),
-                  ])),
-                  const SizedBox(width: 12),
-                  Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
-                      style: _raj(13, FontWeight.w900, color)),
-                ]),
-              ),
-              );
-            }),
-          ] else if (!_cargandoBarrios) ...[
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(children: [
-                Icon(Icons.explore_rounded, color: _kSafe.withValues(alpha: 0.5), size: 36),
-                const SizedBox(height: 10),
-                Text('Sal a explorar para descubrir zonas cercanas',
-                    style: _raj(12, FontWeight.w600, _kSub),
-                    textAlign: TextAlign.center),
-              ]),
-            ),
-          ],
-
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // SHEET GUERRA GLOBAL
-  // ==========================================================================
-  Widget _buildSheetGlobal(ScrollController scrollCtrl) {
-    final uid = _uid ?? '';
-    final miosTers     = _state.territoriosGlobales
-        .where((t) => t.ownerUid == uid).toList();
-    final libres       = _state.territoriosGlobales
-        .where((t) => !t.isOwned).toList();
-    final conquistados = _state.territoriosGlobales
-        .where((t) => t.isOwned && t.ownerUid != uid).toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _kDarkSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border(
-          top:   const BorderSide(color: _kGoldDim, width: 1),
-          left:  BorderSide(color: _shBorder),
-          right: BorderSide(color: _shBorder),
-        ),
-        boxShadow: const [
-          BoxShadow(color: Colors.black87, blurRadius: 30,
-              offset: Offset(0, -4))
-        ],
-      ),
-      child: ListView(
-        controller: scrollCtrl,
-        padding: EdgeInsets.zero,
-        physics: const ClampingScrollPhysics(),
-        children: [
-          _buildGlobalSheetHandle(miosTers.length),
-
-          if (miosTers.isNotEmpty) ...[
-            _sectionHeader('MIS DOMINIOS', _kGold, '👑'),
-            ...miosTers.map((t) => _globalTerCard(t)),
-            const SizedBox(height: 4),
-          ],
-
-          if (libres.isNotEmpty) ...[
-            _sectionHeader('LIBRES — CONQUÍSTALOS', _kSafe, '🎯'),
-            ...libres.map((t) => _globalTerCard(t)),
-            const SizedBox(height: 4),
-          ],
-
-          if (conquistados.isNotEmpty) ...[
-            _sectionHeader('EN DISPUTA', _kRed, '⚔️'),
-            ...conquistados.map((t) => _globalTerCard(t)),
-            const SizedBox(height: 4),
-          ],
-
-          const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGlobalSheetHandle(int miosTers) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: Column(children: [
-        Center(child: Container(
-          width: 36, height: 3,
-          decoration: BoxDecoration(color: _kGoldDim,
-              borderRadius: BorderRadius.circular(2)),
-        )),
-        const SizedBox(height: 14),
-        Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('GUERRA GLOBAL',
-                style: _raj(9, FontWeight.w800, _kGoldDim, spacing: 2.5)),
-            const SizedBox(height: 2),
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('$miosTers',
-                  style: _orbitron(28, FontWeight.w900, _kGold,
-                      spacing: 0)),
-              const SizedBox(width: 4),
-              Text('/ ${_MapState.maxTerritoriosPorJugador}',
-                  style: _raj(14, FontWeight.w700, _kGoldDim)),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text('TERRITORIOS',
-                    style: _raj(10, FontWeight.w700, _kSub,
-                        spacing: 1.5)),
-              ),
-            ]),
-          ]),
-          const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            _quickBadge('${_state.totalJugadoresGlobal} GUERREROS',
-                _kCyan, Icons.people_rounded),
-            const SizedBox(height: 6),
-            _quickBadge('${_state.diasRestantesSemana}D RESTANTES',
-                _kGold, Icons.timer_rounded),
-          ]),
-        ]),
-
-        const SizedBox(height: 12),
-
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text('CAPACIDAD DE CONQUISTA',
-                style: _raj(8, FontWeight.w700, _kSub, spacing: 1.5)),
-            const Spacer(),
-            Text('$miosTers/${_MapState.maxTerritoriosPorJugador}',
-                style: _raj(9, FontWeight.w900, _kGold)),
-          ]),
-          const SizedBox(height: 6),
-          Stack(children: [
-            Container(
-                height: 4,
-                decoration: BoxDecoration(
-                    color: _shBorder,
-                    borderRadius: BorderRadius.circular(2))),
-            FractionallySizedBox(
-              widthFactor: (miosTers /
-                      _MapState.maxTerritoriosPorJugador)
-                  .clamp(0.0, 1.0),
-              child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [_kGold, _kGoldLight]),
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: [BoxShadow(
-                        color: _kGold.withValues(alpha: 0.4),
-                        blurRadius: 8)],
-                  )),
-            ),
-          ]),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _sectionHeader(String title, Color color, String emoji) =>
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(emoji, style: const TextStyle(fontSize: 10)),
-              const SizedBox(width: 5),
-              Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
-            ]),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.15))),
-        ]),
-      );
-
-  Widget _globalTerCard(GlobalTerritory t) {
-    final Color baseColor = t.isMine
-        ? _kGold
-        : t.isOwned
-            ? (t.ownerColor ?? t.tierColor)
-            : t.tierColor;
-    final diffColor = _dificultadColor(t.difficultyLevel);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _onGlobalTerritoryTap(t);
-        _sheetCtrl.animateTo(0.13,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut);
-      },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _kDarkSurface,
-          border: Border.all(
-              color: t.isMine
-                  ? _kGold.withValues(alpha: 0.40)
-                  : t.isOwned
-                      ? baseColor.withValues(alpha: 0.30)
-                      : _kBorder2.withValues(alpha: 0.3)),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: t.isMine
-              ? [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 16)]
-              : t.isOwned
-                  ? [BoxShadow(color: baseColor.withValues(alpha: 0.07), blurRadius: 12)]
-                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.30), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Row(children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color:  baseColor.withValues(alpha: t.isOwned ? 0.12 : 0.06),
-              shape:  BoxShape.circle,
-              border: Border.all(
-                  color: baseColor.withValues(alpha: t.isOwned ? 0.45 : 0.25)),
-            ),
-            child: Center(
-                child: Text(t.icon,
-                    style: const TextStyle(fontSize: 18))),
-          ),
-          const SizedBox(width: 12),
-
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.10),
-                  border:
-                      Border.all(color: baseColor.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(t.tierLabel,
-                    style: _raj(7, FontWeight.w900, baseColor,
-                        spacing: 1)),
-              ),
-              const SizedBox(width: 6),
-              if (t.isMine)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text('👑 TUYO',
-                      style: _raj(7, FontWeight.w900, _kGold)),
-                ),
-            ]),
-            const SizedBox(height: 4),
-            Text(t.epicName,
-                style: _cinzel(11, FontWeight.w700, Colors.white),
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Row(children: [
-              if (t.isOwned) ...[
-                Container(
-                  width: 6, height: 6,
-                  decoration: BoxDecoration(
-                      color: baseColor, shape: BoxShape.circle),
-                  margin: const EdgeInsets.only(right: 5),
-                ),
+                Icon(CupertinoIcons.chevron_down, color: _p.goldDim, size: 15),
               ],
-              Text(
-                t.isOwned && !t.isMine
-                    ? t.ownerNickname!
-                    : t.isMine
-                        ? 'Controlado por ti'
-                        : '🎯 Disponible',
-                style: _raj(9, FontWeight.w600,
-                    t.isMine
-                        ? _kGold
-                        : (t.isOwned ? baseColor : _kSafe)),
-              ),
-            ]),
-          ])),
-
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color:  diffColor.withValues(alpha: 0.10),
-                border: Border.all(color: diffColor.withValues(alpha: 0.35)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text('${t.difficultyLevel}/10',
-                  style: _raj(10, FontWeight.w900, diffColor)),
             ),
-            const SizedBox(height: 6),
-            Text('${t.kmRequired.toStringAsFixed(1)} km',
-                style: _raj(11, FontWeight.w700, _kCyan)),
-            const SizedBox(height: 2),
-            Text('+${t.rewardActual} 🪙',
-                style: _raj(10, FontWeight.w600, _kGoldDim)),
-          ]),
-        ]),
-      ),
-    );
+          ),
+        ),
+      );
+
+  Widget _hudStat(String label, String valor, Color color) =>
+      Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: GoogleFonts.inter(color: color.withValues(alpha: 0.7),
+            fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1.8)),
+        const SizedBox(height: 4),
+        Text(valor, style: GoogleFonts.orbitron(color: Colors.white,
+            fontSize: valor.length > 5 ? 14 : 18, fontWeight: FontWeight.w900,
+            shadows: [Shadow(color: color.withValues(alpha: 0.55), blurRadius: 10)])),
+      ]);
+
+  Widget _hudDivider() =>
+      Container(width: 1, height: 32, color: _p.goldDim.withValues(alpha: 0.35));
+
+  Widget _buildStatTimer() => CustomTimer(
+        controller: _timerController,
+        builder: (state, remaining) {
+          final str = isTracking
+              ? '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}'
+              : '--:--:--';
+          return _hudStat('TIEMPO', str, isPaused ? _p.goldDim : _kWaterLight);
+        },
+      );
+
+  Widget _buildTimerGrande() => IgnorePointer(
+        child: CustomTimer(
+          controller: _timerController,
+          builder: (_, remaining) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            decoration: BoxDecoration(
+              color: _p.parchment.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.45)),
+              boxShadow: [
+                BoxShadow(color: _kGold.withValues(alpha: 0.18), blurRadius: 24),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 8),
+              ],
+            ),
+            child: Text(
+              '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
+              style: GoogleFonts.orbitron(fontSize: 46, fontWeight: FontWeight.w900,
+                  color: Colors.white, letterSpacing: 2,
+                  shadows: const [
+                    Shadow(blurRadius: 22, color: _kGold),
+                    Shadow(blurRadius: 45, color: Color(0x66D4722A)),
+                  ]),
+            ),
+          ),
+        ),
+      );
+
+  Widget _buildAvatarOverlay() => Positioned(
+        bottom: 140, left: 0, right: 0,
+        child: IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _bounceAnim,
+            builder: (_, __) => Transform.translate(
+              offset: Offset(0, _bounceOffset.value),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (_velocidadActualKmh > 1)
+                  SizedBox(width: 100, height: 28,
+                      child: CustomPaint(
+                          painter: _SpeedLinesPainter(color: _p.terracotta))),
+                Image.asset('assets/avatars/explorador.png',
+                    width: 110, height: 110, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(CupertinoIcons.person, color: _kGold, size: 80)),
+                Container(
+                  width: 52, height: 9,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(50),
+                    gradient: RadialGradient(colors: [
+                      _kGold.withValues(alpha: 0.28), Colors.transparent
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      );
+
+  Widget _buildChips() {
+    if (!isTracking) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_territoriosCargados)
+        _chip('${_territorios.length} territorios', _kGold, '🗺'),
+      if (!_modoSolitario && _jugadoresActivos.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _chip('${_jugadoresActivos.length} cerca', _kWater, '🏃'),
+      ],
+      if (_territoriosVisitadosEnSesion.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _chip('${_territoriosVisitadosEnSesion.length} reforzados', _kVerde, '🛡'),
+      ],
+      if (!_modoSolitario && _territoriosNotificadosEnSesion.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        _chip('${_territoriosNotificadosEnSesion.length} invadidos', _p.terracotta, '⚔'),
+      ],
+      if (_globalConquistado) ...[
+        const SizedBox(height: 8),
+        _chip('¡Conquistado!', _kVerde, '⚔️'),
+      ],
+    ]);
   }
 
-  // ==========================================================================
-  // SHEET MI CIUDAD — componentes
-  // ==========================================================================
-  Widget _buildSheetHandle(int mios, int det, int pel) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-    child: Column(children: [
-      Center(child: Container(
-        width: 36, height: 3,
-        decoration: BoxDecoration(color: _shBorder,
-            borderRadius: BorderRadius.circular(2)),
-      )),
-      const SizedBox(height: 14),
-      Row(children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('TUS DOMINIOS',
-              style: _raj(9, FontWeight.w800, _kSub, spacing: 2.5)),
-          const SizedBox(height: 2),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('$mios',
-                style:
-                    _raj(28, FontWeight.w900, _shText, height: 1)),
-            const SizedBox(width: 6),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text('ZONAS',
-                  style: _raj(10, FontWeight.w700, _kSub,
-                      spacing: 1.5)),
-            ),
-          ]),
-        ]),
-        const Spacer(),
-        if (pel > 0)
-          _quickBadge('$pel CRÍTICO', _kRed, Icons.dangerous_rounded),
-        if (pel > 0 && det > 0) const SizedBox(width: 6),
-        if (det > 0)
-          _quickBadge('$det DESGASTE', _kSub, Icons.warning_amber_rounded),
-        if (pel == 0 && det == 0)
-          _quickBadge('TODO OK', _kSub, Icons.shield_rounded),
-      ]),
-    ]),
-  );
-
-  Widget _quickBadge(String label, Color color, IconData icon) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+  Widget _chip(String texto, Color color, String emoji) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-          borderRadius: BorderRadius.circular(4),
+          color: _p.parchment.withValues(alpha: 0.90),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.08), blurRadius: 8)],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: 10),
-          const SizedBox(width: 4),
-          Text(label,
-              style: _raj(9, FontWeight.w800, color, spacing: 0.5)),
+          Text(emoji, style: const TextStyle(fontSize: 11)),
+          const SizedBox(width: 5),
+          Text(texto, style: GoogleFonts.inter(color: color,
+              fontSize: 11, fontWeight: FontWeight.w700)),
         ]),
       );
 
-  Widget _buildStatsRow(int mios, int det, int pel) => Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    child: Row(children: [
-      _sheetStat('${_state.territorios.length}', 'TOTAL', _kText),
-      const SizedBox(width: 8),
-      _sheetStat(
-          '${_state.jugadoresEnVivo.length}', 'EN VIVO', _kText),
-      const SizedBox(width: 8),
-      _sheetStat('$mios', 'MÍO', widget.colorTerritorio),
-    ]),
-  );
+  Widget _buildBotonesMapa() => Column(children: [
+        _botonMapa(_modoNoche ? '🌙' : '☀️',
+            _modoNoche ? _kGoldLight : _kGold, _toggleModoNoche),
+        if (isTracking) ...[
+          const SizedBox(height: 10),
+          _botonMapa('🎯', _p.terracotta, () {
+            if (_currentPosition != null) {
+              _moverCamara(lat: _currentPosition!.latitude,
+                  lng: _currentPosition!.longitude,
+                  zoom: _kZoomCorrer, pitch: _kPitchCorrer,
+                  bearing: _bearing, forzar: true);
+            }
+          }),
+        ],
+      ]);
 
-  Widget _sheetStat(String v, String l, Color c) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: _shSurf,
-        border: Border.all(color: c.withValues(alpha: 0.2)),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(children: [
-        Text(v, style: _raj(20, FontWeight.w900, c, height: 1)),
-        const SizedBox(height: 3),
-        Text(l,
-            style: _raj(7, FontWeight.w800, c.withValues(alpha: 0.6),
-                spacing: 1.5)),
-      ]),
-    ),
-  );
+  Widget _botonMapa(String emoji, Color color, VoidCallback onTap) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: _p.parchment.withValues(alpha: 0.90),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.45), width: 1.2),
+            boxShadow: [
+              BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
+            ],
+          ),
+          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 19))),
+        ),
+      );
 
-  Widget _buildAlertaBanner(int det, int pel) => Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    decoration: BoxDecoration(
-      color: _kRed.withValues(alpha: 0.04),
-      border: Border.all(color: _shBorder),
-      borderRadius: BorderRadius.circular(4),
-    ),
-    child: Row(children: [
-      Container(
-        width: 3, height: 44,
-        decoration: const BoxDecoration(
-          color: _kRed,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(4),
-            bottomLeft: Radius.circular(4),
+  Widget _buildCuentaAtras() => Positioned.fill(
+        child: IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center, radius: 0.85,
+                colors: [
+                  _p.parchment.withValues(alpha: 0.65),
+                  Colors.black.withValues(alpha: 0.60),
+                ],
+              ),
+            ),
+            child: Center(
+              child: ScaleTransition(
+                scale: _cuentaAtrasScale,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                    _cuentaAtras > 0
+                        ? '$_cuentaAtras'
+                        : (_modoSolitario ? '🗺️'
+                            : _objetivoGlobal != null ? '⚔️' : '⚔️'),
+                    style: GoogleFonts.cinzel(fontSize: 96,
+                        fontWeight: FontWeight.w900, color: Colors.white,
+                        shadows: [
+                          const Shadow(blurRadius: 35, color: _kGold),
+                          Shadow(blurRadius: 70, color: _p.terracotta),
+                          const Shadow(blurRadius: 6, color: Colors.black),
+                        ]),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _p.parchment.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _p.goldDim),
+                      boxShadow: [BoxShadow(
+                          color: _kGold.withValues(alpha: 0.2), blurRadius: 14)],
+                    ),
+                    child: Text(
+                      _cuentaAtras > 0
+                          ? 'PREPÁRATE'
+                          : (_modoSolitario ? '¡A EXPLORAR!'
+                              : _objetivoGlobal != null
+                                  ? '¡A CONQUISTAR EL MUNDO!'
+                                  : '¡A CONQUISTAR!'),
+                      style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 13,
+                          fontWeight: FontWeight.w700, letterSpacing: 3.5),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
           ),
         ),
-      ),
-      const SizedBox(width: 10),
-      const Icon(Icons.shield_outlined, color: _kRed, size: 14),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            pel > 0
-                ? '⚔ $pel ${pel == 1 ? 'territorio puede' : 'territorios pueden'} ser conquistados ahora.'
-                : '⚠ $det ${det == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos pronto.',
-            style: _raj(11, FontWeight.w600, _kRed),
+      );
+
+  Widget _buildBotonera() => Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 38),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter, end: Alignment.topCenter,
+            colors: [
+              (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.97),
+              (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.72),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.55, 1.0],
           ),
         ),
-      ),
-      const SizedBox(width: 14),
-    ]),
-  );
+        child: SafeArea(
+          top: false,
+          child: !isTracking ? _buildSelectorModo() : _buildBotonesControl(),
+        ),
+      );
 
-  Widget _buildBotonCercanos() => GestureDetector(
-    onTap: () {
-      HapticFeedback.selectionClick();
-      if (_state.cercanosVisible) {
-        _state.toggleCercanos();
-      } else {
-        _state.cargarCercanos(_uid ?? '');
+  Future<void> _elegirTerritorioGlobal() async {
+    final resultado = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FullscreenMapScreen(selectionMode: true),
+      ),
+    );
+    if (resultado == null || !mounted) return;
+    setState(() {
+      _objetivoGlobal     = resultado;
+      _modoSolitario      = false;
+      _globalConquistado  = false;
+      _globalConquistando = false;
+    });
+    final nombre = resultado['territorioNombre'] as String? ?? 'Territorio';
+    final kmReq  = (resultado['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _narrador.anunciarReto(
+            '⚔️ Objetivo: conquistar $nombre — ${kmReq.toStringAsFixed(1)} km');
       }
-    },
-    child: Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.symmetric(
-          horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(
-        color: _shSurf,
-        border: Border.all(
-            color: _state.cercanosVisible
-                ? _kRed.withValues(alpha: 0.3)
-                : _shBorder),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(children: [
-        AnimatedBuilder(
-            animation: _pulseCtrl,
-            builder: (_, __) => Container(
-              width: 6, height: 6,
-              decoration: BoxDecoration(
-                  color: _kSafe.withValues(alpha: 0.4 + 0.6 * _pulse.value),
-                  shape: BoxShape.circle),
-            )),
-        const SizedBox(width: 10),
-        _state.loadingCercanos
-            ? Shimmer.fromColors(
-                baseColor: _shSurf,
-                highlightColor: _shBorder,
-                child: Container(
-                    width: 160, height: 12,
-                    decoration: BoxDecoration(
-                        color: _shSurf,
-                        borderRadius: BorderRadius.circular(3))))
-            : Text(
-                _state.cercanosVisible
-                    ? 'TERRITORIOS EN ZONA  ▲'
-                    : 'TERRITORIOS EN ZONA  ▼',
-                style: _raj(10, FontWeight.w700,
-                    _state.cercanosVisible ? _shText : _kSub,
-                    spacing: 1.5)),
-        const Spacer(),
-        Text('5 KM',
-            style: _raj(9, FontWeight.w800, _kDim, spacing: 1)),
-        const SizedBox(width: 8),
-        Icon(Icons.radar_rounded,
-            color: _state.cercanosVisible ? _kRed : _kDim, size: 14),
-      ]),
-    ),
-  );
-
-  Widget _buildPanelCercanos() {
-    if (_state.grupos.isEmpty) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: _shSurf,
-            border: Border.all(color: _shBorder),
-            borderRadius: BorderRadius.circular(6)),
-        child: Text('No hay territorios en 5 km',
-            style: _raj(12, FontWeight.w500, _kSub)),
-      );
-    }
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      decoration: BoxDecoration(
-          color: _shSurf,
-          border: Border.all(color: _shBorder),
-          borderRadius: BorderRadius.circular(6)),
-      child: Column(
-        children: _state.grupos.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final g   = entry.value;
-          final isExp  = _state.userExpandido == g.ownerId;
-          final dets   = _state.detallesDe(g.ownerId);
-          final isLast = idx == _state.grupos.length - 1;
-          return Column(children: [
-            InkWell(
-              onTap: () async {
-                HapticFeedback.selectionClick();
-                if (isExp) {
-                  _state.setUserExpandido(null);
-                } else {
-                  _state.setUserExpandido(g.ownerId);
-                  await _state.cargarDetalles(g.ownerId);
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 13),
-                child: Row(children: [
-                  Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(
-                      color: g.esMio ? _kRed : _kSub,
-                      shape: BoxShape.circle,
-                      boxShadow: g.esMio
-                          ? [BoxShadow(
-                              color: _kRed.withValues(alpha: 0.5),
-                              blurRadius: 6)]
-                          : null,
-                    )),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(
-                    g.esMio
-                        ? '${g.nickname.toUpperCase()}  (TÚ)'
-                        : g.nickname.toUpperCase(),
-                    style: _raj(12, FontWeight.w800,
-                        g.esMio ? _shText : _kSub, spacing: 1))),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                        border: Border.all(color: _shBorder),
-                        borderRadius: BorderRadius.circular(3)),
-                    child: Text('NIV.${g.nivel}',
-                        style: _raj(8, FontWeight.w900,
-                            g.esMio ? _kRed : _kSub))),
-                  const SizedBox(width: 8),
-                  Text('${g.territorios.length} 🏴',
-                      style: _raj(11, FontWeight.w600, _kDim)),
-                  const SizedBox(width: 6),
-                  Icon(
-                    isExp
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: _kDim, size: 18),
-                ]),
-              ),
-            ),
-            if (isExp)
-              Container(
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: _shBg,
-                    border: Border.all(color: _shBorder),
-                    borderRadius: BorderRadius.circular(4)),
-                child: dets == null
-                    ? _buildShimmerDetalles()
-                    : dets.isEmpty
-                        ? Text('Sin territorios',
-                            style: _raj(12, FontWeight.w500, _kSub))
-                        : Column(
-                            children: dets.asMap().entries
-                                .map((e) => _terCard(
-                                      e.key,
-                                      e.value,
-                                      g.esMio ? 'YO' : g.nickname,
-                                    ))
-                                .toList()),
-              ),
-            if (!isLast)
-              Container(height: 1, color: _shBorder),
-          ]);
-        }).toList(),
-      ),
-    );
+    });
   }
 
-  Widget _buildShimmerDetalles() => Column(
-    children: List.generate(
-        2,
-        (i) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Shimmer.fromColors(
-            baseColor: _shSurf, highlightColor: _shBorder,
-            child: Container(
-                height: 44,
-                decoration: BoxDecoration(
-                    color: _shSurf,
-                    borderRadius: BorderRadius.circular(4))),
+  Widget _buildSelectorModo() {
+    if (_objetivoGlobal != null) {
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _p.ink.withValues(alpha: 0.85),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _p.globalRed.withValues(alpha: 0.5)),
+            boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.15), blurRadius: 16)],
           ),
-        )),
-  );
-
-  Widget _terCard(int i, _TerDet det, String nick) {
-    String est = 'ACTIVO';
-    Color c = _kSafe;
-    if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroFuncional) {
-      est = 'CRÍTICO'; c = _kRed;
-    } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
-      est = 'DESGASTE'; c = _kWarn;
-    }
-    return GestureDetector(
-      onTap: () => _mostrarDialogo(det, nick),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(
-            horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-            color: _kSurface,
-            border: Border.all(color: c.withValues(alpha: 0.2)),
-            borderRadius: BorderRadius.circular(4)),
-        child: Row(children: [
-          Container(width: 2, height: 14, color: c,
-              margin: const EdgeInsets.only(right: 8)),
-          Text('ZONA #${i + 1}',
-              style: _raj(11, FontWeight.w800, _kText,
-                  spacing: 0.5)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 5, vertical: 2),
-            color: c.withValues(alpha: 0.08),
-            child: Text(est,
-                style: _raj(8, FontWeight.w800, c, spacing: 1))),
-          const Spacer(),
-          Text('${det.dist.toStringAsFixed(1)} km',
-              style: _raj(10, FontWeight.w600, _kSub)),
-          const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded,
-              color: _kRed.withValues(alpha: 0.5), size: 13),
-        ]),
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // DIÁLOGO DETALLE TERRITORIO
-  // ==========================================================================
-  void _mostrarDialogo(_TerDet det, String ownerNick) {
-    final esMio = det.ownerId == (_uid ?? '');
-    final conquistable = !esMio &&
-        det.diasSinVisitar != null &&
-        det.diasSinVisitar! >= kDiasParaDeterioroFuncional;
-    final centro = det.puntos.isNotEmpty
-        ? LatLng(
-            det.puntos.map((p) => p.latitude).reduce((a, b) => a + b) /
-                det.puntos.length,
-            det.puntos.map((p) => p.longitude).reduce((a, b) => a + b) /
-                det.puntos.length)
-        : _state.centro;
-
-    String estado = 'activo';
-    Color cEstado = _kSafe;
-    if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroFuncional) {
-      estado = 'crítico'; cEstado = _kRed;
-    } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
-      estado = 'con desgaste'; cEstado = _kWarn;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kSurface,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border(
-            top:   BorderSide(color: _kBorder2),
-            left:  BorderSide(color: _kBorder2),
-            right: BorderSide(color: _kBorder2),
+          child: Row(children: [
+            const Text('⚔️', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('GUERRA GLOBAL', style: GoogleFonts.cinzel(color: _kGoldLight,
+                  fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 2),
+              Text(_objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
+                  style: GoogleFonts.inter(color: _kGold, fontSize: 11,
+                      fontWeight: FontWeight.w700)),
+              Text('Corre ${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km para conquistar',
+                  style: GoogleFonts.inter(color: _p.goldDim, fontSize: 10,
+                      fontWeight: FontWeight.w600)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0}',
+                  style: GoogleFonts.orbitron(color: _kGold, fontSize: 16,
+                      fontWeight: FontWeight.w900)),
+              Text('🪙 el lunes',
+                  style: GoogleFonts.inter(color: _p.goldDim, fontSize: 10)),
+            ]),
+          ]),
+        ),
+        GestureDetector(
+          onTap: _mostrandoCuentaAtras ? null : _iniciarCuentaAtras,
+          child: AnimatedBuilder(
+            animation: _pulsoAnim,
+            builder: (_, child) => Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF5C0000), Color(0xFFCC2222), Color(0xFF8B0000)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                    color: _p.globalRed.withValues(alpha: 0.35 + _pulso.value * 0.2),
+                    width: 1.5),
+                boxShadow: [
+                  BoxShadow(color: _p.globalRed.withValues(alpha: 0.12 + _pulso.value * 0.28),
+                      blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+                ],
+              ),
+              child: child,
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Text('⚔️', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 14),
+              Text('INICIAR CONQUISTA',
+                  style: GoogleFonts.cinzel(fontSize: 16, color: Colors.white,
+                      fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+            ]),
           ),
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 14),
-            width: 36, height: 3,
-            decoration: BoxDecoration(color: _kBorder2,
-                borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-            child: Row(children: [
-              Container(width: 3, height: 18, color: _kRed,
-                  margin: const EdgeInsets.only(right: 10)),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(ownerNick.toUpperCase(),
-                    style: _raj(15, FontWeight.w900, _kWhite,
-                        spacing: 1.5)),
-                if (det.nombreTerritorio != null &&
-                    det.nombreTerritorio!.isNotEmpty)
-                  Text('"${det.nombreTerritorio}"',
-                      style: _raj(11, FontWeight.w600, _kGold,
-                          spacing: 0.5)),
-              ])),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: cEstado.withValues(alpha: 0.08),
-                    border: Border.all(
-                        color: cEstado.withValues(alpha: 0.4)),
-                    borderRadius: BorderRadius.circular(4)),
-                child: Text(estado.toUpperCase(),
-                    style: _raj(9, FontWeight.w900, cEstado,
-                        spacing: 1))),
-            ]),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () => setState(() => _objetivoGlobal = null),
+          child: Text('cambiar objetivo',
+              style: GoogleFonts.inter(
+                  color: _p.goldDim, fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline)),
+        ),
+      ]);
+    }
+
+    final bool isCompetitivo = !_modoSolitario && _objetivoGlobal == null;
+    final bool isGlobal      = _objetivoGlobal != null;
+
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.30),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Row(children: [
+            _modeSegment(
+              label: 'Competitivo',
+              active: isCompetitivo,
+              activeColor: _kGoldLight,
+              onTap: () async {
+                setState(() => _modoSolitario = false);
+                TerritoryService.invalidarCache();
+                final centro = _currentPosition != null
+                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                    : null;
+                final lista = await TerritoryService.cargarTodosLosTerritorios(
+                    centro: centro, modo: 'competitivo');
+                if (mounted) setState(() => _territorios = lista);
+                _aplicarTerritoriosFantasma();
+              },
+            ),
+            _modeSegment(
+              label: 'Solitario',
+              active: _modoSolitario,
+              activeColor: _kVerde,
+              onTap: () async {
+                setState(() => _modoSolitario = true);
+                TerritoryService.invalidarCache();
+                final centro = _currentPosition != null
+                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                    : null;
+                final lista = await TerritoryService.cargarTodosLosTerritorios(
+                    centro: centro, modo: 'solitario');
+                if (mounted) setState(() => _territorios = lista);
+                _dibujarTerritoriosEnMapa();
+              },
+            ),
+            _modeSegment(
+              label: 'Global',
+              active: isGlobal,
+              activeColor: const Color(0xFFFF453A),
+              onTap: _elegirTerritorioGlobal,
+            ),
+          ]),
+        ),
+      ),
+      if (SubscriptionService.estilosMapaActivos) ...[
+        _buildSelectorEstiloMapa(),
+        const SizedBox(height: 14),
+      ],
+      GestureDetector(
+        onTap: _mostrandoCuentaAtras ? null : _confirmarYComenzar,
+        child: AnimatedBuilder(
+          animation: _pulsoAnim,
+          builder: (_, child) => Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 20),
+            decoration: BoxDecoration(
+              gradient: _modoSolitario
+                  ? LinearGradient(colors: [
+                      const Color(0xFF1A4A1A),
+                      _kVerde.withValues(alpha: 0.8),
+                      const Color(0xFF2A6A2A),
+                    ], begin: Alignment.topLeft, end: Alignment.bottomRight)
+                  : LinearGradient(colors: [
+                      const Color(0xFF8B0000),
+                      const Color(0xFFE02020),
+                      const Color(0xFFC0392B),
+                    ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                  color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
+                      .withValues(alpha: 0.35 + _pulso.value * 0.2),
+                  width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
+                        .withValues(alpha: 0.12 + _pulso.value * 0.28),
+                    blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+              ],
+            ),
+            child: child,
           ),
-          if (det.puntos.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 160,
-                  child: FlutterMap(
-                    options: MapOptions(
-                        initialCenter: centro,
-                        initialZoom: 15,
-                        interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.pinchZoom |
-                                InteractiveFlag.doubleTapZoom)),
-                    children: [
-                      TileLayer(
-                          urlTemplate: _kMapboxUrl,
-                          userAgentPackageName:
-                              'com.runner_risk.app',
-                          tileDimension: 256),
-                      PolygonLayer(polygons: [
-                        Polygon(
-                            points: det.puntos,
-                            color: _kRed.withValues(alpha: 0.2),
-                            borderColor: _kRed,
-                            borderStrokeWidth: 2)
-                      ]),
-                    ],
-                  ),
+          child: Center(
+            child: Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
+                style: GoogleFonts.inter(fontSize: 16,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Widget _modeSegment({
+    required String label,
+    required bool active,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) =>
+      Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: active
+                  ? activeColor.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: active
+                  ? Border.all(
+                      color: activeColor.withValues(alpha: 0.35), width: 1)
+                  : null,
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight:
+                      active ? FontWeight.w700 : FontWeight.w400,
+                  color: active ? activeColor : _p.goldDim,
                 ),
               ),
             ),
-          if (!esMio)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-              child: Builder(builder: (_) {
-                TerritoryData? td;
-                try {
-                  td = _state.territorios.firstWhere(
-                      (x) => x.docId == det.docId);
-                } catch (_) {}
-
-                if (td == null) return const SizedBox.shrink();
-
-                final hp = td.hpActual;
-                final hpFraction = hp / kHpMax.toDouble();
-                final Color hpColor;
-                final String hpLabel;
-                switch (td.estadoHp) {
-                  case EstadoHp.saludable:
-                    hpColor = _kSafe;
-                    hpLabel = 'Territorio saludable';
-                    break;
-                  case EstadoHp.danado:
-                    hpColor = _kWarn;
-                    hpLabel = 'Territorio debilitado';
-                    break;
-                  case EstadoHp.critico:
-                    hpColor = _kRed;
-                    hpLabel = 'En estado crítico';
-                    break;
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(
-                          color: hpColor, shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(
-                              color: hpColor.withValues(alpha: 0.6),
-                              blurRadius: 4)],
-                        ),
-                        margin: const EdgeInsets.only(right: 6),
-                      ),
-                      Text(hpLabel,
-                          style: _raj(10, FontWeight.w700, hpColor,
-                              spacing: 0.5)),
-                    ]),
-                    const SizedBox(height: 6),
-                    Stack(children: [
-                      Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                              color: _kBorder2,
-                              borderRadius:
-                                  BorderRadius.circular(3))),
-                      FractionallySizedBox(
-                        widthFactor: hpFraction.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: hpColor,
-                            borderRadius: BorderRadius.circular(3),
-                            boxShadow: [BoxShadow(
-                                color: hpColor.withValues(alpha: 0.5),
-                                blurRadius: 8)],
-                          ),
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
-                    ]),
-                  ],
-                );
-              }),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [
-              _dStat(
-                  'SIN VISITAR',
-                  det.diasSinVisitar != null
-                      ? '${det.diasSinVisitar}d'
-                      : '--',
-                  _kDim),
-              Container(width: 1, height: 36, color: _kBorder2),
-              _dStat('DISTANCIA',
-                  '${det.dist.toStringAsFixed(1)} km', _kText),
-              Container(width: 1, height: 36, color: _kBorder2),
-              _dStat('PUNTOS', '${det.puntos.length}', _kGold),
-            ]),
           ),
-          if (conquistable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: GestureDetector(
-                onTap: () => _ejecutarConquista(det, ownerNick),
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _kRed.withValues(alpha: 0.12),
-                    border: Border.all(
-                        color: _kRed.withValues(alpha: 0.6)),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.sports_kabaddi_rounded,
-                          color: _kRed, size: 18),
-                      const SizedBox(width: 10),
-                      Text('CONQUISTAR TERRITORIO',
-                          style: _raj(13, FontWeight.w900, _kRed,
-                              spacing: 2)),
-                    ]),
-                ),
-              ),
-            ),
-          if (!esMio && !conquistable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    vertical: 12, horizontal: 14),
-                decoration: BoxDecoration(
-                    color: _kSurface2,
-                    border: Border.all(color: _kBorder2),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Row(children: [
-                  const Icon(Icons.lock_outline_rounded,
-                      color: _kSub, size: 14),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(
-                    'Necesita '
-                    '${kDiasParaDeterioroFuncional - (det.diasSinVisitar ?? 0)} '
-                    'días más sin visita.',
-                    style: _raj(10, FontWeight.w600, _kSub),
-                  )),
-                ]),
-              ),
-            ),
-          if (esMio)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        ),
+      );
+
+  Widget _buildSelectorEstiloMapa() {
+    final estilos = [
+      {'id': 'normal',   'emoji': '🗺️', 'label': 'Normal'},
+      {'id': 'satelite', 'emoji': '🛰️', 'label': 'Satélite'},
+      {'id': 'militar',  'emoji': '🎖️', 'label': 'Militar'},
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(left: 2, bottom: 6),
+        child: Row(children: [
+          const Text('👑', style: TextStyle(fontSize: 10)),
+          const SizedBox(width: 5),
+          Text('ESTILO DE MAPA', style: GoogleFonts.inter(color: _p.goldDim,
+              fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2)),
+        ]),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: _p.parchMid.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _p.goldDim.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: estilos.map((e) {
+            final selected = _estiloMapa == e['id'];
+            return Expanded(
               child: GestureDetector(
                 onTap: () {
-                  Navigator.of(context).pop();
-                  _mostrarDialogoRenombrar(det);
+                  if (_estiloMapa == e['id']) return;
+                  setState(() => _estiloMapa = e['id'] as String);
+                  final uri = _mapUriParaEstilo(e['id'] as String);
+                  _mapboxMap?.loadStyleURI(uri);
+                  _buildings3dCreated       = false;
+                  _territoriosLayersCreated = false;
+                  Future.delayed(const Duration(milliseconds: 800), () {
+                    if (!mounted) return;
+                    _addBuildings3D();
+                    _configurarAtmosfera();
+                    _dibujarTerritoriosEnMapa();
+                  });
                 },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.08),
-                    border: Border.all(
-                        color: _kGold.withValues(alpha: 0.4)),
-                    borderRadius: BorderRadius.circular(6),
+                    color: selected
+                        ? _p.goldDim.withValues(alpha: 0.45) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.edit_rounded,
-                          color: _kGold, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        det.nombreTerritorio != null &&
-                                det.nombreTerritorio!.isNotEmpty
-                            ? 'CAMBIAR NOMBRE'
-                            : 'PONERLE NOMBRE',
-                        style: _raj(12, FontWeight.w900, _kGold,
-                            spacing: 1.5)),
-                    ]),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(e['emoji'] as String, style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(e['label'] as String,
+                        style: GoogleFonts.inter(fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: selected ? _kGoldLight : _p.goldDim,
+                            letterSpacing: 0.5)),
+                  ]),
                 ),
               ),
-            ),
-          const SizedBox(height: 8),
-        ]),
+            );
+          }).toList(),
+        ),
       ),
-    );
+    ]);
   }
 
-  Widget _dStat(String l, String v, Color c) =>
-      Expanded(child: Column(children: [
-        Text(l, style: _raj(8, FontWeight.w700, _kSub, spacing: 1.5)),
-        const SizedBox(height: 4),
-        Text(v, style: _raj(16, FontWeight.w900, c)),
-      ]));
-
-  void _mostrarDialogoRenombrar(_TerDet det) {
-    showDialog(
-      context: context,
-      builder: (_) => _DialogoRenombrar(
-        nombreActual: det.nombreTerritorio ?? '',
-        onGuardar: (nuevoNombre) async {
-          try {
-            await TerritoryService.renombrarTerritorio(
-                docId: det.docId, nombre: nuevoNombre);
-            if (!mounted) return;
-            _mostrarExito(
-                '✏️ Territorio renombrado como "$nuevoNombre"');
-            _MapState.invalidarDetallesCache();
-            await _state.cargarDetalles(det.ownerId);
-          } on FirebaseFunctionsException catch (e) {
-            if (!mounted) return;
-            _mostrarError(e.message ?? 'No se pudo renombrar');
-          } catch (_) {
-            if (!mounted) return;
-            _mostrarError('Error inesperado.');
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildBannerDesafio(Map<String, dynamic> data) {
-    final bool soyR = data['retadorId'] == _uid;
-    final String rival = soyR
-        ? (data['retadoNick'] ?? 'Rival')
-        : (data['retadorNick'] ?? 'Rival');
-    final int misPts = soyR
-        ? (data['puntosRetador'] as num? ?? 0).toInt()
-        : (data['puntosRetado'] as num? ?? 0).toInt();
-    final int rivalPts = soyR
-        ? (data['puntosRetado'] as num? ?? 0).toInt()
-        : (data['puntosRetador'] as num? ?? 0).toInt();
-    final int apuesta = (data['apuesta'] as num? ?? 0).toInt();
-    final Timestamp? finTs = data['fin'] as Timestamp?;
-    final bool ganando = misPts > rivalPts;
-
-    String tiempo = '';
-    if (finTs != null) {
-      final diff = finTs.toDate().difference(DateTime.now());
-      tiempo = diff.isNegative
-          ? 'FINALIZADO'
-          : diff.inHours > 0
-              ? '${diff.inHours}h ${diff.inMinutes.remainder(60)}m'
-              : '${diff.inMinutes}m';
+  String _mapUriParaEstilo(String estilo) {
+    switch (estilo) {
+      case 'satelite': return mapbox.MapboxStyles.SATELLITE_STREETS;
+      case 'militar':  return mapbox.MapboxStyles.DARK;
+      default: return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
     }
-    final int total = misPts + rivalPts;
-    final double pct = total > 0 ? misPts / total : 0.5;
+  }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _kRed.withValues(alpha: 0.04),
-        border: Border.all(color: _kBorder2),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 3,
-          decoration: const BoxDecoration(
-            color: _kRed,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(4),
-              bottomLeft: Radius.circular(4),
+  Widget _buildBotonesControl() => Row(children: [
+        GestureDetector(
+          onTap: togglePause,
+          child: Container(
+            width: 62, height: 62,
+            decoration: BoxDecoration(
+              color: _p.parchMid, shape: BoxShape.circle,
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.55), width: 1.5),
+              boxShadow: [
+                BoxShadow(color: _kGold.withValues(alpha: 0.12), blurRadius: 12),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 5),
+              ],
             ),
+            child: Center(
+                child: Text(isPaused ? '▶️' : '⏸️',
+                    style: const TextStyle(fontSize: 26))),
           ),
         ),
+        const SizedBox(width: 14),
         Expanded(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 10, 14, 8),
-              child: Row(children: [
-                const Text('⚔️', style: TextStyle(fontSize: 12)),
-                const SizedBox(width: 8),
-                Text('DESAFÍO ACTIVO',
-                    style:
-                        _raj(9, FontWeight.w900, _kRed, spacing: 2)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                      border: Border.all(color: _kBorder2),
-                      borderRadius: BorderRadius.circular(3)),
-                  child: Text(tiempo,
-                      style:
-                          _raj(9, FontWeight.w700, _kText, spacing: 1))),
+          child: GestureDetector(
+            onTap: stopTracking,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 19),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [Color(0xFF5C1200), Color(0xFFB84020)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: _p.terracotta.withValues(alpha: 0.35), width: 1),
+                boxShadow: [
+                  BoxShadow(color: _p.terracotta.withValues(alpha: 0.38),
+                      blurRadius: 16, offset: const Offset(0, 4)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6),
+                ],
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(_modoSolitario ? '🏁'
+                    : _objetivoGlobal != null ? '🏴' : '🏳️',
+                    style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Text(
+                  _modoSolitario ? 'FINALIZAR'
+                      : _objetivoGlobal != null
+                          ? (_globalConquistado ? 'MISIÓN CUMPLIDA' : 'RETIRADA')
+                          : 'RETIRADA',
+                  style: GoogleFonts.cinzel(fontSize: 15, fontWeight: FontWeight.w700,
+                      color: const Color(0xFFFFE0C0), letterSpacing: 2.5),
+                ),
               ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 0, 14, 0),
-              child: Row(children: [
-                Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('TÚ',
-                      style: _raj(7, FontWeight.w700, _kSub,
-                          spacing: 2)),
-                  Text('$misPts',
-                      style: _raj(22, FontWeight.w900,
-                          ganando ? _kWhite : _kSub, height: 1)),
-                ])),
-                Column(children: [
-                  Text('VS',
-                      style: _raj(10, FontWeight.w900, _kDim,
-                          spacing: 2)),
-                  Text('$apuesta 🪙',
-                      style: _raj(9, FontWeight.w700, _kText)),
-                ]),
-                Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                  Text(rival.toString().toUpperCase(),
-                      style: _raj(7, FontWeight.w700, _kSub,
-                          spacing: 2)),
-                  Text('$rivalPts',
-                      style: _raj(22, FontWeight.w900,
-                          !ganando ? _kWhite : _kSub, height: 1)),
-                ])),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 8, 14, 12),
-              child: Stack(children: [
-                Container(height: 3, color: _kBorder2),
-                FractionallySizedBox(
-                    widthFactor: pct.clamp(0.0, 1.0),
-                    child: Container(height: 3, color: _kRed)),
-              ]),
-            ),
-          ]),
-        ),
-      ]),
-    );
-  }
-}
-
-// =============================================================================
-// DIÁLOGO RENOMBRAR
-// =============================================================================
-class _DialogoRenombrar extends StatefulWidget {
-  final String nombreActual;
-  final Future<void> Function(String) onGuardar;
-  const _DialogoRenombrar(
-      {required this.nombreActual, required this.onGuardar});
-
-  @override
-  State<_DialogoRenombrar> createState() => _DialogoRenombrarState();
-}
-
-class _DialogoRenombrarState extends State<_DialogoRenombrar> {
-  late final TextEditingController _ctrl;
-  bool _guardando = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.nombreActual);
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  Future<void> _guardar() async {
-    final nombre = _ctrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'El nombre no puede estar vacío');
-      return;
-    }
-    if (nombre.length > 30) {
-      setState(() => _error = 'Máximo 30 caracteres');
-      return;
-    }
-    setState(() { _guardando = true; _error = null; });
-    try {
-      await widget.onGuardar(nombre);
-      if (mounted) Navigator.of(context).pop();
-    } catch (_) {
-      if (mounted) Navigator.of(context).pop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kGold.withValues(alpha: 0.35)),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: _kGold.withValues(alpha: 0.08), blurRadius: 30),
-            const BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-                color: _kGold.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: _kGold.withValues(alpha: 0.4))),
-            child: const Icon(Icons.edit_rounded,
-                color: _kGold, size: 22)),
-          const SizedBox(height: 16),
-          Text('NOMBRE DEL TERRITORIO',
-              style: _raj(15, FontWeight.w900, _kWhite, spacing: 1.5)),
-          const SizedBox(height: 6),
-          Text(
-            'Este nombre será visible para todos en el mapa.',
-            textAlign: TextAlign.center,
-            style: _raj(11, FontWeight.w500, _kSub, height: 1.5)),
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              color: _kBg,
-              border: Border.all(
-                  color: _error != null
-                      ? _kRed.withValues(alpha: 0.6)
-                      : _kGold.withValues(alpha: 0.3)),
-              borderRadius: BorderRadius.circular(6)),
-            child: TextField(
-              controller: _ctrl, maxLength: 30, autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              style: _raj(14, FontWeight.w700, _kWhite),
-              cursorColor: _kGold,
-              decoration: InputDecoration(
-                hintText: 'Ej: La Cuesta del Infierno',
-                hintStyle: _raj(13, FontWeight.w500, _kDim),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-                border: InputBorder.none,
-                counterStyle: _raj(10, FontWeight.w500, _kSub)),
-              onChanged: (_) {
-                if (_error != null) setState(() => _error = null);
-              },
-              onSubmitted: (_) => _guardar(),
             ),
           ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(children: [
-                const Icon(Icons.warning_amber_rounded,
-                    color: _kRed, size: 12),
-                const SizedBox(width: 4),
-                Text(_error!, style: _raj(10, FontWeight.w600, _kRed)),
-              ]),
-            ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(color: _kBorder,
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CANCELAR',
-                    style: _raj(12, FontWeight.w800, _kText,
-                        spacing: 1)))),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: GestureDetector(
-              onTap: _guardando ? null : _guardar,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.15),
-                    border:
-                        Border.all(color: _kGold.withValues(alpha: 0.5)),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: _guardando
-                    ? const SizedBox(
-                        width: 16, height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 1.5, color: _kGold))
-                    : Text('GUARDAR',
-                        style: _raj(12, FontWeight.w900, _kGold,
-                            spacing: 1)))),
-            )),
-          ]),
-        ]),
-      ),
-    );
-  }
+        ),
+      ]);
 }
 
 // =============================================================================
-// DIÁLOGOS CONQUISTA
+// SPEED LINES PAINTER
 // =============================================================================
-class _DialogoConfirmarConquista extends StatelessWidget {
-  final String ownerNick;
-  final int diasSinVisitar;
-  const _DialogoConfirmarConquista(
-      {required this.ownerNick, required this.diasSinVisitar});
+class _SpeedLinesPainter extends CustomPainter {
+  final Color color;
+  const _SpeedLinesPainter({required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kRed.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: _kRed.withValues(alpha: 0.1), blurRadius: 30),
-            const BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-                color: _kRed.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: _kRed.withValues(alpha: 0.4))),
-            child: const Icon(Icons.sports_kabaddi_rounded,
-                color: _kRed, size: 24)),
-          const SizedBox(height: 16),
-          Text('¿CONQUISTAR?',
-              style: _raj(18, FontWeight.w900, _kWhite, spacing: 2)),
-          const SizedBox(height: 8),
-          Text(
-            'Territorio de ${ownerNick.toUpperCase()}\n'
-            '$diasSinVisitar días sin visitar',
-            textAlign: TextAlign.center,
-            style: _raj(12, FontWeight.w600, _kSub, height: 1.5)),
-          const SizedBox(height: 6),
-          Text(
-            'Debes estar físicamente a menos\nde 200 m del territorio.',
-            textAlign: TextAlign.center,
-            style: _raj(11, FontWeight.w500, _kDim, height: 1.5)),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(false),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(color: _kBorder,
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CANCELAR',
-                    style: _raj(12, FontWeight.w800, _kText,
-                        spacing: 1)))),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(true),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                    color: _kRed.withValues(alpha: 0.15),
-                    border: Border.all(color: _kRed.withValues(alpha: 0.6)),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CONQUISTAR',
-                    style: _raj(12, FontWeight.w900, _kRed,
-                        spacing: 1)))),
-            )),
-          ]),
-        ]),
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color       = color.withValues(alpha: 0.32)
+      ..strokeWidth = 1.5
+      ..style       = PaintingStyle.stroke;
+    final rnd = math.Random(42);
+    for (int i = 0; i < 10; i++) {
+      final x   = rnd.nextDouble() * size.width;
+      final y   = rnd.nextDouble() * size.height;
+      final len = 12.0 + rnd.nextDouble() * 22;
+      canvas.drawLine(Offset(x, y), Offset(x - len, y + 3), paint);
+    }
   }
-}
-
-class _DialogoConquistando extends StatelessWidget {
-  const _DialogoConquistando();
 
   @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kBorder2),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [
-            BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(
-            width: 36, height: 36,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: _kRed)),
-          const SizedBox(height: 16),
-          Text('CONQUISTANDO...',
-              style: _raj(14, FontWeight.w900, _kWhite, spacing: 2)),
-          const SizedBox(height: 6),
-          Text('Verificando posición y condiciones',
-              style: _raj(10, FontWeight.w500, _kSub)),
-        ]),
-      ),
-    );
-  }
+  bool shouldRepaint(_SpeedLinesPainter old) => old.color != color;
 }
