@@ -1132,7 +1132,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 0.85);
+              'sky-layer', 'sky-stars-intensity', 0.95);
         } catch (_) {}
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
@@ -1142,12 +1142,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-halo-color', 'rgba(200,230,255,0.9)');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-sun-intensity', 15.0);
+            'sky-layer', 'sky-atmosphere-sun-intensity', 25.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 0.45);
+              'sky-layer', 'sky-stars-intensity', 0.95);
         } catch (_) {}
       }
     } catch (e) {
