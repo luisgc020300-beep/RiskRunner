@@ -38,6 +38,9 @@ const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
 
+// Fondo universo azul oscuro
+const _kUniverseBg = Color(0xFF020B18);
+
 class _LP {
   final Color ink, parchment, parchMid, cosmicBg, cosmicMid, goldDim, terracotta, globalRed;
   const _LP._({
@@ -60,8 +63,8 @@ class _LP {
     ink:        Color(0xFFEEEEEE),
     parchment:  Color(0xFF1C1C1E),
     parchMid:   Color(0xFF2C2C2E),
-    cosmicBg:   Color(0xFF090807),
-    cosmicMid:  Color(0xFF1C1C1E),
+    cosmicBg:   _kUniverseBg,       // azul universo
+    cosmicMid:  Color(0xFF0A1628),  // azul oscuro medio
     goldDim:    Color(0xFF636366),
     terracotta: Color(0xFF8E8E93),
     globalRed:  Color(0xFF8E8E93),
@@ -121,29 +124,31 @@ class _BarrioData {
 }
 
 // =============================================================================
-// MODELO ESTRELLA
+// MODELO ESTRELLA — ahora con tipo (normal, grande, gigante)
 // =============================================================================
 class _StarData {
-  final double x;   // fracción [0,1] del ancho
-  final double y;   // fracción [0,1] del alto
-  final double r;   // radio base
-  final double speed; // velocidad de twinkle
-  final double phase; // fase inicial
+  final double x;
+  final double y;
+  final double r;
+  final double speed;
+  final double phase;
+  final int    type;   // 0=normal, 1=grande con halo, 2=gigante con destello
   const _StarData({
     required this.x,
     required this.y,
     required this.r,
     required this.speed,
     required this.phase,
+    required this.type,
   });
 }
 
 // =============================================================================
-// PAINTER DE ESTRELLAS
+// PAINTER DE ESTRELLAS — más realistas
 // =============================================================================
 class _StarfieldPainter extends CustomPainter {
   final List<_StarData> stars;
-  final double animValue; // 0..1 de la animación continua
+  final double animValue;
   final bool nightMode;
 
   const _StarfieldPainter({
@@ -157,35 +162,132 @@ class _StarfieldPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     for (final s in stars) {
-      // Twinkle: seno desfasado por estrella
       final twinkle = (math.sin((animValue * math.pi * 2 * s.speed) + s.phase) + 1) / 2;
 
-      // Opacidad: modo noche más brillantes, modo día más sutiles en el borde
-      final double baseOpacity = nightMode ? 0.55 : 0.28;
-      final double opacity = (baseOpacity + twinkle * (nightMode ? 0.45 : 0.22)).clamp(0.0, 1.0);
+      // Opacidad base más alta en modo noche para mayor realismo
+      final double baseOpacity = nightMode
+          ? (s.type == 2 ? 0.75 : s.type == 1 ? 0.65 : 0.45)
+          : (s.type == 2 ? 0.30 : s.type == 1 ? 0.22 : 0.14);
+      final double twinkleAmp  = nightMode ? 0.25 : 0.12;
+      final double opacity = (baseOpacity + twinkle * twinkleAmp).clamp(0.0, 1.0);
 
-      // Color: blanco azulado en noche, dorado muy sutil en día
-      final Color starColor = nightMode
-          ? Color.fromRGBO(210, 230, 255, opacity)
-          : Color.fromRGBO(255, 245, 200, opacity);
+      final cx = s.x * size.width;
+      final cy = s.y * size.height;
 
-      // Halo difuso para las estrellas grandes
-      if (s.r > 1.8) {
-        paint.color = starColor.withValues(alpha: opacity * 0.3);
-        canvas.drawCircle(
-          Offset(s.x * size.width, s.y * size.height),
-          s.r * 2.8,
-          paint,
-        );
+      // Color: blanco azulado frío en noche, ligeramente cálido en día
+      // Variamos el tinte según la fase para dar diversidad de color
+      final int r, g, b;
+      final tintSeed = (s.phase * 3).floor() % 4;
+      if (nightMode) {
+        switch (tintSeed) {
+          case 0:  r = 210; g = 230; b = 255; break; // azul frío
+          case 1:  r = 255; g = 248; b = 235; break; // ligeramente cálido
+          case 2:  r = 200; g = 220; b = 255; break; // azul puro
+          default: r = 240; g = 240; b = 255; break; // blanco azulado
+        }
+      } else {
+        r = 255; g = 245; b = 200;
       }
 
-      // Núcleo de la estrella
-      paint.color = starColor;
-      canvas.drawCircle(
-        Offset(s.x * size.width, s.y * size.height),
-        s.r * (0.7 + twinkle * 0.55),
-        paint,
-      );
+      final Color starColor = Color.fromRGBO(r, g, b, opacity);
+
+      // ── Tipo 2: GIGANTE con destello en cruz ────────────────────────────
+      if (s.type == 2) {
+        // Halo exterior difuso grande
+        final haloPaint = Paint()
+          ..shader = RadialGradient(colors: [
+            Color.fromRGBO(r, g, b, opacity * 0.35),
+            Color.fromRGBO(r, g, b, 0),
+          ]).createShader(Rect.fromCircle(
+              center: Offset(cx, cy), radius: s.r * 5.5));
+        canvas.drawCircle(Offset(cx, cy), s.r * 5.5, haloPaint);
+
+        // Halo interior
+        final haloIn = Paint()
+          ..shader = RadialGradient(colors: [
+            Color.fromRGBO(r, g, b, opacity * 0.55),
+            Color.fromRGBO(r, g, b, 0),
+          ]).createShader(Rect.fromCircle(
+              center: Offset(cx, cy), radius: s.r * 2.8));
+        canvas.drawCircle(Offset(cx, cy), s.r * 2.8, haloIn);
+
+        // Destello en cruz (difracción)
+        final crossLen = s.r * (3.0 + twinkle * 2.5);
+        final crossPaint = Paint()
+          ..strokeWidth = 0.9 + twinkle * 0.4
+          ..style       = PaintingStyle.stroke;
+
+        // Brazo horizontal
+        crossPaint.shader = LinearGradient(colors: [
+          Color.fromRGBO(r, g, b, 0),
+          Color.fromRGBO(r, g, b, opacity * 0.85),
+          Color.fromRGBO(r, g, b, 0),
+        ]).createShader(Rect.fromPoints(
+            Offset(cx - crossLen, cy), Offset(cx + crossLen, cy)));
+        canvas.drawLine(Offset(cx - crossLen, cy), Offset(cx + crossLen, cy), crossPaint);
+
+        // Brazo vertical
+        crossPaint.shader = LinearGradient(
+          colors: [
+            Color.fromRGBO(r, g, b, 0),
+            Color.fromRGBO(r, g, b, opacity * 0.85),
+            Color.fromRGBO(r, g, b, 0),
+          ],
+          begin: Alignment.topCenter,
+          end:   Alignment.bottomCenter,
+        ).createShader(Rect.fromPoints(
+            Offset(cx, cy - crossLen), Offset(cx, cy + crossLen)));
+        canvas.drawLine(Offset(cx, cy - crossLen), Offset(cx, cy + crossLen), crossPaint);
+
+        // Brazos diagonales más tenues
+        final diagLen = crossLen * 0.55;
+        final diagPaint = Paint()
+          ..color       = Color.fromRGBO(r, g, b, opacity * 0.35)
+          ..strokeWidth = 0.6
+          ..style       = PaintingStyle.stroke;
+        canvas.drawLine(Offset(cx - diagLen, cy - diagLen),
+            Offset(cx + diagLen, cy + diagLen), diagPaint);
+        canvas.drawLine(Offset(cx + diagLen, cy - diagLen),
+            Offset(cx - diagLen, cy + diagLen), diagPaint);
+
+        // Núcleo brillante
+        paint.color = Color.fromRGBO(r, g, b, (opacity * 1.0).clamp(0, 1));
+        canvas.drawCircle(Offset(cx, cy), s.r * (0.8 + twinkle * 0.4), paint);
+
+        // Punto central blanco puro
+        paint.color = Color.fromRGBO(255, 255, 255, (opacity * 0.9).clamp(0, 1));
+        canvas.drawCircle(Offset(cx, cy), s.r * 0.4, paint);
+      }
+
+      // ── Tipo 1: GRANDE con halo suave ───────────────────────────────────
+      else if (s.type == 1) {
+        // Halo exterior
+        final haloPaint = Paint()
+          ..shader = RadialGradient(colors: [
+            Color.fromRGBO(r, g, b, opacity * 0.30),
+            Color.fromRGBO(r, g, b, 0),
+          ]).createShader(Rect.fromCircle(
+              center: Offset(cx, cy), radius: s.r * 3.2));
+        canvas.drawCircle(Offset(cx, cy), s.r * 3.2, haloPaint);
+
+        // Núcleo
+        paint.color = starColor;
+        canvas.drawCircle(Offset(cx, cy), s.r * (0.75 + twinkle * 0.5), paint);
+
+        // Centro más brillante
+        paint.color = Color.fromRGBO(255, 255, 255, (opacity * 0.7).clamp(0, 1));
+        canvas.drawCircle(Offset(cx, cy), s.r * 0.35, paint);
+      }
+
+      // ── Tipo 0: NORMAL — punto simple con leve halo ─────────────────────
+      else {
+        if (s.r > 1.2) {
+          paint.color = Color.fromRGBO(r, g, b, opacity * 0.20);
+          canvas.drawCircle(Offset(cx, cy), s.r * 2.0, paint);
+        }
+        paint.color = starColor;
+        canvas.drawCircle(Offset(cx, cy), s.r * (0.65 + twinkle * 0.55), paint);
+      }
     }
   }
 
@@ -213,19 +315,33 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
   @override
   void initState() {
     super.initState();
-    // Generar 160 estrellas con semilla fija para que sean estables
     final rnd = math.Random(12345);
-    _stars = List.generate(160, (_) => _StarData(
-      x:     rnd.nextDouble(),
-      y:     rnd.nextDouble(),
-      r:     0.6 + rnd.nextDouble() * 2.0,
-      speed: 0.4 + rnd.nextDouble() * 1.2,
-      phase: rnd.nextDouble() * math.pi * 2,
-    ));
+
+    // 200 estrellas con distribución realista de tipos
+    _stars = List.generate(200, (i) {
+      final x     = rnd.nextDouble();
+      final y     = rnd.nextDouble();
+      final speed = 0.3 + rnd.nextDouble() * 1.0;
+      final phase = rnd.nextDouble() * math.pi * 2;
+
+      // Distribución: 85% normales, 12% grandes, 3% gigantes
+      final int type;
+      final double r;
+      final roll = rnd.nextDouble();
+      if (roll > 0.97) {
+        type = 2; r = 1.8 + rnd.nextDouble() * 1.2; // gigante
+      } else if (roll > 0.85) {
+        type = 1; r = 1.2 + rnd.nextDouble() * 0.8; // grande
+      } else {
+        type = 0; r = 0.4 + rnd.nextDouble() * 0.9; // normal
+      }
+
+      return _StarData(x: x, y: y, r: r, speed: speed, phase: phase, type: type);
+    });
 
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(seconds: 10),
     )..repeat();
   }
 
@@ -1007,9 +1123,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-type', 'atmosphere');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-color', 'rgba(2,2,15,1)');
+            'sky-layer', 'sky-atmosphere-color', 'rgba(2,8,20,1)');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(5,5,30,0.8)');
+            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(5,15,40,0.9)');
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
         await _mapboxMap!.style
@@ -3062,19 +3178,52 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   @override
   Widget build(BuildContext context) {
+    final bool mostrarGlobo = !isTracking && !_mostrandoCuentaAtras;
     return Scaffold(
-      backgroundColor: Colors.black,
+      // Fondo azul universo — especialmente visible en modo oscuro
+      backgroundColor: _modoNoche ? _kUniverseBg : Colors.black,
       body: Stack(children: [
-        Positioned.fill(child: _buildMapbox()),
-        // ── STARFIELD: visible solo cuando el globo está activo (no tracking)
-        if (!isTracking && !_mostrandoCuentaAtras)
+
+        // ── 1. FONDO AZUL UNIVERSO (siempre abajo del todo) ────────────────
+        if (mostrarGlobo)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.2,
+                  colors: _modoNoche
+                      ? [
+                          const Color(0xFF071428), // azul medianoche centro
+                          const Color(0xFF020B18), // azul casi negro borde
+                        ]
+                      : [
+                          const Color(0xFF1A2A3A), // azul grisáceo día
+                          const Color(0xFF0A1420), // más oscuro en borde
+                        ],
+                ),
+              ),
+            ),
+          ),
+
+        // ── 2. ESTRELLAS — SOLO DETRÁS DEL GLOBO (antes del mapa) ─────────
+        if (mostrarGlobo)
           Positioned.fill(
             child: IgnorePointer(
               child: _StarfieldWidget(nightMode: _modoNoche),
             ),
           ),
-        if (!isTracking && !_mostrandoCuentaAtras)
-          Positioned.fill(child: IgnorePointer(child: _buildGloboOverlay())),
+
+        // ── 3. MAPA MAPBOX (el globo renderiza encima de las estrellas) ─────
+        Positioned.fill(child: _buildMapbox()),
+
+        // ── 4. OVERLAY DEL GLOBO (viñeta + títulos + chips) ────────────────
+        if (mostrarGlobo)
+          Positioned.fill(
+            child: IgnorePointer(child: _buildGloboOverlay()),
+          ),
+
+        // ── 5. HUD y controles ──────────────────────────────────────────────
         Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
         Positioned(top: 200, left: 14, child: _buildChips()),
         Positioned(
@@ -3301,17 +3450,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Widget _buildGloboOverlay() {
     return Stack(children: [
-      // Viñeta espacial en los bordes
+      // Viñeta espacial en los bordes — ahora más azulada
       Positioned.fill(
         child: IgnorePointer(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
-                center: Alignment.center, radius: 0.82,
+                center: Alignment.center, radius: 0.80,
                 colors: [
                   Colors.transparent,
-                  // En modo noche más oscuro; en día ligeramente más sutil
-                  Colors.black.withValues(alpha: _modoNoche ? 0.72 : 0.55),
+                  _modoNoche
+                      ? const Color(0xFF020B18).withValues(alpha: 0.78)
+                      : const Color(0xFF0A1828).withValues(alpha: 0.58),
                 ],
               ),
             ),
