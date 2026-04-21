@@ -2048,12 +2048,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         final territorios = _state.territorios;
         return Stack(children: [
           FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _state.centro,
-              initialZoom: 13,
-              minZoom: 3, maxZoom: 19,
-            ),
+              options: MapOptions(
+                initialCenter: _state.centro,
+                initialZoom: 5,
+                minZoom: 3, maxZoom: 19,
+                cameraConstraint: CameraConstraint.containCenter(   // ← añades esto
+                  bounds: LatLngBounds(
+                    const LatLng(-85.0, -180.0),
+                    const LatLng(85.0, 180.0),
+                  ),
+                ),
+              ),
             children: [
               TileLayer(
                 urlTemplate: _kMapboxUrl,
@@ -2190,6 +2195,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         initialCenter: _state.centro,
         initialZoom: 14,
         minZoom: 3, maxZoom: 19,
+        cameraConstraint: CameraConstraint.containCenter(   // ← añades esto
+          bounds: LatLngBounds(
+            const LatLng(-85.0, -180.0),
+            const LatLng(85.0, 180.0),
+          ),
+        ),
         onTap: (_, __) { if (seleccionado != null) _cerrarSeleccion(); },
         onMapReady: () {
           if (tieneRuta) {
