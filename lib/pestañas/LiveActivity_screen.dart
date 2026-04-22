@@ -37,6 +37,8 @@ const _kGoldLight  = Color(0xFFFFD60A);
 const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
+const _kBlue     = Color.fromARGB(255, 16, 154, 235);
+
 
 // Fondo universo azul oscuro
 const _kUniverseBg = Color(0xFF020B18);
@@ -4128,7 +4130,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _modeSegment(
               label: 'Competitivo',
               active: isCompetitivo,
-              activeColor: _kGoldLight,
+              activeColor: _kBlue,
               onTap: () async {
                 setState(() => _modoSolitario = false);
                 TerritoryService.invalidarCache();
