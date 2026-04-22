@@ -80,7 +80,7 @@ const double _kPitchCorrer = 55.0;
 const double _kPitchNormal = 0.0;
 const double _kZoomCorrer  = 18.5;
 const double _kZoomPausado = 16.5;
-const double _kZoomGlobo   = 2.5;
+const double _kZoomGlobo   = 5;
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
