@@ -807,7 +807,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _refreshing = false;
   double _zoomGlobal = 2.5;
 
+  // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
+  static const double _kInitialZoom = 6.0;
+
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
+
+  // ── FIX: Estado del botón centrar (toggle: mi posición ↔ vista inicial) ───
+  bool _fabCentradoEnUsuario = false;
 
   // ── Modo solitario — barrios OSM ──────────────────────────────────────────
   List<_BarrioData> _barriosCercanos  = [];
@@ -1061,7 +1067,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       });
     } else {
       _toggleCtrl.reverse();
-      _mapController.move(_state.centro, 14);
+      // FIX: volver al zoom y centro inicial igual al de ciudad
+      _mapController.move(_state.centro, _kInitialZoom);
     }
   }
 
@@ -1813,6 +1820,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   _state.setModoSolitario(false);
                   await _cargarTerritorios();
                 }
+                // FIX: volver al zoom inicial de ciudad
+                _mapController.move(_state.centro, _kInitialZoom);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1921,6 +1930,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
     _state.setModoSolitario(true);
+    // FIX: mover al mismo zoom inicial que ciudad
+    _mapController.move(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
@@ -2041,6 +2052,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return cruces.isOdd;
   }
 
+  // FIX: el mapa solitario ahora usa el mismo MapController y mismo zoom inicial
   Widget _buildMapaSolitario() {
     return ListenableBuilder(
       listenable: _state,
@@ -2048,17 +2060,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         final territorios = _state.territorios;
         return Stack(children: [
           FlutterMap(
-              options: MapOptions(
-                initialCenter: _state.centro,
-                initialZoom: 5,
-                minZoom: 3, maxZoom: 19,
-                cameraConstraint: CameraConstraint.containCenter(   // ← añades esto
-                  bounds: LatLngBounds(
-                    const LatLng(-85.0, -180.0),
-                    const LatLng(85.0, 180.0),
-                  ),
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _state.centro,
+              initialZoom: _kInitialZoom,   // FIX: mismo zoom que ciudad
+              minZoom: 3, maxZoom: 19,
+              cameraConstraint: CameraConstraint.containCenter(
+                bounds: LatLngBounds(
+                  const LatLng(-85.0, -180.0),
+                  const LatLng(85.0, 180.0),
                 ),
               ),
+            ),
             children: [
               TileLayer(
                 urlTemplate: _kMapboxUrl,
@@ -2193,9 +2206,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       mapController: _mapController,
       options: MapOptions(
         initialCenter: _state.centro,
-        initialZoom: 5,
+        initialZoom: _kInitialZoom,   // FIX: zoom inicial compartido
         minZoom: 3, maxZoom: 19,
-        cameraConstraint: CameraConstraint.containCenter(   // ← añades esto
+        cameraConstraint: CameraConstraint.containCenter(
           bounds: LatLngBounds(
             const LatLng(-85.0, -180.0),
             const LatLng(85.0, 180.0),
@@ -2752,16 +2765,42 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // FAB
+  // FAB — FIX: toggle entre mi posición y vista inicial
   // ==========================================================================
   Widget _buildFab() => GestureDetector(
-    onTap: () {
+    onTap: () async {
       HapticFeedback.mediumImpact();
+
       if (_state.modoGlobal) {
+        // En modo global siempre centra el mapa global
         _mapController.move(_kGlobalCenter, 2.5);
         setState(() => _zoomGlobal = 2.5);
+        return;
+      }
+
+      if (_fabCentradoEnUsuario) {
+        // Segunda pulsación: volver a la vista inicial del mapa
+        _mapController.move(_state.centro, _kInitialZoom);
+        setState(() => _fabCentradoEnUsuario = false);
       } else {
-        _mapController.move(_state.centro, 15);
+        // Primera pulsación: ir a mi posición actual con zoom cercano
+        try {
+          final perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse) {
+            final pos = await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(
+                    accuracy: LocationAccuracy.low));
+            if (!mounted) return;
+            _mapController.move(
+                LatLng(pos.latitude, pos.longitude), 15.0);
+            setState(() => _fabCentradoEnUsuario = true);
+          }
+        } catch (_) {
+          // Sin permiso: simplemente centra en el centro conocido
+          _mapController.move(_state.centro, 15.0);
+          setState(() => _fabCentradoEnUsuario = true);
+        }
       }
     },
     child: AnimatedBuilder(
@@ -2775,22 +2814,38 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             decoration: BoxDecoration(
               color: _kSurface.withValues(alpha: 0.85),
               border: Border.all(
-                color: (_state.modoGlobal ? _kGold : _kRed)
-                    .withValues(alpha: 0.4 + 0.3 * _pulse.value)),
+                // FIX: el borde cambia según el estado del toggle
+                color: _state.modoGlobal
+                    ? _kGold.withValues(alpha: 0.4 + 0.3 * _pulse.value)
+                    : _fabCentradoEnUsuario
+                        ? _kSafe.withValues(alpha: 0.7)
+                        : _kRed.withValues(alpha: 0.4 + 0.3 * _pulse.value),
+              ),
               borderRadius: BorderRadius.circular(4),
               boxShadow: [
                 BoxShadow(
-                    color: (_state.modoGlobal ? _kGold : _kRed)
+                    color: (_state.modoGlobal
+                            ? _kGold
+                            : _fabCentradoEnUsuario
+                                ? _kSafe
+                                : _kRed)
                         .withValues(alpha: 0.15 * _pulse.value),
                     blurRadius: 16),
                 const BoxShadow(color: Colors.black54, blurRadius: 12),
               ],
             ),
+            // FIX: el icono cambia según el estado del toggle
             child: Icon(
               _state.modoGlobal
                   ? Icons.public_rounded
-                  : Icons.my_location_rounded,
-              color: _state.modoGlobal ? _kGold : _kRed,
+                  : _fabCentradoEnUsuario
+                      ? Icons.explore_rounded   // centrado en usuario → icono brújula
+                      : Icons.my_location_rounded,
+              color: _state.modoGlobal
+                  ? _kGold
+                  : _fabCentradoEnUsuario
+                      ? _kSafe
+                      : _kRed,
               size: 18,
             ),
           ),
@@ -2800,7 +2855,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   );
 
   // ==========================================================================
-  // CARD TERRITORIO CIUDAD
+  // CARD TERRITORIO CIUDAD — FIX: muestra stats y vida para todos los territorios
   // ==========================================================================
   Widget _buildTerritoryCard(TerritoryData t) {
     String estadoLabel = 'ACTIVO';
@@ -2834,128 +2889,158 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   color: Colors.black54, blurRadius: 16),
             ],
           ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                  decoration: BoxDecoration(
-                    color: t.color.withValues(alpha: 0.10),
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8)),
-                    border: Border(
-                        bottom: BorderSide(
-                            color: t.color.withValues(alpha: 0.25))),
-                  ),
-                  child: Row(children: [
-                    Container(width: 3, height: 20, color: t.color,
-                        margin: const EdgeInsets.only(right: 10)),
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(
-                          t.esMio
-                              ? 'MI TERRITORIO'
-                              : t.ownerNickname.toUpperCase(),
-                          style: _raj(13, FontWeight.w900, _shText,
-                              spacing: 1.5)),
-                      Text(
-                          t.esMio
-                              ? 'ZONA CONTROLADA'
-                              : 'TERRITORIO RIVAL',
-                          style: _raj(8, FontWeight.w700,
-                              t.esMio ? t.color : _kSub, spacing: 2)),
-                    ]),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: _cerrarSeleccion,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                            color: _shBorder,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Icon(Icons.close_rounded,
-                            color: _shText, size: 14)),
-                    ),
-                  ]),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // ── Cabecera ──────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              decoration: BoxDecoration(
+                color: t.color.withValues(alpha: 0.10),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8)),
+                border: Border(
+                    bottom: BorderSide(
+                        color: t.color.withValues(alpha: 0.25))),
+              ),
+              child: Row(children: [
+                Container(width: 3, height: 20, color: t.color,
+                    margin: const EdgeInsets.only(right: 10)),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(
+                      t.esMio
+                          ? 'MI TERRITORIO'
+                          : t.ownerNickname.toUpperCase(),
+                      style: _raj(13, FontWeight.w900, _shText,
+                          spacing: 1.5)),
+                  Text(
+                      t.esMio
+                          ? 'ZONA CONTROLADA'
+                          : 'TERRITORIO RIVAL',
+                      style: _raj(8, FontWeight.w700,
+                          t.esMio ? t.color : _kSub, spacing: 2)),
+                ])),
+                GestureDetector(
+                  onTap: _cerrarSeleccion,
+                  child: Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                        color: _shBorder,
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Icon(Icons.close_rounded,
+                        color: _shText, size: 14)),
                 ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                  child: Row(children: [
-                    _cardStat(estadoEmoji, estadoLabel, cEstado),
-                    _vDiv(),
-                    _cardStat('🏴', '${t.puntos.length} PTS', _shText),
-                    _vDiv(),
-                    t.esMio
-                        ? _cardStat('⚔️', 'DEFENDER', _kGold)
-                        : GestureDetector(
-                            onTap: () {
-                              _cerrarSeleccion();
-                              _mapController.move(t.centro, 16);
-                            },
-                            child: _cardStat('👁', 'OBSERVAR', _kSub),
-                          ),
-                  ]),
-                ),
-
-                if (!t.esMio)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Container(
-                            width: 6, height: 6,
-                            decoration: BoxDecoration(
-                              color: cEstado, shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(
-                                  color: cEstado.withValues(alpha: 0.6),
-                                  blurRadius: 4)],
-                            ),
-                            margin: const EdgeInsets.only(right: 6),
-                          ),
-                          Text(
-                            t.estadoHp == EstadoHp.saludable
-                                ? 'Territorio saludable'
-                                : t.estadoHp == EstadoHp.danado
-                                    ? 'Territorio debilitado'
-                                    : 'En estado crítico',
-                            style: _raj(9, FontWeight.w700, cEstado,
-                                spacing: 0.5),
-                          ),
-                        ]),
-                        const SizedBox(height: 5),
-                        Stack(children: [
-                          Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: _shBorder,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          FractionallySizedBox(
-                            widthFactor:
-                                hpFraction.clamp(0.0, 1.0),
-                            child: Container(
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: cEstado,
-                                borderRadius: BorderRadius.circular(2),
-                                boxShadow: [BoxShadow(
-                                    color: cEstado.withValues(alpha: 0.5),
-                                    blurRadius: 6)],
-                              ),
-                            ),
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-
-                if (t.esMio) const SizedBox(height: 14),
               ]),
-          ),
+            ),
+
+            // ── Stats row (siempre visible, para propios Y rivales) ────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+              child: Row(children: [
+                _cardStat(estadoEmoji, estadoLabel, cEstado),
+                _vDiv(),
+                _cardStat('🏴', '${t.puntos.length} PTS', _shText),
+                _vDiv(),
+                t.esMio
+                    ? _cardStat('⚔️', 'DEFENDER', _kGold)
+                    : GestureDetector(
+                        onTap: () {
+                          _cerrarSeleccion();
+                          _mapController.move(t.centro, 16);
+                        },
+                        child: _cardStat('👁', 'OBSERVAR', _kSub),
+                      ),
+              ]),
+            ),
+
+            // ── Barra de vida — FIX: visible para TODOS (propios y rivales) ─
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 6, height: 6,
+                      decoration: BoxDecoration(
+                        color: cEstado, shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(
+                            color: cEstado.withValues(alpha: 0.6),
+                            blurRadius: 4)],
+                      ),
+                      margin: const EdgeInsets.only(right: 6),
+                    ),
+                    Text(
+                      t.estadoHp == EstadoHp.saludable
+                          ? 'Territorio saludable'
+                          : t.estadoHp == EstadoHp.danado
+                              ? 'Territorio debilitado'
+                              : 'En estado crítico',
+                      style: _raj(9, FontWeight.w700, cEstado,
+                          spacing: 0.5),
+                    ),
+                    const Spacer(),
+                    // FIX: mostrar valor numérico de HP
+                    Text(
+                      '${t.hpActual}/${kHpMax} HP',
+                      style: _raj(9, FontWeight.w700, cEstado,
+                          spacing: 0.5),
+                    ),
+                  ]),
+                  const SizedBox(height: 5),
+                  Stack(children: [
+                    Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: _shBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: hpFraction.clamp(0.0, 1.0),
+                      child: Container(
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cEstado,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [BoxShadow(
+                              color: cEstado.withValues(alpha: 0.5),
+                              blurRadius: 6)],
+                        ),
+                      ),
+                    ),
+                  ]),
+                  // FIX: días sin visitar (solo para territorios rivales)
+                  if (!t.esMio) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      Icon(Icons.schedule_rounded, color: _kSub, size: 11),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Sin visitar: ${t.diasSinVisitar ?? 0} día${(t.diasSinVisitar ?? 0) == 1 ? '' : 's'}',
+                        style: _raj(9, FontWeight.w600, _kSub),
+                      ),
+                      if (t.esConquistableSinPasar) ...[
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _kRed.withValues(alpha: 0.12),
+                            border: Border.all(color: _kRed.withValues(alpha: 0.5)),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text('⚔️ CONQUISTABLE',
+                              style: _raj(8, FontWeight.w900, _kRed)),
+                        ),
+                      ],
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+          ]),
         ),
+      ),
     );
   }
 
@@ -3229,7 +3314,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // SHEET MODO SOLITARIO — barrios OSM
+  // SHEET MODO SOLITARIO — FIX: carga barrios al desplegar si no están cargados
   // ==========================================================================
   Widget _buildSheetSolitario(ScrollController scrollCtrl) {
     final barriosOrdenados = List<_BarrioData>.from(_barriosCercanos)
@@ -3250,140 +3335,198 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           BoxShadow(color: Colors.black87, blurRadius: 30, offset: Offset(0, -4))
         ],
       ),
-      child: ListView(
-        controller: scrollCtrl,
-        padding: EdgeInsets.zero,
-        physics: const ClampingScrollPhysics(),
-        children: [
-          // Handle con resumen
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Column(children: [
-              Center(child: Container(
-                width: 36, height: 3,
-                decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2)),
-              )),
-              const SizedBox(height: 14),
-              Row(children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('MODO EXPLORADOR',
-                      style: _raj(9, FontWeight.w800, _kText, spacing: 2.5)),
-                  const SizedBox(height: 2),
-                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('${barriosOrdenados.length}',
-                        style: _raj(28, FontWeight.w900, _shText, height: 1)),
-                    const SizedBox(width: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text('ZONAS', style: _raj(10, FontWeight.w700, _kSub, spacing: 1.5)),
-                    ),
-                  ]),
-                ]),
-                const Spacer(),
-                if (completados > 0)
-                  _quickBadge('$completados ✓', _kSafe, Icons.check_circle_rounded),
-                if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
-                if (enProgreso > 0)
-                  _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
-              ]),
-            ]),
-          ),
-
-          // Stats row
-          if (barriosOrdenados.isNotEmpty) ...[
+      child: NotificationListener<DraggableScrollableNotification>(
+        // FIX: cuando el sheet se expande y los barrios no están cargados, los cargamos
+        onNotification: (notification) {
+          if (notification.extent > 0.15 &&
+              !_barriosCargados &&
+              !_cargandoBarrios) {
+            _cargarBarriosSolitario(_state.centro);
+          }
+          return false;
+        },
+        child: ListView(
+          controller: scrollCtrl,
+          padding: EdgeInsets.zero,
+          physics: const ClampingScrollPhysics(),
+          children: [
+            // Handle con resumen
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(children: [
-                _sheetStat('$completados', 'CONQUISTADAS', _kSafe),
-                const SizedBox(width: 8),
-                _sheetStat('$enProgreso', 'EN PROGRESO', _kWarn),
-                const SizedBox(width: 8),
-                _sheetStat(
-                  '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
-                  '% MEDIO', _kSafe,
-                ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Column(children: [
+                Center(child: Container(
+                  width: 36, height: 3,
+                  decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2)),
+                )),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('MODO EXPLORADOR',
+                        style: _raj(9, FontWeight.w800, _kText, spacing: 2.5)),
+                    const SizedBox(height: 2),
+                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text(
+                        _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
+                        style: _raj(28, FontWeight.w900, _shText, height: 1),
+                      ),
+                      const SizedBox(width: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Text('ZONAS', style: _raj(10, FontWeight.w700, _kSub, spacing: 1.5)),
+                      ),
+                    ]),
+                  ]),
+                  const Spacer(),
+                  if (completados > 0)
+                    _quickBadge('$completados ✓', _kSafe, Icons.check_circle_rounded),
+                  if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
+                  if (enProgreso > 0)
+                    _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
+                  // FIX: botón de recarga manual si algo falló
+                  if (!_cargandoBarrios && !_barriosCargados)
+                    GestureDetector(
+                      onTap: () => _cargarBarriosSolitario(_state.centro),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _kSafe.withValues(alpha: 0.08),
+                          border: Border.all(color: _kSafe.withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.download_rounded, color: _kSafe, size: 12),
+                          const SizedBox(width: 4),
+                          Text('CARGAR', style: _raj(9, FontWeight.w800, _kSafe, spacing: 0.5)),
+                        ]),
+                      ),
+                    ),
+                ]),
               ]),
             ),
+
+            // Stats row
+            if (barriosOrdenados.isNotEmpty) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(children: [
+                  _sheetStat('$completados', 'CONQUISTADAS', _kSafe),
+                  const SizedBox(width: 8),
+                  _sheetStat('$enProgreso', 'EN PROGRESO', _kWarn),
+                  const SizedBox(width: 8),
+                  _sheetStat(
+                    '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
+                    '% MEDIO', _kSafe,
+                  ),
+                ]),
+              ),
+            ],
 
             // Cargando barrios
             if (_cargandoBarrios)
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const SizedBox(width: 14, height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 1.5, color: _kSafe)),
-                  const SizedBox(width: 10),
-                  Text('Cargando zonas cercanas…', style: _raj(11, FontWeight.w600, _kSub)),
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _kSafe),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Cargando zonas cercanas…',
+                      style: _raj(12, FontWeight.w600, _kSub),
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 4),
+                  Text('Consultando OpenStreetMap',
+                      style: _raj(10, FontWeight.w500, _kDim),
+                      textAlign: TextAlign.center),
                 ]),
               ),
 
             // Lista de barrios
-            ...barriosOrdenados.map((b) {
-              final pct = b.porcentajeCubierto;
-              final Color color = pct >= 1.0 ? _kText : pct > 0 ? _kWarn : _kSub;
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  _mapController.move(b.centro, 13.5);
-                  if (_sheetCtrl.isAttached) {
-                    _sheetCtrl.animateTo(0.13,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic);
-                  }
-                },
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: _shSurf,
-                  border: Border.all(color: color.withValues(alpha: pct > 0 ? 0.3 : 0.12)),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(children: [
-                  Container(width: 3, height: 32, color: color,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(2))),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(b.nombre,
-                        style: _raj(12, FontWeight.w700, _shText),
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 3),
-                    Stack(children: [
-                      Container(height: 3,
-                          decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2))),
-                      FractionallySizedBox(
-                        widthFactor: pct.clamp(0.0, 1.0),
-                        child: Container(height: 3,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                              boxShadow: pct > 0 ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)] : null,
-                            )),
-                      ),
+            if (!_cargandoBarrios && barriosOrdenados.isNotEmpty)
+              ...barriosOrdenados.map((b) {
+                final pct = b.porcentajeCubierto;
+                final Color color = pct >= 1.0 ? _kText : pct > 0 ? _kWarn : _kSub;
+                return GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _mapController.move(b.centro, 13.5);
+                    if (_sheetCtrl.isAttached) {
+                      _sheetCtrl.animateTo(0.13,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic);
+                    }
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _shSurf,
+                      border: Border.all(color: color.withValues(alpha: pct > 0 ? 0.3 : 0.12)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(children: [
+                      Container(width: 3, height: 32, color: color,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(2))),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(b.nombre,
+                            style: _raj(12, FontWeight.w700, _shText),
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Stack(children: [
+                          Container(height: 3,
+                              decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2))),
+                          FractionallySizedBox(
+                            widthFactor: pct.clamp(0.0, 1.0),
+                            child: Container(height: 3,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(2),
+                                  boxShadow: pct > 0 ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)] : null,
+                                )),
+                          ),
+                        ]),
+                      ])),
+                      const SizedBox(width: 12),
+                      Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
+                          style: _raj(13, FontWeight.w900, color)),
                     ]),
-                  ])),
-                  const SizedBox(width: 12),
-                  Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
-                      style: _raj(13, FontWeight.w900, color)),
+                  ),
+                );
+              }),
+
+            // Sin barrios cargados y sin estar cargando
+            if (!_cargandoBarrios && barriosOrdenados.isEmpty && _barriosCargados)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(children: [
+                  Icon(Icons.explore_rounded, color: _kSafe.withValues(alpha: 0.5), size: 36),
+                  const SizedBox(height: 10),
+                  Text('No se encontraron zonas cercanas',
+                      style: _raj(12, FontWeight.w600, _kSub),
+                      textAlign: TextAlign.center),
+                  const SizedBox(height: 4),
+                  Text('Intenta desplazarte a una zona urbana',
+                      style: _raj(10, FontWeight.w500, _kDim),
+                      textAlign: TextAlign.center),
                 ]),
               ),
-              );
-            }),
-          ] else if (!_cargandoBarrios) ...[
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(children: [
-                Icon(Icons.explore_rounded, color: _kSafe.withValues(alpha: 0.5), size: 36),
-                const SizedBox(height: 10),
-                Text('Sal a explorar para descubrir zonas cercanas',
-                    style: _raj(12, FontWeight.w600, _kSub),
-                    textAlign: TextAlign.center),
-              ]),
-            ),
-          ],
 
-          const SizedBox(height: 24),
-        ],
+            if (!_cargandoBarrios && !_barriosCargados && barriosOrdenados.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(children: [
+                  Icon(Icons.explore_rounded, color: _kSafe.withValues(alpha: 0.5), size: 36),
+                  const SizedBox(height: 10),
+                  Text('Desliza para cargar las zonas cercanas',
+                      style: _raj(12, FontWeight.w600, _kSub),
+                      textAlign: TextAlign.center),
+                ]),
+              ),
+
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -4184,6 +4327,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       Text(hpLabel,
                           style: _raj(10, FontWeight.w700, hpColor,
                               spacing: 0.5)),
+                      const Spacer(),
+                      Text('$hp/$kHpMax HP',
+                          style: _raj(10, FontWeight.w700, hpColor)),
                     ]),
                     const SizedBox(height: 6),
                     Stack(children: [
