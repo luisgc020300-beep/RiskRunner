@@ -808,7 +808,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   double _zoomGlobal = 2.5;
 
   // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
-  static const double _kInitialZoom = 6.0;
+  static const double _kInitialZoom = 5.0;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
