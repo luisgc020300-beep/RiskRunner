@@ -3473,11 +3473,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         top: 58, left: 0, right: 0,
         child: IgnorePointer(
           child: Column(children: [
-            Text('CAMPO DE BATALLA EN VIVO', textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700,
-                    letterSpacing: 4, color: Colors.white.withValues(alpha: 0.55))),
             const SizedBox(height: 5),
-            Text('RISK RUNNER', textAlign: TextAlign.center,
+            Text('MAPA EN VIVO', textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900,
                     letterSpacing: 3, color: Colors.white,
                     shadows: [
@@ -4208,7 +4205,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             child: child,
           ),
           child: Center(
-            child: Text(_modoSolitario ? 'EXPLORAR' : 'CONQUISTAR',
+            child: Text(_modoSolitario ? 'CORRER' : 'CORRER',
                 style: GoogleFonts.inter(fontSize: 16,
                     color: Colors.white,
                     fontWeight: FontWeight.w900, letterSpacing: 2.5)),

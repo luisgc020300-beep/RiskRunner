@@ -53,6 +53,8 @@ const _kGoldDim  = Color(0xFFAEAEB2);
 const _kGoldLight = Color(0xFFFFD60A);
 const _kPurple   = Color(0xFF636366);
 const _kCyan     = Color(0xFF636366);
+const _kBlue     = Color.fromARGB(255, 16, 154, 235);
+
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
@@ -1653,8 +1655,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         animation: _toggleCtrl,
                         builder: (_, __) => Text(
                           _toggleAnim.value > 0.5
-                              ? 'GUERRA GLOBAL'
-                              : 'MAPA DE GUERRA',
+                              ? 'MAPA DE CIUDAD'
+                              : 'MAPA GLOBAL',
                           style: _raj(13, FontWeight.w900, _kWhite,
                               spacing: 2),
                         ),
@@ -1838,7 +1840,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.location_on_rounded,
-                      color: isCiudad ? _kRed : _kSub, size: 13),
+                      color: isCiudad ? _kBlue : _kSub, size: 13),
                   const SizedBox(width: 5),
                   Text('MI CIUDAD',
                       style: _raj(9, FontWeight.w900,
