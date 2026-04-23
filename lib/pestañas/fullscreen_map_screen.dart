@@ -1655,8 +1655,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         animation: _toggleCtrl,
                         builder: (_, __) => Text(
                           _toggleAnim.value > 0.5
-                              ? 'MAPA DE CIUDAD'
-                              : 'MAPA GLOBAL',
+                              ? 'MAPA GLOBAL'
+                              : 'MAPA DE CIUDAD',
                           style: _raj(13, FontWeight.w900, _kWhite,
                               spacing: 2),
                         ),
@@ -1822,8 +1822,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   _state.setModoSolitario(false);
                   await _cargarTerritorios();
                 }
-                // FIX: volver al zoom inicial de ciudad
                 _mapController.move(_state.centro, _kInitialZoom);
+                setState(() => _fabCentradoEnUsuario = false);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1856,6 +1856,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               onTap: isSolitario ? null : () async {
                 if (isGlobal) _toggleModo();           // global → ciudad primero
                 await _activarModoSolitario();
+                setState(() => _fabCentradoEnUsuario = false);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -1885,6 +1886,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               onTap: isGlobal ? null : () {
                 if (isSolitario) _state.setModoSolitario(false);
                 _toggleModo();
+                setState(() => _fabCentradoEnUsuario = false);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
@@ -2098,6 +2100,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   }).toList(),
                 ),
 
+              // Glow exterior en territorios propios
+              if (territorios.isNotEmpty)
+                PolygonLayer(
+                  polygons: territorios.where((t) => t.esMio).map((t) =>
+                    Polygon(
+                      points: t.puntos,
+                      color: Colors.transparent,
+                      borderColor: t.color.withValues(alpha: 0.25),
+                      borderStrokeWidth: 10,
+                    ),
+                  ).toList(),
+                ),
+
               // Territorios propios encima
               if (territorios.isNotEmpty)
                 PolygonLayer(
@@ -2127,7 +2142,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ),
               ]),
 
-              // Etiquetas de barrios
+              // Etiquetas de barrios con fondo + barra de progreso
               if (_barriosCercanos.isNotEmpty)
                 MarkerLayer(
                   markers: _barriosCercanos.map((b) {
@@ -2136,18 +2151,35 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         ? _kSafe : pct > 0 ? _kWarn : _kDim;
                     return Marker(
                       point: b.centro,
-                      width: 120, height: 40,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(b.nombre,
-                            textAlign: TextAlign.center,
-                            style: _raj(9, FontWeight.w700, color, spacing: 0.5),
-                          ),
-                          if (pct > 0)
-                            Text('${(pct * 100).toInt()}%',
-                              style: _raj(8, FontWeight.w600, color)),
-                        ],
+                      width: 110, height: 44,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: color.withValues(alpha: 0.45), width: 0.8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(b.nombre,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _raj(8, FontWeight.w800, Colors.white, spacing: 0.3),
+                            ),
+                            const SizedBox(height: 3),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: LinearProgressIndicator(
+                                value: pct.clamp(0.0, 1.0),
+                                minHeight: 3,
+                                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                valueColor: AlwaysStoppedAnimation(color),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }).toList(),
@@ -2232,6 +2264,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             urlTemplate: _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256),
+
+        // Glow exterior en territorios propios
+        if (territorios.any((t) => t.esMio))
+          PolygonLayer(
+            polygons: territorios.where((t) => t.esMio).map((t) =>
+              Polygon(
+                points: t.puntos,
+                color: Colors.transparent,
+                borderColor: t.color.withValues(alpha: 0.25),
+                borderStrokeWidth: 10,
+              ),
+            ).toList(),
+          ),
 
         if (territorios.isNotEmpty)
           GestureDetector(
