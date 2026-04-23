@@ -82,7 +82,7 @@ const double _kPitchCorrer = 55.0;
 const double _kPitchNormal = 0.0;
 const double _kZoomCorrer  = 18.5;
 const double _kZoomPausado = 16.5;
-const double _kZoomGlobo   = 3.0;
+const double _kZoomGlobo   = 5;
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
@@ -281,8 +281,12 @@ class _StarfieldPainter extends CustomPainter {
         canvas.drawCircle(Offset(cx, cy), s.r * 0.35, paint);
       }
 
-      // ── Tipo 0: NORMAL — punto único sin halo (performance)
+      // ── Tipo 0: NORMAL — punto simple con leve halo ─────────────────────
       else {
+        if (s.r > 1.2) {
+          paint.color = Color.fromRGBO(r, g, b, opacity * 0.20);
+          canvas.drawCircle(Offset(cx, cy), s.r * 2.0, paint);
+        }
         paint.color = starColor;
         canvas.drawCircle(Offset(cx, cy), s.r * (0.65 + twinkle * 0.55), paint);
       }
@@ -315,8 +319,8 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
     super.initState();
     final rnd = math.Random(12345);
 
-    // 120 estrellas — balance entre densidad visual y rendimiento GPU
-    _stars = List.generate(120, (i) {
+    // 200 estrellas con distribución realista de tipos
+    _stars = List.generate(200, (i) {
       final x     = rnd.nextDouble();
       final y     = rnd.nextDouble();
       final speed = 0.3 + rnd.nextDouble() * 1.0;
@@ -359,7 +363,6 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
           animValue: _ctrl.value,
           nightMode: widget.nightMode,
         ),
-        isComplex: true,
         size: Size.infinite,
       ),
     );
@@ -3205,16 +3208,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
           ),
 
-        // ── 2. MAPA MAPBOX ─────────────────────────────────────────────────
-        Positioned.fill(child: _buildMapbox()),
-
-        // ── 3. ESTRELLAS — encima del mapa, BlendMode.screen para mezclar ──
+        // ── 2. ESTRELLAS — SOLO DETRÁS DEL GLOBO (antes del mapa) ─────────
         if (mostrarGlobo)
           Positioned.fill(
             child: IgnorePointer(
               child: _StarfieldWidget(nightMode: _modoNoche),
             ),
           ),
+
+        // ── 3. MAPA MAPBOX (el globo renderiza encima de las estrellas) ─────
+        Positioned.fill(child: _buildMapbox()),
 
         // ── 4. OVERLAY DEL GLOBO (viñeta + títulos + chips) ────────────────
         if (mostrarGlobo)
