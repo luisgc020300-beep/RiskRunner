@@ -1372,12 +1372,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 6.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 14.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-opacity',
           ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 3.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 8.0);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'round');
 
