@@ -29,10 +29,9 @@ const String _kMapboxUrl =
     'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
     '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
 
-// Dark @2x — máxima resolución retina para ciudad y solitario
 const String _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PALETA
@@ -2079,7 +2078,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ),
             children: [
               TileLayer(
-                urlTemplate: _kMapboxDarkUrl,
+                urlTemplate: _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
                 tileDimension: 256,
               ),
@@ -2101,25 +2100,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   }).toList(),
                 ),
 
-              // Glow doble anillo en territorios propios
+              // Glow exterior en territorios propios
               if (territorios.isNotEmpty)
                 PolygonLayer(
                   polygons: territorios.where((t) => t.esMio).map((t) =>
                     Polygon(
                       points: t.puntos,
                       color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.10),
-                      borderStrokeWidth: 24,
-                    ),
-                  ).toList(),
-                ),
-              if (territorios.isNotEmpty)
-                PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) =>
-                    Polygon(
-                      points: t.puntos,
-                      color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.28),
+                      borderColor: t.color.withValues(alpha: 0.25),
                       borderStrokeWidth: 10,
                     ),
                   ).toList(),
@@ -2138,39 +2126,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   ).toList(),
                 ),
 
-              // Marcador de posición del usuario — anillos premium
+              // Marcador de posición del usuario
               MarkerLayer(markers: [
                 Marker(
-                  point: _state.centro, width: 44, height: 44,
-                  child: Stack(alignment: Alignment.center, children: [
-                    Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _kGold.withValues(alpha: 0.30), width: 1.5),
-                        boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.18), blurRadius: 14, spreadRadius: 3)],
-                      ),
+                  point: _state.centro, width: 24, height: 24,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white, shape: BoxShape.circle,
+                      border: Border.all(color: _kRed, width: 2),
+                      boxShadow: [BoxShadow(
+                          color: _kRed.withValues(alpha: 0.5),
+                          blurRadius: 12, spreadRadius: 2)],
                     ),
-                    Container(
-                      width: 28, height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
-                      ),
-                    ),
-                    Container(
-                      width: 13, height: 13,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _kGold, width: 2),
-                        boxShadow: [
-                          BoxShadow(color: _kGold.withValues(alpha: 0.75), blurRadius: 9, spreadRadius: 1),
-                          BoxShadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 4),
-                        ],
-                      ),
-                    ),
-                  ]),
+                  ),
                 ),
               ]),
 
@@ -2293,29 +2261,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       ),
       children: [
         TileLayer(
-            urlTemplate: _kMapboxDarkUrl,
+            urlTemplate: _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256),
 
-        // Glow doble anillo en territorios propios
+        // Glow exterior en territorios propios
         if (territorios.any((t) => t.esMio))
           PolygonLayer(
             polygons: territorios.where((t) => t.esMio).map((t) =>
               Polygon(
                 points: t.puntos,
                 color: Colors.transparent,
-                borderColor: t.color.withValues(alpha: 0.10),
-                borderStrokeWidth: 24,
-              ),
-            ).toList(),
-          ),
-        if (territorios.any((t) => t.esMio))
-          PolygonLayer(
-            polygons: territorios.where((t) => t.esMio).map((t) =>
-              Polygon(
-                points: t.puntos,
-                color: Colors.transparent,
-                borderColor: t.color.withValues(alpha: 0.28),
+                borderColor: t.color.withValues(alpha: 0.25),
                 borderStrokeWidth: 10,
               ),
             ).toList(),
@@ -2372,36 +2329,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         MarkerLayer(markers: [
           Marker(
-            point: _state.centro, width: 44, height: 44,
-            child: Stack(alignment: Alignment.center, children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _kGold.withValues(alpha: 0.30), width: 1.5),
-                  boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.18), blurRadius: 14, spreadRadius: 3)],
-                ),
+            point: _state.centro, width: 24, height: 24,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white, shape: BoxShape.circle,
+                border: Border.all(color: _kRed, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                      color: _kRed.withValues(alpha: 0.5),
+                      blurRadius: 12, spreadRadius: 2),
+                ],
               ),
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 1),
-                ),
-              ),
-              Container(
-                width: 13, height: 13,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _kGold, width: 2),
-                  boxShadow: [
-                    BoxShadow(color: _kGold.withValues(alpha: 0.75), blurRadius: 9, spreadRadius: 1),
-                    BoxShadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 4),
-                  ],
-                ),
-              ),
-            ]),
+            ),
           ),
         ]),
 

@@ -666,8 +666,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   String get _mapStyle {
     if (_estiloMapa == 'satelite') return mapbox.MapboxStyles.SATELLITE_STREETS;
     if (_estiloMapa == 'militar')  return mapbox.MapboxStyles.DARK;
-    // En modo globo (sin carrera activa) siempre oscuro → estética espacial
-    if (!isTracking && !_mostrandoCuentaAtras) return mapbox.MapboxStyles.DARK;
     return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
   }
 
@@ -1120,22 +1118,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (!layers.any((l) => l?.id == 'sky-layer')) {
         await _mapboxMap!.style.addLayer(mapbox.SkyLayer(id: 'sky-layer'));
       }
-      // Globo sin carrera → siempre atmósfera de espacio profundo
-      final bool esEspacio = !isTracking && !_mostrandoCuentaAtras;
-      if (esEspacio || _modoNoche) {
+      if (_modoNoche) {
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-type', 'atmosphere');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-color', 'rgba(1,4,12,1)');
+            'sky-layer', 'sky-atmosphere-color', 'rgba(2,8,20,1)');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(2,8,25,1)');
+            'sky-layer', 'sky-atmosphere-halo-color', 'rgba(5,15,40,0.9)');
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
         await _mapboxMap!.style
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 2.5);
+              'sky-layer', 'sky-stars-intensity', 1.95);
         } catch (_) {}
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
@@ -1368,18 +1364,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-cap', 'round');
 
-      // Glow exterior ancho (halo difuso)
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 14.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 6.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-opacity',
           ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 8.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 3.0);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'round');
 
@@ -3454,95 +3449,43 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Widget _buildGloboOverlay() {
     return Stack(children: [
-
-      // ── 1. VIÑETA PORTAL — radio pequeño crea efecto "ventana al espacio" ──
+      // Viñeta espacial en los bordes — ahora más azulada
       Positioned.fill(
         child: IgnorePointer(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
-                center: Alignment.center, radius: 0.48,
-                stops: const [0.35, 1.0],
+                center: Alignment.center, radius: 0.80,
                 colors: [
                   Colors.transparent,
-                  const Color(0xFF010913).withValues(alpha: 0.92),
+                  _modoNoche
+                      ? const Color(0xFF020B18).withValues(alpha: 0.78)
+                      : const Color(0xFF0A1828).withValues(alpha: 0.58),
                 ],
               ),
             ),
           ),
         ),
       ),
-
-      // ── 2. ANILLO DORADO (borde del portal) ──────────────────────────────
-      Positioned.fill(
-        child: IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center, radius: 0.48,
-                stops: const [0.33, 0.38, 0.44, 0.50],
-                colors: [
-                  Colors.transparent,
-                  _kGold.withValues(alpha: 0.06),
-                  _kGold.withValues(alpha: 0.18),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-
-      // ── 3. CABECERA: logo RISK·RUNNER + badge EN VIVO ─────────────────────
+      // Título
       Positioned(
-        top: 52, left: 0, right: 0,
+        top: 58, left: 0, right: 0,
         child: IgnorePointer(
           child: Column(children: [
-            Text('RISK·RUNNER',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.cinzel(
-                  fontSize: 28, fontWeight: FontWeight.w900,
-                  color: _kGold, letterSpacing: 7,
-                  shadows: [
-                    Shadow(blurRadius: 35, color: _kGold.withValues(alpha: 0.9)),
-                    Shadow(blurRadius: 14, color: _kGold.withValues(alpha: 0.6)),
-                    const Shadow(blurRadius: 4, color: Colors.black),
-                  ],
-                )),
-            const SizedBox(height: 7),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: _kGold.withValues(alpha: 0.35), width: 0.8),
-                borderRadius: BorderRadius.circular(4),
-                color: _kGold.withValues(alpha: 0.07),
-                boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.12), blurRadius: 12)],
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  width: 5, height: 5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF30D158),
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(
-                        color: const Color(0xFF30D158).withValues(alpha: 0.9),
-                        blurRadius: 8)],
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Text('MAPA EN VIVO',
-                    style: GoogleFonts.inter(
-                        fontSize: 9, fontWeight: FontWeight.w700,
-                        color: _kGold.withValues(alpha: 0.75), letterSpacing: 3.5)),
-              ]),
-            ),
+            const SizedBox(height: 5),
+            Text('MAPA EN VIVO', textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900,
+                    letterSpacing: 3, color: Colors.white,
+                    shadows: [
+                      Shadow(blurRadius: 24, color: Colors.black.withValues(alpha: 0.9)),
+                      Shadow(blurRadius: 8,  color: Colors.black),
+                    ])),
           ]),
         ),
       ),
-
-      // ── 4. CHIPS DE INFO (izquierda) ─────────────────────────────────────
+      // Chips de info
       Positioned(
-        top: 165, left: 14,
+        top: 148, left: 14,
         child: IgnorePointer(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (_modoSolitario) ...[
@@ -3595,33 +3538,23 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ),
-
-      // ── 5. STATS INFERIORES — panel semitransparente premium ─────────────
+      // Stats en la parte inferior
       Positioned(
-        bottom: 265, left: 16, right: 16,
+        bottom: 265, left: 0, right: 0,
         child: IgnorePointer(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF010913).withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kGold.withValues(alpha: 0.18), width: 0.8),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20)],
-            ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: _objetivoGlobal != null
                   ? [
                       _globoStat(_distanciaTotal.toStringAsFixed(2), 'KM HECHOS', _kGold),
-                      _globoStatDivider(),
                       _globoStat(
                         (_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? '?',
                         'KM META', _kWaterLight,
                       ),
-                      _globoStatDivider(),
                       _globoStat('${(_progresoGlobal * 100).toInt()}%', 'PROGRESO', _kGoldLight),
-                      _globoStatDivider(),
-                      _globoStat(_globalConquistado ? '✓' : '···', 'ESTADO',
+                      _globoStat(_globalConquistado ? 'OK' : '···', 'ESTADO',
                           _globalConquistado ? _kVerde : _p.terracotta),
                     ]
                   : _modoSolitario && _barriosCercanos.isNotEmpty
@@ -3630,11 +3563,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                             '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}',
                             'COMPLETAS', const Color(0xFF30D158),
                           ),
-                          _globoStatDivider(),
-                          _globoStat('${_barriosCercanos.length}', 'ZONAS', _kGoldLight),
-                          _globoStatDivider(),
-                          _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS TERR.', _kGold),
-                          _globoStatDivider(),
+                          _globoStat(
+                            '${_barriosCercanos.length}',
+                            'ZONAS', _kGoldLight,
+                          ),
+                          _globoStat(
+                            '${_territorios.where((t) => t.esMio).length}',
+                            'MIS TERR.', _kGold,
+                          ),
                           _globoStat(
                             _barriosCercanos.isEmpty ? '0%'
                               : '${(_barriosCercanos.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / _barriosCercanos.length * 100).toInt()}%',
@@ -3643,11 +3579,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                         ]
                       : [
                           _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
-                          _globoStatDivider(),
                           _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
-                          _globoStatDivider(),
                           _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
-                          _globoStatDivider(),
                           _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
                         ],
             ),
@@ -3660,13 +3593,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _globoChip(IconData icon, String texto, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFF010913).withValues(alpha: 0.75),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.35), width: 0.8),
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 10),
-            BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 6),
-          ],
+          color: Colors.black.withValues(alpha: 0.52),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8)],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 11, color: color),
@@ -3679,18 +3609,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _globoStat(String valor, String label, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
         Text(valor, style: GoogleFonts.orbitron(
-            fontSize: 17, fontWeight: FontWeight.w900, color: color,
-            shadows: [Shadow(blurRadius: 12, color: color.withValues(alpha: 0.6))])),
-        const SizedBox(height: 3),
+            fontSize: 18, fontWeight: FontWeight.w900, color: color)),
+        const SizedBox(height: 2),
         Text(label, style: GoogleFonts.inter(fontSize: 7,
-            fontWeight: FontWeight.w700, letterSpacing: 1.5,
-            color: Colors.white.withValues(alpha: 0.45))),
+            fontWeight: FontWeight.w700, letterSpacing: 1.8,
+            color: _kGold.withValues(alpha: 0.4))),
       ]);
-
-  Widget _globoStatDivider() => Container(
-        width: 0.6, height: 28,
-        color: _kGold.withValues(alpha: 0.2),
-      );
 
   Widget _buildMapbox() {
     if (kIsWeb) return _buildWebMap();
