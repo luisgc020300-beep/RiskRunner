@@ -558,6 +558,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   List<_GlobTerrData> _terrGlobales = [];
   bool _cargandoGlobales     = false;
   bool _globalesLayerCreated = false;
+  _GlobTerrData? _terrPreviseleccionado;
 
   // ==========================================================================
   // INIT / DISPOSE
@@ -3241,16 +3242,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
           ),
 
-        // ── 2. ESTRELLAS — SOLO DETRÁS DEL GLOBO (antes del mapa) ─────────
+        // ── 2. MAPA MAPBOX ──────────────────────────────────────────────────
+        Positioned.fill(child: _buildMapbox()),
+
+        // ── 3. ESTRELLAS — ENCIMA DEL MAPA para que sean visibles ──────────
         if (mostrarGlobo)
           Positioned.fill(
             child: IgnorePointer(
-              child: _StarfieldWidget(nightMode: _modoNoche),
+              child: _StarfieldWidget(
+                nightMode: _modoNoche || Theme.of(context).brightness == Brightness.dark,
+              ),
             ),
           ),
-
-        // ── 3. MAPA MAPBOX (el globo renderiza encima de las estrellas) ─────
-        Positioned.fill(child: _buildMapbox()),
 
         // ── 4. OVERLAY DEL GLOBO (viñeta + títulos + chips) ────────────────
         if (mostrarGlobo)
@@ -4044,8 +4047,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter, end: Alignment.topCenter,
                 colors: [
-                  (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.97),
-                  (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.72),
+                  (isTracking ? _p.parchment : _kUniverseBg).withValues(alpha: 0.97),
+                  (isTracking ? _p.parchment : _kUniverseBg).withValues(alpha: 0.80),
                   Colors.transparent,
                 ],
                 stops: const [0.0, 0.55, 1.0],
@@ -4167,10 +4170,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  Future<void> _flyToTerritorioGlobal(_GlobTerrData t) async {
+    HapticFeedback.selectionClick();
+    setState(() => _terrPreviseleccionado = t);
+    if (!kIsWeb && _mapboxMap != null) {
+      await _moverCamara(lat: t.lat, lng: t.lng, zoom: 3.5, pitch: 0, bearing: 0, animated: true, forzar: true);
+    }
+  }
+
   void _seleccionarTerritorioGlobal(_GlobTerrData t) {
     HapticFeedback.mediumImpact();
     setState(() {
       _seleccionandoGlobal = false;
+      _terrPreviseleccionado = null;
       _objetivoGlobal = {
         'territorioId':     t.id,
         'territorioNombre': t.name,
@@ -4190,7 +4202,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   void _cancelarSeleccionGlobal() {
-    setState(() => _seleccionandoGlobal = false);
+    setState(() {
+      _seleccionandoGlobal = false;
+      _terrPreviseleccionado = null;
+    });
     _actualizarGlobalesEnGlobo(visible: false);
   }
 
@@ -4207,8 +4222,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               child: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 18),
             ),
           ),
-          Text('ELIGE TU OBJETIVO', style: GoogleFonts.cinzel(
-              color: _kGold, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          Text('ELIGE TU OBJETIVO', style: GoogleFonts.inter(
+              color: _kGold, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
         ]),
         const SizedBox(height: 10),
         if (_cargandoGlobales)
@@ -4222,7 +4237,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             child: Text('Sin territorios disponibles',
                 style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
           )
-        else
+        else ...[
           SizedBox(
             height: 160,
             child: ListView.separated(
@@ -4232,31 +4247,60 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               itemBuilder: (ctx, i) {
                 final t = _terrGlobales[i];
                 final isMine = t.ownerUid != null && t.ownerUid == uid;
+                final isPrev = _terrPreviseleccionado?.id == t.id;
                 return GestureDetector(
-                  onTap: () => _seleccionarTerritorioGlobal(t),
-                  child: Container(
+                  onTap: () => _flyToTerritorioGlobal(t),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: t.color.withValues(alpha: 0.12),
+                      color: isPrev
+                          ? t.color.withValues(alpha: 0.28)
+                          : t.color.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: t.color.withValues(alpha: 0.45)),
+                      border: Border.all(
+                        color: t.color.withValues(alpha: isPrev ? 0.9 : 0.40),
+                        width: isPrev ? 1.5 : 1.0,
+                      ),
+                      boxShadow: isPrev
+                          ? [BoxShadow(color: t.color.withValues(alpha: 0.35), blurRadius: 10)]
+                          : null,
                     ),
                     child: Row(children: [
-                      Text(t.icon, style: const TextStyle(fontSize: 18)),
+                      Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          color: t.color.withValues(alpha: isPrev ? 0.22 : 0.10),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: t.color.withValues(alpha: isPrev ? 0.7 : 0.3)),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            t.kmRequired >= 10
+                                ? Icons.stars_rounded
+                                : t.kmRequired >= 7
+                                    ? Icons.shield_rounded
+                                    : Icons.flag_rounded,
+                            color: t.color,
+                            size: 16,
+                          ),
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(t.name, style: GoogleFonts.inter(
-                            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                            color: isPrev ? Colors.white : Colors.white70,
+                            fontSize: 11, fontWeight: FontWeight.w700)),
                         if (t.ownerNick != null)
-                          Text(isMine ? '👑 Tuyo' : '👤 ${t.ownerNick}',
+                          Text(isMine ? 'Tuyo' : t.ownerNick!,
                               style: GoogleFonts.inter(color: Colors.white54, fontSize: 9)),
                       ])),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text('${t.kmRequired.toStringAsFixed(1)} km',
-                            style: GoogleFonts.orbitron(
+                            style: GoogleFonts.inter(
                                 color: t.color, fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text('+${t.reward} 🪙',
-                            style: GoogleFonts.inter(color: _kGold, fontSize: 9)),
+                        Text('+${t.reward}',
+                            style: GoogleFonts.inter(color: _kGold, fontSize: 9, fontWeight: FontWeight.w600)),
                       ]),
                     ]),
                   ),
@@ -4264,6 +4308,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               },
             ),
           ),
+          if (_terrPreviseleccionado != null) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () => _seleccionarTerritorioGlobal(_terrPreviseleccionado!),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF5C0000), Color(0xFFCC2222), Color(0xFF8B0000)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [BoxShadow(color: const Color(0xFFCC2222).withValues(alpha: 0.4), blurRadius: 12)],
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Text('⚔️', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Text('CONQUISTAR ${_terrPreviseleccionado!.name.toUpperCase()}',
+                      style: GoogleFonts.inter(
+                          color: Colors.white, fontSize: 11,
+                          fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                ]),
+              ),
+            ),
+          ],
+        ],
       ]);
     }
 

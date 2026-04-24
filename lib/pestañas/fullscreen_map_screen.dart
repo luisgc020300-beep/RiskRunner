@@ -3720,7 +3720,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
-  Widget _sectionHeader(String title, Color color, String emoji) =>
+  Widget _sectionHeader(String title, Color color, [String emoji = '']) =>
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
@@ -3731,11 +3731,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: color.withValues(alpha: 0.25)),
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(emoji, style: const TextStyle(fontSize: 10)),
-              const SizedBox(width: 5),
-              Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
-            ]),
+            child: Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
           ),
           const SizedBox(width: 10),
           Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.15))),
@@ -3787,8 +3783,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   color: baseColor.withValues(alpha: t.isOwned ? 0.45 : 0.25)),
             ),
             child: Center(
-                child: Text(t.icon,
-                    style: const TextStyle(fontSize: 18))),
+              child: Icon(
+                t.tier == TerritoryTier.legendario
+                    ? Icons.stars_rounded
+                    : t.tier == TerritoryTier.mediano
+                        ? Icons.shield_rounded
+                        : Icons.flag_rounded,
+                color: baseColor,
+                size: 20,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
 
@@ -3819,13 +3823,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     color: _kGold.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Text('👑 TUYO',
+                  child: Text('TUYO',
                       style: _raj(7, FontWeight.w900, _kGold)),
                 ),
             ]),
             const SizedBox(height: 4),
             Text(t.epicName,
-                style: _cinzel(11, FontWeight.w700, _kWhite),
+                style: _raj(12, FontWeight.w700, _kWhite),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Row(children: [
@@ -3842,7 +3846,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     ? t.ownerNickname!
                     : t.isMine
                         ? 'Controlado por ti'
-                        : '🎯 Disponible',
+                        : 'Disponible',
                 style: _raj(9, FontWeight.w600,
                     t.isMine
                         ? _kGold
