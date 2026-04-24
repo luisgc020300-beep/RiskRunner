@@ -20,7 +20,6 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
 import '../widgets/custom_navbar.dart';
-import 'fullscreen_map_screen.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
 import '../services/subscription_service.dart';
@@ -102,6 +101,26 @@ const _kPresenciaPausadoSeg    = 30;
 
 final Map<int, Uint8List> _avatarCache = {};
 const int _kAvatarCacheMax = 50;
+
+// =============================================================================
+// MODELO TERRITORIO GLOBAL (para el globo terraqueo de LiveActivity)
+// =============================================================================
+class _GlobTerrData {
+  final String  id;
+  final String  name;
+  final String  icon;
+  final double  lat, lng;
+  final double  kmRequired;
+  final int     reward;
+  final String? ownerUid;
+  final String? ownerNick;
+  final Color   color;
+  const _GlobTerrData({
+    required this.id,  required this.name, required this.icon,
+    required this.lat, required this.lng,  required this.kmRequired,
+    required this.reward, this.ownerUid, this.ownerNick, required this.color,
+  });
+}
 
 // =============================================================================
 // MODELO BARRIO
@@ -494,6 +513,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _sourceId            = 'territorios-source';
   static const String _centrosSourceId     = 'territorios-centros-source';
   static const String _centrosLayerId      = 'territorios-centros-layer';
+  static const String _globalesSourceId    = 'globales-centros-src';
+  static const String _globalesLayerId     = 'globales-centros-layer';
   static const String _kTileUrl =
       'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
       '/tiles/256/{z}/{x}/{y}@2x?access_token='
@@ -531,6 +552,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
   String? _globalTerritoryLastOwner;
   bool _stopping = false;
+
+  // ── SELECCIÓN GLOBAL EN GLOBO
+  bool _seleccionandoGlobal  = false;
+  List<_GlobTerrData> _terrGlobales = [];
+  bool _cargandoGlobales     = false;
+  bool _globalesLayerCreated = false;
 
   // ==========================================================================
   // INIT / DISPOSE
@@ -3482,13 +3509,25 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: IgnorePointer(
           child: Column(children: [
             const SizedBox(height: 5),
-            Text('MAPA EN VIVO', textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900,
-                    letterSpacing: 3, color: Colors.white,
-                    shadows: [
-                      Shadow(blurRadius: 24, color: Colors.black.withValues(alpha: 0.9)),
-                      Shadow(blurRadius: 8,  color: Colors.black),
-                    ])),
+            Text(
+              _seleccionandoGlobal ? 'GUERRA GLOBAL' : 'MAPA EN VIVO',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900,
+                  letterSpacing: 3,
+                  color: _seleccionandoGlobal ? _kGold : Colors.white,
+                  shadows: [
+                    Shadow(blurRadius: 24, color: Colors.black.withValues(alpha: 0.9)),
+                    Shadow(blurRadius: 8,  color: Colors.black),
+                  ]),
+            ),
+            if (_seleccionandoGlobal)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Elige un territorio para atacar',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                        fontSize: 11, color: Colors.white70, letterSpacing: 0.5)),
+              ),
           ]),
         ),
       ),
@@ -4023,30 +4062,211 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
 
   Future<void> _elegirTerritorioGlobal() async {
-    final resultado = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const FullscreenMapScreen(selectionMode: true),
-      ),
-    );
-    if (resultado == null || !mounted) return;
+    HapticFeedback.mediumImpact();
+    setState(() { _seleccionandoGlobal = true; });
+    if (_terrGlobales.isEmpty && !_cargandoGlobales) {
+      await _cargarGlobales();
+    }
+    await _actualizarGlobalesEnGlobo(visible: true);
+    if (!kIsWeb && _mapboxMap != null) {
+      await _moverCamara(lat: 15, lng: 10, zoom: 1.0, pitch: 0, bearing: 0, animated: true, forzar: true);
+    }
+  }
+
+  Future<void> _cargarGlobales() async {
+    if (!mounted) return;
+    setState(() => _cargandoGlobales = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('global_territories')
+          .where('activo', isEqualTo: true)
+          .get();
+      if (!mounted) return;
+      final list = <_GlobTerrData>[];
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final centroMap = d['centro'] as Map<String, dynamic>?;
+        final lat = centroMap != null
+            ? (centroMap['lat'] as num?)?.toDouble() ?? 0.0
+            : (d['centroLat'] as num?)?.toDouble() ?? 0.0;
+        final lng = centroMap != null
+            ? (centroMap['lng'] as num?)?.toDouble() ?? 0.0
+            : (d['centroLng'] as num?)?.toDouble() ?? 0.0;
+        if (lat == 0 && lng == 0) continue;
+        final tierStr = d['tier'] as String? ?? 'pequeno';
+        final Color tierColor = tierStr == 'legendario'
+            ? _kGold
+            : tierStr == 'mediano'
+                ? const Color(0xFF00C8FF)
+                : const Color(0xFF30D158);
+        final ownerColorInt = d['ownerColor'] as int?;
+        list.add(_GlobTerrData(
+          id:         doc.id,
+          name:       d['epicName'] as String? ?? d['nombre'] as String? ?? doc.id,
+          icon:       d['icon']     as String? ?? '🏴',
+          lat:        lat, lng: lng,
+          kmRequired: (d['clausulaKm'] as num?)?.toDouble() ?? (d['baseKm'] as num?)?.toDouble() ?? 5.0,
+          reward:     (d['baseReward'] as num?)?.toInt() ?? 50,
+          ownerUid:   d['ownerUid']      as String?,
+          ownerNick:  d['ownerNickname'] as String?,
+          color:      ownerColorInt != null ? Color(ownerColorInt) : tierColor,
+        ));
+      }
+      if (list.isEmpty) list.addAll(_buildGlobalesHardcoded());
+      if (mounted) setState(() { _terrGlobales = list; _cargandoGlobales = false; });
+    } catch (e) {
+      debugPrint('Error cargando globales: $e');
+      if (mounted) setState(() { _terrGlobales = _buildGlobalesHardcoded(); _cargandoGlobales = false; });
+    }
+  }
+
+  List<_GlobTerrData> _buildGlobalesHardcoded() => [
+    _GlobTerrData(id: 'paris',  name: 'La Ciudad de la Luz', icon: '🗼', lat: 48.8566, lng:  2.3522,   kmRequired: 5,  reward: 120, color: _kGold),
+    _GlobTerrData(id: 'nyc',    name: 'La Gran Manzana',     icon: '🗽', lat: 40.7128, lng: -74.0060,  kmRequired: 8,  reward: 200, color: const Color(0xFF00C8FF)),
+    _GlobTerrData(id: 'tokyo',  name: 'Tokio Eterno',        icon: '⛩️', lat: 35.6762, lng: 139.6503,  kmRequired: 12, reward: 350, color: _kGold),
+    _GlobTerrData(id: 'madrid', name: 'La Villa y Corte',    icon: '🏛️', lat: 40.4168, lng:  -3.7038,  kmRequired: 5,  reward: 100, color: const Color(0xFF30D158)),
+    _GlobTerrData(id: 'sydney', name: 'Ciudad del Puerto',   icon: '🦘', lat: -33.8688, lng: 151.2093, kmRequired: 10, reward: 250, color: const Color(0xFF00C8FF)),
+    _GlobTerrData(id: 'cairo',  name: 'La Ciudad Milenaria', icon: '🏺', lat: 30.0444, lng:  31.2357,  kmRequired: 7,  reward: 150, color: _kGold),
+  ];
+
+  Future<void> _actualizarGlobalesEnGlobo({required bool visible}) async {
+    if (kIsWeb || _mapboxMap == null) return;
+    try {
+      final vis = visible ? 'visible' : 'none';
+      if (!_globalesLayerCreated) {
+        if (!visible || _terrGlobales.isEmpty) return;
+        final feats = _terrGlobales.map((t) {
+          final ch = _colorToHex(t.color);
+          return '{"type":"Feature","properties":{"color":"$ch"},'
+              '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}';
+        }).join(',');
+        final gj = '{"type":"FeatureCollection","features":[$feats]}';
+        await _mapboxMap!.style.addSource(mapbox.GeoJsonSource(id: _globalesSourceId, data: gj));
+        await _mapboxMap!.style.addLayer(mapbox.CircleLayer(id: _globalesLayerId, sourceId: _globalesSourceId));
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-radius',
+            ['interpolate', ['linear'], ['zoom'], 0, 5.0, 2, 8.0, 4, 5.0, 6, 0.0]);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-opacity', 0.92);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-blur', 0.25);
+        _globalesLayerCreated = true;
+      } else {
+        if (visible && _terrGlobales.isNotEmpty) {
+          final feats = _terrGlobales.map((t) {
+            final ch = _colorToHex(t.color);
+            return '{"type":"Feature","properties":{"color":"$ch"},'
+                '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}';
+          }).join(',');
+          final gj = '{"type":"FeatureCollection","features":[$feats]}';
+          final src = await _mapboxMap!.style.getSource(_globalesSourceId) as mapbox.GeoJsonSource?;
+          await src?.updateGeoJSON(gj);
+        }
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'visibility', vis);
+      }
+    } catch (e) {
+      debugPrint('Error globales globo: $e');
+    }
+  }
+
+  void _seleccionarTerritorioGlobal(_GlobTerrData t) {
+    HapticFeedback.mediumImpact();
     setState(() {
-      _objetivoGlobal     = resultado;
-      _modoSolitario      = false;
+      _seleccionandoGlobal = false;
+      _objetivoGlobal = {
+        'territorioId':     t.id,
+        'territorioNombre': t.name,
+        'kmRequeridos':     t.kmRequired,
+        'recompensa':       t.reward,
+        'ownerUid':         t.ownerUid,
+      };
+      _modoSolitario = false;
       _globalConquistado  = false;
       _globalConquistando = false;
     });
-    final nombre = resultado['territorioNombre'] as String? ?? 'Territorio';
-    final kmReq  = (resultado['kmRequeridos'] as num?)?.toDouble() ?? 0;
+    _actualizarGlobalesEnGlobo(visible: false);
+    final kmReq = t.kmRequired;
     Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        _narrador.anunciarReto(
-            '⚔️ Objetivo: conquistar $nombre — ${kmReq.toStringAsFixed(1)} km');
-      }
+      if (mounted) _narrador.anunciarReto('⚔️ Objetivo: conquistar ${t.name} — ${kmReq.toStringAsFixed(1)} km');
     });
   }
 
+  void _cancelarSeleccionGlobal() {
+    setState(() => _seleccionandoGlobal = false);
+    _actualizarGlobalesEnGlobo(visible: false);
+  }
+
   Widget _buildSelectorModo() {
+    // ── Selección de territorio global en el globo ──────────────────────────
+    if (_seleccionandoGlobal) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          GestureDetector(
+            onTap: _cancelarSeleccionGlobal,
+            child: const Padding(
+              padding: EdgeInsets.only(right: 10),
+              child: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 18),
+            ),
+          ),
+          Text('ELIGE TU OBJETIVO', style: GoogleFonts.cinzel(
+              color: _kGold, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        ]),
+        const SizedBox(height: 10),
+        if (_cargandoGlobales)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: CupertinoActivityIndicator(color: Colors.white),
+          )
+        else if (_terrGlobales.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text('Sin territorios disponibles',
+                style: GoogleFonts.inter(color: Colors.white60, fontSize: 12)),
+          )
+        else
+          SizedBox(
+            height: 160,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: _terrGlobales.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (ctx, i) {
+                final t = _terrGlobales[i];
+                final isMine = t.ownerUid != null && t.ownerUid == uid;
+                return GestureDetector(
+                  onTap: () => _seleccionarTerritorioGlobal(t),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: t.color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: t.color.withValues(alpha: 0.45)),
+                    ),
+                    child: Row(children: [
+                      Text(t.icon, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(t.name, style: GoogleFonts.inter(
+                            color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                        if (t.ownerNick != null)
+                          Text(isMine ? '👑 Tuyo' : '👤 ${t.ownerNick}',
+                              style: GoogleFonts.inter(color: Colors.white54, fontSize: 9)),
+                      ])),
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Text('${t.kmRequired.toStringAsFixed(1)} km',
+                            style: GoogleFonts.orbitron(
+                                color: t.color, fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text('+${t.reward} 🪙',
+                            style: GoogleFonts.inter(color: _kGold, fontSize: 9)),
+                      ]),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+      ]);
+    }
+
     if (_objetivoGlobal != null) {
       return Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
