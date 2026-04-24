@@ -817,6 +817,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── FIX: Estado del botón centrar (toggle: mi posición ↔ vista inicial) ───
   bool _fabCentradoEnUsuario = false;
 
+  // Toggle mapa claro/oscuro
+  bool _mapaOscuro = false;
+
   // ── Modo solitario — barrios OSM ──────────────────────────────────────────
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
@@ -1604,7 +1607,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             return Positioned(
               right: 16,
               bottom: screenH * 0.14 + (hasCard ? 160 : 12),
-              child: _buildFab(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildToggleMapa(),
+                  const SizedBox(height: 8),
+                  _buildFab(),
+                ],
+              ),
             );
           },
         ),
@@ -1932,16 +1942,20 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
     _state.setModoSolitario(true);
-    // FIX: mover al mismo zoom inicial que ciudad
     _mapController.move(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
+    // Resetear si la carga anterior no encontró resultados
+    if (_barriosCargados && _barriosCercanos.isEmpty) {
+      setState(() { _barriosCargados = false; });
+    }
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
     }
   }
 
   Future<void> _cargarBarriosSolitario(LatLng pos) async {
-    if (_cargandoBarrios || _barriosCargados) return;
+    if (_cargandoBarrios) return;
+    if (_barriosCargados && _barriosCercanos.isNotEmpty) return;
     _cargandoBarrios = true;
     if (mounted) setState(() {});
 
@@ -2076,7 +2090,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ),
             children: [
               TileLayer(
-                urlTemplate: _kMapboxUrl,
+                urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
                 tileDimension: 256,
               ),
@@ -2229,7 +2243,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       ),
       children: [
         TileLayer(
-            urlTemplate: _kMapboxUrl,
+            urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256),
 
@@ -2762,6 +2776,43 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               ),
             ]),
         ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // TOGGLE MAPA CLARO / OSCURO
+  // ==========================================================================
+  Widget _buildToggleMapa() {
+    if (_state.modoGlobal) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _mapaOscuro = !_mapaOscuro);
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: _kSurface.withValues(alpha: 0.85),
+              border: Border.all(
+                color: _mapaOscuro
+                    ? _kGold.withValues(alpha: 0.55)
+                    : _kBorder.withValues(alpha: 0.7),
+              ),
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 12)],
+            ),
+            child: Icon(
+              _mapaOscuro ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+              color: _mapaOscuro ? _kGold : _kSub,
+              size: 20,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3384,8 +3435,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
                   if (enProgreso > 0)
                     _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
-                  // FIX: botón de recarga manual si algo falló
-                  if (!_cargandoBarrios && !_barriosCargados)
+                  // Botón de recarga si no hay barrios cargados o resultados vacíos
+                  if (!_cargandoBarrios && _barriosCercanos.isEmpty)
                     GestureDetector(
                       onTap: () => _cargarBarriosSolitario(_state.centro),
                       child: Container(

@@ -1386,11 +1386,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _actualizarCoronesMapa();
 
       if (!_centrosLayerCreated) {
-        final misTerr = _territorios.where((t) => t.esMio).toList();
-        if (misTerr.isNotEmpty) {
-          final feats = misTerr.map((t) {
-            final c = t.centro;
-            return '{"type":"Feature","properties":{},"geometry":{'
+        if (_territorios.isNotEmpty) {
+          final feats = _territorios.map((t) {
+            final c        = t.centro;
+            final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+            final esMio    = t.esMio ? 'true' : 'false';
+            return '{"type":"Feature","properties":{"color":"$colorHex","esMio":$esMio},"geometry":{'
                 '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
           }).join(',');
           final gj = '{"type":"FeatureCollection","features":[$feats]}';
@@ -1399,10 +1400,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           await _mapboxMap!.style.addLayer(
               mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
           await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-color', '#FFD60A');
+              _centrosLayerId, 'circle-color', ['get', 'color']);
           await _mapboxMap!.style.setStyleLayerProperty(
               _centrosLayerId, 'circle-radius',
-              ['interpolate', ['linear'], ['zoom'], 1, 2.5, 5, 5.0, 9, 0.0]);
+              ['interpolate', ['linear'], ['zoom'],
+                1, ['case', ['==', ['get', 'esMio'], true], 3.5, 1.8],
+                5, ['case', ['==', ['get', 'esMio'], true], 6.0, 3.5],
+                9, 0.0]);
           await _mapboxMap!.style.setStyleLayerProperty(
               _centrosLayerId, 'circle-opacity',
               ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 0.0]);
@@ -1411,10 +1415,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _centrosLayerCreated = true;
         }
       } else {
-        final misTerr = _territorios.where((t) => t.esMio).toList();
-        final feats = misTerr.map((t) {
-          final c = t.centro;
-          return '{"type":"Feature","properties":{},"geometry":{'
+        final feats = _territorios.map((t) {
+          final c        = t.centro;
+          final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+          final esMio    = t.esMio ? 'true' : 'false';
+          return '{"type":"Feature","properties":{"color":"$colorHex","esMio":$esMio},"geometry":{'
               '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
         }).join(',');
         final gj = '{"type":"FeatureCollection","features":[$feats]}';
