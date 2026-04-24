@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
+import '../widgets/custom_navbar.dart';
 import 'fullscreen_map_screen.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
@@ -3196,12 +3197,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   radius: 1.2,
                   colors: _modoNoche
                       ? [
-                          const Color(0xFF071428), // azul medianoche centro
-                          const Color(0xFF020B18), // azul casi negro borde
+                          const Color(0xFF102C50), // azul marino visible centro
+                          const Color(0xFF071830), // azul profundo borde
                         ]
                       : [
-                          const Color(0xFF1A2A3A), // azul grisáceo día
-                          const Color(0xFF0A1420), // más oscuro en borde
+                          const Color(0xFF1A2A3A),
+                          const Color(0xFF0A1420),
                         ],
                 ),
               ),
@@ -3244,7 +3245,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           Align(
             alignment: isPaused
                 ? const Alignment(0, -0.1)
-                : const Alignment(0, -0.55),
+                : const Alignment(0, -0.78),
             child: _buildTimerGrande(),
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
@@ -3462,7 +3463,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 colors: [
                   Colors.transparent,
                   _modoNoche
-                      ? const Color(0xFF020B18).withValues(alpha: 0.78)
+                      ? const Color(0xFF020B18).withValues(alpha: 0.40)
                       : const Color(0xFF0A1828).withValues(alpha: 0.58),
                 ],
               ),
@@ -3817,11 +3818,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
             child: Text(
               '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
-              style: GoogleFonts.orbitron(fontSize: 46, fontWeight: FontWeight.w900,
-                  color: Colors.white, letterSpacing: 2,
+              style: GoogleFonts.orbitron(fontSize: 30, fontWeight: FontWeight.w800,
+                  color: Colors.white, letterSpacing: 1.5,
                   shadows: const [
-                    Shadow(blurRadius: 22, color: _kGold),
-                    Shadow(blurRadius: 45, color: Color(0x66D4722A)),
+                    Shadow(blurRadius: 16, color: _kGold),
+                    Shadow(blurRadius: 32, color: Color(0x66D4722A)),
                   ]),
             ),
           ),
@@ -3990,23 +3991,30 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ),
       );
 
-  Widget _buildBotonera() => Container(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 38),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter, end: Alignment.topCenter,
-            colors: [
-              (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.97),
-              (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.72),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.55, 1.0],
+  Widget _buildBotonera() => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.fromLTRB(20, 18, 20, isTracking ? 38 : 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter, end: Alignment.topCenter,
+                colors: [
+                  (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.97),
+                  (!isTracking ? _p.cosmicMid : _p.parchment).withValues(alpha: 0.72),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              bottom: isTracking,
+              child: !isTracking ? _buildSelectorModo() : _buildBotonesControl(),
+            ),
           ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: !isTracking ? _buildSelectorModo() : _buildBotonesControl(),
-        ),
+          if (!isTracking) const CustomBottomNavbar(currentIndex: 1),
+        ],
       );
 
   Future<void> _elegirTerritorioGlobal() async {
@@ -4353,31 +4361,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 19),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF5C1200), Color(0xFFB84020)],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: _p.terracotta.withValues(alpha: 0.35), width: 1),
+                color: const Color(0xFF2C2C2E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10), width: 1),
                 boxShadow: [
-                  BoxShadow(color: _p.terracotta.withValues(alpha: 0.38),
-                      blurRadius: 16, offset: const Offset(0, 4)),
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.30),
+                      blurRadius: 8, offset: const Offset(0, 2)),
                 ],
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_modoSolitario ? '🏁'
-                    : _objetivoGlobal != null ? '🏴' : '🏳️',
-                    style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Text(
-                  _modoSolitario ? 'FINALIZAR'
+              child: Center(
+                child: Text(
+                  _modoSolitario ? 'Finalizar'
                       : _objetivoGlobal != null
-                          ? (_globalConquistado ? 'MISIÓN CUMPLIDA' : 'RETIRADA')
-                          : 'RETIRADA',
-                  style: GoogleFonts.cinzel(fontSize: 15, fontWeight: FontWeight.w700,
-                      color: const Color(0xFFFFE0C0), letterSpacing: 2.5),
+                          ? (_globalConquistado ? 'Misión cumplida' : 'Retirada')
+                          : 'Retirada',
+                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600,
+                      color: Colors.white, letterSpacing: 0.3),
                 ),
-              ]),
+              ),
             ),
           ),
         ),
