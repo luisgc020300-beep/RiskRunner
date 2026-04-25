@@ -49,6 +49,10 @@ const _kWhite    = Color(0xFF1C1C1E);
 const _kRed      = Color(0xFFE02020);
 const _kSafe     = Color(0xFF30D158);
 const _kWarn     = Color(0xFFFF9500);
+// Versiones apagadas para usar en sheets (menos neon)
+const _kSafeDim  = Color(0xFF1E7A38);
+const _kWarnDim  = Color(0xFF9B6A00);
+const _kRedDim   = Color(0xFF8B2020);
 const _kGold     = Color(0xFFFFD60A);
 const _kGoldDim  = Color(0xFFAEAEB2);
 const _kGoldLight = Color(0xFFFFD60A);
@@ -2121,6 +2125,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   }).toList(),
                 ),
 
+              // Zonas objetivo solitario (todas, no conquistadas aún)
+              if (_state.modoSolitario && territorios.any((t) => !t.esMio))
+                PolygonLayer(
+                  polygons: territorios.where((t) => !t.esMio).map((t) => Polygon(
+                    points: t.puntos,
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderColor: Colors.white.withValues(alpha: 0.35),
+                    borderStrokeWidth: 1.5,
+                  )).toList(),
+                ),
+
               // Glow exterior territorios propios
               if (territorios.any((t) => t.esMio))
                 PolygonLayer(
@@ -3756,10 +3771,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   ]),
                   const Spacer(),
                   if (completados > 0)
-                    _quickBadge('$completados ✓', _kSafe, Icons.check_circle_rounded),
+                    _quickBadge('$completados ✓', _kSafeDim, Icons.check_circle_rounded),
                   if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
                   if (enProgreso > 0)
-                    _quickBadge('$enProgreso EN CURSO', _kWarn, Icons.directions_run_rounded),
+                    _quickBadge('$enProgreso EN CURSO', _kWarnDim, Icons.directions_run_rounded),
                   // Botón de recarga si no hay barrios cargados o resultados vacíos
                   if (!_cargandoBarrios && _barriosCercanos.isEmpty)
                     GestureDetector(
@@ -3787,13 +3802,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Row(children: [
-                  _sheetStat('$completados', 'CONQUISTADAS', _kSafe),
+                  _sheetStat('$completados', 'CONQUISTADAS', _kSafeDim),
                   const SizedBox(width: 8),
-                  _sheetStat('$enProgreso', 'EN PROGRESO', _kWarn),
+                  _sheetStat('$enProgreso', 'EN PROGRESO', _kWarnDim),
                   const SizedBox(width: 8),
                   _sheetStat(
                     '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
-                    '% MEDIO', _kSafe,
+                    '% MEDIO', _kSafeDim,
                   ),
                 ]),
               ),
@@ -3823,7 +3838,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             if (!_cargandoBarrios && barriosOrdenados.isNotEmpty)
               ...barriosOrdenados.map((b) {
                 final pct = b.porcentajeCubierto;
-                final Color color = pct >= 1.0 ? _kText : pct > 0 ? _kWarn : _kSub;
+                final Color color = pct >= 1.0 ? _kSafeDim : pct > 0 ? _kWarnDim : _kSub;
                 return GestureDetector(
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -4237,7 +4252,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         ]),
         const Spacer(),
         if (pel > 0)
-          _quickBadge('$pel CRÍTICO', _kRed, Icons.dangerous_rounded),
+          _quickBadge('$pel CRÍTICO', _kRedDim, Icons.dangerous_rounded),
         if (pel > 0 && det > 0) const SizedBox(width: 6),
         if (det > 0)
           _quickBadge('$det DESGASTE', _kSub, Icons.warning_amber_rounded),

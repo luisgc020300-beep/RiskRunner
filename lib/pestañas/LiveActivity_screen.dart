@@ -82,9 +82,9 @@ class _LP {
 // =============================================================================
 const double _kPitchCorrer  = 55.0;
 const double _kPitchNormal  = 0.0;
-const double _kPitchPausado = 35.0;
+const double _kPitchPausado = 52.0;
 const double _kZoomCorrer   = 18.5;
-const double _kZoomPausado  = 13.5;
+const double _kZoomPausado  = 15.5;
 const double _kZoomGlobo   = 5;
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
@@ -4511,24 +4511,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: isPrev
-                          ? t.color.withValues(alpha: 0.28)
-                          : t.color.withValues(alpha: 0.10),
+                          ? t.color.withValues(alpha: 0.15)
+                          : t.color.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: t.color.withValues(alpha: isPrev ? 0.9 : 0.40),
+                        color: t.color.withValues(alpha: isPrev ? 0.50 : 0.25),
                         width: isPrev ? 1.5 : 1.0,
                       ),
                       boxShadow: isPrev
-                          ? [BoxShadow(color: t.color.withValues(alpha: 0.35), blurRadius: 10)]
+                          ? [BoxShadow(color: t.color.withValues(alpha: 0.15), blurRadius: 8)]
                           : null,
                     ),
                     child: Row(children: [
                       Container(
                         width: 34, height: 34,
                         decoration: BoxDecoration(
-                          color: t.color.withValues(alpha: isPrev ? 0.22 : 0.10),
+                          color: t.color.withValues(alpha: isPrev ? 0.15 : 0.07),
                           shape: BoxShape.circle,
-                          border: Border.all(color: t.color.withValues(alpha: isPrev ? 0.7 : 0.3)),
+                          border: Border.all(color: t.color.withValues(alpha: isPrev ? 0.45 : 0.22)),
                         ),
                         child: Center(
                           child: Icon(
@@ -4537,7 +4537,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                                 : t.kmRequired >= 7
                                     ? Icons.shield_rounded
                                     : Icons.flag_rounded,
-                            color: t.color,
+                            color: t.color.withValues(alpha: 0.75),
                             size: 16,
                           ),
                         ),
@@ -4545,18 +4545,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(t.name, style: GoogleFonts.inter(
-                            color: isPrev ? Colors.white : Colors.white70,
+                            color: isPrev ? Colors.white : Colors.white60,
                             fontSize: 11, fontWeight: FontWeight.w700)),
                         if (t.ownerNick != null)
                           Text(isMine ? 'Tuyo' : t.ownerNick!,
-                              style: GoogleFonts.inter(color: Colors.white54, fontSize: 9)),
+                              style: GoogleFonts.inter(color: Colors.white38, fontSize: 9)),
                       ])),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text('${t.kmRequired.toStringAsFixed(1)} km',
                             style: GoogleFonts.inter(
-                                color: t.color, fontSize: 11, fontWeight: FontWeight.w700)),
+                                color: t.color.withValues(alpha: 0.70), fontSize: 11, fontWeight: FontWeight.w700)),
                         Text('+${t.reward}',
-                            style: GoogleFonts.inter(color: _kGold, fontSize: 9, fontWeight: FontWeight.w600)),
+                            style: GoogleFonts.inter(color: _kGold.withValues(alpha: 0.70), fontSize: 9, fontWeight: FontWeight.w600)),
                       ]),
                     ]),
                   ),
