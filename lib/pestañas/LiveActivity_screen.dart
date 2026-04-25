@@ -6,7 +6,8 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show Factory, kIsWeb;
+import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1242,6 +1243,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       scrollEnabled: true,
       pinchToZoomEnabled: true,
       doubleTapToZoomInEnabled: true,
+      doubleTouchToZoomOutEnabled: true,
+      simultaneousRotateAndPinchToZoomEnabled: true,
+      scrollDecelerationEnabled: true,
+      rotateDecelerationEnabled: true,
+      quickZoomEnabled: false,
     ));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
@@ -3938,6 +3944,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _currentPosition?.latitude  ?? 40.4167)),
         zoom: _kZoomGlobo, pitch: _kPitchNormal,
       ),
+      // Cede los gestos al MapWidget antes de que Flutter los intercepte
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
       onMapCreated: _onMapCreated,
     );
   }
