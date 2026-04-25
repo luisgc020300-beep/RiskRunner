@@ -28,6 +28,7 @@ import '../widgets/anticheat_warning_overlay.dart';
 import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
+import '../services/onboarding_service.dart';
 
 // =============================================================================
 // PALETA
@@ -172,11 +173,13 @@ class _StarfieldPainter extends CustomPainter {
   final List<_StarData> stars;
   final double animValue;
   final bool nightMode;
+  final double globeRotation;
 
   const _StarfieldPainter({
     required this.stars,
     required this.animValue,
     required this.nightMode,
+    this.globeRotation = 0.0,
   });
 
   @override
@@ -193,7 +196,7 @@ class _StarfieldPainter extends CustomPainter {
       final double twinkleAmp  = nightMode ? 0.25 : 0.12;
       final double opacity = (baseOpacity + twinkle * twinkleAmp).clamp(0.0, 1.0);
 
-      final cx = s.x * size.width;
+      final cx = ((s.x + globeRotation) % 1.0) * size.width;
       final cy = s.y * size.height;
 
       // Color: blanco azulado frío en noche, ligeramente cálido en día
@@ -315,7 +318,7 @@ class _StarfieldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StarfieldPainter old) =>
-      old.animValue != animValue || old.nightMode != nightMode;
+      old.animValue != animValue || old.nightMode != nightMode || old.globeRotation != globeRotation;
 }
 
 // =============================================================================
@@ -323,7 +326,8 @@ class _StarfieldPainter extends CustomPainter {
 // =============================================================================
 class _StarfieldWidget extends StatefulWidget {
   final bool nightMode;
-  const _StarfieldWidget({required this.nightMode});
+  final Animation<double>? globeAnim;
+  const _StarfieldWidget({required this.nightMode, this.globeAnim});
 
   @override
   State<_StarfieldWidget> createState() => _StarfieldWidgetState();
@@ -375,13 +379,17 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
 
   @override
   Widget build(BuildContext context) {
+    final listenable = widget.globeAnim != null
+        ? Listenable.merge([_ctrl, widget.globeAnim!])
+        : _ctrl as Listenable;
     return AnimatedBuilder(
-      animation: _ctrl,
+      animation: listenable,
       builder: (_, __) => CustomPaint(
         painter: _StarfieldPainter(
-          stars:     _stars,
-          animValue: _ctrl.value,
-          nightMode: widget.nightMode,
+          stars:         _stars,
+          animValue:     _ctrl.value,
+          nightMode:     widget.nightMode,
+          globeRotation: widget.globeAnim?.value ?? 0.0,
         ),
         size: Size.infinite,
       ),
@@ -510,6 +518,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _fillInnerLayerId    = 'territorios-fill-inner';
   static const String _borderLayerId       = 'territorios-border';
   static const String _borderPulseLayerId  = 'territorios-border-pulse';
+  static const String _borderOuterGlowId  = 'territorios-border-outer-glow';
   static const String _sourceId            = 'territorios-source';
   static const String _centrosSourceId     = 'territorios-centros-source';
   static const String _centrosLayerId      = 'territorios-centros-layer';
@@ -756,6 +765,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (mounted) setState(() => _boostXpActivo = true);
         }
         _miClanId = doc.data()?['clanId'] as String?;
+        // Tutorial de primer uso
+        final onb = await OnboardingService.cargarEstado();
+        if (mounted && !onb.tooltipsVistos.contains('modos_tutorial')) {
+          Future.delayed(const Duration(milliseconds: 900), _mostrarTutorialModos);
+        }
       }
       LatLng? centro;
       if (_currentPosition != null) {
@@ -776,6 +790,133 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
     } catch (e) {
       debugPrint('Error datos iniciales: $e');
+    }
+  }
+
+  // ==========================================================================
+  // TUTORIAL MODOS (primer uso)
+  // ==========================================================================
+  Future<void> _mostrarTutorialModos() async {
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _buildTutorialSheet(),
+    );
+    OnboardingService.marcarTooltipVisto('modos_tutorial');
+  }
+
+  Widget _buildTutorialSheet() {
+    const modos = [
+      (
+        icon: Icons.people_rounded,
+        color: Color(0xFF0A84FF),
+        titulo: 'Competitivo',
+        desc: 'Corre y conquista zonas. Compite con otros corredores de tu ciudad.',
+      ),
+      (
+        icon: Icons.explore_rounded,
+        color: Color(0xFF30D158),
+        titulo: 'Solitario',
+        desc: 'Explora barrios. Cubre el máximo porcentaje de cada zona tú solo.',
+      ),
+      (
+        icon: Icons.public_rounded,
+        color: Color(0xFFFF453A),
+        titulo: 'Global',
+        desc: 'Guerras mundiales semanales. Elige un territorio en el globo y corre para conquistarlo.',
+      ),
+    ];
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 36, height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white24,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Text('¿Cómo funciona?', style: GoogleFonts.inter(
+          color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text('Elige tu modo cada vez que salgas a correr',
+            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+        const SizedBox(height: 20),
+        ...modos.map((m) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: m.color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: m.color.withValues(alpha: 0.25)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(
+                color: m.color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(m.icon, color: m.color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(m.titulo, style: GoogleFonts.inter(
+                  color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(m.desc, style: GoogleFonts.inter(
+                  color: Colors.white60, fontSize: 11, height: 1.4)),
+            ])),
+          ]),
+        )),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A84FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('¡Entendido!', textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // ACTIVITY FEED — escribe conquistas para el feed global
+  // ==========================================================================
+  Future<void> _escribirActivityFeed({
+    required String territoryName,
+    required String territoryId,
+    required String mode,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('activity_feed').add({
+        'userId':        uid,
+        'userNick':      _miNickname,
+        'territoryId':   territoryId,
+        'territoryName': territoryName,
+        'action':        'conquest',
+        'mode':          mode,
+        'timestamp':     FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('activity_feed write error: $e');
     }
   }
 
@@ -1356,7 +1497,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       _pulsoTimer?.cancel();
       for (final id in [
-        _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
+        _borderOuterGlowId, _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
       ]) {
         try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
       }
@@ -1396,6 +1537,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-cap', 'round');
 
+      // Outer glow: anillo exterior más amplio y difuso (solo propios)
+      await _mapboxMap!.style.addLayer(
+          mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderOuterGlowId, 'line-color', ['get', 'color']);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 28.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderOuterGlowId, 'line-opacity',
+          ['case', ['==', ['get', 'esMio'], true], 0.18, 0.0]);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 18.0);
+      await _mapboxMap!.style
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-join', 'round');
+
+      // Inner pulse: anillo animado más estrecho
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -1891,6 +2048,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         _narrador.eventoConquista(
             _objetivoGlobal?['territorioNombre'] as String? ?? '');
         _mostrarNotificacionConquistaGlobal();
+        _escribirActivityFeed(
+          territoryName: _objetivoGlobal?['territorioNombre'] as String? ?? 'Territorio',
+          territoryId:   _objetivoGlobal?['territorioId']    as String? ?? '',
+          mode:          'global',
+        );
       }
     } on FirebaseFunctionsException catch (e) {
       if (mounted) _mostrarError(e.message ?? 'Error al conquistar.');
@@ -2645,6 +2807,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (data['ok'] == true) {
             if (accion == 'conquista_total' || accion == 'robo_parcial') {
               _narrador.eventoConquista(t.ownerNickname);
+              if (accion == 'conquista_total') {
+                _escribirActivityFeed(
+                  territoryName: t.nombreTerritorio ?? t.ownerNickname,
+                  territoryId:   t.docId,
+                  mode:          _modoSolitario ? 'solitario' : 'competitivo',
+                );
+              }
               final nuevos = await TerritoryService.cargarTodosLosTerritorios(
                   modo: _modoSolitario ? 'solitario' : 'competitivo');
                 if (mounted) {
@@ -3242,15 +3411,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
           ),
 
-        // ── 2. MAPA MAPBOX ──────────────────────────────────────────────────
-        Positioned.fill(child: _buildMapbox()),
-
-        // ── 3. ESTRELLAS — ENCIMA DEL MAPA para que sean visibles ──────────
-        if (mostrarGlobo)
+        // ── 2a. ESTRELLAS DARK — detrás del globo (el área exterior de Mapbox es transparente) ──
+        if (mostrarGlobo && Theme.of(context).brightness == Brightness.dark)
           Positioned.fill(
             child: IgnorePointer(
               child: _StarfieldWidget(
-                nightMode: _modoNoche || Theme.of(context).brightness == Brightness.dark,
+                nightMode: true,
+                globeAnim: _globoAnim,
+              ),
+            ),
+          ),
+
+        // ── 2. MAPA MAPBOX ──────────────────────────────────────────────────
+        Positioned.fill(child: _buildMapbox()),
+
+        // ── 3. ESTRELLAS LIGHT — encima del mapa, visibles en modo claro ────
+        if (mostrarGlobo && Theme.of(context).brightness != Brightness.dark)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _StarfieldWidget(
+                nightMode: _modoNoche,
+                globeAnim: _globoAnim,
               ),
             ),
           ),
@@ -3589,7 +3770,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ),
-      // Stats en la parte inferior
+      // Stats en la parte inferior — ocultos mientras se selecciona territorio
+      if (!_seleccionandoGlobal)
       Positioned(
         bottom: 265, left: 0, right: 0,
         child: IgnorePointer(
@@ -4209,6 +4391,39 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _actualizarGlobalesEnGlobo(visible: false);
   }
 
+  // ==========================================================================
+  // RESUMEN RÁPIDO — estado actual antes de correr
+  // ==========================================================================
+  Widget _buildResumenRapido() {
+    final miZonas    = _territorios.where((t) => t.esMio).length;
+    final activos    = _jugadoresActivos.length;
+    final invasiones = _territoriosNotificadosEnSesion.length;
+    return Row(children: [
+      _resumenChip(Icons.flag_rounded,   '$miZonas zonas', const Color(0xFFFFD60A)),
+      const SizedBox(width: 8),
+      _resumenChip(Icons.people_rounded, '$activos activos', const Color(0xFF5BA3A0)),
+      if (invasiones > 0) ...[
+        const SizedBox(width: 8),
+        _resumenChip(Icons.warning_rounded, '$invasiones invasión', const Color(0xFFFF453A)),
+      ],
+    ]);
+  }
+
+  Widget _resumenChip(IconData icon, String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: 0.30)),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: color),
+      const SizedBox(width: 5),
+      Text(label, style: GoogleFonts.inter(
+          color: color, fontSize: 10, fontWeight: FontWeight.w600)),
+    ]),
+  );
+
   Widget _buildSelectorModo() {
     // ── Selección de territorio global en el globo ──────────────────────────
     if (_seleccionandoGlobal) {
@@ -4421,6 +4636,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final bool isGlobal      = _objetivoGlobal != null;
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      _buildResumenRapido(),
+      const SizedBox(height: 10),
       Container(
         margin: const EdgeInsets.only(bottom: 14),
         height: 44,

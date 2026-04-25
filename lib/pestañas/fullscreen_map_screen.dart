@@ -27,11 +27,11 @@ import '../config/env.dart';
 const String _kMapboxToken = Env.mapboxPublicToken;
 const String _kMapboxUrl =
     'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
-    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
+    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 const String _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
+    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PALETA
@@ -2092,7 +2092,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               TileLayer(
                 urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
-                tileDimension: 256,
+                tileDimension: 512,
               ),
 
               // Polígonos de barrios OSM
@@ -2112,15 +2112,26 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   }).toList(),
                 ),
 
+              // Glow exterior territorios propios
+              if (territorios.any((t) => t.esMio))
+                PolygonLayer(
+                  polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
+                    points: t.puntos,
+                    color: Colors.transparent,
+                    borderColor: t.color.withValues(alpha: 0.18),
+                    borderStrokeWidth: 14.0,
+                  )).toList(),
+                ),
+
               // Territorios propios encima
               if (territorios.isNotEmpty)
                 PolygonLayer(
                   polygons: territorios.where((t) => t.esMio).map((t) =>
                     Polygon(
                       points: t.puntos,
-                      color: t.color.withValues(alpha: t.opacidadRelleno),
+                      color: t.color.withValues(alpha: 0.30),
                       borderColor: t.color,
-                      borderStrokeWidth: 2.5,
+                      borderStrokeWidth: 3.5,
                     ),
                   ).toList(),
                 ),
@@ -2128,14 +2139,26 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               // Marcador de posición del usuario
               MarkerLayer(markers: [
                 Marker(
-                  point: _state.centro, width: 24, height: 24,
+                  point: _state.centro, width: 40, height: 40,
                   child: Container(
+                    width: 40, height: 40,
                     decoration: BoxDecoration(
-                      color: Colors.white, shape: BoxShape.circle,
-                      border: Border.all(color: _kRed, width: 2),
-                      boxShadow: [BoxShadow(
-                          color: _kRed.withValues(alpha: 0.5),
-                          blurRadius: 12, spreadRadius: 2)],
+                      shape: BoxShape.circle,
+                      color: _kRed.withValues(alpha: 0.12),
+                      border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
+                    ),
+                    child: Center(
+                      child: Container(
+                        width: 22, height: 22,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(color: _kRed, width: 2.5),
+                          boxShadow: [BoxShadow(
+                              color: _kRed.withValues(alpha: 0.55),
+                              blurRadius: 10, spreadRadius: 1)],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -2245,7 +2268,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         TileLayer(
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
-            tileDimension: 256),
+            tileDimension: 512),
+
+        // Glow exterior solo para territorios propios (renderizar primero)
+        if (territorios.any((t) => t.esMio))
+          PolygonLayer(
+            polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
+              points: t.puntos,
+              color: Colors.transparent,
+              borderColor: t.color.withValues(alpha: 0.18),
+              borderStrokeWidth: 14.0,
+            )).toList(),
+          ),
 
         if (territorios.isNotEmpty)
           GestureDetector(
@@ -2279,13 +2313,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 return Polygon(
                   points: t.puntos,
                   color: sel
-                      ? t.color.withValues(alpha: 0.45)
-                      : t.color.withValues(alpha: t.opacidadRelleno),
+                      ? t.color.withValues(alpha: 0.50)
+                      : (t.esMio
+                          ? t.color.withValues(alpha: 0.30)
+                          : t.color.withValues(alpha: t.opacidadRelleno)),
                   borderColor: sel
                       ? t.color
                       : t.color.withValues(alpha: t.opacidadBorde),
                   borderStrokeWidth:
-                      sel ? 3.5 : (t.estaDeterirado ? 1.5 : 2.5),
+                      sel ? 4.5 : (t.esMio ? 3.5 : (t.estaDeterirado ? 1.0 : 2.0)),
                 );
               }).toList(),
             ),
@@ -2298,16 +2334,26 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         MarkerLayer(markers: [
           Marker(
-            point: _state.centro, width: 24, height: 24,
+            point: _state.centro, width: 40, height: 40,
             child: Container(
+              width: 40, height: 40,
               decoration: BoxDecoration(
-                color: Colors.white, shape: BoxShape.circle,
-                border: Border.all(color: _kRed, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                      color: _kRed.withValues(alpha: 0.5),
-                      blurRadius: 12, spreadRadius: 2),
-                ],
+                shape: BoxShape.circle,
+                color: _kRed.withValues(alpha: 0.12),
+                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
+              ),
+              child: Center(
+                child: Container(
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: _kRed, width: 2.5),
+                    boxShadow: [BoxShadow(
+                        color: _kRed.withValues(alpha: 0.55),
+                        blurRadius: 10, spreadRadius: 1)],
+                  ),
+                ),
               ),
             ),
           ),
@@ -2431,7 +2477,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           TileLayer(
               urlTemplate: _kMapboxDarkUrl,
               userAgentPackageName: 'com.runner_risk.app',
-              tileDimension: 256),
+              tileDimension: 512),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -4323,7 +4369,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           urlTemplate: _kMapboxUrl,
                           userAgentPackageName:
                               'com.runner_risk.app',
-                          tileDimension: 256),
+                          tileDimension: 512),
                       PolygonLayer(polygons: [
                         Polygon(
                             points: det.puntos,
