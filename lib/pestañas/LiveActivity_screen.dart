@@ -40,7 +40,6 @@ const _kGoldLight  = Color(0xFFFFD60A);
 const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
-const _kBlue     = Color.fromARGB(255, 16, 154, 235);
 
 
 // Fondo universo azul oscuro
@@ -81,10 +80,11 @@ class _LP {
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
 // =============================================================================
-const double _kPitchCorrer = 55.0;
-const double _kPitchNormal = 0.0;
-const double _kZoomCorrer  = 18.5;
-const double _kZoomPausado = 16.5;
+const double _kPitchCorrer  = 55.0;
+const double _kPitchNormal  = 0.0;
+const double _kPitchPausado = 35.0;
+const double _kZoomCorrer   = 18.5;
+const double _kZoomPausado  = 13.5;
 const double _kZoomGlobo   = 5;
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
@@ -238,8 +238,8 @@ class _StarfieldPainter extends CustomPainter {
               center: Offset(cx, cy), radius: s.r * 2.8));
         canvas.drawCircle(Offset(cx, cy), s.r * 2.8, haloIn);
 
-        // Destello en cruz (difracción)
-        final crossLen = s.r * (3.0 + twinkle * 2.5);
+        // Destello en cruz (difracción) — sutil
+        final crossLen = s.r * (1.8 + twinkle * 1.2);
         final crossPaint = Paint()
           ..strokeWidth = 0.9 + twinkle * 0.4
           ..style       = PaintingStyle.stroke;
@@ -345,23 +345,23 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
     super.initState();
     final rnd = math.Random(12345);
 
-    // 200 estrellas con distribución realista de tipos
-    _stars = List.generate(200, (i) {
+    // 120 estrellas — más escasas y pequeñas, aspecto más natural
+    _stars = List.generate(120, (i) {
       final x     = rnd.nextDouble();
       final y     = rnd.nextDouble();
-      final speed = 0.3 + rnd.nextDouble() * 1.0;
+      final speed = 0.2 + rnd.nextDouble() * 0.8;
       final phase = rnd.nextDouble() * math.pi * 2;
 
-      // Distribución: 85% normales, 12% grandes, 3% gigantes
+      // Distribución: 92% normales, 6% grandes, 2% gigantes
       final int type;
       final double r;
       final roll = rnd.nextDouble();
-      if (roll > 0.97) {
-        type = 2; r = 1.8 + rnd.nextDouble() * 1.2; // gigante
-      } else if (roll > 0.85) {
-        type = 1; r = 1.2 + rnd.nextDouble() * 0.8; // grande
+      if (roll > 0.98) {
+        type = 2; r = 1.0 + rnd.nextDouble() * 0.6; // gigante (más pequeña)
+      } else if (roll > 0.92) {
+        type = 1; r = 0.6 + rnd.nextDouble() * 0.5; // grande
       } else {
-        type = 0; r = 0.4 + rnd.nextDouble() * 0.9; // normal
+        type = 0; r = 0.2 + rnd.nextDouble() * 0.6; // normal
       }
 
       return _StarData(x: x, y: y, r: r, speed: speed, phase: phase, type: type);
@@ -566,6 +566,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── SELECCIÓN GLOBAL EN GLOBO
   bool _seleccionandoGlobal  = false;
+  bool _mostrarSituacion     = false;
   List<_GlobTerrData> _terrGlobales = [];
   bool _cargandoGlobales     = false;
   bool _globalesLayerCreated = false;
@@ -2496,7 +2497,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (_currentPosition != null) {
         _moverCamara(lat: _currentPosition!.latitude,
             lng: _currentPosition!.longitude,
-            zoom: _kZoomPausado, pitch: _kPitchNormal, bearing: 0, forzar: true);
+            zoom: _kZoomPausado, pitch: _kPitchPausado, bearing: _bearing,
+            duracion: 1000, forzar: true);
       }
       _hudAnim.forward();
     } else {
@@ -3456,10 +3458,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
           ),
 
-        // ── 4. OVERLAY DEL GLOBO (viñeta + títulos + chips) ────────────────
+        // ── 4. OVERLAY DEL GLOBO (viñeta + títulos + stats, sin IgnorePointer global) ──
         if (mostrarGlobo)
-          Positioned.fill(
-            child: IgnorePointer(child: _buildGloboOverlay()),
+          Positioned.fill(child: _buildGloboOverlay()),
+
+        // ── 4b. Chips interactivos (fuera de IgnorePointer para permitir taps) ───
+        if (mostrarGlobo)
+          Positioned(
+            top: 148, left: 14,
+            child: _buildChipsGlobo(),
           ),
 
         // ── 5. HUD y controles ──────────────────────────────────────────────
@@ -3735,61 +3742,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ),
-      // Chips de info
-      Positioned(
-        top: 148, left: 14,
-        child: IgnorePointer(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (_modoSolitario) ...[
-              _globoChip(CupertinoIcons.map_pin, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
-              const SizedBox(height: 6),
-              if (_barriosCercanos.isNotEmpty) ...[
-                _globoChip(
-                  CupertinoIcons.map,
-                  '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}/${_barriosCercanos.length} barrios',
-                  const Color(0xFF30D158),
-                ),
-                const SizedBox(height: 6),
-                if (_barrioActual != null)
-                  _globoChip(
-                    CupertinoIcons.compass,
-                    '${_barrioActual!.nombre} · ${(_barrioActual!.porcentajeCubierto * 100).toInt()}%',
-                    _barrioActual!.porcentajeCubierto >= 1.0
-                        ? const Color(0xFF30D158)
-                        : _barrioActual!.porcentajeCubierto > 0
-                            ? const Color(0xFFFF9500)
-                            : Colors.white70,
-                  ),
-              ] else
-                _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
-            ] else if (_objetivoGlobal != null) ...[
-              _globoChip(CupertinoIcons.flag,
-                  _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
-                  _p.globalRed),
-              const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.person,
-                  '${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km requeridos',
-                  Colors.white70),
-              const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.circle,
-                  '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes',
-                  _kGold),
-            ] else ...[
-              _globoChip(CupertinoIcons.shield,
-                  '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
-                  _p.terracotta),
-              const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.person_2, '${_jugadoresActivos.length} activos ahora', _kWaterLight),
-              const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.map, '${_territorios.length} territorios', Colors.white70),
-            ],
-            if (_retoActivo != null) ...[
-              const SizedBox(height: 6),
-              _globoChip(CupertinoIcons.bolt, _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
-            ],
-          ]),
-        ),
-      ),
+      // Chips — gestionados por _buildChipsGlobo() fuera de IgnorePointer
       // Stats en la parte inferior — ocultos mientras se selecciona territorio
       if (!_seleccionandoGlobal)
       Positioned(
@@ -3840,72 +3793,104 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ),
       ),
-      // Panel de situación en reposo
-      if (!isTracking && !_seleccionandoGlobal)
-        Positioned(
-          bottom: 200, left: 24, right: 24,
-          child: IgnorePointer(
-            child: _buildPanelReposo(),
-          ),
-        ),
     ]);
   }
 
-  Widget _buildPanelReposo() {
-    final miasCount     = _territorios.where((t) => t.esMio).length;
-    final amenazaCount  = _territorios.where((t) => t.esMio && t.estadoHp == EstadoHp.critico).length;
+  Widget _buildChipsGlobo() {
+    final miasCount    = _territorios.where((t) => t.esMio).length;
+    final amenazaCount = _territorios.where((t) => t.esMio && t.estadoHp == EstadoHp.critico).length;
 
-    String statusLabel;
-    Color  statusColor;
-    IconData statusIcon;
-
+    String situLabel;
+    Color  situColor;
+    IconData situIcon;
     if (miasCount == 0) {
-      statusLabel = 'Sin zonas — sal a conquistar';
-      statusColor = _kGoldLight;
-      statusIcon  = CupertinoIcons.location_circle;
+      situLabel = 'Sin zonas — sal a conquistar';
+      situColor = _kGoldLight;
+      situIcon  = CupertinoIcons.location_circle;
     } else if (amenazaCount > 0) {
-      statusLabel = '$amenazaCount zona${amenazaCount > 1 ? 's' : ''} bajo amenaza';
-      statusColor = _p.terracotta;
-      statusIcon  = CupertinoIcons.shield_slash;
+      situLabel = '$amenazaCount zona${amenazaCount > 1 ? 's' : ''} bajo amenaza';
+      situColor = _p.terracotta;
+      situIcon  = CupertinoIcons.shield_slash;
     } else {
-      statusLabel = 'Todo bajo control';
-      statusColor = const Color(0xFF30D158);
-      statusIcon  = CupertinoIcons.checkmark_shield;
+      situLabel = 'Todo bajo control · $miasCount terr.';
+      situColor = const Color(0xFF30D158);
+      situIcon  = CupertinoIcons.checkmark_shield;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.52),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-      ),
-      child: Row(children: [
-        Icon(statusIcon, size: 14, color: statusColor),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            statusLabel,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.white.withValues(alpha: 0.85),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_modoSolitario) ...[
+        _globoChip(CupertinoIcons.map_pin, '${_territorios.where((t) => t.esMio).length} mis zonas', _kGold),
+        const SizedBox(height: 6),
+        if (_barriosCercanos.isNotEmpty) ...[
+          _globoChip(
+            CupertinoIcons.map,
+            '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}/${_barriosCercanos.length} barrios',
+            const Color(0xFF30D158),
+          ),
+          const SizedBox(height: 6),
+          if (_barrioActual != null)
+            _globoChip(
+              CupertinoIcons.compass,
+              '${_barrioActual!.nombre} · ${(_barrioActual!.porcentajeCubierto * 100).toInt()}%',
+              _barrioActual!.porcentajeCubierto >= 1.0
+                  ? const Color(0xFF30D158)
+                  : _barrioActual!.porcentajeCubierto > 0
+                      ? const Color(0xFFFF9500)
+                      : Colors.white70,
             ),
+        ] else
+          _globoChip(CupertinoIcons.compass, 'Explora y conquista', Colors.white70),
+      ] else if (_objetivoGlobal != null) ...[
+        _globoChip(CupertinoIcons.flag,
+            _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio', _p.globalRed),
+        const SizedBox(height: 6),
+        _globoChip(CupertinoIcons.person,
+            '${(_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? "?"} km requeridos',
+            Colors.white70),
+        const SizedBox(height: 6),
+        _globoChip(CupertinoIcons.circle,
+            '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes', _kGold),
+      ] else ...[
+        _globoChip(CupertinoIcons.shield,
+            '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
+            _p.terracotta),
+        const SizedBox(height: 6),
+        _globoChip(CupertinoIcons.person_2, '${_jugadoresActivos.length} activos ahora', _kWaterLight),
+        const SizedBox(height: 6),
+        // Chip de territorios — tappable para ver situación
+        GestureDetector(
+          onTap: () => setState(() => _mostrarSituacion = !_mostrarSituacion),
+          child: _globoChip(
+            _mostrarSituacion ? CupertinoIcons.chevron_up : CupertinoIcons.map,
+            '${_territorios.length} territorios',
+            _mostrarSituacion ? _kGoldLight : Colors.white70,
           ),
         ),
-        if (miasCount > 0) ...[
-          const SizedBox(width: 8),
-          Text(
-            '$miasCount terr.',
-            style: GoogleFonts.orbitron(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _kGold,
+        if (_mostrarSituacion) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: situColor.withValues(alpha: 0.30)),
             ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(situIcon, size: 13, color: situColor),
+              const SizedBox(width: 7),
+              Text(situLabel,
+                  style: GoogleFonts.inter(
+                      fontSize: 11, fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.88))),
+            ]),
           ),
         ],
-      ]),
-    );
+      ],
+      if (_retoActivo != null) ...[
+        const SizedBox(height: 6),
+        _globoChip(CupertinoIcons.bolt, _retoActivo!['titulo'] as String? ?? 'Reto activo', _kGold),
+      ],
+    ]);
   }
 
   Widget _globoChip(IconData icon, String texto, Color color) => Container(
@@ -4587,21 +4572,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF5C0000), Color(0xFFCC2222), Color(0xFF8B0000)],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  ),
+                  color: const Color(0xFF1A1A1C),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: const Color(0xFFCC2222).withValues(alpha: 0.4), blurRadius: 12)],
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 12)],
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 8),
-                  Text('CONQUISTAR ${_terrPreviseleccionado!.name.toUpperCase()}',
+                child: Center(
+                  child: Text('CONQUISTAR ${_terrPreviseleccionado!.name.toUpperCase()}',
                       style: GoogleFonts.inter(
-                          color: Colors.white, fontSize: 11,
-                          fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-                ]),
+                          color: Colors.white, fontSize: 14,
+                          fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                ),
               ),
             ),
           ],
@@ -4621,10 +4602,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.15), blurRadius: 16)],
           ),
           child: Row(children: [
-            const Text('⚔️', style: TextStyle(fontSize: 22)),
-            const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('GUERRA GLOBAL', style: GoogleFonts.cinzel(color: _kGoldLight,
+              Text('GUERRA GLOBAL', style: GoogleFonts.inter(color: _kGoldLight,
                   fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
               const SizedBox(height: 2),
               Text(_objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio',
@@ -4649,31 +4628,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             animation: _pulsoAnim,
             builder: (_, child) => Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF5C0000), Color(0xFFCC2222), Color(0xFF8B0000)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(22),
+                color: const Color(0xFF1A1A1C),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: _p.globalRed.withValues(alpha: 0.35 + _pulso.value * 0.2),
-                    width: 1.5),
+                    color: Colors.white.withValues(alpha: 0.12 + _pulso.value * 0.06),
+                    width: 1),
                 boxShadow: [
-                  BoxShadow(color: _p.globalRed.withValues(alpha: 0.12 + _pulso.value * 0.28),
-                      blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 12),
                 ],
               ),
               child: child,
             ),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Text('⚔️', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 14),
-              Text('INICIAR CONQUISTA',
-                  style: GoogleFonts.cinzel(fontSize: 16, color: Colors.white,
-                      fontWeight: FontWeight.w900, letterSpacing: 2.5)),
-            ]),
+            child: Center(
+              child: Text('INICIAR CONQUISTA',
+                  style: GoogleFonts.inter(fontSize: 14, color: Colors.white,
+                      fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -4705,7 +4677,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _modeSegment(
               label: 'Competitivo',
               active: isCompetitivo,
-              activeColor: _kBlue,
+              activeColor: const Color(0xFF4A7A9B),
               onTap: () async {
                 setState(() => _modoSolitario = false);
                 TerritoryService.invalidarCache();
@@ -4721,7 +4693,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _modeSegment(
               label: 'Solitario',
               active: _modoSolitario,
-              activeColor: _kVerde,
+              activeColor: const Color(0xFF4A7A5A),
               onTap: () async {
                 setState(() => _modoSolitario = true);
                 TerritoryService.invalidarCache();
@@ -4737,7 +4709,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _modeSegment(
               label: 'Global',
               active: isGlobal,
-              activeColor: const Color(0xFFFF453A),
+              activeColor: const Color(0xFF7A3A3A),
               onTap: _elegirTerritorioGlobal,
             ),
           ]),
@@ -4755,37 +4727,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 20),
             decoration: BoxDecoration(
-              gradient: _modoSolitario
-                  ? LinearGradient(colors: [
-                      const Color(0xFF1A4A1A),
-                      _kVerde.withValues(alpha: 0.8),
-                      const Color(0xFF2A6A2A),
-                    ], begin: Alignment.topLeft, end: Alignment.bottomRight)
-                  : LinearGradient(colors: [
-                      const Color(0xFF8B0000),
-                      const Color(0xFFE02020),
-                      const Color(0xFFC0392B),
-                    ], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(22),
+              color: const Color(0xFF1A1A1C),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
-                      .withValues(alpha: 0.35 + _pulso.value * 0.2),
-                  width: 1.5),
+                  color: Colors.white.withValues(alpha: 0.12 + _pulso.value * 0.06),
+                  width: 1),
               boxShadow: [
-                BoxShadow(
-                    color: (_modoSolitario ? _kVerde : const Color(0xFFE02020))
-                        .withValues(alpha: 0.12 + _pulso.value * 0.28),
-                    blurRadius: 24, spreadRadius: 2, offset: const Offset(0, 5)),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 12),
               ],
             ),
             child: child,
           ),
           child: Center(
-            child: Text(_modoSolitario ? 'CORRER' : 'CORRER',
-                style: GoogleFonts.inter(fontSize: 16,
+            child: Text('CORRER',
+                style: GoogleFonts.inter(fontSize: 15,
                     color: Colors.white,
-                    fontWeight: FontWeight.w900, letterSpacing: 2.5)),
+                    fontWeight: FontWeight.w700, letterSpacing: 2.0)),
           ),
         ),
       ),
