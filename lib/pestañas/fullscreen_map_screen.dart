@@ -2101,7 +2101,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               TileLayer(
                 urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
-                tileDimension: 512,
+                tileDimension: 256,
               ),
 
               // Polígonos de barrios OSM
@@ -2148,26 +2148,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               // Marcador de posición del usuario
               MarkerLayer(markers: [
                 Marker(
-                  point: _state.centro, width: 40, height: 40,
+                  point: _state.centro, width: 22, height: 22,
                   child: Container(
-                    width: 40, height: 40,
+                    width: 22, height: 22,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _kRed.withValues(alpha: 0.12),
-                      border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 22, height: 22,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border: Border.all(color: _kRed, width: 2.5),
-                          boxShadow: [BoxShadow(
-                              color: _kRed.withValues(alpha: 0.55),
-                              blurRadius: 10, spreadRadius: 1)],
-                        ),
-                      ),
+                      color: Colors.white,
+                      border: Border.all(color: _kRed, width: 2),
+                      boxShadow: [BoxShadow(
+                          color: _kRed.withValues(alpha: 0.50),
+                          blurRadius: 8, spreadRadius: 1)],
                     ),
                   ),
                 ),
@@ -2277,7 +2267,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         TileLayer(
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
-            tileDimension: 512),
+            tileDimension: 256),
 
         // Glow exterior solo para territorios propios (renderizar primero)
         if (territorios.any((t) => t.esMio))
@@ -2486,7 +2476,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           TileLayer(
               urlTemplate: _kMapboxDarkUrl,
               userAgentPackageName: 'com.runner_risk.app',
-              tileDimension: 512),
+              tileDimension: 256),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -4658,7 +4648,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           urlTemplate: _kMapboxUrl,
                           userAgentPackageName:
                               'com.runner_risk.app',
-                          tileDimension: 512),
+                          tileDimension: 256),
                       PolygonLayer(polygons: [
                         Polygon(
                             points: det.puntos,

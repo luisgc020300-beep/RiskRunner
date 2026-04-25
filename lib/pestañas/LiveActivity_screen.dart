@@ -1316,7 +1316,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .setStyleLayerProperty('sky-layer', 'sky-opacity', 1.0);
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              'sky-layer', 'sky-stars-intensity', 1.95);
+              'sky-layer', 'sky-stars-intensity', 0.0);
         } catch (_) {}
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
@@ -4470,39 +4470,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _actualizarGlobalesEnGlobo(visible: false);
   }
 
-  // ==========================================================================
-  // RESUMEN RÁPIDO — estado actual antes de correr
-  // ==========================================================================
-  Widget _buildResumenRapido() {
-    final miZonas    = _territorios.where((t) => t.esMio).length;
-    final activos    = _jugadoresActivos.length;
-    final invasiones = _territoriosNotificadosEnSesion.length;
-    return Row(children: [
-      _resumenChip(Icons.flag_rounded,   '$miZonas zonas', const Color(0xFFFFD60A)),
-      const SizedBox(width: 8),
-      _resumenChip(Icons.people_rounded, '$activos activos', const Color(0xFF5BA3A0)),
-      if (invasiones > 0) ...[
-        const SizedBox(width: 8),
-        _resumenChip(Icons.warning_rounded, '$invasiones invasión', const Color(0xFFFF453A)),
-      ],
-    ]);
-  }
-
-  Widget _resumenChip(IconData icon, String label, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: color.withValues(alpha: 0.30)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: color),
-      const SizedBox(width: 5),
-      Text(label, style: GoogleFonts.inter(
-          color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-    ]),
-  );
-
   Widget _buildSelectorModo() {
     // ── Selección de territorio global en el globo ──────────────────────────
     if (_seleccionandoGlobal) {
@@ -4715,8 +4682,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final bool isGlobal      = _objetivoGlobal != null;
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      _buildResumenRapido(),
-      const SizedBox(height: 10),
       Container(
         margin: const EdgeInsets.only(bottom: 14),
         height: 44,
