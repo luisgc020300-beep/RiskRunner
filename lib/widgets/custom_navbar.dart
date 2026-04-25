@@ -256,7 +256,7 @@ class _NavbarContent extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 58,
+          height: 46,
           child: Row(children: [
             _NavItem(
               icon:     Icons.home_rounded,

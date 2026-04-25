@@ -3485,10 +3485,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ),
         if (isTracking && !isPaused) _buildAvatarOverlay(),
         if (isTracking)
-          Align(
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
             alignment: isPaused
                 ? const Alignment(0, -0.1)
-                : const Alignment(0, -0.78),
+                : (_hudMinimizado
+                    ? const Alignment(0, -0.78)
+                    : const Alignment(0, -0.50)),
             child: _buildTimerGrande(),
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
@@ -3504,11 +3508,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             left: 0, right: 0,
             child: Center(child: _buildChipRetoActivo()),
           ),
-        if (_objetivoGlobal != null && !_globalConquistado)
+        if (_objetivoGlobal != null && !_globalConquistado && isTracking)
           Positioned(
-            top: isTracking
-                ? (_retoActivo != null ? 260 : 160)
-                : 120,
+            top: _retoActivo != null ? 260 : 160,
             left: 0, right: 0,
             child: Center(child: _buildChipObjetivoGlobal()),
           ),
@@ -3991,7 +3993,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _buildHUD() {
     if (!isTracking) return const SizedBox.shrink();
     if (_hudMinimizado && !isPaused) return _buildHUDMini();
-    return FadeTransition(
+    return GestureDetector(
+      onTap: () => setState(() => _hudMinimizado = true),
+      child: FadeTransition(
       opacity: _hudFade,
       child: AnimatedBuilder(
         animation: _pulsoAnim,
@@ -4037,6 +4041,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -4240,53 +4245,52 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _buildCuentaAtras() => Positioned.fill(
         child: IgnorePointer(
           child: Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center, radius: 0.85,
-                colors: [
-                  _p.parchment.withValues(alpha: 0.65),
-                  Colors.black.withValues(alpha: 0.60),
-                ],
-              ),
-            ),
+            color: Colors.black.withValues(alpha: 0.55),
             child: Center(
               child: ScaleTransition(
                 scale: _cuentaAtrasScale,
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text(
-                    _cuentaAtras > 0
-                        ? '$_cuentaAtras'
-                        : (_modoSolitario ? '🗺️'
-                            : _objetivoGlobal != null ? '⚔️' : '⚔️'),
-                    style: GoogleFonts.cinzel(fontSize: 96,
-                        fontWeight: FontWeight.w900, color: Colors.white,
+                  if (_cuentaAtras > 0) ...[
+                    Text(
+                      '$_cuentaAtras',
+                      style: GoogleFonts.inter(
+                        fontSize: 120,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -4,
                         shadows: [
-                          const Shadow(blurRadius: 35, color: _kGold),
-                          Shadow(blurRadius: 70, color: _p.terracotta),
+                          Shadow(
+                              blurRadius: 40,
+                              color: _kGold.withValues(alpha: 0.6)),
                           const Shadow(blurRadius: 6, color: Colors.black),
-                        ]),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _p.parchment.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _p.goldDim),
-                      boxShadow: [BoxShadow(
-                          color: _kGold.withValues(alpha: 0.2), blurRadius: 14)],
+                        ],
+                      ),
                     ),
-                    child: Text(
-                      _cuentaAtras > 0
-                          ? 'PREPÁRATE'
-                          : (_modoSolitario ? '¡A EXPLORAR!'
-                              : _objetivoGlobal != null
-                                  ? '¡A CONQUISTAR EL MUNDO!'
-                                  : '¡A CONQUISTAR!'),
-                      style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 13,
-                          fontWeight: FontWeight.w700, letterSpacing: 3.5),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(3, (i) {
+                        final active = i < _cuentaAtras;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: active ? 28 : 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: active
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        );
+                      }),
                     ),
-                  ),
+                  ] else
+                    Text(
+                      _modoSolitario ? '🗺️'
+                          : _objetivoGlobal != null ? '⚔️' : '⚔️',
+                      style: const TextStyle(fontSize: 80),
+                    ),
                 ]),
               ),
             ),
@@ -4303,8 +4307,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter, end: Alignment.topCenter,
                 colors: [
-                  (isTracking ? _p.parchment : _kUniverseBg).withValues(alpha: 0.97),
-                  (isTracking ? _p.parchment : _kUniverseBg).withValues(alpha: 0.80),
+                  isTracking
+                      ? Colors.black.withValues(alpha: 0.72)
+                      : _kUniverseBg.withValues(alpha: 0.97),
+                  isTracking
+                      ? Colors.black.withValues(alpha: 0.35)
+                      : _kUniverseBg.withValues(alpha: 0.80),
                   Colors.transparent,
                 ],
                 stops: const [0.0, 0.55, 1.0],
@@ -4664,57 +4672,54 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final bool isGlobal      = _objetivoGlobal != null;
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        height: 44,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.30),
-          borderRadius: BorderRadius.circular(11),
+      Row(children: [
+        _modeButton(
+          icon: CupertinoIcons.person_2_fill,
+          label: 'Competitivo',
+          active: isCompetitivo,
+          activeColor: const Color(0xFF4A7A9B),
+          onTap: () async {
+            HapticFeedback.selectionClick();
+            setState(() { _modoSolitario = false; _objetivoGlobal = null; });
+            TerritoryService.invalidarCache();
+            final centro = _currentPosition != null
+                ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                : null;
+            final lista = await TerritoryService.cargarTodosLosTerritorios(
+                centro: centro, modo: 'competitivo');
+            if (mounted) setState(() => _territorios = lista);
+            _aplicarTerritoriosFantasma();
+          },
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Row(children: [
-            _modeSegment(
-              label: 'Competitivo',
-              active: isCompetitivo,
-              activeColor: const Color(0xFF4A7A9B),
-              onTap: () async {
-                setState(() => _modoSolitario = false);
-                TerritoryService.invalidarCache();
-                final centro = _currentPosition != null
-                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-                    : null;
-                final lista = await TerritoryService.cargarTodosLosTerritorios(
-                    centro: centro, modo: 'competitivo');
-                if (mounted) setState(() => _territorios = lista);
-                _aplicarTerritoriosFantasma();
-              },
-            ),
-            _modeSegment(
-              label: 'Solitario',
-              active: _modoSolitario,
-              activeColor: const Color(0xFF4A7A5A),
-              onTap: () async {
-                setState(() => _modoSolitario = true);
-                TerritoryService.invalidarCache();
-                final centro = _currentPosition != null
-                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-                    : null;
-                final lista = await TerritoryService.cargarTodosLosTerritorios(
-                    centro: centro, modo: 'solitario');
-                if (mounted) setState(() => _territorios = lista);
-                _dibujarTerritoriosEnMapa();
-              },
-            ),
-            _modeSegment(
-              label: 'Global',
-              active: isGlobal,
-              activeColor: const Color(0xFF7A3A3A),
-              onTap: _elegirTerritorioGlobal,
-            ),
-          ]),
+        const SizedBox(width: 10),
+        _modeButton(
+          icon: CupertinoIcons.person_fill,
+          label: 'Solitario',
+          active: _modoSolitario,
+          activeColor: const Color(0xFF4A7A5A),
+          onTap: () async {
+            HapticFeedback.selectionClick();
+            setState(() { _modoSolitario = true; _objetivoGlobal = null; });
+            TerritoryService.invalidarCache();
+            final centro = _currentPosition != null
+                ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                : null;
+            final lista = await TerritoryService.cargarTodosLosTerritorios(
+                centro: centro, modo: 'solitario');
+            if (mounted) setState(() => _territorios = lista);
+            _dibujarTerritoriosEnMapa();
+          },
         ),
-      ),
+        const SizedBox(width: 10),
+        _modeButton(
+          icon: CupertinoIcons.globe,
+          label: 'Global',
+          active: isGlobal,
+          activeColor: const Color(0xFF7A3A3A),
+          onTap: _elegirTerritorioGlobal,
+        ),
+      ]),
+      const SizedBox(height: 14),
       if (SubscriptionService.estilosMapaActivos) ...[
         _buildSelectorEstiloMapa(),
         const SizedBox(height: 14),
@@ -4749,7 +4754,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ]);
   }
 
-  Widget _modeSegment({
+  Widget _modeButton({
+    required IconData icon,
     required String label,
     required bool active,
     required Color activeColor,
@@ -4759,28 +4765,41 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: GestureDetector(
           onTap: onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.symmetric(vertical: 13),
             decoration: BoxDecoration(
               color: active
-                  ? activeColor.withValues(alpha: 0.18)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: active
-                  ? Border.all(
-                      color: activeColor.withValues(alpha: 0.35), width: 1)
+                  ? activeColor.withValues(alpha: 0.22)
+                  : Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: active
+                    ? activeColor.withValues(alpha: 0.55)
+                    : Colors.white.withValues(alpha: 0.10),
+                width: active ? 1.5 : 1.0,
+              ),
+              boxShadow: active
+                  ? [BoxShadow(
+                      color: activeColor.withValues(alpha: 0.20),
+                      blurRadius: 12, spreadRadius: 0)]
                   : null,
             ),
-            child: Center(
-              child: Text(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon,
+                size: 18,
+                color: active ? Colors.white : Colors.white.withValues(alpha: 0.40),
+              ),
+              const SizedBox(height: 5),
+              Text(
                 label,
                 style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight:
-                      active ? FontWeight.w700 : FontWeight.w400,
-                  color: active ? activeColor : _p.goldDim,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                  color: active ? Colors.white : Colors.white.withValues(alpha: 0.40),
+                  letterSpacing: 0.3,
                 ),
               ),
-            ),
+            ]),
           ),
         ),
       );
