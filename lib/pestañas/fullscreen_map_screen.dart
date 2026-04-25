@@ -18,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../services/territory_service.dart';
+import '../services/activity_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../config/env.dart';
 
@@ -747,6 +748,8 @@ class _MapState extends ChangeNotifier {
 // =============================================================================
 // PANTALLA PRINCIPAL
 // =============================================================================
+enum _FiltroMapa { todos, mios, enGuerra }
+
 class FullscreenMapScreen extends StatefulWidget {
   final List<TerritoryData> territorios;
   final Color colorTerritorio;
@@ -825,6 +828,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
 
+  // ── Filtro de mapa + actividad ────────────────────────────────────────────
+  _FiltroMapa _filtroActivo = _FiltroMapa.todos;
+  Future<List<ActivityEntry>>? _feedFuture;
+  final Map<String, List<Map<String, dynamic>>> _historialCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -855,6 +863,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
     _initData();
+    _feedFuture = ActivityService.obtenerFeedReciente();
 
     // Si se abre en modo selección, pasar directamente a vista global
     if (widget.selectionMode) {
@@ -2073,7 +2082,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return ListenableBuilder(
       listenable: _state,
       builder: (_, __) {
-        final territorios = _state.territorios;
+        final territorios = _filteredTerritorios(_state.territorios);
         return Stack(children: [
           FlutterMap(
             mapController: _mapController,
@@ -2238,7 +2247,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Widget _buildMapaCiudad(bool tieneRuta) {
-    final territorios  = _state.territorios;
+    final territorios  = _filteredTerritorios(_state.territorios);
     final seleccionado = _state.territorioSeleccionado;
 
     return FlutterMap(
@@ -3109,7 +3118,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       ),
                     ),
                   ]),
-                  // FIX: días sin visitar (solo para territorios rivales)
+                  // Días sin visitar (solo rivales)
                   if (!t.esMio) ...[
                     const SizedBox(height: 6),
                     Row(children: [
@@ -3137,6 +3146,45 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ],
               ),
             ),
+
+            // ── Stats extra: dominio + velocidad + rey ─────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Row(children: [
+                if (t.fechaDesdeDueno != null)
+                  _miniStat(
+                    Icons.calendar_today_rounded,
+                    '${DateTime.now().difference(t.fechaDesdeDueno!).inDays}d',
+                    'DOMINIO',
+                  ),
+                if (t.fechaDesdeDueno != null) const SizedBox(width: 14),
+                _miniStat(
+                  Icons.speed_rounded,
+                  '${t.velocidadConquistaKmh.toStringAsFixed(1)} km/h',
+                  'VELOCIDAD',
+                ),
+                const Spacer(),
+                if (t.tieneRey)
+                  _miniStat(
+                    Icons.military_tech_rounded,
+                    t.reyNickname ?? 'Rey',
+                    'REY',
+                    color: _kGold,
+                  ),
+              ]),
+            ),
+
+            // ── Historial de conquistas ────────────────────────────────────
+            if (!t.esFantasma)
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                decoration: BoxDecoration(
+                  color: _shSurf,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: _buildCardHistorial(t.docId),
+              ),
+
           ]),
         ),
       ),
@@ -3376,6 +3424,243 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   // SHEET MI CIUDAD
   // ==========================================================================
+  // ==========================================================================
+  // FILTRO DE MAPA
+  // ==========================================================================
+  List<TerritoryData> _filteredTerritorios(List<TerritoryData> all) {
+    switch (_filtroActivo) {
+      case _FiltroMapa.mios:     return all.where((t) => t.esMio).toList();
+      case _FiltroMapa.enGuerra: return all.where((t) => t.estadoHp == EstadoHp.critico).toList();
+      case _FiltroMapa.todos:    return all;
+    }
+  }
+
+  Widget _buildFiltroChips() {
+    return SizedBox(
+      height: 30,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _filtroChip('Todos',    _FiltroMapa.todos,    Icons.layers_rounded),
+          const SizedBox(width: 6),
+          _filtroChip('Míos',     _FiltroMapa.mios,     Icons.shield_rounded),
+          const SizedBox(width: 6),
+          _filtroChip('En guerra',_FiltroMapa.enGuerra, Icons.whatshot_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _filtroChip(String label, _FiltroMapa filtro, IconData icon) {
+    final activo = _filtroActivo == filtro;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _filtroActivo = filtro);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color:   activo ? _kRed.withValues(alpha: 0.10) : _shSurf,
+          border:  Border.all(
+              color: activo ? _kRed.withValues(alpha: 0.45) : _shBorder),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 11,
+              color: activo ? _kRed : _kSub),
+          const SizedBox(width: 4),
+          Text(label,
+              style: _raj(10,
+                  activo ? FontWeight.w800 : FontWeight.w600,
+                  activo ? _kRed : _kSub,
+                  spacing: 0.3)),
+        ]),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // FEED DE ACTIVIDAD RECIENTE
+  // ==========================================================================
+  Widget _buildFeedActividad() {
+    return FutureBuilder<List<ActivityEntry>>(
+      future: _feedFuture,
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.5, color: _kSub),
+              ),
+            ),
+          );
+        }
+        final entries = snap.data ?? [];
+        if (entries.isEmpty) return const SizedBox(height: 12);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(children: [
+                Container(width: 3, height: 11, color: _kSub,
+                    margin: const EdgeInsets.only(right: 7)),
+                Text('ACTIVIDAD RECIENTE',
+                    style: _raj(9, FontWeight.w800, _kSub, spacing: 2.0)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _feedFuture = ActivityService.obtenerFeedReciente();
+                  }),
+                  child: Icon(Icons.refresh_rounded, size: 14, color: _kSub),
+                ),
+              ]),
+            ),
+            ...entries.map(_buildFeedItem),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFeedItem(ActivityEntry e) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
+      child: Row(children: [
+        Container(
+          width: 6, height: 6,
+          margin: const EdgeInsets.only(right: 8, top: 1),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: e.color),
+        ),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: _raj(11, FontWeight.w500, _shText),
+              children: [
+                TextSpan(text: '@${e.userNick} ',
+                    style: _raj(11, FontWeight.w800, _shText)),
+                const TextSpan(text: 'conquistó '),
+                TextSpan(text: e.territoryName,
+                    style: _raj(11, FontWeight.w700, e.color)),
+                if (e.previousOwnerNick != null)
+                  TextSpan(text: ' · era @${e.previousOwnerNick}',
+                      style: _raj(10, FontWeight.w500, _kSub)),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(e.timeAgo, style: _raj(9, FontWeight.w500, _kSub)),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // HISTORIAL DE CONQUISTAS (tarjeta de territorio)
+  // ==========================================================================
+  Widget _buildCardHistorial(String docId) {
+    final cached = _historialCache[docId];
+    if (cached != null) return _historialContent(cached);
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: ActivityService.obtenerHistorialTerritorio(docId),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Center(
+              child: SizedBox(
+                  width: 12, height: 12,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.2, color: _kSub)),
+            ),
+          );
+        }
+        final entries = snap.data ?? [];
+        if (entries.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_historialCache.containsKey(docId)) {
+              setState(() => _historialCache[docId] = entries);
+            }
+          });
+        }
+        return _historialContent(entries);
+      },
+    );
+  }
+
+  Widget _historialContent(List<Map<String, dynamic>> entries) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 5),
+          child: Row(children: [
+            Container(width: 2, height: 9, color: _kSub,
+                margin: const EdgeInsets.only(right: 6)),
+            Text('HISTORIAL', style: _raj(8, FontWeight.w800, _kSub, spacing: 1.5)),
+          ]),
+        ),
+        ...entries.take(3).map((e) {
+          final nick   = e['ownerNickname'] as String? ?? '?';
+          final prev   = e['previousOwner'] as String?;
+          final colorV = (e['ownerColor'] as num?)?.toInt();
+          final color  = colorV != null ? Color(colorV) : _kSub;
+          final ts     = (e['conquista_ts'] as Timestamp?)?.toDate();
+          final ago    = ts != null ? _timeAgoStr(ts) : '';
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 2),
+            child: Row(children: [
+              Container(width: 5, height: 5, margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+              Text('@$nick', style: _raj(9, FontWeight.w700, _shText)),
+              if (prev != null)
+                Text(' ← @$prev', style: _raj(9, FontWeight.w500, _kSub)),
+              const Spacer(),
+              Text(ago, style: _raj(9, FontWeight.w500, _kSub)),
+            ]),
+          );
+        }),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  String _timeAgoStr(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min';
+    if (diff.inHours   < 24) return '${diff.inHours}h';
+    return '${diff.inDays}d';
+  }
+
+  // ==========================================================================
+  // MINI STAT — para tarjeta de territorio
+  // ==========================================================================
+  Widget _miniStat(IconData icon, String value, String label, {Color? color}) {
+    final c = color ?? _kSub;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 9, color: c),
+          const SizedBox(width: 3),
+          Text(value, style: _raj(9, FontWeight.w800, _shText)),
+        ]),
+        Text(label, style: _raj(7, FontWeight.w700, c, spacing: 0.8)),
+      ],
+    );
+  }
+
   Widget _buildSheet(ScrollController scrollCtrl, int mios, int det, int pel) {
     return Container(
       decoration: BoxDecoration(
@@ -3402,11 +3687,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: _buildBannerDesafio(_state.desafioActivo!),
             ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildFiltroChips(),
+          ),
           _buildStatsRow(mios, det, pel),
           if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
           _buildBotonCercanos(),
           if (_state.cercanosVisible) _buildPanelCercanos(),
-          const SizedBox(height: 24),
+          _buildFeedActividad(),
         ],
       ),
     );

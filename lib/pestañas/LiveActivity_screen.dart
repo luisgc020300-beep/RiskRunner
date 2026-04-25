@@ -29,6 +29,7 @@ import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
 import '../services/onboarding_service.dart';
+import '../services/activity_service.dart';
 
 // =============================================================================
 // PALETA
@@ -902,19 +903,30 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     required String territoryName,
     required String territoryId,
     required String mode,
+    String? previousOwnerNick,
+    int fromColorValue = 0xFFCC2222,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
       await FirebaseFirestore.instance.collection('activity_feed').add({
-        'userId':        uid,
-        'userNick':      _miNickname,
-        'territoryId':   territoryId,
-        'territoryName': territoryName,
-        'action':        'conquest',
-        'mode':          mode,
-        'timestamp':     FieldValue.serverTimestamp(),
+        'userId':             uid,
+        'userNick':           _miNickname,
+        'territoryId':        territoryId,
+        'territoryName':      territoryName,
+        'action':             'conquest',
+        'mode':               mode,
+        'previousOwnerNick':  previousOwnerNick,
+        'fromColor':          fromColorValue,
+        'timestamp':          FieldValue.serverTimestamp(),
       });
+      // Escribe historial del territorio e incrementa conquistas_count
+      await ActivityService.escribirHistorialConquista(
+        territoryId:       territoryId,
+        ownerNickname:     _miNickname,
+        ownerColorValue:   fromColorValue,
+        previousOwnerNick: previousOwnerNick,
+      );
     } catch (e) {
       debugPrint('activity_feed write error: $e');
     }
@@ -2809,9 +2821,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               _narrador.eventoConquista(t.ownerNickname);
               if (accion == 'conquista_total') {
                 _escribirActivityFeed(
-                  territoryName: t.nombreTerritorio ?? t.ownerNickname,
-                  territoryId:   t.docId,
-                  mode:          _modoSolitario ? 'solitario' : 'competitivo',
+                  territoryName:     t.nombreTerritorio ?? t.ownerNickname,
+                  territoryId:       t.docId,
+                  mode:              _modoSolitario ? 'solitario' : 'competitivo',
+                  previousOwnerNick: t.ownerNickname,
+                  fromColorValue:    t.color.toARGB32(),
                 );
               }
               final nuevos = await TerritoryService.cargarTodosLosTerritorios(
@@ -3820,7 +3834,72 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ),
       ),
+      // Panel de situación en reposo
+      if (!isTracking && !_seleccionandoGlobal)
+        Positioned(
+          bottom: 200, left: 24, right: 24,
+          child: IgnorePointer(
+            child: _buildPanelReposo(),
+          ),
+        ),
     ]);
+  }
+
+  Widget _buildPanelReposo() {
+    final miasCount     = _territorios.where((t) => t.esMio).length;
+    final amenazaCount  = _territorios.where((t) => t.esMio && t.estadoHp == EstadoHp.critico).length;
+
+    String statusLabel;
+    Color  statusColor;
+    IconData statusIcon;
+
+    if (miasCount == 0) {
+      statusLabel = 'Sin zonas — sal a conquistar';
+      statusColor = _kGoldLight;
+      statusIcon  = CupertinoIcons.location_circle;
+    } else if (amenazaCount > 0) {
+      statusLabel = '$amenazaCount zona${amenazaCount > 1 ? 's' : ''} bajo amenaza';
+      statusColor = _p.terracotta;
+      statusIcon  = CupertinoIcons.shield_slash;
+    } else {
+      statusLabel = 'Todo bajo control';
+      statusColor = const Color(0xFF30D158);
+      statusIcon  = CupertinoIcons.checkmark_shield;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.52),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(children: [
+        Icon(statusIcon, size: 14, color: statusColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            statusLabel,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+        ),
+        if (miasCount > 0) ...[
+          const SizedBox(width: 8),
+          Text(
+            '$miasCount terr.',
+            style: GoogleFonts.orbitron(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: _kGold,
+            ),
+          ),
+        ],
+      ]),
+    );
   }
 
   Widget _globoChip(IconData icon, String texto, Color color) => Container(
