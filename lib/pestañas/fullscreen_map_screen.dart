@@ -56,7 +56,6 @@ const _kRedDim   = Color(0xFF8B2020);
 const _kGold     = Color(0xFFFFD60A);
 const _kGoldDim  = Color(0xFFAEAEB2);
 const _kGoldLight = Color(0xFFFFD60A);
-const _kPurple   = Color(0xFF636366);
 const _kCyan     = Color(0xFF636366);
 const _kBlue     = Color.fromARGB(255, 16, 154, 235);
 
@@ -73,11 +72,7 @@ TextStyle _cinzel(double size, FontWeight weight, Color color,
         fontSize: size, fontWeight: weight, color: color,
         letterSpacing: spacing);
 
-TextStyle _orbitron(double size, FontWeight weight, Color color,
-    {double spacing = 0}) =>
-    GoogleFonts.orbitron(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing);
+
 
 // =============================================================================
 // MODELO BARRIO (modo solitario)
@@ -377,7 +372,7 @@ class _MapDataService {
         .where('userId', isEqualTo: ownerId).get();
     final List<_TerDet> dets = [];
     for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       final rawPts = data['puntos'] as List<dynamic>?;
       List<LatLng> pts = [];
       double dist = 0;
@@ -1302,7 +1297,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 sub: t.conquestCount > 0 ? '×1.15 por conquista' : null,
               ),
               const SizedBox(width: 10),
-              _globalStatCard('RECOMPENSA', '+${t.rewardActual} 🪙',
+              _globalStatCard('RECOMPENSA', '+${t.rewardActual}',
                   _kGold, Icons.monetization_on_rounded),
             ]),
           ),
@@ -1339,7 +1334,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.only(right: 14),
-                    child: Text('⚔️ INVADIR',
+                    child: Text('INVADIR',
                         style: _raj(10, FontWeight.w900, _kRed)),
                   ),
                 ]),
@@ -1503,11 +1498,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     try {
       await TerritoryService.conquistarTerritorio(
         docId: det.docId, duenoAnteriorId: det.ownerId,
-        latUsuario: pos!.latitude, lngUsuario: pos.longitude,
+        latUsuario: pos.latitude, lngUsuario: pos.longitude,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-      _mostrarExito('⚔️ ¡Territorio conquistado!');
+      _mostrarExito('¡Territorio conquistado!');
       HapticFeedback.heavyImpact();
       Navigator.of(context).pop();
       await _refrescarTerritorios();
@@ -1892,7 +1887,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       : null,
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('🗺️', style: const TextStyle(fontSize: 11)),
+                  Icon(Icons.explore_rounded,
+                      size: 12, color: isSolitario ? _kSafe : _kSub),
                   const SizedBox(width: 5),
                   Text('SOLITARIO',
                       style: _raj(9, FontWeight.w900,
@@ -1923,7 +1919,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       : null,
                 ),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Text('⚔️', style: TextStyle(fontSize: 11)),
+                  Icon(Icons.public_rounded,
+                      size: 12, color: isGlobal ? _kGoldLight : _kSub),
                   const SizedBox(width: 5),
                   Text('GLOBAL',
                       style: _raj(9, FontWeight.w900,
@@ -2632,8 +2629,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                         color: _kGold.withValues(alpha: 0.6),
                                         blurRadius: 6)],
                                   ),
-                                  child: const Text('👑',
-                                      style: TextStyle(fontSize: 7)),
+                                  child: const Icon(Icons.stars_rounded,
+                                      size: 9, color: Colors.white),
                                 ),
                               ),
                           ],
@@ -2712,8 +2709,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                           color: _kGold.withValues(alpha: 0.6),
                                           blurRadius: 6)],
                                     ),
-                                    child: const Text('👑',
-                                        style: TextStyle(fontSize: 8)),
+                                    child: const Icon(Icons.stars_rounded,
+                                        size: 10, color: Colors.white),
                                   ),
                                 ),
                             ],
@@ -2973,15 +2970,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Widget _buildTerritoryCard(TerritoryData t) {
     String estadoLabel = 'ACTIVO';
     Color cEstado = _kSafe;
-    String estadoEmoji = '✅';
+    IconData estadoIcon = Icons.check_circle_rounded;
     if (t.estadoHp == EstadoHp.critico) {
       estadoLabel = 'CRÍTICO';
       cEstado = _kRed;
-      estadoEmoji = '🔴';
+      estadoIcon = Icons.warning_rounded;
     } else if (t.estadoHp == EstadoHp.danado) {
       estadoLabel = 'DAÑADO';
       cEstado = _kWarn;
-      estadoEmoji = '🟡';
+      estadoIcon = Icons.error_rounded;
     }
 
     final double hpFraction = t.hpActual / kHpMax.toDouble();
@@ -3050,18 +3047,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               child: Row(children: [
-                _cardStat(estadoEmoji, estadoLabel, cEstado),
+                _cardStat(estadoIcon, estadoLabel, cEstado),
                 _vDiv(),
-                _cardStat('🏴', '${t.puntos.length} PTS', _shText),
+                _cardStat(Icons.flag_rounded, '${t.puntos.length} PTS', _shText),
                 _vDiv(),
                 t.esMio
-                    ? _cardStat('⚔️', 'DEFENDER', _kGold)
+                    ? _cardStat(Icons.shield_rounded, 'DEFENDER', _kGold)
                     : GestureDetector(
                         onTap: () {
                           _cerrarSeleccion();
                           _mapController.move(t.centro, 16);
                         },
-                        child: _cardStat('👁', 'OBSERVAR', _kSub),
+                        child: _cardStat(Icons.visibility_rounded, 'OBSERVAR', _kSub),
                       ),
               ]),
             ),
@@ -3130,7 +3127,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       Icon(Icons.schedule_rounded, color: _kSub, size: 11),
                       const SizedBox(width: 4),
                       Text(
-                        'Sin visitar: ${t.diasSinVisitar ?? 0} día${(t.diasSinVisitar ?? 0) == 1 ? '' : 's'}',
+                        'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
                         style: _raj(9, FontWeight.w600, _kSub),
                       ),
                       if (t.esConquistableSinPasar) ...[
@@ -3142,7 +3139,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                             border: Border.all(color: _kRed.withValues(alpha: 0.5)),
                             borderRadius: BorderRadius.circular(3),
                           ),
-                          child: Text('⚔️ CONQUISTABLE',
+                          child: Text('CONQUISTABLE',
                               style: _raj(8, FontWeight.w900, _kRed)),
                         ),
                       ],
@@ -3318,18 +3315,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                   child: Row(children: [
                     _cardStat(
-                      '🏃',
+                      Icons.directions_run_rounded,
                       '${t.kmRequired.toStringAsFixed(1)} km',
                       _kCyan,
                     ),
                     _vDiv(),
-                    _cardStat('🪙', '+${t.rewardActual}', _kGold),
+                    _cardStat(Icons.monetization_on_rounded, '+${t.rewardActual}', _kGold),
                     _vDiv(),
                     t.isMine
-                        ? _cardStat('👑', 'TUYO', _kGold)
+                        ? _cardStat(Icons.stars_rounded, 'TUYO', _kGold)
                         : t.isOwned
-                            ? _cardStat('⚔️', 'INVADIR', _kRed)
-                            : _cardStat('🎯', 'LIBRE', _kSafe),
+                            ? _cardStat(Icons.dangerous_rounded, 'INVADIR', _kRed)
+                            : _cardStat(Icons.flag_rounded, 'LIBRE', _kSafe),
                   ]),
                 ),
 
@@ -3392,10 +3389,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       child: Center(
                           child: Text(
                         t.isMine
-                            ? '👑  TERRITORIO CONTROLADO'
-                            // ← clausulaKm real en el botón
-                            : '⚔️  CONQUISTAR · '
-                              '${t.kmRequired.toStringAsFixed(1)} KM',
+                            ? 'TERRITORIO CONTROLADO'
+                            : 'CONQUISTAR · ${t.kmRequired.toStringAsFixed(1)} KM',
                         style: _raj(11, FontWeight.w900,
                             t.isMine ? _kGoldDim : baseColor,
                             spacing: 1),
@@ -3411,10 +3406,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
-  Widget _cardStat(String emoji, String label, Color color) =>
+  Widget _cardStat(IconData icon, String label, Color color) =>
       Expanded(
         child: Column(children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
+          Icon(icon, size: 18, color: color),
           const SizedBox(height: 4),
           Text(label,
               style: _raj(9, FontWeight.w800, color, spacing: 0.5),
@@ -3522,7 +3517,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     border: Border.all(color: _kSub.withValues(alpha: 0.20)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bolt_rounded, size: 11, color: _kSub),
+                    const Icon(Icons.bolt_rounded, size: 11, color: _kSub),
                     const SizedBox(width: 4),
                     Text('ACTIVIDAD RECIENTE',
                         style: _raj(8, FontWeight.w800, _kSub, spacing: 1.5)),
@@ -3540,7 +3535,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: _shBorder),
                     ),
-                    child: Icon(Icons.refresh_rounded, size: 12, color: _kSub),
+                    child: const Icon(Icons.refresh_rounded, size: 12, color: _kSub),
                   ),
                 ),
               ]),
@@ -3571,9 +3566,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               shape: BoxShape.circle,
               border: Border.all(color: e.color.withValues(alpha: 0.30)),
             ),
-            child: Center(child: Text(
-              e.mode == 'solitario' ? '🗺️' : '⚔️',
-              style: const TextStyle(fontSize: 13),
+            child: Center(child: Icon(
+              e.mode == 'solitario'
+                  ? Icons.explore_rounded
+                  : Icons.shield_rounded,
+              size: 14,
+              color: e.color,
             )),
           ),
           const SizedBox(width: 10),
@@ -3791,58 +3789,36 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           padding: EdgeInsets.zero,
           physics: const ClampingScrollPhysics(),
           children: [
-            // Handle con resumen
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-              child: Column(children: [
-                Center(child: Container(
-                  width: 36, height: 3,
-                  decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2)),
-                )),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('MODO EXPLORADOR',
-                        style: _raj(9, FontWeight.w800, _kText, spacing: 2.5)),
-                    const SizedBox(height: 2),
-                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text(
-                        _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
-                        style: _raj(28, FontWeight.w900, _shText, height: 1),
+            _sheetModeHeader(
+              icon: Icons.explore_rounded,
+              modeLabel: 'EXPLORADOR',
+              modeColor: _kSafe,
+              bigValue: _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
+              bigLabel: 'ZONAS CERCANAS',
+              badges: [
+                if (completados > 0)
+                  _quickBadge('$completados', _kSafeDim, Icons.check_circle_rounded),
+                if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
+                if (enProgreso > 0)
+                  _quickBadge('$enProgreso EN CURSO', _kWarnDim, Icons.directions_run_rounded),
+                if (!_cargandoBarrios && _barriosCercanos.isEmpty)
+                  GestureDetector(
+                    onTap: () => _cargarBarriosSolitario(_state.centro),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _kSafe.withValues(alpha: 0.08),
+                        border: Border.all(color: _kSafe.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      const SizedBox(width: 6),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 3),
-                        child: Text('ZONAS', style: _raj(10, FontWeight.w700, _kSub, spacing: 1.5)),
-                      ),
-                    ]),
-                  ]),
-                  const Spacer(),
-                  if (completados > 0)
-                    _quickBadge('$completados ✓', _kSafeDim, Icons.check_circle_rounded),
-                  if (completados > 0 && enProgreso > 0) const SizedBox(width: 6),
-                  if (enProgreso > 0)
-                    _quickBadge('$enProgreso EN CURSO', _kWarnDim, Icons.directions_run_rounded),
-                  // Botón de recarga si no hay barrios cargados o resultados vacíos
-                  if (!_cargandoBarrios && _barriosCercanos.isEmpty)
-                    GestureDetector(
-                      onTap: () => _cargarBarriosSolitario(_state.centro),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _kSafe.withValues(alpha: 0.08),
-                          border: Border.all(color: _kSafe.withValues(alpha: 0.3)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(Icons.download_rounded, color: _kSafe, size: 12),
-                          const SizedBox(width: 4),
-                          Text('CARGAR', style: _raj(9, FontWeight.w800, _kSafe, spacing: 0.5)),
-                        ]),
-                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.download_rounded, color: _kSafe, size: 12),
+                        const SizedBox(width: 4),
+                        Text('CARGAR', style: _raj(9, FontWeight.w800, _kSafe, spacing: 0.5)),
+                      ]),
                     ),
-                ]),
-              ]),
+                  ),
+              ],
             ),
 
             // Stats row
@@ -3850,16 +3826,20 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Row(children: [
-                  _sheetStat('$completados', 'CONQUISTADAS', _kSafeDim),
+                  _sheetStat('$completados', 'CONQUISTADAS', _kSafeDim,
+                      icon: Icons.check_circle_rounded),
                   const SizedBox(width: 8),
-                  _sheetStat('$enProgreso', 'EN PROGRESO', _kWarnDim),
+                  _sheetStat('$enProgreso', 'EN PROGRESO', _kWarnDim,
+                      icon: Icons.directions_run_rounded),
                   const SizedBox(width: 8),
                   _sheetStat(
-                    '${barriosOrdenados.isEmpty ? 0 : (barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}',
-                    '% MEDIO', _kSafeDim,
+                    '${(barriosOrdenados.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / barriosOrdenados.length * 100).toInt()}%',
+                    'COBERTURA', _kSafeDim,
+                    icon: Icons.percent_rounded,
                   ),
                 ]),
               ),
+              _buildSectionDivider('ZONAS CERCANAS', Icons.explore_rounded, _kSafe),
             ],
 
             // Cargando barrios
@@ -4005,20 +3985,34 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         children: [
           _buildGlobalSheetHandle(miosTers.length),
 
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(children: [
+              _sheetStat('${miosTers.length}', 'MÍOS', _kGold,
+                  icon: Icons.shield_rounded),
+              const SizedBox(width: 8),
+              _sheetStat('${libres.length}', 'LIBRES', _kSafe,
+                  icon: Icons.flag_rounded),
+              const SizedBox(width: 8),
+              _sheetStat('${conquistados.length}', 'EN DISPUTA', _kRed,
+                  icon: Icons.dangerous_rounded),
+            ]),
+          ),
+
           if (miosTers.isNotEmpty) ...[
-            _sectionHeader('MIS DOMINIOS', _kGold, '👑'),
+            _buildSectionDivider('MIS DOMINIOS', Icons.shield_rounded, _kGold),
             ...miosTers.map((t) => _globalTerCard(t)),
             const SizedBox(height: 4),
           ],
 
           if (libres.isNotEmpty) ...[
-            _sectionHeader('LIBRES — CONQUÍSTALOS', _kSafe, '🎯'),
+            _buildSectionDivider('DISPONIBLES', Icons.flag_rounded, _kSafe),
             ...libres.map((t) => _globalTerCard(t)),
             const SizedBox(height: 4),
           ],
 
           if (conquistados.isNotEmpty) ...[
-            _sectionHeader('EN DISPUTA', _kRed, '⚔️'),
+            _buildSectionDivider('EN DISPUTA', Icons.dangerous_rounded, _kRed),
             ...conquistados.map((t) => _globalTerCard(t)),
             const SizedBox(height: 4),
           ],
@@ -4029,84 +4023,54 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
-  Widget _buildGlobalSheetHandle(int miosTers) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: Column(children: [
-        Center(child: Container(
-          width: 36, height: 3,
-          decoration: BoxDecoration(color: _kGoldDim,
-              borderRadius: BorderRadius.circular(2)),
-        )),
-        const SizedBox(height: 14),
-        Row(children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('GUERRA GLOBAL',
-                style: _raj(9, FontWeight.w800, _kGoldDim, spacing: 2.5)),
-            const SizedBox(height: 2),
-            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('$miosTers',
-                  style: _orbitron(28, FontWeight.w900, _kGold,
-                      spacing: 0)),
-              const SizedBox(width: 4),
-              Text('/ ${_MapState.maxTerritoriosPorJugador}',
-                  style: _raj(14, FontWeight.w700, _kGoldDim)),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text('TERRITORIOS',
-                    style: _raj(10, FontWeight.w700, _kSub,
-                        spacing: 1.5)),
-              ),
-            ]),
-          ]),
-          const Spacer(),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            _quickBadge('${_state.totalJugadoresGlobal} GUERREROS',
-                _kCyan, Icons.people_rounded),
-            const SizedBox(height: 6),
-            _quickBadge('${_state.diasRestantesSemana}D RESTANTES',
-                _kGold, Icons.timer_rounded),
-          ]),
-        ]),
-
-        const SizedBox(height: 12),
-
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Text('CAPACIDAD DE CONQUISTA',
-                style: _raj(8, FontWeight.w700, _kSub, spacing: 1.5)),
-            const Spacer(),
-            Text('$miosTers/${_MapState.maxTerritoriosPorJugador}',
-                style: _raj(9, FontWeight.w900, _kGold)),
-          ]),
-          const SizedBox(height: 6),
-          Stack(children: [
-            Container(
-                height: 4,
-                decoration: BoxDecoration(
-                    color: _shBorder,
-                    borderRadius: BorderRadius.circular(2))),
-            FractionallySizedBox(
-              widthFactor: (miosTers /
-                      _MapState.maxTerritoriosPorJugador)
-                  .clamp(0.0, 1.0),
-              child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [_kGold, _kGoldLight]),
-                    borderRadius: BorderRadius.circular(2),
-                    boxShadow: [BoxShadow(
-                        color: _kGold.withValues(alpha: 0.4),
-                        blurRadius: 8)],
-                  )),
-            ),
-          ]),
-        ]),
+  Widget _buildGlobalSheetHandle(int miosTers) => _sheetModeHeader(
+    icon: Icons.public_rounded,
+    modeLabel: 'GUERRA GLOBAL',
+    modeColor: _kGold,
+    bigValue: '$miosTers',
+    bigSuffix: '/ ${_MapState.maxTerritoriosPorJugador}',
+    bigLabel: 'DOMINIOS',
+    badges: [
+      _quickBadge('${_state.totalJugadoresGlobal} RIVALES',
+          _kSub, Icons.people_rounded),
+      const SizedBox(width: 6),
+      _quickBadge('${_state.diasRestantesSemana}D',
+          _kGoldDim, Icons.timer_rounded),
+    ],
+    extra: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('CAPACIDAD DE CONQUISTA',
+            style: _raj(8, FontWeight.w700, _kSub, spacing: 1.5)),
+        const Spacer(),
+        Text('$miosTers/${_MapState.maxTerritoriosPorJugador}',
+            style: _raj(9, FontWeight.w900, _kGold)),
       ]),
-    );
-  }
+      const SizedBox(height: 6),
+      Stack(children: [
+        Container(
+            height: 4,
+            decoration: BoxDecoration(
+                color: _shBorder,
+                borderRadius: BorderRadius.circular(2))),
+        FractionallySizedBox(
+          widthFactor:
+              (miosTers / _MapState.maxTerritoriosPorJugador).clamp(0.0, 1.0),
+          child: Container(
+              height: 4,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [_kGold, _kGoldLight]),
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: [
+                  BoxShadow(
+                      color: _kGold.withValues(alpha: 0.4),
+                      blurRadius: 8)
+                ],
+              )),
+        ),
+      ]),
+    ]),
+  );
 
   Widget _buildSectionDivider(String title, IconData icon, Color color) =>
       Padding(
@@ -4127,24 +4091,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           ),
           const SizedBox(width: 10),
           Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.12))),
-        ]),
-      );
-
-  Widget _sectionHeader(String title, Color color, [String emoji = '']) =>
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
-            ),
-            child: Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.15))),
         ]),
       );
 
@@ -4169,14 +4115,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: _shSurf,
           border: Border.all(
               color: t.isMine
                   ? _kGold.withValues(alpha: 0.40)
                   : t.isOwned
                       ? baseColor.withValues(alpha: 0.30)
-                      : _kBorder2),
-          borderRadius: BorderRadius.circular(14),
+                      : _shBorder),
+          borderRadius: BorderRadius.circular(10),
           boxShadow: t.isMine
               ? [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 16)]
               : t.isOwned
@@ -4239,7 +4185,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ]),
             const SizedBox(height: 4),
             Text(t.epicName,
-                style: _raj(12, FontWeight.w700, _kWhite),
+                style: _raj(12, FontWeight.w700, _shText),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Row(children: [
@@ -4282,8 +4228,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             Text('${t.kmRequired.toStringAsFixed(1)} km',
                 style: _raj(11, FontWeight.w700, _kCyan)),
             const SizedBox(height: 2),
-            Text('+${t.rewardActual} 🪙',
-                style: _raj(10, FontWeight.w600, _kGoldDim)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.monetization_on_rounded,
+                  size: 10, color: _kGoldDim),
+              const SizedBox(width: 3),
+              Text('+${t.rewardActual}',
+                  style: _raj(10, FontWeight.w600, _kGoldDim)),
+            ]),
           ]),
         ]),
       ),
@@ -4293,50 +4244,92 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   // SHEET MI CIUDAD — componentes
   // ==========================================================================
-  Widget _buildSheetHandle(int mios, int det, int pel) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-    child: Column(children: [
-      Center(child: Container(
-        width: 36, height: 3,
-        decoration: BoxDecoration(color: _shBorder,
-            borderRadius: BorderRadius.circular(2)),
-      )),
-      const SizedBox(height: 14),
-      Row(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _kRed.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: _kRed.withValues(alpha: 0.22)),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.shield_rounded, size: 11, color: _kRed),
-            const SizedBox(width: 5),
-            Text('MI CIUDAD', style: _raj(8, FontWeight.w800, _kRed, spacing: 1.5)),
+
+  /// Header unificado para los tres sheets: drag pill + mode pill + big number + badges opcionales.
+  Widget _sheetModeHeader({
+    required IconData icon,
+    required String modeLabel,
+    required Color modeColor,
+    required String bigValue,
+    required String bigLabel,
+    String? bigSuffix,
+    List<Widget> badges = const [],
+    Widget? extra,
+  }) =>
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(children: [
+          Center(
+              child: Container(
+            width: 36,
+            height: 3,
+            decoration: BoxDecoration(
+                color: _shBorder,
+                borderRadius: BorderRadius.circular(2)),
+          )),
+          const SizedBox(height: 14),
+          Row(children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: modeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border:
+                    Border.all(color: modeColor.withValues(alpha: 0.22)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 11, color: modeColor),
+                const SizedBox(width: 5),
+                Text(modeLabel,
+                    style: _raj(8, FontWeight.w800, modeColor,
+                        spacing: 1.5)),
+              ]),
+            ),
+            const Spacer(),
+            ...badges,
           ]),
-        ),
-        const Spacer(),
-        if (pel > 0)
-          _quickBadge('$pel CRÍTICO', _kRedDim, Icons.dangerous_rounded),
-        if (pel > 0 && det > 0) const SizedBox(width: 6),
-        if (det > 0)
-          _quickBadge('$det DESGASTE', _kSub, Icons.warning_amber_rounded),
-        if (pel == 0 && det == 0)
-          _quickBadge('TODO OK', _kSub, Icons.shield_rounded),
-      ]),
-      const SizedBox(height: 10),
-      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text('$mios',
-            style: _raj(32, FontWeight.w900, _shText, height: 1)),
-        const SizedBox(width: 8),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text('ZONAS CONQUISTADAS',
-              style: _raj(10, FontWeight.w700, _kSub, spacing: 1.2)),
-        ),
-      ]),
-    ]),
+          const SizedBox(height: 10),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(bigValue,
+                style: _raj(32, FontWeight.w900, _shText, height: 1)),
+            if (bigSuffix != null) ...[
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Text(bigSuffix,
+                    style: _raj(16, FontWeight.w700, _kSub)),
+              ),
+            ],
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(bigLabel,
+                  style: _raj(10, FontWeight.w700, _kSub, spacing: 1.2)),
+            ),
+          ]),
+          if (extra != null) ...[
+            const SizedBox(height: 12),
+            extra,
+          ],
+        ]),
+      );
+
+  Widget _buildSheetHandle(int mios, int det, int pel) => _sheetModeHeader(
+    icon: Icons.shield_rounded,
+    modeLabel: 'MI CIUDAD',
+    modeColor: _kRed,
+    bigValue: '$mios',
+    bigLabel: 'ZONAS CONQUISTADAS',
+    badges: [
+      if (pel > 0)
+        _quickBadge('$pel CRÍTICO', _kRedDim, Icons.dangerous_rounded),
+      if (pel > 0 && det > 0) const SizedBox(width: 6),
+      if (det > 0)
+        _quickBadge('$det DESGASTE', _kWarnDim, Icons.warning_amber_rounded),
+      if (pel == 0 && det == 0)
+        _quickBadge('TODO OK', _kSafeDim, Icons.check_circle_rounded),
+    ],
   );
 
   Widget _quickBadge(String label, Color color, IconData icon) =>
@@ -4417,8 +4410,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
             pel > 0
-                ? '⚔ $pel ${pel == 1 ? 'territorio puede' : 'territorios pueden'} ser conquistados ahora.'
-                : '⚠ $det ${det == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos pronto.',
+                ? '$pel ${pel == 1 ? 'territorio puede' : 'territorios pueden'} ser conquistados ahora.'
+                : '$det ${det == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos pronto.',
             style: _raj(11, FontWeight.w600, _kRed),
           ),
         ),
@@ -4553,8 +4546,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         style: _raj(8, FontWeight.w900,
                             g.esMio ? _kRed : _kSub))),
                   const SizedBox(width: 8),
-                  Text('${g.territorios.length} 🏴',
+                  Text('${g.territorios.length}',
                       style: _raj(11, FontWeight.w600, _kDim)),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.flag_rounded, size: 11, color: _kDim),
                   const SizedBox(width: 6),
                   Icon(
                     isExp
@@ -5037,7 +5032,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(11, 10, 14, 8),
               child: Row(children: [
-                const Text('⚔️', style: TextStyle(fontSize: 12)),
+                const Icon(Icons.sports_rounded, size: 14, color: _kRed),
                 const SizedBox(width: 8),
                 Text('DESAFÍO ACTIVO',
                     style:
@@ -5071,8 +5066,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Text('VS',
                       style: _raj(10, FontWeight.w900, _kDim,
                           spacing: 2)),
-                  Text('$apuesta 🪙',
-                      style: _raj(9, FontWeight.w700, _kText)),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.monetization_on_rounded,
+                        size: 10, color: _kGoldDim),
+                    const SizedBox(width: 2),
+                    Text('$apuesta',
+                        style: _raj(9, FontWeight.w700, _kText)),
+                  ]),
                 ]),
                 Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
