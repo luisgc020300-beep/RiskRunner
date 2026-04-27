@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 jobs:
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,13 +36,6 @@ jobs:
           pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: true
-      - name: Flutter build iOS
-        run: flutter build ios --release --no-codesign
-        env:
-          CODE_SIGNING_ALLOWED: "NO"
-          CODE_SIGNING_REQUIRED: "NO"
-          CODE_SIGN_IDENTITY: ""
-          DEVELOPMENT_TEAM: ""
       - name: Build with xcodebuild
         run: |
           xcodebuild \
