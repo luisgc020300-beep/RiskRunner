@@ -1,6 +1,9 @@
 // lib/services/activity_service.dart
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Modelo de una entrada del feed ────────────────────────────────────────────
 class ActivityEntry {
@@ -44,22 +47,74 @@ class ActivityEntry {
       fromColorValue:    (d['fromColor'] as num?)?.toInt() ?? 0xFFCC2222,
     );
   }
+
+  Map<String, dynamic> _toMap() => {
+    'userNick':          userNick,
+    'territoryId':       territoryId,
+    'territoryName':     territoryName,
+    'mode':              mode,
+    'timestamp':         timestamp.millisecondsSinceEpoch,
+    'previousOwnerNick': previousOwnerNick,
+    'fromColorValue':    fromColorValue,
+  };
+
+  factory ActivityEntry._fromMap(Map<String, dynamic> m) => ActivityEntry(
+    userNick:          m['userNick'] as String? ?? '?',
+    territoryId:       m['territoryId'] as String? ?? '',
+    territoryName:     m['territoryName'] as String? ?? 'Zona desconocida',
+    mode:              m['mode'] as String? ?? 'competitivo',
+    timestamp:         DateTime.fromMillisecondsSinceEpoch(m['timestamp'] as int),
+    previousOwnerNick: m['previousOwnerNick'] as String?,
+    fromColorValue:    m['fromColorValue'] as int? ?? 0xFFCC2222,
+  );
 }
 
 // ── Servicio ──────────────────────────────────────────────────────────────────
 class ActivityService {
   static final _db = FirebaseFirestore.instance;
 
-  // Feed global reciente — lee la colección activity_feed que ya existe
+  static const _kFeedDataKey = 'act_feed_data';
+  static const _kFeedTsKey   = 'act_feed_ts';
+  static const _kTtlMs       = 5 * 60 * 1000; // 5 minutos
+
+  // Invalidar caché manualmente (botón refresh)
+  static Future<void> invalidarCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kFeedTsKey);
+  }
+
+  // Feed global reciente — sirve desde caché 5 min antes de ir a Firestore
   static Future<List<ActivityEntry>> obtenerFeedReciente(
       {int limit = 15}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ts    = prefs.getInt(_kFeedTsKey) ?? 0;
+    final now   = DateTime.now().millisecondsSinceEpoch;
+
+    if (now - ts < _kTtlMs) {
+      final raw = prefs.getString(_kFeedDataKey);
+      if (raw != null) {
+        try {
+          final list = jsonDecode(raw) as List;
+          return list
+              .map((e) => ActivityEntry._fromMap(e as Map<String, dynamic>))
+              .toList();
+        } catch (_) {}
+      }
+    }
+
     try {
       final snap = await _db
           .collection('activity_feed')
           .orderBy('timestamp', descending: true)
           .limit(limit)
           .get();
-      return snap.docs.map(ActivityEntry.fromDoc).toList();
+      final entries = snap.docs.map(ActivityEntry.fromDoc).toList();
+
+      await prefs.setInt(_kFeedTsKey, now);
+      await prefs.setString(
+          _kFeedDataKey, jsonEncode(entries.map((e) => e._toMap()).toList()));
+
+      return entries;
     } catch (e) {
       debugPrint('ActivityService.obtenerFeedReciente error: $e');
       return [];

@@ -1612,6 +1612,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'borderOpacity': t.opacidadBorde,
           'borderWidth':   borderWidth,
           'esMio':         t.esMio,
+          'esFantasma':    t.esFantasma,
           'estadoHp':      t.estadoHp.name,
         },
         'geometry': {'type': 'Polygon', 'coordinates': [coords]},
@@ -1645,7 +1646,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillLayerId, 'fill-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _fillLayerId, 'fill-opacity', ['get', 'fillOpacity']);
+          _fillLayerId, 'fill-opacity', [
+        'case', ['==', ['get', 'esFantasma'], true],
+        ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'fillOpacity']],
+        ['get', 'fillOpacity'],
+      ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillLayerId, 'fill-antialias', true);
 
@@ -1654,7 +1659,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _fillInnerLayerId, 'fill-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _fillInnerLayerId, 'fill-opacity', ['get', 'innerOpacity']);
+          _fillInnerLayerId, 'fill-opacity', [
+        'case', ['==', ['get', 'esFantasma'], true],
+        ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'innerOpacity']],
+        ['get', 'innerOpacity'],
+      ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillInnerLayerId, 'fill-antialias', true);
 
@@ -1665,7 +1674,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderLayerId, 'line-width', ['get', 'borderWidth']);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _borderLayerId, 'line-opacity', ['get', 'borderOpacity']);
+          _borderLayerId, 'line-opacity', [
+        'case', ['==', ['get', 'esFantasma'], true],
+        ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'borderOpacity']],
+        ['get', 'borderOpacity'],
+      ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-join', 'round');
       await _mapboxMap!.style

@@ -105,7 +105,7 @@ class _LeagueCardState extends State<LeagueCard> {
                     border: Border.all(color: liga.color.withValues(alpha: 0.4)),
                   ),
                   child: Column(children: [
-                    Text(liga.emoji, style: const TextStyle(fontSize: 28)),
+                    Icon(liga.icon, color: liga.color, size: 32),
                     const SizedBox(height: 4),
                     Text(liga.name.toUpperCase(),
                       style: TextStyle(
@@ -123,25 +123,38 @@ class _LeagueCardState extends State<LeagueCard> {
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    Text('$monedas 🪙',
-                      style: TextStyle(
-                        color: liga.color, fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (!esUltima && siguienteLiga != null)
-                      Text(
-                        'Faltan $monedasParaSiguiente para ${siguienteLiga.emoji} ${siguienteLiga.name}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
-                      )
-                    else
-                      const Text('🏆 Rango máximo alcanzado',
+                    Row(children: [
+                      Text('$monedas',
                         style: TextStyle(
-                          color: Colors.amber, fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          color: liga.color, fontSize: 20,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 16),
+                    ]),
+                    const SizedBox(height: 4),
+                    if (!esUltima && siguienteLiga != null)
+                      Row(children: [
+                        Text(
+                          'Faltan $monedasParaSiguiente para ',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                        Icon(siguienteLiga.icon, color: siguienteLiga.color, size: 11),
+                        const SizedBox(width: 3),
+                        Text(siguienteLiga.name,
+                          style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                      ])
+                    else
+                      Row(children: [
+                        const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 13),
+                        const SizedBox(width: 5),
+                        const Text('Rango máximo alcanzado',
+                          style: TextStyle(
+                            color: Colors.amber, fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          )),
+                      ]),
                   ],
                 )),
               ]),
@@ -187,7 +200,7 @@ class _LeagueCardState extends State<LeagueCard> {
                     ),
                   ),
                   child: Row(children: [
-                    const Text('🛡️', style: TextStyle(fontSize: 16)),
+                    const Icon(Icons.shield_rounded, color: Colors.greenAccent, size: 18),
                     const SizedBox(width: 10),
                     Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

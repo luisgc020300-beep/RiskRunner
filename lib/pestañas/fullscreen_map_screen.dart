@@ -2103,6 +2103,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
                 tileDimension: 256,
+                keepBuffer: 4,
+                panBuffer: 1,
               ),
 
               // Polígonos de barrios OSM
@@ -2279,7 +2281,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         TileLayer(
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
-            tileDimension: 256),
+            tileDimension: 256,
+            keepBuffer: 4,
+            panBuffer: 1),
 
         // Glow exterior solo para territorios propios (renderizar primero)
         if (territorios.any((t) => t.esMio))
@@ -2488,7 +2492,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           TileLayer(
               urlTemplate: _kMapboxDarkUrl,
               userAgentPackageName: 'com.runner_risk.app',
-              tileDimension: 256),
+              tileDimension: 256,
+              keepBuffer: 4,
+              panBuffer: 1),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -3525,9 +3531,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 ),
                 const Spacer(),
                 GestureDetector(
-                  onTap: () => setState(() {
-                    _feedFuture = ActivityService.obtenerFeedReciente();
-                  }),
+                  onTap: () async {
+                    await ActivityService.invalidarCache();
+                    if (mounted) {
+                      setState(() {
+                        _feedFuture = ActivityService.obtenerFeedReciente();
+                      });
+                    }
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
@@ -4739,9 +4750,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     children: [
                       TileLayer(
                           urlTemplate: _kMapboxUrl,
-                          userAgentPackageName:
-                              'com.runner_risk.app',
-                          tileDimension: 256),
+                          userAgentPackageName: 'com.runner_risk.app',
+                          tileDimension: 256,
+                          keepBuffer: 4,
+                          panBuffer: 1),
                       PolygonLayer(polygons: [
                         Polygon(
                             points: det.puntos,

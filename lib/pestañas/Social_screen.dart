@@ -664,7 +664,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           height: 40,
           decoration: BoxDecoration(color: _p.surface, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
-            _ToggleBtn(label: 'MI LIGA', emoji: ligaInfo.emoji, active: _rankingModeLiga, activeColor: _kAccent,
+            _ToggleBtn(label: 'MI LIGA', icon: ligaInfo.icon, active: _rankingModeLiga, activeColor: _kAccent,
               onTap: () => setState(() { _rankingModeLiga = true; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),
             _ToggleBtn(label: 'GLOBAL', icon: Icons.public_rounded, active: !_rankingModeLiga, activeColor: _kAccent,
@@ -704,7 +704,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             const SizedBox(width: 8),
             Text('Todas las ligas', style: TextStyle(color: _p.text3, fontSize: 12, fontStyle: FontStyle.italic)),
             const Spacer(),
-            Text(liga.emoji, style: const TextStyle(fontSize: 13)),
+            Icon(liga.icon, size: 13, color: _accent),
             const SizedBox(width: 6),
             Text(liga.name.toUpperCase(), style: TextStyle(color: _accent, fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 1.5)),
           ]))));
@@ -750,7 +750,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                           color: tierColor.withValues(alpha: 0.06),
                           border: Border.all(color: tierColor.withValues(alpha: 0.2)),
                           borderRadius: BorderRadius.circular(8)),
-                        child: Center(child: Text(liga.emoji, style: TextStyle(fontSize: 20 + idx * 0.4)))),
+                        child: Center(child: Icon(liga.icon, color: tierColor, size: 22))),
                       const SizedBox(width: 14),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
@@ -1486,9 +1486,9 @@ class _RequestCard extends StatelessWidget {
 //  TOGGLE BUTTON
 // =============================================================================
 class _ToggleBtn extends StatelessWidget {
-  final String label; final String? emoji; final IconData? icon;
+  final String label; final IconData? icon;
   final bool active; final Color activeColor; final VoidCallback onTap;
-  const _ToggleBtn({required this.label, this.emoji, this.icon, required this.active, required this.activeColor, required this.onTap});
+  const _ToggleBtn({required this.label, this.icon, required this.active, required this.activeColor, required this.onTap});
   @override Widget build(BuildContext ctx) {
     final _SP _p = _SP.of(ctx);
     return Expanded(child: GestureDetector(
@@ -1498,7 +1498,6 @@ class _ToggleBtn extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(color: active ? activeColor.withValues(alpha: 0.08) : Colors.transparent, borderRadius: BorderRadius.circular(9)),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (emoji != null) Text(emoji!, style: const TextStyle(fontSize: 13)),
           if (icon != null) Icon(icon, color: active ? activeColor : _p.subtext, size: 13),
           const SizedBox(width: 6),
           Text(label, style: TextStyle(color: active ? activeColor : _p.subtext, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2)),

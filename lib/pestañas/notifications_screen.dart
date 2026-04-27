@@ -130,9 +130,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   // ── Handler de tap ─────────────────────────────────────────────────────────
   Future<void> _handleOnTap(NotifItem item) async {
-    // Los desafíos recibidos no navegan al tap — tienen sus propios botones
-    if (item.tipo == 'desafio_recibido' && !item.leida) return;
-
     // Marcar como leída
     if (!item.leida && item.tipo != 'friend_request') {
       try {
@@ -254,6 +251,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: _kSurface,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: color.withValues(alpha: 0.25)),
             boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 32)],
           ),
@@ -317,6 +315,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: _kBg,
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: _kBorder2),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

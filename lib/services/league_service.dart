@@ -19,7 +19,7 @@ import 'package:flutter/material.dart';
 class LeagueInfo {
   final String id;
   final String name;
-  final String emoji;
+  final IconData icon;
   final Color color;
   final int minPts;
   final int? maxPts;
@@ -28,7 +28,7 @@ class LeagueInfo {
   const LeagueInfo({
     required this.id,
     required this.name,
-    required this.emoji,
+    required this.icon,
     required this.color,
     required this.minPts,
     this.maxPts,
@@ -45,7 +45,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'bronce',
       name: 'BRONCE',
-      emoji: '🥉',
+      icon: Icons.military_tech_rounded,
       color: Color(0xFFBF8B5E),
       minPts: 0,
       maxPts: 499,
@@ -54,7 +54,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'plata',
       name: 'PLATA',
-      emoji: '🥈',
+      icon: Icons.military_tech_rounded,
       color: Color(0xFFB0BEC5),
       minPts: 500,
       maxPts: 1499,
@@ -63,7 +63,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'oro',
       name: 'ORO',
-      emoji: '🥇',
+      icon: Icons.emoji_events_rounded,
       color: Color(0xFFFFD600),
       minPts: 1500,
       maxPts: 3499,
@@ -72,7 +72,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'platino',
       name: 'PLATINO',
-      emoji: '🔵',
+      icon: Icons.workspace_premium_rounded,
       color: Color(0xFF40C4FF),
       minPts: 3500,
       maxPts: 6999,
@@ -81,7 +81,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'diamante',
       name: 'DIAMANTE',
-      emoji: '💎',
+      icon: Icons.diamond_rounded,
       color: Color(0xFF00B0FF),
       minPts: 7000,
       maxPts: 11999,
@@ -90,7 +90,7 @@ class LeagueSystem {
     LeagueInfo(
       id: 'leyenda',
       name: 'LEYENDA',
-      emoji: '👑',
+      icon: Icons.stars_rounded,
       color: Color(0xFFFF6D00),
       minPts: 12000,
       maxPts: null,

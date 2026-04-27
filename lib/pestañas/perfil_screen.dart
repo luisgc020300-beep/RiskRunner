@@ -624,7 +624,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           border: Border.all(color: _p.border),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Text('', style: TextStyle(fontSize: 13)),
+          const Icon(Icons.sports_mma_rounded, color: _kAccent, size: 13),
           const SizedBox(width: 6),
           Text('RETAR', style: _rajdhani(12, FontWeight.w700, _kAccent, spacing: 1.2)),
         ]),
@@ -673,11 +673,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                 const SizedBox(height: 12),
                 Row(children: [
                   GestureDetector(onTap: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
-                  Expanded(child: Center(child: Text('$apuesta ', style: _rajdhani(28, FontWeight.w900, _p.title)))),
+                  Expanded(child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('$apuesta', style: _rajdhani(28, FontWeight.w900, _p.title)), const SizedBox(width: 4), const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 14)]))),
                   GestureDetector(onTap: () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 8),
-                Center(child: Text('Tienes $misMonedas  disponibles', style: _rajdhani(10, FontWeight.w500, _p.sub))),
+                Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Tienes $misMonedas', style: _rajdhani(10, FontWeight.w500, _p.sub)), const SizedBox(width: 3), const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 10), Text(' disponibles', style: _rajdhani(10, FontWeight.w500, _p.sub))])),
               ]),
             ),
             const SizedBox(height: 12),
@@ -1087,14 +1087,14 @@ class _PerfilScreenState extends State<PerfilScreen>
         backgroundColor: _p.surface2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _p.border2)),
         title: Row(children: [
-          const Text('', style: TextStyle(fontSize: 18)),
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD60A), size: 18),
           const SizedBox(width: 10),
           Text('Cerrar ${temporada.label}', style: _rajdhani(16, FontWeight.w700, _p.title)),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Se calculará el rey de cada barrio y se entregarán las recompensas.', style: _rajdhani(13, FontWeight.w400, _p.sub)),
           const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kGold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6), border: Border.all(color: _kGold.withValues(alpha: 0.20))), child: Text('Recompensa por zona: ${temporada.monedasBase}  + corona desbloqueada', style: _rajdhani(11, FontWeight.w500, _kGold))),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kGold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6), border: Border.all(color: _kGold.withValues(alpha: 0.20))), child: Row(children: [const Icon(Icons.monetization_on_rounded, color: _kGold, size: 12), const SizedBox(width: 5), Expanded(child: Text('Recompensa por zona: ${temporada.monedasBase} monedas + corona desbloqueada', style: _rajdhani(11, FontWeight.w500, _kGold)))])),
           const SizedBox(height: 8),
           Text('Esta acción no se puede deshacer.', style: _rajdhani(11, FontWeight.w500, Colors.redAccent.withValues(alpha: 0.8))),
         ]),
@@ -1456,7 +1456,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               Container(width: 2, height: 14,
                   color: voy ? _kGold : _kAccent),
               const SizedBox(width: 10),
-              const Text('', style: TextStyle(fontSize: 13)),
+              Icon(Icons.bolt_rounded, color: voy ? _kGold : _kAccent, size: 13),
               const SizedBox(width: 6),
               Text('DUELO ACTIVO',
                   style: _rajdhani(9, FontWeight.w900,
@@ -1513,8 +1513,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                     color: _kGold.withValues(alpha: 0.06),
                     border: Border.all(color: _kGold.withValues(alpha: 0.25)),
                   ),
-                  child: Text('${info.apuesta} ',
-                      style: _rajdhani(10, FontWeight.w900, _kGold)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('${info.apuesta}', style: _rajdhani(10, FontWeight.w900, _kGold)),
+                    const SizedBox(width: 3),
+                    const Icon(Icons.monetization_on_rounded, color: _kGold, size: 10),
+                  ]),
                 ),
               ]),
 
@@ -1571,13 +1574,20 @@ class _PerfilScreenState extends State<PerfilScreen>
                     border: Border.all(
                         color: (voy ? _kGold : _kAccent).withValues(alpha: 0.3)),
                   ),
-                  child: Text(voy ? '⬆ Ganando' : '⬇ Perdiendo',
-                      style: _rajdhani(9, FontWeight.w800,
-                          voy ? _kGold : _kAccent)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(voy ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                        color: voy ? _kGold : _kAccent, size: 9),
+                    const SizedBox(width: 3),
+                    Text(voy ? 'Ganando' : 'Perdiendo',
+                        style: _rajdhani(9, FontWeight.w800, voy ? _kGold : _kAccent)),
+                  ]),
                 ),
                 const Spacer(),
-                Text('Premio: ${info.apuesta * 2} ',
-                    style: _rajdhani(9, FontWeight.w600, _p.sub)),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('Premio: ${info.apuesta * 2}', style: _rajdhani(9, FontWeight.w600, _p.sub)),
+                  const SizedBox(width: 3),
+                  const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 9),
+                ]),
               ]),
             ]),
           ),
@@ -1631,8 +1641,11 @@ class _PerfilScreenState extends State<PerfilScreen>
               color: color.withValues(alpha: 0.07),
               border: Border.all(color: color.withValues(alpha: 0.28)),
             ),
-            child: Text('$premio ',
-                style: _rajdhani(12, FontWeight.w900, color)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('$premio', style: _rajdhani(12, FontWeight.w900, color)),
+              const SizedBox(width: 3),
+              Icon(Icons.monetization_on_rounded, color: color, size: 11),
+            ]),
           ),
           const SizedBox(width: 6),
           Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
@@ -1745,7 +1758,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         child: Row(children: [
           Container(width: 2, height: 13,
               color: _kGold, margin: const EdgeInsets.only(right: 8)),
-          Text('', style: const TextStyle(fontSize: 11)),
+          const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFD60A), size: 11),
           const SizedBox(width: 6),
           Text('ANÁLISIS AVANZADO',
               style: _rajdhani(10, FontWeight.w900, _kGold, spacing: 2)),
@@ -1846,7 +1859,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             border: Border.all(color: _p.border2),
           ),
           child: Row(children: [
-            const Text('', style: TextStyle(fontSize: 12)),
+            const Icon(Icons.flag_rounded, color: Colors.white54, size: 12),
             const SizedBox(width: 8),
             Expanded(child: Text(comp.proximoHito,
                 style: _rajdhani(11, FontWeight.w600, _p.text))),
@@ -2039,7 +2052,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               border: Border.all(color: _kGold.withValues(alpha: 0.25)),
             ),
             child: const Center(
-                child: Text('', style: TextStyle(fontSize: 20))),
+                child: Icon(Icons.lock_outline_rounded, color: _kGold, size: 20)),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(
@@ -2209,7 +2222,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('', style: TextStyle(fontSize: 12)),
+                    const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
                     const SizedBox(width: 4),
                     Text('$monedas', style: TextStyle(
                       color: Colors.amber.withValues(alpha: 0.85),
@@ -2245,7 +2258,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     Text('[$_clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
                     const SizedBox(width: 6),
                     Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _p.text, spacing: 1)),
-                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Text('', style: TextStyle(fontSize: 9))],
+                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Icon(Icons.workspace_premium_rounded, color: _kGold, size: 11)],
                   ])),
             if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub))],
             const SizedBox(height: 28),
@@ -2284,7 +2297,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                 ),
                 child: Center(
                   child: _titulosActivos.isNotEmpty
-                      ? const Text('', style: TextStyle(fontSize: 10))
+                      ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 11)
                       : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
                 ),
               ),
@@ -2325,7 +2338,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             ],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('', style: TextStyle(fontSize: 9)),
+            const Icon(Icons.auto_awesome_rounded, color: Color(0xFFD4A017), size: 9),
             const SizedBox(width: 4),
             Text('PREMIUM',
                 style: _rajdhani(9, FontWeight.w900,
@@ -2503,7 +2516,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
       child: Row(children: [
-        SizedBox(width: 76, height: 76, child: AnimatedBuilder(animation: _loopAnim, builder: (_, __) => CustomPaint(painter: _RachaGaugePainter(progress: prog, accent: activa ? _kAccent : _p.muted, pulse: _pulse.value, activa: activa), child: Center(child: Text(activa ? '' : '', style: const TextStyle(fontSize: 26)))))),
+        SizedBox(width: 76, height: 76, child: AnimatedBuilder(animation: _loopAnim, builder: (_, __) => CustomPaint(painter: _RachaGaugePainter(progress: prog, accent: activa ? _kAccent : _p.muted, pulse: _pulse.value, activa: activa), child: Center(child: Icon(activa ? Icons.local_fire_department_rounded : Icons.bedtime_rounded, color: activa ? _kAccent : _p.muted, size: 26))))),
         const SizedBox(width: 18),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('RACHA OPERATIVA', style: _rajdhani(9, FontWeight.w700, activa ? _p.text : _p.dim, spacing: 2)),

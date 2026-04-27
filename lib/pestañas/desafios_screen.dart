@@ -226,6 +226,15 @@ class _CardActivo extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: resaltado
+              ? _kRed.withValues(alpha: 0.55)
+              : p.sep.withValues(alpha: 0.6),
+          width: resaltado ? 1.5 : 1,
+        ),
+        boxShadow: resaltado
+            ? [BoxShadow(color: _kRed.withValues(alpha: 0.08), blurRadius: 16)]
+            : null,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
@@ -411,6 +420,7 @@ class _CardPendiente extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: p.sep.withValues(alpha: 0.6)),
       ),
       child: Row(children: [
         Icon(Icons.hourglass_top_rounded, color: p.sub, size: 22),
@@ -511,8 +521,7 @@ class _TabHistorial extends StatelessWidget {
 
   Widget _statCol(String val, String label, Color color) => Expanded(
     child: Column(children: [
-      Text(val, style: GoogleFonts.inter(
-          fontSize: 32, fontWeight: FontWeight.w900, color: color, height: 1)),
+      Text(val, style: _raj(32, FontWeight.w900, color, height: 1)),
       Text(label, style: _dm(10, FontWeight.w500, const Color(0xFF8E8E93))),
     ]),
   );
@@ -542,6 +551,9 @@ class _CardHistorial extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.20),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),

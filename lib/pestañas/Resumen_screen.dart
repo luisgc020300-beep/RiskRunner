@@ -1542,7 +1542,7 @@ class _ResumenScreenState extends State<ResumenScreen>
     final hito  = hitos.firstWhere((h) => _rachaActual < h, orElse: () => 30);
     final pct   = (_rachaActual / hito).clamp(0.0, 1.0);
     return _contextCard(
-      emoji:    '',
+      icon:     Icons.local_fire_department_rounded,
       tag:      'RACHA',
       headline: '$_rachaActual ${_rachaActual == 1 ? 'día' : 'días'} consecutivos',
       sub:      _rachaActual < 7
@@ -1554,7 +1554,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   }
 
   Widget _buildLigaCard() => _contextCard(
-    emoji:    '',
+    icon:     Icons.emoji_events_rounded,
     tag:      'LIGA',
     headline: '+$_puntosLigaSesion pts esta sesión',
     sub:      '$_totalPuntosLiga pts totales acumulados',
@@ -1567,7 +1567,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   );
 
   Widget _buildConquistaCard() => _contextCard(
-    emoji:    '',
+    icon:     Icons.shield_rounded,
     tag:      'CONQUISTA',
     headline: '$_territoriosConquistados territorio${_territoriosConquistados == 1 ? '' : 's'} arrebatado${_territoriosConquistados == 1 ? '' : 's'}',
     sub:      'El rival ya ha sido notificado',
@@ -1575,7 +1575,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   );
 
   Widget _contextCard({
-    required String emoji,
+    required IconData icon,
     required String tag,
     required String headline,
     required String sub,
@@ -1601,8 +1601,7 @@ class _ResumenScreenState extends State<ResumenScreen>
               borderRadius: BorderRadius.circular(10),
               border:       Border.all(color: color.withOpacity(0.2)),
             ),
-            child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 20))),
+            child: Center(child: Icon(icon, color: color, size: 22)),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(
