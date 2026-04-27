@@ -36,6 +36,8 @@ jobs:
           pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: true
+      - name: Flutter build iOS
+        run: flutter build ios --release --no-codesign
       - name: Build with xcodebuild
         run: |
           xcodebuild \
@@ -47,7 +49,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             archive
