@@ -3512,18 +3512,36 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Row(children: [
-                Container(width: 3, height: 11, color: _kSub,
-                    margin: const EdgeInsets.only(right: 7)),
-                Text('ACTIVIDAD RECIENTE',
-                    style: _raj(9, FontWeight.w800, _kSub, spacing: 2.0)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _kSub.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _kSub.withValues(alpha: 0.20)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.bolt_rounded, size: 11, color: _kSub),
+                    const SizedBox(width: 4),
+                    Text('ACTIVIDAD RECIENTE',
+                        style: _raj(8, FontWeight.w800, _kSub, spacing: 1.5)),
+                  ]),
+                ),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => setState(() {
                     _feedFuture = ActivityService.obtenerFeedReciente();
                   }),
-                  child: Icon(Icons.refresh_rounded, size: 14, color: _kSub),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _shSurf,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _shBorder),
+                    ),
+                    child: Icon(Icons.refresh_rounded, size: 12, color: _kSub),
+                  ),
                 ),
               ]),
             ),
@@ -3536,36 +3554,64 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Widget _buildFeedItem(ActivityEntry e) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 3, 16, 3),
-      child: Row(children: [
-        Container(
-          width: 6, height: 6,
-          margin: const EdgeInsets.only(right: 8, top: 1),
-          decoration: BoxDecoration(shape: BoxShape.circle, color: e.color),
-        ),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: _raj(11, FontWeight.w500, _shText),
-              children: [
-                TextSpan(text: '@${e.userNick} ',
-                    style: _raj(11, FontWeight.w800, _shText)),
-                const TextSpan(text: 'conquistó '),
-                TextSpan(text: e.territoryName,
-                    style: _raj(11, FontWeight.w700, e.color)),
-                if (e.previousOwnerNick != null)
-                  TextSpan(text: ' · era @${e.previousOwnerNick}',
-                      style: _raj(10, FontWeight.w500, _kSub)),
-              ],
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      decoration: BoxDecoration(
+        color: _shSurf,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: e.color, width: 3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
+        child: Row(children: [
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              color: e.color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: e.color.withValues(alpha: 0.30)),
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            child: Center(child: Text(
+              e.mode == 'solitario' ? '🗺️' : '⚔️',
+              style: const TextStyle(fontSize: 13),
+            )),
           ),
-        ),
-        const SizedBox(width: 8),
-        Text(e.timeAgo, style: _raj(9, FontWeight.w500, _kSub)),
-      ]),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Flexible(child: Text('@${e.userNick}',
+                    style: _raj(11, FontWeight.w800, _shText),
+                    overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 4),
+                Text('conquistó', style: _raj(10, FontWeight.w400, _kSub)),
+              ]),
+              const SizedBox(height: 2),
+              Text(e.territoryName,
+                  style: _raj(11, FontWeight.w700, e.color),
+                  overflow: TextOverflow.ellipsis),
+              if (e.previousOwnerNick != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text('← @${e.previousOwnerNick}',
+                      style: _raj(9, FontWeight.w500, _kDim),
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+          )),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: _shBg,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: _shBorder),
+            ),
+            child: Text(e.timeAgo, style: _raj(9, FontWeight.w500, _kDim)),
+          ),
+        ]),
+      ),
     );
   }
 
@@ -3692,14 +3738,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: _buildBannerDesafio(_state.desafioActivo!),
             ),
+          if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
+          _buildStatsRow(mios, det, pel),
+          _buildSectionDivider('TERRITORIOS', Icons.flag_rounded, _kRed),
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _buildFiltroChips(),
           ),
-          _buildStatsRow(mios, det, pel),
-          if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
           _buildBotonCercanos(),
           if (_state.cercanosVisible) _buildPanelCercanos(),
+          const SizedBox(height: 4),
           _buildFeedActividad(),
         ],
       ),
@@ -4060,6 +4108,28 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
+  Widget _buildSectionDivider(String title, IconData icon, Color color) =>
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withValues(alpha: 0.22)),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 10, color: color),
+              const SizedBox(width: 5),
+              Text(title, style: _raj(8, FontWeight.w800, color, spacing: 1.5)),
+            ]),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.12))),
+        ]),
+      );
+
   Widget _sectionHeader(String title, Color color, [String emoji = '']) =>
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -4233,23 +4303,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       )),
       const SizedBox(height: 14),
       Row(children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('TUS DOMINIOS',
-              style: _raj(9, FontWeight.w800, _kSub, spacing: 2.5)),
-          const SizedBox(height: 2),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('$mios',
-                style:
-                    _raj(28, FontWeight.w900, _shText, height: 1)),
-            const SizedBox(width: 6),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text('ZONAS',
-                  style: _raj(10, FontWeight.w700, _kSub,
-                      spacing: 1.5)),
-            ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: _kRed.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: _kRed.withValues(alpha: 0.22)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.shield_rounded, size: 11, color: _kRed),
+            const SizedBox(width: 5),
+            Text('MI CIUDAD', style: _raj(8, FontWeight.w800, _kRed, spacing: 1.5)),
           ]),
-        ]),
+        ),
         const Spacer(),
         if (pel > 0)
           _quickBadge('$pel CRÍTICO', _kRedDim, Icons.dangerous_rounded),
@@ -4258,6 +4324,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _quickBadge('$det DESGASTE', _kSub, Icons.warning_amber_rounded),
         if (pel == 0 && det == 0)
           _quickBadge('TODO OK', _kSub, Icons.shield_rounded),
+      ]),
+      const SizedBox(height: 10),
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Text('$mios',
+            style: _raj(32, FontWeight.w900, _shText, height: 1)),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text('ZONAS CONQUISTADAS',
+              style: _raj(10, FontWeight.w700, _kSub, spacing: 1.2)),
+        ),
       ]),
     ]),
   );
@@ -4281,16 +4358,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Widget _buildStatsRow(int mios, int det, int pel) => Container(
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
     child: Row(children: [
-      _sheetStat('${_state.territorios.length}', 'TOTAL', _kText),
+      _sheetStat('${_state.territorios.length}', 'TOTAL', _kText,
+          icon: Icons.layers_rounded),
       const SizedBox(width: 8),
-      _sheetStat(
-          '${_state.jugadoresEnVivo.length}', 'EN VIVO', _kText),
+      _sheetStat('${_state.jugadoresEnVivo.length}', 'EN VIVO', _kSafe,
+          icon: Icons.radio_button_checked_rounded),
       const SizedBox(width: 8),
-      _sheetStat('$mios', 'MÍO', widget.colorTerritorio),
+      _sheetStat('$mios', 'MÍOS', widget.colorTerritorio,
+          icon: Icons.shield_rounded),
     ]),
   );
 
-  Widget _sheetStat(String v, String l, Color c) => Expanded(
+  Widget _sheetStat(String v, String l, Color c, {IconData? icon}) => Expanded(
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -4299,6 +4378,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(children: [
+        if (icon != null) ...[
+          Icon(icon, size: 13, color: c.withValues(alpha: 0.7)),
+          const SizedBox(height: 4),
+        ],
         Text(v, style: _raj(20, FontWeight.w900, c, height: 1)),
         const SizedBox(height: 3),
         Text(l,

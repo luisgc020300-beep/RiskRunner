@@ -705,6 +705,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (!mounted) return;
       _addBuildings3D();
       _configurarAtmosfera();
+      _mejorarAgua();
       _dibujarTerritoriosEnMapa();
     });
   }
@@ -1506,8 +1507,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final List<Object> bColors;
       if (night) {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
-          0,   '#0D1B2A', 8,   '#112236',
-          25,  '#152B44', 60,  '#1A3554', 120, '#1F3F62'];
+          0,   '#2A3D52', 8,   '#354C64',
+          25,  '#406077', 60,  '#4B7290', 120, '#5680A0'];
       } else if (golden) {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
           0,   '#F5C68A', 8,   '#E8A85A',
@@ -3561,8 +3562,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         // ── 2. MAPA MAPBOX ──────────────────────────────────────────────────
         Positioned.fill(child: _buildMapbox()),
 
-        // ── 3. ESTRELLAS LIGHT — encima del mapa, visibles en modo claro ────
-        if (mostrarGlobo && Theme.of(context).brightness != Brightness.dark)
+        // ── 3. ESTRELLAS — encima del mapa, visibles en ambos modos ────────
+        if (mostrarGlobo)
           Positioned.fill(
             child: IgnorePointer(
               child: _StarfieldWidget(
@@ -3611,7 +3612,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
         if (isTracking && !isPaused && _mensajeNarrador != null)
-          Positioned(bottom: 130, left: 0, right: 0,
+          Positioned(bottom: 175, left: 0, right: 0,
               child: NarradorOverlay(mensaje: _mensajeNarrador)),
         if (isTracking && _modoSolitario && _barrioActual != null)
           Positioned(top: 160, left: 0, right: 0,
@@ -3624,9 +3625,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         if (_objetivoGlobal != null && !_globalConquistado && isTracking)
           Positioned(
-            top: _retoActivo != null ? 260 : 160,
-            left: 0, right: 0,
-            child: Center(child: _buildChipObjetivoGlobal()),
+            top: (_retoActivo != null || (_modoSolitario && _barrioActual != null)) ? 248 : 248,
+            left: 14,
+            child: _buildChipObjetivoGlobal(),
           ),
         if (_globalConquistando)
           Positioned.fill(child: _buildConquistadoOverlay()),
