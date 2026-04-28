@@ -3,13 +3,27 @@ import 'package:flutter/material.dart';
 import '../services/stats_service.dart';
 
 // =============================================================================
-// PALETA (idéntica a ResumenScreen / War Room)
+// PALETA — adaptativa dark / light
 // =============================================================================
-const _kBg      = Color(0xFF060608);
-const _kSurface = Color(0xFF0D0D10);
-const _kBorder  = Color(0xFF1E1E24);
-const _kDim     = Color(0xFF666680);
-const _kOrange  = Color(0xFFE8500A);
+class _Pal {
+  final Color bg, surface, border, dim;
+  const _Pal._({required this.bg, required this.surface, required this.border, required this.dim});
+  static const light = _Pal._(
+    bg:      Color(0xFFE8E8ED),
+    surface: Color(0xFFFFFFFF),
+    border:  Color(0xFFD1D1D6),
+    dim:     Color(0xFF636366),
+  );
+  static const dark = _Pal._(
+    bg:      Color(0xFF060608),
+    surface: Color(0xFF0D0D10),
+    border:  Color(0xFF1E1E24),
+    dim:     Color(0xFF666680),
+  );
+  static _Pal of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
+}
+const _kOrange = Color(0xFFE8500A);
 
 // =============================================================================
 // WIDGET PRINCIPAL
@@ -39,6 +53,8 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
 
   ComparativaRuta? _comparativa;
   PrediccionTiempo? _prediccion;
+
+  _Pal get _p => _Pal.of(context);
 
   @override
   void initState() {
@@ -96,8 +112,8 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
     return Row(children: [
       Container(width: 2, height: 12, color: _kOrange,
           margin: const EdgeInsets.only(right: 8)),
-      const Text('ANÁLISIS DE CARRERA', style: TextStyle(
-          color: _kDim, fontSize: 9,
+      Text('ANÁLISIS DE CARRERA', style: TextStyle(
+          color: _p.dim, fontSize: 9,
           fontWeight: FontWeight.w700, letterSpacing: 2.5)),
     ]);
   }
@@ -125,11 +141,10 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
             const SizedBox(height: 2),
             Text(
               'Ritmo de hoy: ${widget.carreraActual.ritmoStr} min/km',
-              style: const TextStyle(color: _kDim, fontSize: 11),
+              style: TextStyle(color: _p.dim, fontSize: 11),
             ),
           ],
         )),
-        // Ritmo grande
         Text(widget.carreraActual.ritmoStr, style: TextStyle(
             color: color, fontSize: 22, fontWeight: FontWeight.w900,
             shadows: [Shadow(color: color.withValues(alpha: 0.3), blurRadius: 8)])),
@@ -140,27 +155,26 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
   // ── Comparativa con carrera anterior ───────────────────────────────────────
   Widget _buildComparativa(ComparativaRuta comp) {
     final esMejor = comp.esMasRapido;
-    final color   = esMejor ? Colors.greenAccent : Colors.redAccent;
+    final color   = esMejor ? Colors.green : Colors.redAccent;
     final icono   = esMejor ? Icons.trending_up_rounded : Icons.trending_down_rounded;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: _p.border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.compare_arrows_rounded, color: _kDim, size: 13),
+          Icon(Icons.compare_arrows_rounded, color: _p.dim, size: 13),
           const SizedBox(width: 6),
-          const Text('VS CARRERA ANTERIOR (MISMA RUTA)',
-              style: TextStyle(color: _kDim, fontSize: 9,
+          Text('VS CARRERA ANTERIOR (MISMA RUTA)',
+              style: TextStyle(color: _p.dim, fontSize: 9,
                   letterSpacing: 1.5, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          // Delta ritmo
           Expanded(child: _deltaCard(
             titulo: 'RITMO',
             valor: comp.deltaRitmoStr,
@@ -168,29 +182,26 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
             icono: icono,
           )),
           const SizedBox(width: 10),
-          // Delta distancia
           Expanded(child: _deltaCard(
             titulo: 'DISTANCIA',
             valor: '${comp.deltaDistanciaKm >= 0 ? '+' : ''}${comp.deltaDistanciaKm.toStringAsFixed(2)} km',
-            color: comp.deltaDistanciaKm >= 0
-                ? Colors.greenAccent : Colors.white38,
+            color: comp.deltaDistanciaKm >= 0 ? Colors.green : _p.dim,
             icono: comp.deltaDistanciaKm >= 0
                 ? Icons.add_rounded : Icons.remove_rounded,
           )),
           const SizedBox(width: 10),
-          // Fecha anterior
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('REFERENCIA', style: TextStyle(
-                  color: _kDim, fontSize: 9, letterSpacing: 1.5)),
+              Text('REFERENCIA', style: TextStyle(
+                  color: _p.dim, fontSize: 9, letterSpacing: 1.5)),
               const SizedBox(height: 4),
               Text(_fechaRelativa(comp.anterior.fecha),
-                  style: const TextStyle(
-                      color: Colors.white70, fontSize: 12,
+                  style: TextStyle(
+                      color: _p.dim, fontSize: 12,
                       fontWeight: FontWeight.w600)),
-              Text(comp.anterior.ritmoStr, style: const TextStyle(
-                  color: _kDim, fontSize: 11)),
+              Text(comp.anterior.ritmoStr, style: TextStyle(
+                  color: _p.dim, fontSize: 11)),
             ],
           )),
         ]),
@@ -199,17 +210,15 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.greenAccent.withValues(alpha: 0.07),
+              color: Colors.green.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                  color: Colors.greenAccent.withValues(alpha: 0.2)),
+              border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.emoji_events_rounded,
-                  color: Colors.greenAccent, size: 14),
+              const Icon(Icons.emoji_events_rounded, color: Colors.green, size: 14),
               const SizedBox(width: 6),
               Text('¡Nuevo récord en esta ruta!', style: TextStyle(
-                  color: Colors.greenAccent.withValues(alpha: 0.8),
+                  color: Colors.green.withValues(alpha: 0.85),
                   fontSize: 11, fontWeight: FontWeight.w600)),
             ]),
           ),
@@ -225,8 +234,8 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
     required IconData icono,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(titulo, style: const TextStyle(
-            color: _kDim, fontSize: 9, letterSpacing: 1.5)),
+        Text(titulo, style: TextStyle(
+            color: _p.dim, fontSize: 9, letterSpacing: 1.5)),
         const SizedBox(height: 4),
         Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icono, color: color, size: 14),
@@ -237,29 +246,29 @@ class _StatsResumenWidgetState extends State<StatsResumenWidget>
       ]);
 
   // ── Proyección rápida ───────────────────────────────────────────────────────
-  Widget _buildPrediccionRapida(PrediccionTiempo p) {
+  Widget _buildPrediccionRapida(PrediccionTiempo pred) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: _p.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kBorder),
+        border: Border.all(color: _p.border),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.auto_graph_rounded, color: _kDim, size: 13),
+          Icon(Icons.auto_graph_rounded, color: _p.dim, size: 13),
           const SizedBox(width: 6),
-          const Text('PROYECCIÓN ACTUALIZADA',
-              style: TextStyle(color: _kDim, fontSize: 9,
+          Text('PROYECCIÓN ACTUALIZADA',
+              style: TextStyle(color: _p.dim, fontSize: 9,
                   letterSpacing: 1.5, fontWeight: FontWeight.w700)),
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          _miniProyeccion('5K', p.str5k, Colors.lightBlueAccent),
+          _miniProyeccion('5K', pred.str5k, Colors.lightBlue),
           const SizedBox(width: 8),
-          _miniProyeccion('10K', p.str10k, Colors.purpleAccent),
+          _miniProyeccion('10K', pred.str10k, Colors.purple),
           const SizedBox(width: 8),
-          _miniProyeccion('21K', p.strMediaMaraton, _kOrange),
+          _miniProyeccion('21K', pred.strMediaMaraton, _kOrange),
         ]),
       ]),
     );

@@ -648,6 +648,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           nivel: (u['nivel'] as num? ?? 1).toInt(), monedas: (u['monedas'] as num? ?? 0).toInt(),
           rango: (u['rango'] as num? ?? 0).toInt(), relacion: rel, fotoBase64: u['foto_base64'] as String?,
           puntosLiga: (u['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
+          currentUserId: currentUserId,
           onAgregar: () => _enviarSolicitud(u['id']),
           onVerPerfil: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => PerfilScreen(targetUserId: u['id'])))));
@@ -1383,37 +1384,119 @@ class _ChatCard extends StatelessWidget {
 // =============================================================================
 //  PLAYER CARD
 // =============================================================================
-class _PlayerCard extends StatelessWidget {
-  final String userId, nickname, relacion; final int nivel, monedas, rango, puntosLiga;
-  final String? fotoBase64; final Color accent; final VoidCallback onAgregar, onVerPerfil;
-  const _PlayerCard({required this.userId, required this.nickname, required this.nivel,
-    required this.monedas, required this.rango, required this.relacion, this.fotoBase64,
-    required this.puntosLiga, required this.accent, required this.onAgregar, required this.onVerPerfil});
+class _PlayerCard extends StatefulWidget {
+  final String userId, nickname, relacion, currentUserId;
+  final int nivel, monedas, rango, puntosLiga;
+  final String? fotoBase64;
+  final Color accent;
+  final VoidCallback onAgregar, onVerPerfil;
+  const _PlayerCard({
+    required this.userId, required this.nickname, required this.nivel,
+    required this.monedas, required this.rango, required this.relacion,
+    this.fotoBase64, required this.puntosLiga, required this.accent,
+    required this.onAgregar, required this.onVerPerfil,
+    required this.currentUserId,
+  });
+  @override State<_PlayerCard> createState() => _PlayerCardState();
+}
+
+class _PlayerCardState extends State<_PlayerCard> {
+  bool _siguiendo = false;
+  bool _loadingFollow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFollow();
+  }
+
+  Future<void> _checkFollow() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('follows')
+          .where('followerId',  isEqualTo: widget.currentUserId)
+          .where('followingId', isEqualTo: widget.userId)
+          .limit(1).get();
+      if (mounted) setState(() => _siguiendo = snap.docs.isNotEmpty);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollow() async {
+    setState(() => _loadingFollow = true);
+    try {
+      if (_siguiendo) {
+        final snap = await FirebaseFirestore.instance.collection('follows')
+            .where('followerId',  isEqualTo: widget.currentUserId)
+            .where('followingId', isEqualTo: widget.userId)
+            .limit(1).get();
+        for (final d in snap.docs) await d.reference.delete();
+        if (mounted) setState(() => _siguiendo = false);
+      } else {
+        await FirebaseFirestore.instance.collection('follows').add({
+          'followerId':  widget.currentUserId,
+          'followingId': widget.userId,
+          'timestamp':   FieldValue.serverTimestamp(),
+        });
+        final myDoc = await FirebaseFirestore.instance
+            .collection('players').doc(widget.currentUserId).get();
+        final nick = myDoc.data()?['nickname'] as String? ?? 'Runner';
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'toUserId':     widget.userId,
+          'type':         'follow',
+          'fromUserId':   widget.currentUserId,
+          'fromNickname': nick,
+          'message':      'ha empezado a seguirte',
+          'read':         false,
+          'timestamp':    FieldValue.serverTimestamp(),
+        });
+        if (mounted) setState(() => _siguiendo = true);
+      }
+    } catch (e) { debugPrint('Error follow: $e'); }
+    finally { if (mounted) setState(() => _loadingFollow = false); }
+  }
 
   @override
   Widget build(BuildContext ctx) {
-    final _SP _p = _SP.of(ctx);
-    final ligaInfo = LeagueHelper.getLeague(puntosLiga);
-    return _Press(onTap: onVerPerfil, child: Container(
+    final p = _SP.of(ctx);
+    final ligaInfo = LeagueHelper.getLeague(widget.puntosLiga);
+    return _Press(onTap: widget.onVerPerfil, child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-      decoration: BoxDecoration(color: _p.surface, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: p.surface, border: Border.all(color: p.line2), borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
-        _Avatar(fotoBase64: fotoBase64, nickname: nickname, size: 44, ringColor: ligaInfo.color.withValues(alpha: 0.5)),
+        _Avatar(fotoBase64: widget.fotoBase64, nickname: widget.nickname, size: 44, ringColor: ligaInfo.color.withValues(alpha: 0.5)),
         const SizedBox(width: 13),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(nickname, style: TextStyle(color: _p.text1, fontWeight: FontWeight.w700, fontSize: 14)),
+          Text(widget.nickname, style: TextStyle(color: p.text1, fontWeight: FontWeight.w700, fontSize: 14)),
           const SizedBox(height: 5),
           Row(children: [
-            _Pill(label: 'NIV.$nivel', color: accent),
+            _Pill(label: 'NIV.${widget.nivel}', color: widget.accent),
             const SizedBox(width: 5),
             _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
           ]),
           const SizedBox(height: 4),
-          Text('$monedas   ·  Rango #$rango', style: TextStyle(color: _p.subtext, fontSize: 10)),
+          Text('${widget.monedas}   ·  Rango #${widget.rango}', style: TextStyle(color: p.subtext, fontSize: 10)),
         ])),
-        const SizedBox(width: 10),
-        _RelBtn(relacion: relacion, accent: accent, onAgregar: onAgregar),
+        const SizedBox(width: 8),
+        // Botón seguir
+        _Press(
+          onTap: _loadingFollow ? null : _toggleFollow,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: _siguiendo ? p.surface3 : _kAccent.withValues(alpha: 0.10),
+              border: Border.all(color: _siguiendo ? p.line2 : _kAccent.withValues(alpha: 0.45)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: _loadingFollow
+                ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: _kAccent))
+                : Text(_siguiendo ? 'SIGUIENDO' : 'SEGUIR',
+                    style: TextStyle(
+                      color: _siguiendo ? p.subtext : _kAccent,
+                      fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          ),
+        ),
+        const SizedBox(width: 6),
+        _RelBtn(relacion: widget.relacion, accent: widget.accent, onAgregar: widget.onAgregar),
       ])));
   }
 }

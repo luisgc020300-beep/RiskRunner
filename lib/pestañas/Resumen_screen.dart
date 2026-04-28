@@ -1301,6 +1301,10 @@ class _ResumenScreenState extends State<ResumenScreen>
         _metricTileSmall(ritmo, 'MIN/KM', '', accent: false),
         const SizedBox(height: 8),
         _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', '', accent: true),
+        const SizedBox(height: 8),
+        _metricTileSmall(
+            (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0)).round().toString(),
+            'KCAL', '', accent: false),
       ])),
     ]);
   }
@@ -1476,7 +1480,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget _mapBadge(String text, String emoji) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
     decoration: BoxDecoration(
-        color:        Colors.black.withOpacity(0.72),
+        color:        Colors.black.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(6),
         border:       Border.all(color: _kBorder2)),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1586,19 +1590,19 @@ class _ResumenScreenState extends State<ResumenScreen>
         decoration: BoxDecoration(
           color:        _kSurface,
           borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: color.withOpacity(0.25)),
+          border:       Border.all(color: color.withValues(alpha: 0.25)),
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.05), blurRadius: 16),
-            BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+            BoxShadow(color: color.withValues(alpha: 0.05), blurRadius: 16),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
           ],
         ),
         child: Row(children: [
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color:        color.withOpacity(0.07),
+              color:        color.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(10),
-              border:       Border.all(color: color.withOpacity(0.2)),
+              border:       Border.all(color: color.withValues(alpha: 0.2)),
             ),
             child: Center(child: Icon(icon, color: color, size: 22)),
           ),
@@ -1743,13 +1747,13 @@ class _ResumenScreenState extends State<ResumenScreen>
         color: _kBg,
         border: Border(
           left:   const BorderSide(color: _kGold, width: 3),
-          top:    BorderSide(color: _kGoldDim.withOpacity(0.5)),
-          right:  BorderSide(color: _kGoldDim.withOpacity(0.5)),
-          bottom: BorderSide(color: _kGoldDim.withOpacity(0.5)),
+          top:    BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
+          right:  BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
+          bottom: BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
         ),
         boxShadow: [
-          BoxShadow(color: _kGold.withOpacity(0.10), blurRadius: 20),
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8),
+          BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 20),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
         ],
       ),
       child: Row(children: [
@@ -1778,7 +1782,7 @@ class _ResumenScreenState extends State<ResumenScreen>
             Text(
               'Has completado este reto y se ha sumado a tus logros',
               style: TextStyle(
-                  color:    _kGoldDim.withOpacity(0.8),
+                  color:    _kGoldDim.withValues(alpha: 0.8),
                   fontSize: 10,
                   fontWeight: FontWeight.w500),
             ),
@@ -1789,8 +1793,8 @@ class _ResumenScreenState extends State<ResumenScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color:  _kGoldDim.withOpacity(0.15),
-              border: Border.all(color: _kGoldDim.withOpacity(0.5)),
+              color:  _kGoldDim.withValues(alpha: 0.15),
+              border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text('+$premio', style: const TextStyle(
@@ -1870,7 +1874,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                               color: esGlobal
                                   ? _kGold
                                   : (isFirst ? _kBright
-                                      : _kWhite.withOpacity(0.75)),
+                                      : _kWhite.withValues(alpha: 0.75)),
                               fontSize:   12,
                               fontWeight: FontWeight.w700),
                           maxLines: 1,
@@ -1884,7 +1888,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color:        _kBorder2.withOpacity(0.5),
+                          color:        _kBorder2.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(4),
                           border:       Border.all(color: _kBorder2),
                         ),
@@ -1911,7 +1915,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 4),
                         decoration: BoxDecoration(
-                          color:        _kBorder2.withOpacity(0.5),
+                          color:        _kBorder2.withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(6),
                           border:       Border.all(color: _kBorder2),
                         ),
@@ -2019,7 +2023,7 @@ class _OperativeBg extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final dot = Paint()
-      ..color = const Color(0xFFFFFFFF).withOpacity(0.03);
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.03);
     const spacing = 32.0;
     for (double x = spacing / 2; x < size.width; x += spacing)
       for (double y = spacing / 2; y < size.height; y += spacing)
@@ -2031,7 +2035,7 @@ class _OperativeBg extends CustomPainter {
         ..shader = RadialGradient(
           center: const Alignment(0.9, -0.8), radius: 0.9,
           colors: [
-            const Color(0xFFFFFFFF).withOpacity(0.025),
+            const Color(0xFFFFFFFF).withValues(alpha: 0.025),
             Colors.transparent,
           ],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
@@ -2046,7 +2050,7 @@ class _ScanlinesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color       = Colors.white.withOpacity(0.02)
+      ..color       = Colors.white.withValues(alpha: 0.02)
       ..strokeWidth = 1;
     const step = 18.0;
     for (double y = step; y < size.height; y += step)

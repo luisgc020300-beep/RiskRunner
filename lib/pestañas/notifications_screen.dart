@@ -145,6 +145,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     switch (item.tipo) {
 
+      // ── Follow ─────────────────────────────────────────────────────────────
+      case 'follow':
+        if (item.fromUserId != null) {
+          Navigator.pushNamed(context, '/perfil',
+              arguments: {'userId': item.fromUserId});
+        }
+        break;
+
       // ── Amistad ────────────────────────────────────────────────────────────
       case 'friend_request':
         Navigator.pushNamed(context, '/social', arguments: {'initialTab': 1});
@@ -330,6 +338,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Color _colorPorTipo(String t) {
     if (t.contains('lost'))                              return Colors.redAccent;
     if (t.contains('conquered') || t.contains('steal')) return Colors.cyanAccent;
+    if (t == 'follow')                                   return Colors.purpleAccent;
     if (t == 'friend_request' || t == 'friend_accepted')return Colors.blueAccent;
     if (t.contains('invasion'))                         return Colors.orangeAccent;
     if (t == 'desafio_recibido')                        return _kRed;
@@ -342,6 +351,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   IconData _iconoPorTipo(String t) {
     if (t.contains('lost'))                              return Icons.shield_outlined;
     if (t.contains('conquered') || t.contains('steal')) return Icons.flag_rounded;
+    if (t == 'follow')                                   return Icons.person_add_rounded;
     if (t == 'friend_request')                          return Icons.person_add_outlined;
     if (t == 'friend_accepted')                         return Icons.people_outlined;
     if (t.contains('invasion'))                         return Icons.warning_amber_rounded;
@@ -358,6 +368,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'territory_conquered':     return 'TERRITORIO CONQUISTADO';
       case 'territory_steal_success': return 'ROBO EXITOSO';
       case 'territory_invasion':      return 'INVASIÓN DETECTADA';
+      case 'follow':                  return 'NUEVO SEGUIDOR';
       case 'friend_request':          return 'SOLICITUD DE AMISTAD';
       case 'friend_accepted':         return 'SOLICITUD ACEPTADA';
       case 'desafio_recibido':        return 'DESAFÍO RECIBIDO';

@@ -164,6 +164,11 @@ class _PerfilScreenState extends State<PerfilScreen>
   String? _friendshipDocId;
   bool    _loadingFriendship = false;
 
+  int  _seguidores    = 0;
+  int  _siguiendo     = 0;
+  bool _esSiguiendo   = false;
+  bool _loadingFollow = false;
+
   int         _rangoEnLiga = 0;
   int         _puntosLiga  = 0;
   LeagueInfo? _ligaInfo;
@@ -383,8 +388,9 @@ class _PerfilScreenState extends State<PerfilScreen>
         _cargarEstadisticas(), _cargarLogros(),
         _cargarCarrerasRecientes(), _cargarRangoEnLiga(), _cargarRacha(),
         _cargarHistorialGuerra(), _cargarHistorialCompleto(),
-        _cargarTitulos(),
+        _cargarTitulos(), _cargarContadoresFollow(),
         if (!isOwnProfile) _cargarEstadoAmistad(),
+        if (!isOwnProfile) _cargarEstadoFollow(),
       ]);
     } catch (e) {
       debugPrint('Error cargando perfil: $e');
@@ -496,6 +502,72 @@ class _PerfilScreenState extends State<PerfilScreen>
       }
       setState(() => _friendshipStatus = 'none');
     } catch (e) { debugPrint('Error amistad: $e'); }
+  }
+
+  Future<void> _cargarContadoresFollow() async {
+    if (viewedUserId == null) return;
+    try {
+      final seg = await FirebaseFirestore.instance.collection('follows')
+          .where('followingId', isEqualTo: viewedUserId).count().get();
+      final sig = await FirebaseFirestore.instance.collection('follows')
+          .where('followerId', isEqualTo: viewedUserId).count().get();
+      if (mounted) setState(() {
+        _seguidores = (seg.count as num?)?.toInt() ?? 0;
+        _siguiendo  = (sig.count as num?)?.toInt() ?? 0;
+      });
+    } catch (e) { debugPrint('Error contadores follow: $e'); }
+  }
+
+  Future<void> _cargarEstadoFollow() async {
+    if (myUserId == null || viewedUserId == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance.collection('follows')
+          .where('followerId', isEqualTo: myUserId)
+          .where('followingId', isEqualTo: viewedUserId)
+          .limit(1).get();
+      if (mounted) setState(() => _esSiguiendo = snap.docs.isNotEmpty);
+    } catch (e) { debugPrint('Error estado follow: $e'); }
+  }
+
+  Future<void> _seguir() async {
+    if (myUserId == null || viewedUserId == null) return;
+    setState(() => _loadingFollow = true);
+    try {
+      await FirebaseFirestore.instance.collection('follows').add({
+        'followerId':  myUserId,
+        'followingId': viewedUserId,
+        'timestamp':   FieldValue.serverTimestamp(),
+      });
+      final nick = await _getMyNickname();
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'toUserId':     viewedUserId,
+        'type':         'follow',
+        'fromUserId':   myUserId,
+        'fromNickname': nick,
+        'message':      'ha empezado a seguirte',
+        'read':         false,
+        'timestamp':    FieldValue.serverTimestamp(),
+      });
+      if (mounted) setState(() { _esSiguiendo = true; _seguidores += 1; });
+    } catch (e) { debugPrint('Error seguir: $e'); }
+    finally { if (mounted) setState(() => _loadingFollow = false); }
+  }
+
+  Future<void> _dejarDeSeguir() async {
+    if (myUserId == null || viewedUserId == null) return;
+    setState(() => _loadingFollow = true);
+    try {
+      final snap = await FirebaseFirestore.instance.collection('follows')
+          .where('followerId', isEqualTo: myUserId)
+          .where('followingId', isEqualTo: viewedUserId)
+          .limit(1).get();
+      for (final doc in snap.docs) await doc.reference.delete();
+      if (mounted) setState(() {
+        _esSiguiendo = false;
+        _seguidores  = (_seguidores - 1).clamp(0, 999999);
+      });
+    } catch (e) { debugPrint('Error dejar de seguir: $e'); }
+    finally { if (mounted) setState(() => _loadingFollow = false); }
   }
 
   Future<void> _enviarSolicitudAmistad() async {
@@ -1140,7 +1212,11 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Column(children: [
-                _buildFriendshipButton(),
+                Row(children: [
+                  Expanded(child: _buildFollowButton()),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildFriendshipButton()),
+                ]),
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(child: _buildBotonRetar()),
@@ -2261,6 +2337,12 @@ class _PerfilScreenState extends State<PerfilScreen>
                     if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Icon(Icons.workspace_premium_rounded, color: _kGold, size: 11)],
                   ])),
             if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub))],
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              _followCounter(_seguidores, 'SEGUIDORES'),
+              Container(width: 1, height: 20, color: _p.muted, margin: const EdgeInsets.symmetric(horizontal: 16)),
+              _followCounter(_siguiendo, 'SIGUIENDO'),
+            ]),
             const SizedBox(height: 28),
           ]),
         ),
@@ -2775,6 +2857,23 @@ class _PerfilScreenState extends State<PerfilScreen>
       const SizedBox(width: 12),
       Text(label, style: _rajdhani(13, FontWeight.w600, _p.text)),
     ]);
+  }
+
+  Widget _followCounter(int count, String label) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text('$count', style: _rajdhani(18, FontWeight.w900, _p.title)),
+      const SizedBox(height: 1),
+      Text(label, style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 1.5)),
+    ],
+  );
+
+  Widget _buildFollowButton() {
+    if (_loadingFollow) return const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 1.5)));
+    if (_esSiguiendo) {
+      return _socialBtn('Siguiendo', Icons.how_to_reg_rounded, _p.dim, _dejarDeSeguir, outlined: true);
+    }
+    return _socialBtn('Seguir', Icons.person_add_rounded, _kAccent, _seguir);
   }
 
   Widget _buildFriendshipButton() {

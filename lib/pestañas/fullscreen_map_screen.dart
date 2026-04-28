@@ -2138,25 +2138,60 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               // Glow exterior territorios propios
               if (territorios.any((t) => t.esMio))
                 PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
-                    points: t.puntos,
-                    color: Colors.transparent,
-                    borderColor: t.color.withValues(alpha: 0.18),
-                    borderStrokeWidth: 14.0,
-                  )).toList(),
+                  polygons: territorios.where((t) => t.esMio).map((t) {
+                    final decay = _decayFactor(t);
+                    return Polygon(
+                      points: t.puntos,
+                      color: Colors.transparent,
+                      borderColor: t.color.withValues(alpha: 0.18 * decay),
+                      borderStrokeWidth: 14.0,
+                    );
+                  }).toList(),
                 ),
 
               // Territorios propios encima
               if (territorios.isNotEmpty)
                 PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) =>
-                    Polygon(
+                  polygons: territorios.where((t) => t.esMio).map((t) {
+                    final decay = _decayFactor(t);
+                    final frio  = t.ultimaVisita != null &&
+                        DateTime.now().difference(t.ultimaVisita!).inDays >= 7;
+                    return Polygon(
                       points: t.puntos,
-                      color: t.color.withValues(alpha: 0.30),
-                      borderColor: t.color,
+                      color: frio
+                          ? Colors.grey.withValues(alpha: 0.18)
+                          : t.color.withValues(alpha: 0.30 * decay),
+                      borderColor: frio
+                          ? Colors.grey.withValues(alpha: 0.55)
+                          : t.color.withValues(alpha: decay),
                       borderStrokeWidth: 3.5,
-                    ),
-                  ).toList(),
+                    );
+                  }).toList(),
+                ),
+
+              // Marcadores de alerta en territorios fríos (7+ días sin visitar)
+              if (territorios.any((t) => t.esMio && t.ultimaVisita != null &&
+                  DateTime.now().difference(t.ultimaVisita!).inDays >= 7))
+                MarkerLayer(
+                  markers: territorios.where((t) => t.esMio &&
+                      t.ultimaVisita != null &&
+                      DateTime.now().difference(t.ultimaVisita!).inDays >= 7)
+                    .map((t) => Marker(
+                      point: t.centro,
+                      width: 22, height: 22,
+                      child: Container(
+                        width: 22, height: 22,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.85),
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(
+                            color: Colors.orange.withValues(alpha: 0.4),
+                            blurRadius: 6)],
+                        ),
+                        child: const Icon(Icons.warning_amber_rounded,
+                            color: Colors.white, size: 13),
+                      ),
+                    )).toList(),
                 ),
 
               // Marcador de posición del usuario
@@ -3430,6 +3465,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   // SHEET MI CIUDAD
   // ==========================================================================
+  // ==========================================================================
+  // TERRITORY DECAY
+  // ==========================================================================
+  double _decayFactor(TerritoryData t) {
+    if (t.ultimaVisita == null) return 1.0;
+    final days = DateTime.now().difference(t.ultimaVisita!).inDays;
+    if (days < 7) return 1.0;
+    if (days >= 30) return 0.35;
+    return 1.0 - ((days - 7) / 23) * 0.65;
+  }
+
   // ==========================================================================
   // FILTRO DE MAPA
   // ==========================================================================
