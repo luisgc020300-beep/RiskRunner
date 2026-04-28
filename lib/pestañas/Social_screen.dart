@@ -1450,7 +1450,23 @@ class _PlayerCardState extends State<_PlayerCard> {
         });
         if (mounted) setState(() => _siguiendo = true);
       }
-    } catch (e) { debugPrint('Error follow: $e'); }
+    } catch (e) {
+      debugPrint('Error follow: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+          backgroundColor: Colors.redAccent.withValues(alpha: 0.95),
+          content: const Row(children: [
+            Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+            SizedBox(width: 10),
+            Text('No se pudo completar la acción',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
+          ]),
+        ));
+      }
+    }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
 

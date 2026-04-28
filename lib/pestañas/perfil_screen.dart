@@ -549,7 +549,10 @@ class _PerfilScreenState extends State<PerfilScreen>
         'timestamp':    FieldValue.serverTimestamp(),
       });
       if (mounted) setState(() { _esSiguiendo = true; _seguidores += 1; });
-    } catch (e) { debugPrint('Error seguir: $e'); }
+    } catch (e) {
+      debugPrint('Error seguir: $e');
+      if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexión', error: true);
+    }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
 
@@ -566,7 +569,10 @@ class _PerfilScreenState extends State<PerfilScreen>
         _esSiguiendo = false;
         _seguidores  = (_seguidores - 1).clamp(0, 999999);
       });
-    } catch (e) { debugPrint('Error dejar de seguir: $e'); }
+    } catch (e) {
+      debugPrint('Error dejar de seguir: $e');
+      if (mounted) _mostrarSnackbar('No se pudo dejar de seguir', error: true);
+    }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
 

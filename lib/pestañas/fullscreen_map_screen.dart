@@ -3796,12 +3796,35 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           if (det > 0 || pel > 0) _buildAlertaBanner(det, pel),
           _buildStatsRow(mios, det, pel),
           _buildSectionDivider('TERRITORIOS', Icons.flag_rounded, _kRed),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _buildFiltroChips(),
-          ),
-          _buildBotonCercanos(),
-          if (_state.cercanosVisible) _buildPanelCercanos(),
+          if (mios == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: _shSurf,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _shBorder),
+                  ),
+                  child: const Icon(Icons.flag_outlined, color: _kSub, size: 22),
+                ),
+                const SizedBox(height: 14),
+                Text('SIN TERRITORIOS', style: _raj(12, FontWeight.w800, _kSub, spacing: 2.5)),
+                const SizedBox(height: 6),
+                Text('Sal a correr para conquistar\ntu primera zona',
+                    textAlign: TextAlign.center,
+                    style: _raj(11, FontWeight.w500, _kSub, height: 1.5)),
+              ]),
+            )
+          else ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildFiltroChips(),
+            ),
+            _buildBotonCercanos(),
+            if (_state.cercanosVisible) _buildPanelCercanos(),
+          ],
           const SizedBox(height: 4),
           _buildFeedActividad(),
         ],

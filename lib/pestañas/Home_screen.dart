@@ -373,15 +373,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _actualizarAvatarCache(Set<String> userIds) async {
-    for (final uid in userIds) {
+    final ids = userIds.toList();
+    // Firestore whereIn soporta hasta 30 elementos por query
+    for (var i = 0; i < ids.length; i += 30) {
+      final chunk = ids.sublist(i, (i + 30).clamp(0, ids.length));
       try {
-        final doc = await FirebaseFirestore.instance
-            .collection('usuarios').doc(uid).get();
+        final snap = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
         if (!mounted) return;
-        final foto = doc.data()?['foto_base64'] as String?;
-        setState(() => _avatarCache[uid] = foto);
-      } catch (_) {
-        _avatarCache[uid] = null;
+        final fetched = {for (final d in snap.docs) d.id: d.data()['foto_base64'] as String?};
+        // Marcar como null los ids que no devolvió Firestore
+        final missing = {for (final id in chunk) id: null as String?};
+        setState(() => _avatarCache.addAll({...missing, ...fetched}));
+      } catch (e) {
+        debugPrint('Error cargando avatares batch: $e');
+        for (final id in chunk) {
+          _avatarCache[id] = null;
+        }
       }
     }
   }
@@ -389,21 +399,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _toggleLike(FeedPost post) async {
     if (userId == null) return;
     final ref = FirebaseFirestore.instance.collection('posts').doc(post.id);
-    if (post.likedByMe) {
-      await ref.update({'likes': FieldValue.arrayRemove([userId])});
-    } else {
-      await ref.update({'likes': FieldValue.arrayUnion([userId])});
+    try {
+      if (post.likedByMe) {
+        await ref.update({'likes': FieldValue.arrayRemove([userId])});
+      } else {
+        await ref.update({'likes': FieldValue.arrayUnion([userId])});
+      }
+    } catch (e) {
+      debugPrint('Error toggleLike: $e');
+      if (mounted) _snackError('No se pudo registrar el like');
     }
   }
 
   Future<void> _toggleSave(FeedPost post) async {
     if (userId == null) return;
     final ref = FirebaseFirestore.instance.collection('posts').doc(post.id);
-    if (post.savedByMe) {
-      await ref.update({'saved': FieldValue.arrayRemove([userId])});
-    } else {
-      await ref.update({'saved': FieldValue.arrayUnion([userId])});
+    try {
+      if (post.savedByMe) {
+        await ref.update({'saved': FieldValue.arrayRemove([userId])});
+      } else {
+        await ref.update({'saved': FieldValue.arrayUnion([userId])});
+      }
+    } catch (e) {
+      debugPrint('Error toggleSave: $e');
+      if (mounted) _snackError('No se pudo guardar');
     }
+  }
+
+  void _snackError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      duration: const Duration(seconds: 3),
+      backgroundColor: _T.redD.withValues(alpha: 0.95),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      content: Row(children: [
+        Icon(Icons.wifi_off_rounded, color: _T.white, size: 16),
+        const SizedBox(width: 10),
+        Text(msg, style: _raj(12, FontWeight.w600, _T.white)),
+      ]),
+    ));
   }
 
   Future<void> _guardarRuta(FeedPost post) async {
@@ -485,7 +519,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ));
       }
     } catch (e) {
-      debugPrint("Error guardando ruta: $e");
+      debugPrint('Error guardando ruta: $e');
+      if (mounted) _snackError('No se pudo guardar la ruta');
     }
   }
 
@@ -494,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: _T.bg1,
-        border: Border.all(color: border.withOpacity(0.5)),
+        border: Border.all(color: border.withValues(alpha: 0.5)),
         boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
       ),
       child: child,
@@ -560,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final playerDocs = await Future.wait(futures);
       final amigos = playerDocs
           .where((d) => d.exists)
-          .map((d) => {...d.data()! as Map<String, dynamic>, 'id': d.id})
+          .map((d) => {...d.data()!, 'id': d.id})
           .toList();
 
       final amigoIds = amigos.map((a) => a['id'] as String).toList();
@@ -766,7 +801,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.88),
+      barrierColor: Colors.black.withValues(alpha: 0.88),
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
@@ -790,8 +825,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: _T.bronze.withOpacity(0.08),
-                    border: Border.all(color: _T.bronze.withOpacity(0.25)),
+                    color: _T.bronze.withValues(alpha: 0.08),
+                    border: Border.all(color: _T.bronze.withValues(alpha: 0.25)),
                   ),
                   child: Text('ZONA', style: _raj(9, FontWeight.w900, _T.bronze, spacing: 2)),
                 ),
@@ -821,7 +856,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               additionalOptions: const {'accessToken': _kMapboxToken}),
                           PolygonLayer(polygons: [
                             Polygon(points: det.puntos,
-                                color: _T.bronze.withOpacity(0.22),
+                                color: _T.bronze.withValues(alpha: 0.22),
                                 borderColor: _T.bronze, borderStrokeWidth: 2)
                           ]),
                         ],
@@ -879,8 +914,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.04),
-          border: Border.all(color: color.withOpacity(0.15))),
+          color: color.withValues(alpha: 0.04),
+          border: Border.all(color: color.withValues(alpha: 0.15))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Icon(icon, color: color, size: 13),
@@ -946,8 +981,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       content: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-            color: _T.redD.withOpacity(0.97),
-            border: Border.all(color: _T.red.withOpacity(0.5)),
+            color: _T.redD.withValues(alpha: 0.97),
+            border: Border.all(color: _T.red.withValues(alpha: 0.5)),
             boxShadow: [BoxShadow(color: _T.redGlow, blurRadius: 20)]),
         child: Row(children: [
           const Text('', style: TextStyle(fontSize: 22)),
@@ -1113,7 +1148,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.88),
+      barrierColor: Colors.black.withValues(alpha: 0.88),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 28),
@@ -1121,9 +1156,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: _T.bg1,
-            border: Border.all(color: _T.bronze.withOpacity(0.35)),
+            border: Border.all(color: _T.bronze.withValues(alpha: 0.35)),
             boxShadow: [
-              BoxShadow(color: _T.bronze.withOpacity(0.08), blurRadius: 32),
+              BoxShadow(color: _T.bronze.withValues(alpha: 0.08), blurRadius: 32),
               const BoxShadow(color: Colors.black54, blurRadius: 12),
             ],
           ),
@@ -1131,8 +1166,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Container(
               width: 56, height: 56,
               decoration: BoxDecoration(
-                color: _T.bronze.withOpacity(0.08),
-                border: Border.all(color: _T.bronze.withOpacity(0.30)),
+                color: _T.bronze.withValues(alpha: 0.08),
+                border: Border.all(color: _T.bronze.withValues(alpha: 0.30)),
               ),
               child: const Center(child: Text('', style: TextStyle(fontSize: 26))),
             ),
@@ -1224,8 +1259,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      color: _T.bronze.withOpacity(0.10),
-                      border: Border.all(color: _T.bronze.withOpacity(0.55)),
+                      color: _T.bronze.withValues(alpha: 0.10),
+                      border: Border.all(color: _T.bronze.withValues(alpha: 0.55)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1297,7 +1332,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         showDialog(
           context: context,
-          barrierColor: Colors.black.withOpacity(0.88),
+          barrierColor: Colors.black.withValues(alpha: 0.88),
           builder: (ctx) => Dialog(
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1305,7 +1340,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: _T.bg1,
-                border: Border.all(color: _T.red.withOpacity(0.3)),
+                border: Border.all(color: _T.red.withValues(alpha: 0.3)),
                 boxShadow: [BoxShadow(color: _T.redGlow, blurRadius: 24)],
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1323,8 +1358,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     decoration: BoxDecoration(
-                      color: _T.red.withOpacity(0.10),
-                      border: Border.all(color: _T.red.withOpacity(0.4)),
+                      color: _T.red.withValues(alpha: 0.10),
+                      border: Border.all(color: _T.red.withValues(alpha: 0.4)),
                     ),
                     child: Text('ENTENDIDO', textAlign: TextAlign.center,
                         style: _raj(13, FontWeight.w900, _T.red, spacing: 2.5)),
@@ -1541,7 +1576,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.90),
+      barrierColor: Colors.black.withValues(alpha: 0.90),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 28),
@@ -1751,9 +1786,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _T.gold.withOpacity(0.10),
+              color: _T.gold.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _T.gold.withOpacity(0.30)),
+              border: Border.all(color: _T.gold.withValues(alpha: 0.30)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Text('', style: TextStyle(fontSize: 12)),
@@ -1837,7 +1872,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   } else if (hasStories && allViewed) {
                     ringColor = _T.muted; ringWidth = 1.5;
                   } else {
-                    ringColor = isMe ? _T.bronze.withOpacity(0.5) : _T.border2;
+                    ringColor = isMe ? _T.bronze.withValues(alpha: 0.5) : _T.border2;
                     ringWidth = isMe ? 1.5 : 1.0;
                   }
 
@@ -1855,7 +1890,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: (hasStories && !allViewed && isMe)
-                                      ? ringColor.withOpacity(0.5 + 0.5 * _pulse.value)
+                                      ? ringColor.withValues(alpha: 0.5 + 0.5 * _pulse.value)
                                       : ringColor,
                                   width: ringWidth,
                                 ),
@@ -2046,6 +2081,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           width: 72, height: 72,
           decoration: BoxDecoration(
               color: _T.bg1,
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: _T.border2)),
           child: Icon(Icons.directions_run_rounded, color: _T.muted, size: 30),
         ),
@@ -2061,8 +2097,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
             decoration: BoxDecoration(
-                color: _T.bronze.withOpacity(0.10),
-                border: Border.all(color: _T.bronze.withOpacity(0.5))),
+                color: _T.bronze.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _T.bronze.withValues(alpha: 0.5))),
             child: Text('INICIAR CARRERA',
                 style: _raj(12, FontWeight.w900, _T.bronze, spacing: 2.5)),
           ),
@@ -2085,7 +2122,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _T.border2),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.18),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.18),
                 blurRadius: 16, offset: const Offset(0, 4)),
           ],
         ),
@@ -2123,8 +2160,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                    color: _T.bronze.withOpacity(0.07),
-                    border: Border.all(color: _T.bronze.withOpacity(0.22))),
+                    color: _T.bronze.withValues(alpha: 0.07),
+                    border: Border.all(color: _T.bronze.withValues(alpha: 0.22))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(_iconForTipo(post.tipo), color: _T.bronze, size: 11),
                   const SizedBox(width: 4),
@@ -2161,7 +2198,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _buildRouteMap(post)
           else
             const SizedBox(height: 4),
-          Container(height: 1, color: _T.border2.withOpacity(0.5)),
+          Container(height: 1, color: _T.border2.withValues(alpha: 0.5)),
           _buildPostActions(post),
         ]),
       ),
@@ -2312,7 +2349,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Container(
                   margin: const EdgeInsets.all(8),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  color: _T.bg0.withOpacity(0.88),
+                  color: _T.bg0.withValues(alpha: 0.88),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.bar_chart_rounded, color: _T.sub, size: 10),
                     const SizedBox(width: 4),
@@ -2603,8 +2640,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             premio:         (data['recompensas_monedas'] as num?)?.toInt() ?? 0,
             objetivoMetros: (data['objetivo_valor'] as num?)?.toInt() ?? 0,
           ),
-          splashColor: _T.bronze.withOpacity(0.08),
-          highlightColor: _T.bronze.withOpacity(0.04),
+          splashColor: _T.bronze.withValues(alpha: 0.08),
+          highlightColor: _T.bronze.withValues(alpha: 0.04),
           child: _buildMissionCard(
               data['titulo'] ?? 'Misión',
               data['descripcion'] ?? '',
@@ -2620,17 +2657,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     const goldColor = Color(0xFFDECA46);
     final borderColor = esPremium ? goldColor : _T.bronze;
     final iconBg      = esPremium
-        ? goldColor.withOpacity(0.08)
-        : _T.bronze.withOpacity(0.07);
+        ? goldColor.withValues(alpha: 0.08)
+        : _T.bronze.withValues(alpha: 0.07);
     final iconBorder  = esPremium
-        ? goldColor.withOpacity(0.3)
-        : _T.bronze.withOpacity(0.20);
+        ? goldColor.withValues(alpha: 0.3)
+        : _T.bronze.withValues(alpha: 0.20);
     final icon = esPremium ? Icons.workspace_premium_rounded : Icons.bolt_rounded;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: esPremium ? goldColor.withOpacity(0.04) : _T.bg1,
+        color: esPremium ? goldColor.withValues(alpha: 0.04) : _T.bg1,
         border: Border(
           left: BorderSide(color: borderColor, width: 2),
           top: BorderSide(color: _T.border2),
@@ -2657,8 +2694,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   margin: const EdgeInsets.only(right: 6),
                   decoration: BoxDecoration(
-                    color: goldColor.withOpacity(0.12),
-                    border: Border.all(color: goldColor.withOpacity(0.4)),
+                    color: goldColor.withValues(alpha: 0.12),
+                    border: Border.all(color: goldColor.withValues(alpha: 0.4)),
                   ),
                   child: Text(' PREMIUM',
                       style: _raj(7, FontWeight.w900, goldColor, spacing: 0.8)),
@@ -2767,7 +2804,7 @@ class _LoaderPainter extends CustomPainter {
     for (int i = 1; i <= 3; i++) {
       canvas.drawCircle(c, 7.0 * i * 1.1,
           Paint()
-            ..color = accent.withOpacity(0.03 + 0.015 * pulse * (4 - i))
+            ..color = accent.withValues(alpha: 0.03 + 0.015 * pulse * (4 - i))
             ..strokeWidth = 0.6
             ..style = PaintingStyle.stroke);
     }
