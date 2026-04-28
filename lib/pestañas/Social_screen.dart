@@ -242,7 +242,7 @@ class _Initials extends StatelessWidget {
 //  PILL TAG
 // =============================================================================
 class _Pill extends StatelessWidget {
-  final String label; final Color color; final String? leading;
+  final String label; final Color color; final Widget? leading;
   const _Pill({required this.label, required this.color, this.leading});
   @override Widget build(BuildContext ctx) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -252,7 +252,7 @@ class _Pill extends StatelessWidget {
       borderRadius: BorderRadius.circular(4)),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       if (leading != null) ...[
-        Text(leading!, style: const TextStyle(fontSize: 9)),
+        leading!,
         const SizedBox(width: 3),
       ],
       Text(label, style: TextStyle(
@@ -804,7 +804,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
             child: Row(children: [
-              Text(ligaInfo.emoji, style: const TextStyle(fontSize: 16)), const SizedBox(width: 8),
+              Icon(ligaInfo.icon, color: ligaInfo.color, size: 16), const SizedBox(width: 8),
               Text('TOP 100 · ${ligaInfo.name.toUpperCase()}', style: TextStyle(color: _accent, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2.5)),
               const Spacer(),
               Text('${docs.length} exploradores', style: TextStyle(color: _p.subtext, fontSize: 10))])),
@@ -1090,7 +1090,7 @@ class _LeagueBanner extends StatelessWidget {
                     color: ligaInfo.color.withValues(alpha: 0.08),
                     border: Border.all(color: ligaInfo.color.withValues(alpha: 0.3)),
                     borderRadius: BorderRadius.circular(12)),
-                  child: Center(child: Text(ligaInfo.emoji, style: const TextStyle(fontSize: 28)))),
+                  child: Center(child: Icon(ligaInfo.icon, color: ligaInfo.color, size: 28))),
                 const SizedBox(width: 16),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
@@ -1211,7 +1211,7 @@ class _RankCard extends StatelessWidget {
                 Row(children: [
                   Text('Niv. $nivel', style: TextStyle(color: p.subtext, fontSize: 10)),
                   const SizedBox(width: 6),
-                  _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: ligaInfo.emoji),
+                  _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
                 ]),
               ])),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -1290,7 +1290,7 @@ class _FriendCard extends StatelessWidget {
                       fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
                   Container(width: 1, height: 8, color: _p.line2,
                     margin: const EdgeInsets.symmetric(horizontal: 6)),
-                  _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: ligaInfo.emoji),
+                  _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
                 ]),
               ])),
               _Press(onTap: onPerfil, child: Container(
@@ -1407,7 +1407,7 @@ class _PlayerCard extends StatelessWidget {
           Row(children: [
             _Pill(label: 'NIV.$nivel', color: accent),
             const SizedBox(width: 5),
-            _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: ligaInfo.emoji),
+            _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
           ]),
           const SizedBox(height: 4),
           Text('$monedas   ·  Rango #$rango', style: TextStyle(color: _p.subtext, fontSize: 10)),
@@ -1465,7 +1465,7 @@ class _RequestCard extends StatelessWidget {
           Row(children: [
             Text('Nivel $nivel', style: TextStyle(color: _p.text3, fontSize: 11)),
             const SizedBox(width: 6),
-            _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: ligaInfo.emoji),
+            _Pill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
           ]),
         ])),
         _Press(onTap: onRechazar, child: Container(
