@@ -82,7 +82,7 @@ class _LP {
 // =============================================================================
 const double _kPitchCorrer  = 55.0;
 const double _kPitchNormal  = 0.0;
-const double _kPitchPausado = 52.0;
+const double _kPitchPausado = 65.0;
 const double _kZoomCorrer   = 18.5;
 const double _kZoomPausado  = 15.5;
 const double _kZoomGlobo   = 5;
@@ -1507,25 +1507,25 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final List<Object> bColors;
       if (night) {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
-          0,   '#2A3D52', 8,   '#354C64',
-          25,  '#406077', 60,  '#4B7290', 120, '#5680A0'];
+          0,   '#9C8060', 8,   '#B09070',
+          25,  '#C4A878', 60,  '#D4B880', 120, '#C09858'];
       } else if (golden) {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
-          0,   '#F5C68A', 8,   '#E8A85A',
-          25,  '#C47C30', 60,  '#A05C18', 120, '#7A3E0A'];
+          0,   '#F8D8A0', 8,   '#F0BC70',
+          25,  '#D89840', 60,  '#BC7820', 120, '#9A580C'];
       } else {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
-          0,   '#EDE0C4', 8,   '#D4B896',
-          25,  '#B8996A', 60,  '#8B6B45', 120, '#6B4E2E'];
+          0,   '#F2EAD6', 8,   '#E8D4A8',
+          25,  '#D4B878', 60,  '#B89048', 120, '#906830'];
       }
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-color', bColors);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-opacity', 0.92);
+          _buildingsLayerId, 'fill-extrusion-opacity', 0.95);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-intensity', 0.55);
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-intensity', 0.25);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 4.5);
+          _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 3.0);
       _buildings3dCreated = true;
     } catch (e) {
       debugPrint('Error edificios 3D: $e');
@@ -4345,7 +4345,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (_currentPosition != null) {
               _moverCamara(lat: _currentPosition!.latitude,
                   lng: _currentPosition!.longitude,
-                  zoom: _kZoomCorrer, pitch: _kPitchCorrer,
+                  zoom:    isPaused ? _kZoomPausado  : _kZoomCorrer,
+                  pitch:   isPaused ? _kPitchPausado : _kPitchCorrer,
                   bearing: _bearing, forzar: true);
             }
           }),

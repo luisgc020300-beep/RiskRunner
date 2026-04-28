@@ -41,7 +41,8 @@ const _kGlobalRedDim  = Color(0xFF7A1414);
 // =============================================================================
 const _kMapboxToken   = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv/tiles/256/{z}/{x}/{y}?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
+    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PANTALLA
@@ -1356,33 +1357,29 @@ class _ResumenScreenState extends State<ResumenScreen>
               )));
         },
         child: Container(
-          height: 200,
+          height: 240,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border:       Border.all(
-                color: _acento.withOpacity(0.5)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _acento.withValues(alpha: 0.6), width: 1.5),
             boxShadow: [
-              BoxShadow(
-                  color:      _acento.withOpacity(0.08),
-                  blurRadius: 20),
-              BoxShadow(
-                  color:      Colors.black.withOpacity(0.4),
-                  blurRadius: 8),
+              BoxShadow(color: _acento.withValues(alpha: 0.15), blurRadius: 28, spreadRadius: 1),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(15),
             child: Stack(children: [
               FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: _centroMapa!,
                   initialZoom:   15,
+                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
                   onMapReady: () {
                     if (tieneRuta) {
                       _mapController.fitCamera(CameraFit.bounds(
                           bounds:  LatLngBounds.fromPoints(widget.ruta),
-                          padding: const EdgeInsets.all(52)));
+                          padding: const EdgeInsets.all(48)));
                     }
                   },
                 ),
@@ -1390,17 +1387,15 @@ class _ResumenScreenState extends State<ResumenScreen>
                   TileLayer(
                     urlTemplate:          _kMapboxTileUrl,
                     userAgentPackageName: 'com.runner_risk.app',
-                    tileDimension:        256,
-                    additionalOptions:
-                        const {'accessToken': _kMapboxToken},
+                    tileDimension:        512,
                   ),
                   if (_territoriosEnMapa.isNotEmpty)
                     PolygonLayer(polygons: _territoriosEnMapa.map((t) =>
                         Polygon(
                           points:            t.puntos,
-                          color:             t.color.withOpacity(0.35),
+                          color:             t.color.withValues(alpha: 0.40),
                           borderColor:       t.color,
-                          borderStrokeWidth: 2.0,
+                          borderStrokeWidth: 2.5,
                         )).toList()),
                   if (tieneRuta && widget.esDesdeCarrera)
                     AnimatedBuilder(
@@ -1412,11 +1407,11 @@ class _ResumenScreenState extends State<ResumenScreen>
                         return PolylineLayer(polylines: [
                           Polyline(
                               points:      widget.ruta.sublist(0, n),
-                              strokeWidth: 7.0,
-                              color:       _kRed.withOpacity(0.15)),
+                              strokeWidth: 9.0,
+                              color:       _kRed.withValues(alpha: 0.18)),
                           Polyline(
                               points:      widget.ruta.sublist(0, n),
-                              strokeWidth: 3.0,
+                              strokeWidth: 3.5,
                               color:       _kRed),
                         ]);
                       },
@@ -1426,47 +1421,51 @@ class _ResumenScreenState extends State<ResumenScreen>
                       Marker(
                         point: _centroMapa!,
                         child: Icon(Icons.location_on,
-                            color: _kRed, size: 26),
+                            color: _kRed, size: 28),
                       ),
                     ]),
                 ],
               ),
+              // viñeta oscura en bordes
               Positioned.fill(child: IgnorePointer(
                   child: DecoratedBox(decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(15),
                     gradient: RadialGradient(
-                        center: Alignment.center, radius: 1.1,
+                        center: Alignment.center, radius: 1.2,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.3)
+                          Colors.black.withValues(alpha: 0.45),
                         ]),
                   )))),
+              // badge zonas
               Positioned(top: 10, left: 10,
                   child: _mapBadge(
                       '${_territoriosEnMapa.length} zona${_territoriosEnMapa.length == 1 ? '' : 's'}',
                       '')),
+              // icono expandir
               Positioned(top: 10, right: 10,
                 child: Container(
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                    color:        Colors.black.withOpacity(0.65),
-                    borderRadius: BorderRadius.circular(6),
-                    border:       Border.all(color: _kBorder2),
+                    color:        Colors.black.withValues(alpha: 0.70),
+                    borderRadius: BorderRadius.circular(8),
+                    border:       Border.all(color: _acento.withValues(alpha: 0.4), width: 1),
                   ),
-                  child: const Icon(Icons.open_in_full_rounded,
-                      color: _kGrey, size: 12),
+                  child: Icon(Icons.open_in_full_rounded,
+                      color: _acento.withValues(alpha: 0.85), size: 13),
                 )),
-              Positioned(bottom: 0, left: 0, right: 0,
-                child: AnimatedBuilder(
-                  animation: _rutaProgress,
-                  builder: (_, __) => LinearProgressIndicator(
-                    value:           _rutaProgress.value,
-                    backgroundColor: Colors.black.withOpacity(0.3),
-                    valueColor:
-                        AlwaysStoppedAnimation(_kGrey.withOpacity(0.6)),
-                    minHeight: 2,
-                  ),
-                )),
+              // barra de progreso animada de la ruta
+              if (tieneRuta && widget.esDesdeCarrera)
+                Positioned(bottom: 0, left: 0, right: 0,
+                  child: AnimatedBuilder(
+                    animation: _rutaProgress,
+                    builder: (_, __) => LinearProgressIndicator(
+                      value:           _rutaProgress.value,
+                      backgroundColor: Colors.black.withValues(alpha: 0.3),
+                      valueColor:      AlwaysStoppedAnimation(_acento.withValues(alpha: 0.8)),
+                      minHeight: 2.5,
+                    ),
+                  )),
             ]),
           ),
         ),
