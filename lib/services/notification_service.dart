@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'territory_service.dart';
+import '../main.dart' show navigatorKey;
 
 // Handler global para notificaciones cuando la app está cerrada
 // DEBE estar fuera de la clase y ser una función top-level
@@ -43,6 +44,10 @@ class NotificationService {
 
     // 5. Tap en notificación desde background
     FirebaseMessaging.onMessageOpenedApp.listen(_onNotificacionAbierta);
+
+    // 6. App abierta desde estado terminado al tocar la notificación
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) _onNotificacionAbierta(initialMessage);
   }
 
   // ==========================================================================
@@ -94,7 +99,44 @@ class NotificationService {
 
   static void _onNotificacionAbierta(RemoteMessage message) {
     debugPrint('👆 Usuario abrió notificación: ${message.notification?.title}');
-    // Aquí puedes navegar a la pantalla correcta según message.data['tipo']
+    final data = message.data;
+    final tipo = data['type'] as String?;
+    _navegarPorTipo(tipo, data);
+  }
+
+  static void _navegarPorTipo(String? tipo, Map<String, dynamic> data) {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    switch (tipo) {
+      case 'territory_lost':
+      case 'territory_weakened':
+      case 'territory_under_attack':
+      case 'territory_bitten':
+      case 'territory_king_lost':
+        nav.pushNamed('/mapa');
+
+      case 'follow':
+        final fromUserId = data['fromUserId'] as String?;
+        if (fromUserId != null) {
+          nav.pushNamed('/perfil', arguments: {'userId': fromUserId});
+        } else {
+          nav.pushNamed('/notificaciones');
+        }
+
+      case 'desafio_ganado':
+      case 'desafio_perdido':
+        final desafioId = data['desafioId'] as String?;
+        nav.pushNamed('/desafios', arguments: {'desafioId': desafioId});
+
+      case 'guerra_global_recompensa':
+      case 'global_territory_conquered':
+      case 'global_territory_lost':
+        nav.pushNamed('/mapa');
+
+      default:
+        nav.pushNamed('/notificaciones');
+    }
   }
 
   // ==========================================================================

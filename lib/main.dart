@@ -27,6 +27,9 @@ import 'pestañas/clan_screen.dart';
 import 'pestañas/desafios_screen.dart';
 import 'services/desafios_service.dart';
 
+// Clave global para navegar desde notificaciones sin context
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -131,6 +134,7 @@ class _MyAppState extends State<MyApp> {
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
       // ── Tema de fallback (antiguo) eliminado — darkTheme lo cubre ──
+      navigatorKey: navigatorKey,
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {

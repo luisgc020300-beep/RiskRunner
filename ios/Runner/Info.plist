@@ -54,5 +54,17 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>El GPS es necesario para calcular la distancia de tu actividad.</string>
 
+	<!-- Push Notifications + background fetch -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>fetch</string>
+		<string>background-processing</string>
+	</array>
+
+	<!-- Desactiva el swizzling para control total con FlutterFire -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+
 </dict>
 </plist>

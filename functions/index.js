@@ -8,9 +8,84 @@ const { onDocumentCreated,
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getMessaging }       = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore();
+
+// =============================================================================
+// 0. PUSH FCM — Enviar notificación al dispositivo cuando se crea una notif
+// Se dispara con CUALQUIER tipo de notificación (follow, territory, desafío…)
+// =============================================================================
+const _FCM_TITLES = {
+  territory_lost:            '⚔️ Territorio perdido',
+  territory_weakened:        '⚠️ Territorio debilitado',
+  territory_under_attack:    '🔥 ¡Ataque en curso!',
+  territory_bitten:          '⚔️ Te han robado un trozo',
+  territory_king_lost:       '👑 Reinado perdido',
+  desafio_ganado:            '🏆 ¡Desafío ganado!',
+  desafio_perdido:           '💀 Desafío perdido',
+  follow:                    '👤 Nuevo seguidor',
+  guerra_global_recompensa:  '⚔️ Recompensa semanal',
+  global_territory_conquered:'⚔️ ¡Conquista Global!',
+  global_territory_lost:     '💀 Territorio Global perdido',
+  titulo_rey:                '👑 ¡Eres el Rey!',
+  amistad_aceptada:          '🤝 Solicitud aceptada',
+};
+
+exports.onNotificationCreated = onDocumentCreated(
+  { document: 'notifications/{notifId}', region: 'europe-west1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const toUserId = data.toUserId;
+    if (!toUserId) return;
+
+    // Leer el token FCM del jugador destino
+    const playerSnap = await db.collection('players').doc(toUserId).get();
+    if (!playerSnap.exists) return;
+
+    const token = playerSnap.data()?.fcm_token;
+    if (!token || typeof token !== 'string') return;
+
+    const tipo    = data.type || 'info';
+    const title   = _FCM_TITLES[tipo] || 'Risk Runner';
+    const body    = data.message || '';
+
+    try {
+      await getMessaging().send({
+        token,
+        notification: { title, body },
+        data: {
+          type:     tipo,
+          notifId:  event.params.notifId,
+          toUserId: toUserId,
+          ...(data.fromUserId   ? { fromUserId:   data.fromUserId }   : {}),
+          ...(data.territoryId  ? { territoryId:  data.territoryId }  : {}),
+          ...(data.desafioId    ? { desafioId:    data.desafioId }    : {}),
+        },
+        android: {
+          priority: 'high',
+          notification: { channelId: 'riskrunner_default', sound: 'default' },
+        },
+        apns: {
+          payload: { aps: { sound: 'default', badge: 1 } },
+        },
+      });
+      console.log(`[FCM] Push enviado a ${toUserId} (tipo: ${tipo})`);
+    } catch (e) {
+      // Token inválido o expirado — limpiarlo de Firestore
+      if (e.code === 'messaging/registration-token-not-registered' ||
+          e.code === 'messaging/invalid-registration-token') {
+        console.warn(`[FCM] Token inválido para ${toUserId}, limpiando...`);
+        await db.collection('players').doc(toUserId).update({ fcm_token: null });
+      } else {
+        console.error(`[FCM] Error enviando a ${toUserId}:`, e.message);
+      }
+    }
+  }
+);
 
 // =============================================================================
 // 1. GUERRA GLOBAL — Liquidar cada lunes a las 00:05 UTC
