@@ -1,0 +1,215 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isAuth()        { return request.auth != null; }
+    function isOwner(uid)    { return request.auth.uid == uid; }
+    function isAdmin()       { return request.auth.token.admin == true; }
+    function onlyFields(keys){ return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ── players ───────────────────────────────────────────────────────────────
+    // Cualquier usuario autenticado puede leer perfiles (rivals, ranking, etc.)
+    // Solo el propio usuario puede escribir su documento.
+    match /players/{uid} {
+      allow read:   if isAuth();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    // ── territories ──────────────────────────────────────────────────────────
+    // Lectura pública entre autenticados (mapa compartido).
+    // El cliente crea y actualiza solo sus propios territorios.
+    // Las Cloud Functions (admin SDK) ignoran estas reglas — tienen acceso total.
+    match /territories/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+    }
+
+    // ── presencia_activa ──────────────────────────────────────────────────────
+    // Cada usuario escribe solo su propio doc de presencia (doc ID = uid).
+    match /presencia_activa/{uid} {
+      allow read:   if isAuth();
+      allow write:  if isOwner(uid);
+    }
+
+    // ── activity_logs ─────────────────────────────────────────────────────────
+    // El cliente crea logs de actividad propios. Lectura solo al propietario.
+    // Cloud Functions leen todos para validar conquistas.
+    match /activity_logs/{logId} {
+      allow read:   if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── desafios ──────────────────────────────────────────────────────────────
+    // Solo los participantes pueden leer y actualizar.
+    // El retador puede crear. Cloud Functions resuelven el estado final.
+    match /desafios/{desafioId} {
+      allow read:   if isAuth() && (
+        resource.data.retadorId == request.auth.uid ||
+        resource.data.retadoId  == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.retadorId == request.auth.uid;
+      allow update: if isAuth() && (
+        resource.data.retadorId == request.auth.uid ||
+        resource.data.retadoId  == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    // ── notifications ─────────────────────────────────────────────────────────
+    // El destinatario puede leer. Solo puede marcar como leída (campo 'read').
+    // Cualquier autenticado puede crear (sistema de notificaciones entre usuarios).
+    match /notifications/{notifId} {
+      allow read:   if isAuth() && resource.data.toUserId == request.auth.uid;
+      allow create: if isAuth();
+      allow update: if isAuth()
+        && resource.data.toUserId == request.auth.uid
+        && onlyFields(['read']);
+      allow delete: if false;
+    }
+
+    // ── global_territories ───────────────────────────────────────────────────
+    // Solo lectura para el cliente. Escritura exclusiva de Cloud Functions.
+    match /global_territories/{docId} {
+      allow read:  if isAuth();
+      allow write: if false;
+
+      match /historial_semanal/{semanaId} {
+        allow read:  if isAuth();
+        allow write: if false;
+      }
+    }
+
+    // ── guerra_global_semanas / logs ─────────────────────────────────────────
+    match /guerra_global_semanas/{semanaId} {
+      allow read:  if isAuth();
+      allow write: if false;
+    }
+    match /guerra_global_logs/{logId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ── temporadas ────────────────────────────────────────────────────────────
+    match /temporadas/{id} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── zonas ─────────────────────────────────────────────────────────────────
+    match /zonas/{id} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── titulos_rey ───────────────────────────────────────────────────────────
+    match /titulos_rey/{id} {
+      allow read:  if isAuth();
+      allow write: if false;
+    }
+
+    // ── clans ─────────────────────────────────────────────────────────────────
+    match /clans/{clanId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.creadorId == request.auth.uid;
+      allow update: if isAuth() && resource.data.creadorId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ── clan_invites ──────────────────────────────────────────────────────────
+    match /clan_invites/{inviteId} {
+      allow read:   if isAuth() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.fromUid == request.auth.uid;
+      allow update: if isAuth() && resource.data.toUid == request.auth.uid
+        && onlyFields(['estado']);
+      allow delete: if false;
+    }
+
+    // ── clan_wars ─────────────────────────────────────────────────────────────
+    match /clan_wars/{warId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if false;
+    }
+
+    // ── follows ───────────────────────────────────────────────────────────────
+    match /follows/{followId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.fromUid == request.auth.uid;
+      allow delete: if isAuth() && resource.data.fromUid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ── posts + comments ──────────────────────────────────────────────────────
+    match /posts/{postId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read:   if isAuth();
+        allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+        allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+        allow update: if false;
+      }
+    }
+
+    // ── stories ───────────────────────────────────────────────────────────────
+    match /stories/{storyId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // ── activity_feed ─────────────────────────────────────────────────────────
+    match /activity_feed/{docId} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── anticheat_logs ────────────────────────────────────────────────────────
+    match /anticheat_logs/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ── coin_purchases ────────────────────────────────────────────────────────
+    match /coin_purchases/{id} {
+      allow read:   if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ── daily_challenges ─────────────────────────────────────────────────────
+    match /daily_challenges/{id} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── active_runners ────────────────────────────────────────────────────────
+    match /active_runners/{docId} {
+      allow read:  if isAuth();
+      allow write: if false;
+    }
+
+    // ── Denegar todo lo demás ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
