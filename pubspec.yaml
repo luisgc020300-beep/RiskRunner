@@ -31,6 +31,7 @@ dependencies:
   purchases_ui_flutter: ^9.13.1
   shimmer: ^3.0.0
   shared_preferences: ^2.3.0
+  firebase_app_check: ^0.4.3
 
 dev_dependencies:
   flutter_test:
