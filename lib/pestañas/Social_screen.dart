@@ -438,7 +438,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         .where('participants', arrayContains: currentUserId).snapshots()
         .listen((snap) {
           int total = 0;
-          for (final d in snap.docs) { final data = d.data() as Map<String, dynamic>; total += (data['unread_$currentUserId'] as num? ?? 0).toInt(); }
+          for (final d in snap.docs) { final data = d.data(); total += (data['unread_$currentUserId'] as num? ?? 0).toInt(); }
           if (mounted) setState(() => _mensajesNoLeidos = total);
         }, onError: (e) => debugPrint('Stream mensajes: $e'));
   }

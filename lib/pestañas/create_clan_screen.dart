@@ -11,9 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 
-const _kBg       = Color(0xFFE8E8ED);
 const _kSurface  = Color(0xFFFFFFFF);
-const _kSurface2 = Color(0xFFE5E5EA);
 const _kLine     = Color(0xFFC6C6C8);
 const _kLine2    = Color(0xFFD1D1D6);
 const _kDim      = Color(0xFFAEAEB2);

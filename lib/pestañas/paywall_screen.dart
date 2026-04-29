@@ -5,7 +5,6 @@
 //  Planes: Explorador (2,99€/mes) · Comandante (4,99€/mes) · Anual (39,99€/año)
 // ══════════════════════════════════════════════════════════════════════════════
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
@@ -18,21 +17,15 @@ class _C {
   static const bg0     = Color(0xFFE8E8ED);
   static const bg1     = Color(0xFFFFFFFF);
   static const bg2     = Color(0xFFE5E5EA);
-  static const bg3     = Color(0xFFE8E8ED);
   static const parch   = Color(0xFF1C1C1E);
-  static const parchm  = Color(0xFF3C3C43);
-  static const parchd  = Color(0xFF636366);
   static const bronze  = Color(0xFF636366);
   static const gold    = Color(0xFFFFD60A);
-  static const crown   = Color(0xFFFFD60A);
   static const silver  = Color(0xFFB0BEC5);
   static const border  = Color(0x1FC6C6C8);
-  static const border2 = Color(0x33C6C6C8);
   static const t1      = Color(0xFF1C1C1E);
   static const t2      = Color(0xFF3C3C43);
   static const t3      = Color(0xFF636366);
   static const dim     = Color(0xFFAEAEB2);
-  static const red     = Color(0xFFE02020);
 }
 
 // =============================================================================

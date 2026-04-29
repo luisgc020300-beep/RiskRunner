@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/desafios_service.dart';
 
 // =============================================================================
 // PALETA
@@ -21,10 +20,7 @@ const _kSub     = Color(0xFF636366);
 const _kText    = Color(0xFF3C3C43);
 const _kWhite   = Color(0xFF1C1C1E);
 const _kRed     = Color(0xFFE02020);
-const _kRedDim  = Color(0xFFFF6B6B);
 const _kGold    = Color(0xFFFFD60A);
-const _kGoldDim = Color(0xFFAEAEB2);
-const _kGreen   = Color(0xFF30D158);
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>

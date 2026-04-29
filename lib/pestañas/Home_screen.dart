@@ -13,7 +13,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../widgets/parch_background.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/territory_service.dart';
 import '../services/subscription_service.dart';
@@ -21,7 +20,6 @@ import '../services/story_service.dart';
 import 'coin_shop_screen.dart';
 import '../services/onboarding_service.dart';
 import '../widgets/onboarding_overlay.dart';
-import 'fullscreen_map_screen.dart';
 import 'notifications_screen.dart';
 import 'perfil_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
@@ -204,9 +202,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // ── Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
   bool _amigosLoaded = false;
+  bool _storiesLoaded = false;
   Map<String, List<StoryModel>> _storiesPorAmigo = {};
   List<StoryModel> _misHistorias = [];
-  bool _storiesLoaded = false;
 
   // ── Retos
   List<QueryDocumentSnapshot> _dailyChallenges = [];
@@ -217,18 +215,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
   // ── Mapa
-  List<TerritoryData> _territorios = [];
   bool _loadingTerritorios = true;
-  final MapController _homeMapController = MapController();
   StreamSubscription<QuerySnapshot>? _invasionListener;
   StreamSubscription<QuerySnapshot>? _presenciaListener;
-  Map<String, Map<String, dynamic>> _jugadoresEnVivo = {};
 
   // ── Territorios cercanos
-  List<_UserTerritoryGroup> _gruposTerritoriosCercanos = [];
-  bool _loadingCercanos = false;
-  bool _panelCercanosExpandido = false;
-  String? _userExpandido;
   final Map<String, List<_TerritoryDetail>> _detallesPorUser = {};
 
   // ── Notificaciones
@@ -626,288 +617,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final lista = await TerritoryService.cargarTodosLosTerritorios();
       if (mounted) {
-        setState(() { _territorios = lista; _loadingTerritorios = false; });
+        setState(() { _loadingTerritorios = false; });
       }
     } catch (e) {
       if (mounted) setState(() => _loadingTerritorios = false);
     }
-  }
-
-  Future<void> _cargarTerritoriosCercanos() async {
-    if (mounted) setState(() => _loadingCercanos = true);
-    final bool usarFiltroDistancia = !kIsWeb && _currentPosition != null;
-    try {
-      final snap = await FirebaseFirestore.instance.collection('territories').get();
-      final Map<String, _UserTerritoryGroup> grupos = {};
-      final myUid = userId!;
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final rawPuntos = data['puntos'] as List<dynamic>?;
-        if (rawPuntos == null || rawPuntos.isEmpty) continue;
-
-        final List<LatLng> puntos = rawPuntos.map((p) {
-          final map = p as Map<String, dynamic>;
-          return LatLng((map['lat'] as num).toDouble(), (map['lng'] as num).toDouble());
-        }).toList();
-
-        final double latC = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
-        final double lngC = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
-
-        double distMetros = 0;
-        if (_currentPosition != null) {
-          distMetros = Geolocator.distanceBetween(
-              _currentPosition!.latitude, _currentPosition!.longitude, latC, lngC);
-        }
-        if (usarFiltroDistancia && distMetros > 5000) continue;
-
-        final String ownerId = data['userId'] as String? ?? '';
-        if (ownerId.isEmpty) continue;
-
-        if (!grupos.containsKey(ownerId)) {
-          String ownerNick = ownerId == myUid ? nickname : ownerId;
-          int ownerNivel = 1;
-          try {
-            final playerDoc = await FirebaseFirestore.instance
-                .collection('players').doc(ownerId).get();
-            if (playerDoc.exists) {
-              final pd = playerDoc.data()!;
-              ownerNick = pd['nickname'] ?? ownerNick;
-              ownerNivel = pd['nivel'] ?? 1;
-            }
-          } catch (_) {}
-          grupos[ownerId] = _UserTerritoryGroup(
-            ownerId: ownerId, nickname: ownerNick, nivel: ownerNivel,
-            esMio: ownerId == myUid, territorios: []);
-        }
-
-        grupos[ownerId]!.territorios.add(_TerritoryDetail(
-            docId: doc.id,
-            distanciaAlCentroKm: distMetros / 1000,
-            puntos: puntos));
-      }
-
-      final lista = grupos.values.toList()
-        ..sort((a, b) {
-          if (a.esMio) return -1;
-          if (b.esMio) return 1;
-          return a.nickname.compareTo(b.nickname);
-        });
-
-      if (mounted) {
-        setState(() {
-          _gruposTerritoriosCercanos = lista;
-          _loadingCercanos = false;
-          _panelCercanosExpandido = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _loadingCercanos = false);
-    }
-  }
-
-  Future<void> _cargarDetallesUsuario(String ownerId) async {
-    if (_detallesPorUser.containsKey(ownerId)) return;
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('territories').where('userId', isEqualTo: ownerId).get();
-
-      final List<_TerritoryDetail> detalles = [];
-      double? distanciaRecorrida;
-      double? velocidadMedia;
-      Duration? tiempoActividad;
-      DateTime? fechaLog;
-
-      try {
-        final logSnap = await FirebaseFirestore.instance
-            .collection('activity_logs')
-            .where('userId', isEqualTo: ownerId)
-            .orderBy('timestamp', descending: true)
-            .limit(1)
-            .get();
-        if (logSnap.docs.isNotEmpty) {
-          final logData = logSnap.docs.first.data();
-          distanciaRecorrida = (logData['distancia'] as num?)?.toDouble();
-          final int? tiempoSeg = (logData['tiempo_segundos'] as num?)?.toInt();
-          if (tiempoSeg != null) tiempoActividad = Duration(seconds: tiempoSeg);
-          if (distanciaRecorrida != null && tiempoSeg != null && tiempoSeg > 0) {
-            velocidadMedia = distanciaRecorrida / (tiempoSeg / 3600);
-          }
-          final ts = logData['timestamp'] as Timestamp?;
-          if (ts != null) fechaLog = ts.toDate();
-        }
-      } catch (_) {}
-
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        DateTime? ultimaVisita;
-        final tsVisita = data['ultima_visita'] as Timestamp?;
-        if (tsVisita != null) ultimaVisita = tsVisita.toDate();
-        final int diasSinVisitar = ultimaVisita == null
-            ? 0 : DateTime.now().difference(ultimaVisita).inDays;
-        final rawPuntos = data['puntos'] as List<dynamic>?;
-        List<LatLng> puntos = [];
-        double distanciaAlCentro = 0;
-        if (rawPuntos != null && rawPuntos.isNotEmpty) {
-          puntos = rawPuntos.map((p) {
-            final map = p as Map<String, dynamic>;
-            return LatLng((map['lat'] as num).toDouble(), (map['lng'] as num).toDouble());
-          }).toList();
-          if (_currentPosition != null) {
-            final double latC = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
-            final double lngC = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
-            distanciaAlCentro = Geolocator.distanceBetween(
-                _currentPosition!.latitude, _currentPosition!.longitude, latC, lngC) / 1000;
-          }
-        }
-        detalles.add(_TerritoryDetail(
-          docId: doc.id,
-          distanciaAlCentroKm: distanciaAlCentro,
-          diasSinVisitar: diasSinVisitar,
-          fechaCreacion: ultimaVisita ?? fechaLog,
-          distanciaRecorrida: distanciaRecorrida,
-          velocidadMedia: velocidadMedia,
-          tiempoActividad: tiempoActividad,
-          puntos: puntos,
-        ));
-      }
-
-      if (mounted) setState(() => _detallesPorUser[ownerId] = detalles);
-    } catch (e) {
-      debugPrint("Error cargando detalles de $ownerId: $e");
-    }
-  }
-
-  void _mostrarDialogTerritorio(_TerritoryDetail det, String ownerNickname) {
-    final LatLng centro = det.puntos.isNotEmpty
-        ? LatLng(
-            det.puntos.map((p) => p.latitude).reduce((a, b) => a + b) / det.puntos.length,
-            det.puntos.map((p) => p.longitude).reduce((a, b) => a + b) / det.puntos.length)
-        : const LatLng(37.1350, -3.6330);
-
-    String estadoDeterioro = 'ACTIVO';
-    Color colorEstado = _T.safe;
-    if (det.diasSinVisitar != null && det.diasSinVisitar! >= 10) {
-      estadoDeterioro = 'CRÍTICO'; colorEstado = _T.red;
-    } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= 5) {
-      estadoDeterioro = 'DESGASTE'; colorEstado = _T.warn;
-    }
-
-    String? tiempoFormateado;
-    if (det.tiempoActividad != null) {
-      final h = det.tiempoActividad!.inHours;
-      final m = det.tiempoActividad!.inMinutes.remainder(60);
-      tiempoFormateado = h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}m' : '${m}m';
-    }
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.88),
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _T.bg1,
-            border: Border.all(color: _T.border2),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 32)],
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
-              decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: _T.border2))),
-              child: Row(children: [
-                Container(width: 2, height: 18,
-                    decoration: BoxDecoration(
-                      color: _T.bronze,
-                    )),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _T.bronze.withValues(alpha: 0.08),
-                    border: Border.all(color: _T.bronze.withValues(alpha: 0.25)),
-                  ),
-                  child: Text('ZONA', style: _raj(9, FontWeight.w900, _T.bronze, spacing: 2)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Text(ownerNickname.toUpperCase(),
-                    style: _raj(14, FontWeight.w900, _T.white, spacing: 1.5))),
-                IconButton(onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: _T.sub, size: 20)),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: SizedBox(
-                height: 180,
-                child: det.puntos.isEmpty
-                    ? Container(color: _T.bg0,
-                        child: Center(child: Text('SIN DATOS',
-                            style: _raj(11, FontWeight.w700, _T.muted, spacing: 2))))
-                    : FlutterMap(
-                        options: MapOptions(
-                            initialCenter: centro, initialZoom: 15,
-                            interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
-                        children: [
-                          TileLayer(urlTemplate: _kMapboxTileUrl,
-                              userAgentPackageName: 'com.runner_risk.app',
-                              tileDimension: 256,
-                              additionalOptions: const {'accessToken': _kMapboxToken}),
-                          PolygonLayer(polygons: [
-                            Polygon(points: det.puntos,
-                                color: _T.bronze.withValues(alpha: 0.22),
-                                borderColor: _T.bronze, borderStrokeWidth: 2)
-                          ]),
-                        ],
-                      ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: GridView.count(
-                shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6, childAspectRatio: 1.3,
-                children: [
-                  _dialogStatCard(icon: Icons.shield_outlined, title: 'ESTADO',
-                      value: estadoDeterioro, color: colorEstado),
-                  _dialogStatCard(icon: Icons.calendar_today_outlined, title: 'SIN VISITAR',
-                      value: det.diasSinVisitar != null ? '${det.diasSinVisitar}d' : '--',
-                      color: _T.dim),
-                  _dialogStatCard(icon: Icons.flag_outlined, title: 'CONQUISTADO',
-                      value: det.fechaCreacion != null ? _formatFecha(det.fechaCreacion!) : '--',
-                      color: _T.dim, smallText: true),
-                  _dialogStatCard(icon: Icons.straighten_outlined, title: 'DISTANCIA',
-                      value: det.distanciaRecorrida != null
-                          ? '${det.distanciaRecorrida!.toStringAsFixed(2)}km' : '--',
-                      color: _T.text),
-                  _dialogStatCard(icon: Icons.speed_outlined, title: 'VEL. MEDIA',
-                      value: det.velocidadMedia != null
-                          ? '${det.velocidadMedia!.toStringAsFixed(1)}' : '--',
-                      color: _T.text),
-                  _dialogStatCard(icon: Icons.timer_outlined, title: 'TIEMPO',
-                      value: tiempoFormateado ?? '--', color: _T.text),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(color: _T.bg0, border: Border.all(color: _T.border)),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.my_location_outlined, color: _T.muted, size: 13),
-                  const SizedBox(width: 6),
-                  Text('A ${det.distanciaAlCentroKm.toStringAsFixed(2)} km de tu posición',
-                      style: _raj(12, FontWeight.w500, _T.sub)),
-                ]),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
   }
 
   Widget _dialogStatCard({required IconData icon, required String title,
@@ -943,13 +657,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       final nuevos = <String, Map<String, dynamic>>{};
       for (final doc in snap.docs) {
-        final d = doc.data() as Map<String, dynamic>;
+        final d = doc.data();
         final ts = d['timestamp'] as Timestamp?;
         if (ts != null && DateTime.now().difference(ts.toDate()).inMinutes < 5) {
           nuevos[doc.id] = d;
         }
       }
-      if (mounted) setState(() => _jugadoresEnVivo = nuevos);
+      // jugadores en vivo — tracking only, no UI refresh needed
     });
 
     _invasionListener?.cancel();
@@ -962,7 +676,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         .listen((snap) {
       for (var change in snap.docChanges) {
         if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data() as Map<String, dynamic>;
+          final data = change.doc.data();
+          if (data == null) continue;
           _mostrarBannerInvasion(
               data['message'] ?? ' Alguien está invadiendo tu territorio',
               change.doc.id);
@@ -1027,7 +742,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           .where('fecha_dia', isEqualTo: fechaHoy)
           .get();
       List<Map<String, dynamic>> listaTemporal = logsSnap.docs
-          .map((d) => d.data() as Map<String, dynamic>)
+          .map((d) => d.data())
           .where((d) => d.containsKey('id_reto_completado') && d['id_reto_completado'] != null)
           .toList();
       listaTemporal.sort((a, b) {
@@ -1097,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       final disponibles = challengesSnap.docs
           .where((doc) {
-            final d = doc.data() as Map<String, dynamic>;
+            final d = doc.data();
             final esPrem = d['es_premium'] as bool? ?? false;
             return !completedIds.contains(doc.id) && !esPrem;
           })
@@ -1284,140 +999,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _testSimularConquista() async {
-    if (userId == null) return;
-    final friendshipsSnap = await FirebaseFirestore.instance
-        .collection('friendships').where('status', isEqualTo: 'accepted').get();
-    final List<String> amigoIds = [];
-    for (var doc in friendshipsSnap.docs) {
-      final data = doc.data();
-      if (data['senderId'] == userId) amigoIds.add(data['receiverId'] as String);
-      else if (data['receiverId'] == userId) amigoIds.add(data['senderId'] as String);
-    }
-    if (amigoIds.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No tienes amigos con territorios para conquistar',
-              style: _raj(13, FontWeight.w600, _T.white)),
-          backgroundColor: _T.redD));
-      return;
-    }
-    QueryDocumentSnapshot? territorioObjetivo;
-    String? ownerIdObjetivo;
-    String ownerNicknameObjetivo = 'rival';
-    for (final amigoId in amigoIds) {
-      final snap = await FirebaseFirestore.instance
-          .collection('territories').where('userId', isEqualTo: amigoId).limit(1).get();
-      if (snap.docs.isNotEmpty) {
-        territorioObjetivo = snap.docs.first;
-        ownerIdObjetivo = amigoId;
-        try {
-          final p = await FirebaseFirestore.instance.collection('players').doc(amigoId).get();
-          if (p.exists) ownerNicknameObjetivo = p.data()?['nickname'] ?? 'rival';
-        } catch (_) {}
-        break;
-      }
-    }
-    if (territorioObjetivo == null || ownerIdObjetivo == null) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Tus amigos no tienen territorios aún',
-              style: _raj(13, FontWeight.w600, _T.white)),
-          backgroundColor: _T.redD));
-      return;
-    }
-
-    final motivoBloqueo = await _puedeRobarTerritorio(
-      ownerIdObjetivo: ownerIdObjetivo, territorioDocId: territorioObjetivo.id);
-
-    if (motivoBloqueo != null) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierColor: Colors.black.withValues(alpha: 0.88),
-          builder: (ctx) => Dialog(
-            backgroundColor: Colors.transparent,
-            insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: _T.bg1,
-                border: Border.all(color: _T.red.withValues(alpha: 0.3)),
-                boxShadow: [BoxShadow(color: _T.redGlow, blurRadius: 24)],
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('', style: TextStyle(fontSize: 36)),
-                const SizedBox(height: 14),
-                Text('CONQUISTA BLOQUEADA',
-                    style: _raj(15, FontWeight.w900, _T.white, spacing: 2.5)),
-                const SizedBox(height: 12),
-                Text(motivoBloqueo, textAlign: TextAlign.center,
-                    style: _raj(13, FontWeight.w500, _T.sub, height: 1.6)),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    decoration: BoxDecoration(
-                      color: _T.red.withValues(alpha: 0.10),
-                      border: Border.all(color: _T.red.withValues(alpha: 0.4)),
-                    ),
-                    child: Text('ENTENDIDO', textAlign: TextAlign.center,
-                        style: _raj(13, FontWeight.w900, _T.red, spacing: 2.5)),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final dataTerritorio = territorioObjetivo.data() as Map<String, dynamic>;
-    final rawPuntos = dataTerritorio['puntos'] as List<dynamic>?;
-    if (rawPuntos == null || rawPuntos.isEmpty) return;
-    final List<LatLng> puntos = rawPuntos.map((p) {
-      final map = p as Map<String, dynamic>;
-      return LatLng((map['lat'] as num).toDouble(), (map['lng'] as num).toDouble());
-    }).toList();
-    final double latCenter = puntos.map((p) => p.latitude).reduce((a, b) => a + b) / puntos.length;
-    final double lngCenter = puntos.map((p) => p.longitude).reduce((a, b) => a + b) / puntos.length;
-
-    await FirebaseFirestore.instance.collection('territories').doc(territorioObjetivo.id)
-        .update({'userId': userId});
-    await FirebaseFirestore.instance.collection('notifications').add({
-      'toUserId': ownerIdObjetivo, 'type': 'territory_lost',
-      'message': ' ¡$nickname te ha robado un territorio! Sal a recuperarlo.',
-      'fromNickname': nickname, 'territoryId': territorioObjetivo.id,
-      'read': false, 'timestamp': FieldValue.serverTimestamp(),
-    });
-    await FirebaseFirestore.instance.collection('notifications').add({
-      'toUserId': userId, 'type': 'territory_conquered',
-      'message': ' ¡Has conquistado un territorio de $ownerNicknameObjetivo!',
-      'fromNickname': ownerNicknameObjetivo, 'territoryId': territorioObjetivo.id,
-      'distancia': 2.5, 'tiempo_segundos': 18 * 60, 'read': false,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    await LeagueService.sumarPuntosLiga(userId!, 25);
-    await LeagueService.sumarPuntosLiga(ownerIdObjetivo, -10);
-
-    if (!mounted) return;
-    await ConquistaOverlay.mostrar(context, esInvasion: true, nombreTerritorio: ownerNicknameObjetivo);
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/resumen', arguments: {
-      'distancia': 2.5,
-      'tiempo': const Duration(minutes: 18),
-      'ruta': [
-        LatLng(latCenter - 0.002, lngCenter - 0.002),
-        LatLng(latCenter, lngCenter),
-        LatLng(latCenter + 0.002, lngCenter + 0.002)
-      ],
-      'esDesdeCarrera': true,
-      'territoriosConquistados': 1,
-    });
-  }
-
   Future<String?> _puedeRobarTerritorio({
     required String ownerIdObjetivo,
     required String territorioDocId,
@@ -1439,7 +1020,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return 'Este territorio está activo y protegido.\nVuelve cuando lleve 5+ días sin ser visitado.';
         }
       }
-    } catch (e) {}
+    } catch (e) { // intentional
+    }
     try {
       final misTerritoriosSnap = await FirebaseFirestore.instance
           .collection('territories').where('userId', isEqualTo: userId).get();
@@ -1450,7 +1032,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (defensorCantidad > 0 && misCantidad >= defensorCantidad * 3) {
         return 'Ya tienes demasiados territorios comparado con este jugador.\nNo puedes seguir conquistando hasta que el rival crezca.';
       }
-    } catch (e) {}
+    } catch (e) { // intentional
+    }
     try {
       final ownerDoc = await FirebaseFirestore.instance.collection('players').doc(ownerIdObjetivo).get();
       if (ownerDoc.exists) {
@@ -1464,7 +1047,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
         }
       }
-    } catch (e) {}
+    } catch (e) { // intentional
+    }
     return null;
   }
 
@@ -2724,43 +2308,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Icon(Icons.chevron_right_rounded, color: _T.muted, size: 15),
         ]),
       ),
-    );
-  }
-
-  Widget _buildUserMenu() => PopupMenuButton<String>(
-    icon: Icon(Icons.more_vert, color: _T.dim, size: 20),
-    color: _T.bg2,
-    shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(color: _T.border2)),
-    onSelected: (value) async {
-      if (value == 'logout') {
-        try {
-          await FirebaseAuth.instance.signOut();
-          if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-        } catch (e) {}
-      }
-    },
-    itemBuilder: (context) => [
-      PopupMenuItem(value: 'logout', child: Row(children: [
-        Icon(Icons.logout, color: _T.red, size: 16),
-        const SizedBox(width: 10),
-        Text('Cerrar sesión', style: _raj(13, FontWeight.w600, _T.text)),
-      ])),
-    ],
-  );
-
-  Widget _buildTerritoryStatChip(String valor, String label, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-          color: _T.bg1, border: Border.all(color: _T.border2)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, color: color, size: 12),
-        const SizedBox(width: 6),
-        Text('$valor $label',
-            style: _raj(10, FontWeight.w800, color, spacing: 1)),
-      ]),
     );
   }
 

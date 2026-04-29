@@ -122,8 +122,6 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   static const int _paginaTamanio = 20;
   int  _paginaActual  = 1;
-  bool _hayMasPaginas = false;
-  bool _cargandoMas   = false;
 
   List<TerritoryData> _territoriosEnMapa = [];
   Color _acento = _kRed;
@@ -411,9 +409,9 @@ class _ResumenScreenState extends State<ResumenScreen>
         decoration: BoxDecoration(
           color:        _kSurface2,
           borderRadius: BorderRadius.circular(8),
-          border:       Border.all(color: color.withOpacity(0.6)),
+          border:       Border.all(color: color.withValues(alpha: 0.6)),
           boxShadow: [
-            BoxShadow(color: color.withOpacity(0.15), blurRadius: 20)
+            BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 20)
           ],
         ),
         child: Row(children: [
@@ -430,7 +428,7 @@ class _ResumenScreenState extends State<ResumenScreen>
               const SizedBox(height: 2),
               Text(sub,
                   style: TextStyle(
-                      color: color.withOpacity(0.8), fontSize: 11)),
+                      color: color.withValues(alpha: 0.8), fontSize: 11)),
             ],
           )),
         ]),
@@ -565,7 +563,6 @@ class _ResumenScreenState extends State<ResumenScreen>
           retosTotalesHistorial   = lista.length;
           monedasTotalesHistorial = monedas;
           _paginaActual           = 1;
-          _hayMasPaginas          = lista.length >= 50;
           isLoading               = false;
         });
       }
@@ -841,13 +838,13 @@ class _ResumenScreenState extends State<ResumenScreen>
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: conquistado
-              ? _kGold.withOpacity(0.5)
-              : _kGlobalRed.withOpacity(0.4),
+              ? _kGold.withValues(alpha: 0.5)
+              : _kGlobalRed.withValues(alpha: 0.4),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: (conquistado ? _kGold : _kGlobalRed).withOpacity(0.15),
+            color: (conquistado ? _kGold : _kGlobalRed).withValues(alpha: 0.15),
             blurRadius: 24,
           ),
         ],
@@ -890,11 +887,11 @@ class _ResumenScreenState extends State<ResumenScreen>
                     horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: (conquistado ? _kGold : _kGlobalRed)
-                      .withOpacity(0.12),
+                      .withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: (conquistado ? _kGold : _kGlobalRed)
-                        .withOpacity(0.4),
+                        .withValues(alpha: 0.4),
                   ),
                 ),
                 child: Text(
@@ -955,7 +952,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                     boxShadow: [
                       BoxShadow(
                         color: (conquistado ? _kGold : _kGlobalRed)
-                            .withOpacity(0.4),
+                            .withValues(alpha: 0.4),
                         blurRadius: 8,
                       ),
                     ],
@@ -1011,9 +1008,9 @@ class _ResumenScreenState extends State<ResumenScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _kGold.withOpacity(0.06),
+                  color: _kGold.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kGoldDim.withOpacity(0.5)),
+                  border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
                 ),
                 child: Row(children: [
                   const Text('', style: TextStyle(fontSize: 18)),
@@ -1030,7 +1027,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       Text(
                         'Las recompensas se entregan al final de la semana si sigues siendo el dueño.',
                         style: TextStyle(
-                            color:    _kGoldDim.withOpacity(0.85),
+                            color:    _kGoldDim.withValues(alpha: 0.85),
                             fontSize: 10),
                       ),
                     ],
@@ -1072,7 +1069,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           decoration: BoxDecoration(
             shape:  BoxShape.circle,
             border: Border.all(
-                color: _kGrey.withOpacity(_pulse.value), width: 1.5),
+                color: _kGrey.withValues(alpha: _pulse.value), width: 1.5),
           ),
           child: const Center(
               child: Text('', style: TextStyle(fontSize: 24))),
@@ -1125,7 +1122,7 @@ class _ResumenScreenState extends State<ResumenScreen>
               Transform.translate(
                 offset: Offset(s, 0),
                 child: Text(titulo, style: TextStyle(
-                    color:      _kGrey.withOpacity(0.25),
+                    color:      _kGrey.withValues(alpha: 0.25),
                     fontSize:   titulo.length > 20 ? 16 : 20,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.5)),
@@ -1156,11 +1153,11 @@ class _ResumenScreenState extends State<ResumenScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: (_esGuerraGlobal ? _kGold : _kRed).withOpacity(0.08),
+            color: (_esGuerraGlobal ? _kGold : _kRed).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: (_esGuerraGlobal ? _kGold : _kRed)
-                  .withOpacity(_pulse.value * 0.6 + 0.1),
+                  .withValues(alpha: _pulse.value * 0.6 + 0.1),
             ),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1200,9 +1197,9 @@ class _ResumenScreenState extends State<ResumenScreen>
         border:       Border.all(color: _kBorder2),
         boxShadow: [
           BoxShadow(
-              color: _kRed.withOpacity(0.06),
+              color: _kRed.withValues(alpha: 0.06),
               blurRadius: 30, spreadRadius: -5),
-          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10),
         ],
       ),
       child: Stack(children: [

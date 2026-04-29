@@ -96,55 +96,6 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     return false;
   }
 
-  // ── Comprar con monedas (solo para items NO premium) ───────────────
-  // Mantenemos este método por si en el futuro quieres items de monedas
-  Future<bool> _comprarConMonedas(int coste, String nombre) async {
-    if (_monedas < coste) {
-      _mostrarSnack('No tienes suficientes monedas 😅', error: true);
-      return false;
-    }
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Desbloquear',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text(
-          '¿Gastar $coste 🪙 para desbloquear "$nombre"?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Comprar',
-                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    if (confirmar != true) return false;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-    try {
-      await FirebaseFirestore.instance
-          .collection('players')
-          .doc(user.uid)
-          .update({'monedas': FieldValue.increment(-coste)});
-      setState(() => _monedas -= coste);
-      _mostrarSnack('¡$nombre desbloqueado! 🎉');
-      return true;
-    } catch (e) {
-      _mostrarSnack('Error al comprar', error: true);
-      return false;
-    }
-  }
-
   void _mostrarSnack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -227,9 +178,9 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDECA46).withOpacity(0.15),
+                  color: const Color(0xFFDECA46).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDECA46).withOpacity(0.4)),
+                  border: Border.all(color: const Color(0xFFDECA46).withValues(alpha: 0.4)),
                 ),
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [
                   Text('👑', style: TextStyle(fontSize: 14)),
@@ -245,9 +196,9 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             : Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.15),
+                  color: Colors.orange.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Text('🪙', style: TextStyle(fontSize: 14)),
@@ -273,10 +224,10 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF0F0F0F),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.orange.withOpacity(0.3), width: 2),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 2),
           boxShadow: [
             BoxShadow(
-                color: Colors.orange.withOpacity(0.15),
+                color: Colors.orange.withValues(alpha: 0.15),
                 blurRadius: 30,
                 spreadRadius: 5),
           ],
@@ -313,11 +264,11 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: activa
-                    ? Colors.orange.withOpacity(0.15)
-                    : Colors.white.withOpacity(0.05),
+                    ? Colors.orange.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: activa ? Colors.orange.withOpacity(0.6) : Colors.white12,
+                  color: activa ? Colors.orange.withValues(alpha: 0.6) : Colors.white12,
                 ),
               ),
               child: Column(
@@ -404,13 +355,13 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: seleccionado
-                  ? Colors.orange.withOpacity(0.15)
+                  ? Colors.orange.withValues(alpha: 0.15)
                   : const Color(0xFF0F0F0F),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: seleccionado
                     ? Colors.orange
-                    : Colors.white.withOpacity(0.08),
+                    : Colors.white.withValues(alpha: 0.08),
                 width: seleccionado ? 2 : 1,
               ),
             ),
@@ -461,10 +412,10 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDECA46).withOpacity(0.2),
+                      color: const Color(0xFFDECA46).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                          color: const Color(0xFFDECA46).withOpacity(0.5)),
+                          color: const Color(0xFFDECA46).withValues(alpha: 0.5)),
                     ),
                     child: const Text('👑', style: TextStyle(fontSize: 9)),
                   ),
@@ -518,13 +469,13 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
               color: seleccionado
-                  ? Colors.orange.withOpacity(0.15)
+                  ? Colors.orange.withValues(alpha: 0.15)
                   : const Color(0xFF0F0F0F),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: seleccionado
                     ? Colors.orange
-                    : Colors.white.withOpacity(0.08),
+                    : Colors.white.withValues(alpha: 0.08),
                 width: seleccionado ? 2 : 1,
               ),
             ),
@@ -573,7 +524,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDECA46).withOpacity(0.2),
+                      color: const Color(0xFFDECA46).withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text('👑', style: TextStyle(fontSize: 9)),
@@ -615,7 +566,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
           Wrap(
             spacing: 12, runSpacing: 12,
             children: AvatarConfig.freeColors.map((color) {
-              final bool sel = currentColor.value == color.value;
+              final bool sel = currentColor.toARGB32() == color.toARGB32();
               return GestureDetector(
                 onTap: () => onColorSelected(color),
                 child: AnimatedContainer(
@@ -629,7 +580,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                       width: 3,
                     ),
                     boxShadow: sel
-                        ? [BoxShadow(color: color.withOpacity(0.6),
+                        ? [BoxShadow(color: color.withValues(alpha: 0.6),
                             blurRadius: 12, spreadRadius: 2)]
                         : [],
                   ),
@@ -652,13 +603,13 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: _esPremium
-                    ? const Color(0xFFDECA46).withOpacity(0.15)
-                    : const Color(0xFFCC7C3A).withOpacity(0.15),
+                    ? const Color(0xFFDECA46).withValues(alpha: 0.15)
+                    : const Color(0xFFCC7C3A).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: _esPremium
-                      ? const Color(0xFFDECA46).withOpacity(0.4)
-                      : const Color(0xFFCC7C3A).withOpacity(0.4),
+                      ? const Color(0xFFDECA46).withValues(alpha: 0.4)
+                      : const Color(0xFFCC7C3A).withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
@@ -677,7 +628,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             spacing: 12, runSpacing: 12,
             children: AvatarConfig.premiumColors.map((opt) {
               final Color color = opt['color'] as Color;
-              final bool sel = currentColor.value == color.value;
+              final bool sel = currentColor.toARGB32() == color.toARGB32();
               final bool bloqueado = !_esPremium;
 
               return GestureDetector(
@@ -706,7 +657,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: color.withOpacity(bloqueado ? 0.3 : 0.7),
+                                color: color.withValues(alpha: bloqueado ? 0.3 : 0.7),
                                 blurRadius: sel ? 16 : 8,
                                 spreadRadius: sel ? 3 : 1,
                               ),
@@ -715,7 +666,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                           child: bloqueado
                               ? Center(
                                   child: Icon(Icons.lock_rounded,
-                                      color: Colors.white.withOpacity(0.8),
+                                      color: Colors.white.withValues(alpha: 0.8),
                                       size: 18))
                               : sel
                                   ? const Icon(Icons.check_rounded,
@@ -756,7 +707,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                   ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFFCC7C3A).withOpacity(0.4)),
+                      color: const Color(0xFFCC7C3A).withValues(alpha: 0.4)),
                 ),
                 child: const Row(children: [
                   Text('👑', style: TextStyle(fontSize: 20)),
@@ -801,7 +752,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16)),
             elevation: 8,
-            shadowColor: Colors.orange.withOpacity(0.4),
+            shadowColor: Colors.orange.withValues(alpha: 0.4),
           ),
           child: _guardando
               ? const SizedBox(width: 20, height: 20,

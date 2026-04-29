@@ -142,6 +142,38 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── friendships ──────────────────────────────────────────────────────────
+    match /friendships/{docId} {
+      allow read:   if isAuth() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.fromUid == request.auth.uid;
+      allow update: if isAuth() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+      allow delete: if isAuth() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid   == request.auth.uid
+      );
+    }
+
+    // ── chats + messages ──────────────────────────────────────────────────────
+    match /chats/{chatId} {
+      allow read:   if isAuth() && request.auth.uid in resource.data.participants;
+      allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
+      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read:   if isAuth();
+        allow create: if isAuth() && request.resource.data.senderId == request.auth.uid;
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
     // ── follows ───────────────────────────────────────────────────────────────
     match /follows/{followId} {
       allow read:   if isAuth();

@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
 import '../services/stats_service.dart';
 
 // =============================================================================
@@ -11,7 +9,6 @@ import '../services/stats_service.dart';
 const _kBg      = Color(0xFFE8E8ED);
 const _kSurface = Color(0xFFFFFFFF);
 const _kBorder  = Color(0xFFC6C6C8);
-const _kBorder2 = Color(0xFFD1D1D6);
 const _kMuted   = Color(0xFFAEAEB2);
 const _kDim     = Color(0xFF8E8E93);
 const _kOrange  = Color(0xFFE02020);
@@ -69,7 +66,6 @@ class _StatsScreenState extends State<StatsScreen>
     final carreras = await StatsService.cargarCarreras(limite: 50);
     final tendencia = StatsService.calcularTendencia4Semanas(carreras);
     final prediccion = StatsService.calcularPrediccion(carreras);
-    final zonasRaw   = StatsService.calcularZonasPersonalizadas(carreras);
 
     // Construir datos de zonas para la UI
     final zonas = <ZonaRitmo, _RangoDisplay>{};

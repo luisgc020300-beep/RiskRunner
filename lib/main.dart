@@ -39,8 +39,8 @@ void main() async {
   // App Check: Play Integrity (Android) y App Attest (iOS) en producción.
   // En debug se usa el proveedor de depuración automáticamente.
   await FirebaseAppCheck.instance.activate(
-    providerAndroid: AndroidProvider.playIntegrity,
-    providerApple: AppleProvider.appAttest,
+    providerAndroid: const AndroidPlayIntegrityProvider(),
+    providerApple: const AppleAppAttestProvider(),
   );
 
   FirebaseFirestore.instance.settings = const Settings(

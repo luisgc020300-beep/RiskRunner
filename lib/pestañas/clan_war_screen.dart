@@ -8,9 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/clan_service.dart';
 
-const _kBg       = Color(0xFFE8E8ED);
 const _kSurface  = Color(0xFFFFFFFF);
-const _kSurface2 = Color(0xFFE5E5EA);
 const _kSubtext  = Color(0xFF8E8E93);
 const _kText     = Color(0xFF3C3C43);
 const _kWhite    = Color(0xFF1C1C1E);

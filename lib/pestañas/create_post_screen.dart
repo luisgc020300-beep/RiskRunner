@@ -16,11 +16,8 @@ class _C {
   static const parch     = Color(0xFF1C1C1E);   // texto principal
   static const parchm    = Color(0xFF3C3C43);   // acento gris
   static const parchd    = Color(0xFF636366);   // texto secundario
-  static const bronze    = Color(0xFF636366);   // alias gris
   static const ivory     = Color(0xFF1C1C1E);   // texto principal
   static const border    = Color(0x1FC6C6C8);   // borde sutil
-  static const borderHot = Color(0x3F3C3C43);   // borde activo gris
-  static const safe      = Color(0xFF30D158);
 }
 
 class CreatePostScreen extends StatefulWidget {
@@ -41,7 +38,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   // CORREGIDO: tipo usa 'photo' y 'video' para coincidir con StoryViewerScreen
   String  _tipoSeleccionado = 'video';
-  File?   _mediaFile;
   String? _mediaBase64;
   bool    _publicando = false;
   String  _errorMsg   = '';
@@ -101,7 +97,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
       if (mounted) {
         setState(() {
-          _mediaFile        = File(file!.path);
           _mediaBase64      = base64Encode(bytes);
           // CORREGIDO: 'photo' en lugar de 'foto' para coincidir con StoryViewerScreen
           _tipoSeleccionado = esVideo ? 'video' : 'photo';
@@ -382,7 +377,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           child: GestureDetector(
             onTap: () => setState(() {
               _tipoSeleccionado = t['id'] as String;
-              _mediaFile        = null;
               _mediaBase64      = null;
             }),
             child: AnimatedContainer(

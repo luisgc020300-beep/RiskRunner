@@ -93,11 +93,6 @@ const _kGpsMovimiento = LocationSettings(
   accuracy: LocationAccuracy.bestForNavigation,
   distanceFilter: 8,
 );
-const _kGpsPausado = LocationSettings(
-  accuracy: LocationAccuracy.reduced,
-  distanceFilter: 20,
-  timeLimit: Duration(seconds: 30),
-);
 
 const _kPresenciaMovimientoSeg = 10;
 const _kPresenciaPausadoSeg    = 30;
@@ -470,7 +465,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool   _territoriosCargados  = false;
   bool   _fantasmasCargando    = false;
   String _miNickname           = 'Alguien';
-  String? _miClanId;
   bool   _boostXpActivo        = false;
 
   final Set<String> _territoriosNotificadosEnSesion = {};
@@ -735,9 +729,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   String _colorToHex(Color c) =>
-      '#${c.red.toRadixString(16).padLeft(2, '0')}'
-      '${c.green.toRadixString(16).padLeft(2, '0')}'
-      '${c.blue.toRadixString(16).padLeft(2, '0')}';
+      '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}'
+      '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
+      '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
 
   String _encodeJson(dynamic obj) {
     if (obj is Map)
@@ -770,7 +764,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (boost && expira != null && expira.toDate().isAfter(DateTime.now())) {
           if (mounted) setState(() => _boostXpActivo = true);
         }
-        _miClanId = doc.data()?['clanId'] as String?;
         // Tutorial de primer uso
         final onb = await OnboardingService.cargarEstado();
         if (mounted && !onb.tooltipsVistos.contains('modos_tutorial')) {
@@ -1586,6 +1579,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  String _buildCentrosGeoJson() {
+    final feats = _territorios.map((t) {
+      final c        = t.centro;
+      final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+      return '{"type":"Feature","properties":{"color":"$colorHex"},'
+          '"geometry":{"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
+    }).join(',');
+    return '{"type":"FeatureCollection","features":[$feats]}';
+  }
+
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || _territorios.isEmpty) return;
 
@@ -1627,6 +1630,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .getSource(_sourceId) as mapbox.GeoJsonSource?;
         await src?.updateGeoJSON(geojson);
         _actualizarCoronesMapa();
+        if (_centrosLayerCreated) {
+          final cSrc = await _mapboxMap!.style
+              .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
+          await cSrc?.updateGeoJSON(_buildCentrosGeoJson());
+        }
         return;
       }
 
@@ -1719,14 +1727,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       if (!_centrosLayerCreated) {
         if (_territorios.isNotEmpty) {
-          final feats = _territorios.map((t) {
-            final c        = t.centro;
-            final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
-            final esMio    = t.esMio ? 'true' : 'false';
-            return '{"type":"Feature","properties":{"color":"$colorHex","esMio":$esMio},"geometry":{'
-                '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
-          }).join(',');
-          final gj = '{"type":"FeatureCollection","features":[$feats]}';
+          final gj = _buildCentrosGeoJson();
           await _mapboxMap!.style.addSource(
               mapbox.GeoJsonSource(id: _centrosSourceId, data: gj));
           await _mapboxMap!.style.addLayer(
@@ -1736,28 +1737,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           await _mapboxMap!.style.setStyleLayerProperty(
               _centrosLayerId, 'circle-radius',
               ['interpolate', ['linear'], ['zoom'],
-                1, ['case', ['==', ['get', 'esMio'], true], 3.5, 1.8],
-                5, ['case', ['==', ['get', 'esMio'], true], 6.0, 3.5],
-                9, 0.0]);
+                1,  4.0,
+                5,  7.0,
+                10, 5.0,
+                18, 4.0]);
           await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-opacity',
-              ['interpolate', ['linear'], ['zoom'], 4, 0.9, 8, 0.0]);
+              _centrosLayerId, 'circle-opacity', 0.88);
           await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-blur', 0.3);
+              _centrosLayerId, 'circle-stroke-width', 1.5);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-stroke-color', '#FFFFFF');
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-stroke-opacity', 0.6);
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _centrosLayerId, 'circle-blur', 0.2);
           _centrosLayerCreated = true;
         }
       } else {
-        final feats = _territorios.map((t) {
-          final c        = t.centro;
-          final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
-          final esMio    = t.esMio ? 'true' : 'false';
-          return '{"type":"Feature","properties":{"color":"$colorHex","esMio":$esMio},"geometry":{'
-              '"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
-        }).join(',');
-        final gj = '{"type":"FeatureCollection","features":[$feats]}';
         final src = await _mapboxMap!.style
             .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
-        await src?.updateGeoJSON(gj);
+        await src?.updateGeoJSON(_buildCentrosGeoJson());
       }
 
       _pulsoTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
@@ -1862,7 +1861,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final data  = entry.value;
       final lat   = (data['lat'] as num?)?.toDouble();
       final lng   = (data['lng'] as num?)?.toDouble();
-      final color = Color((data['color'] as num?)?.toInt() ?? _kWater.value);
+      final color = Color((data['color'] as num?)?.toInt() ?? _kWater.toARGB32());
       if (lat == null || lng == null) continue;
       final bytes = await _getAvatarBytes(color);
       if (_anotacionesJugadores.containsKey(uid)) {
@@ -1877,7 +1876,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   Future<Uint8List> _getAvatarBytes(Color color) async {
-    final key = color.value;
+    final key = color.toARGB32();
     if (_avatarCache.containsKey(key)) return _avatarCache[key]!;
     final bytes = await _generarImagenAvatar(color);
     if (_avatarCache.length >= _kAvatarCacheMax) _avatarCache.remove(_avatarCache.keys.first);
@@ -2035,7 +2034,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .set({
         'lat':       _currentPosition!.latitude,
         'lng':       _currentPosition!.longitude,
-        'color':     _colorTerritorio.value,
+        'color':     _colorTerritorio.toARGB32(),
         'nickname':  _miNickname,
         'timestamp': FieldValue.serverTimestamp(),
       });
@@ -2177,7 +2176,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final result = await callable.call({
       'territorioId':        territorioId,
       'activityLogId':       activityLogId,
-      'ownerColor':          _colorTerritorio.value,
+      'ownerColor':          _colorTerritorio.toARGB32(),
       'kmCorridosEnSesion':  kmCorridosEnSesion,
     });
       if (!mounted) return;

@@ -11,11 +11,9 @@ import '../services/clan_service.dart';
 import '../widgets/custom_navbar.dart';
 
 // ── Paleta iOS ───────────────────────────────────────────────────────────────���
-const _kBg      = Color(0xFFE8E8ED);
 const _kSurface = Color(0xFFFFFFFF);
 const _kSep     = Color(0xFFC6C6C8);
 const _kDim     = Color(0xFFAEAEB2);
-const _kSubtext = Color(0xFF8E8E93);
 const _kWhite   = Color(0xFF1C1C1E);
 const _kBlue    = Color(0xFFE02020);
 const _kGold    = Color(0xFFFFD60A);

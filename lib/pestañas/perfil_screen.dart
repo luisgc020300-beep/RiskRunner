@@ -19,7 +19,6 @@ import 'historial_guerra_screen.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../widgets/league_card_widget.dart';
 import '../services/league_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
@@ -192,7 +191,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   bool _esAdmin = false;
   List<TituloRey> _titulosActivos  = [];
   List<TituloRey> _todosLosTitulos = [];
-  bool _loadingTitulos = false;
 
   // ── Contadores de desafíos para badge ────────────────────
   int _desafiosActivosCount = 0;
@@ -206,7 +204,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   bool _isPremium = false;
 
   // ── Stats premium ─────────────────────────────────────────────────────────
-  List<CarreraStats>  _carrerasPremium   = [];
   List<PuntoTendencia> _tendencia8Semanas = [];
   ComparativaSemanal?  _comparativaSemanal;
   Map<int, String>     _nombresZonas     = {};  // índice territorio → nombre
@@ -221,7 +218,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   late Animation<double> _fadeZona2;
   late Animation<double> _fadeZona3;
   late Animation<Offset>  _slideZona2;
-  late Animation<Offset>  _slideZona3;
   late Animation<double>  _pulse;
   late Animation<double>  _scan;
 
@@ -235,7 +231,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     _fadeZona2   = CurvedAnimation(parent: _entradaAnim, curve: const Interval(0.25, 0.75, curve: Curves.easeOut));
     _fadeZona3   = CurvedAnimation(parent: _entradaAnim, curve: const Interval(0.5, 1.0, curve: Curves.easeOut));
     _slideZona2  = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(CurvedAnimation(parent: _entradaAnim, curve: const Interval(0.25, 0.85, curve: Curves.easeOutCubic)));
-    _slideZona3  = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(CurvedAnimation(parent: _entradaAnim, curve: const Interval(0.5, 1.0, curve: Curves.easeOutCubic)));
     _pulse       = CurvedAnimation(parent: _loopAnim, curve: Curves.easeInOut);
     _scan        = CurvedAnimation(parent: _scanAnim, curve: Curves.linear);
     _cargarTodo();
@@ -319,7 +314,6 @@ class _PerfilScreenState extends State<PerfilScreen>
       }
 
       if (mounted) setState(() {
-        _carrerasPremium    = carreras;
         _tendencia8Semanas  = tendencia;
         _comparativaSemanal = comparativa;
         _nombresZonas       = nombres;
@@ -405,7 +399,6 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Future<void> _cargarTitulos() async {
     if (viewedUserId == null) return;
-    if (mounted) setState(() => _loadingTitulos = true);
     try {
       final resultados = await Future.wait([
         ZonaService.getTitulosDeUsuario(viewedUserId!),
@@ -414,11 +407,9 @@ class _PerfilScreenState extends State<PerfilScreen>
       if (mounted) setState(() {
         _todosLosTitulos = resultados[0];
         _titulosActivos  = resultados[1];
-        _loadingTitulos  = false;
       });
     } catch (e) {
       debugPrint('Error títulos: $e');
-      if (mounted) setState(() => _loadingTitulos = false);
     }
   }
 
