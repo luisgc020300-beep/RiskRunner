@@ -1270,7 +1270,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _dibujarTerritoriosEnMapa();
 
     _iluminacionTimer?.cancel();
-    _iluminacionTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+    _iluminacionTimer = Timer.periodic(const Duration(minutes: 20), (_) {
       if (!mounted) return;
       _configurarAtmosfera();
       _mejorarAgua();
@@ -1819,6 +1819,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _jugadoresStream = FirebaseFirestore.instance
         .collection('presencia_activa')
         .where('timestamp', isGreaterThan: cutoff)
+        .limit(100)
         .snapshots()
         .listen((snap) async {
       if (!mounted) return;
@@ -2702,14 +2703,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'userId':          user.uid,
           'distancia':       distanciaFinal,
           'tiempo_segundos': tiempoFinal.inSeconds,
-          'velocidad_media': tiempoFinal.inSeconds > 0
-              ? distanciaFinal / (tiempoFinal.inSeconds / 3600)
-              : 0.0,
+          'velocidad_media': StatsService.velocidadKmh(distanciaFinal, tiempoFinal.inSeconds),
           'boost_activo':    _boostXpActivo,
           'latFinal':        _currentPosition?.latitude,
           'lngFinal':        _currentPosition?.longitude,
           'timestamp':       FieldValue.serverTimestamp(),
-          'ownerColor':      _colorTerritorio.value,
+          'ownerColor':      _colorTerritorio.toARGB32(),
           'titulo': _modoSolitario
               ? 'Exploración Solitaria'
               : _objetivoGlobal != null
@@ -2727,7 +2726,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         });
         logId = logRef.id;
 
-        if (_objetivoGlobal != null && _globalKmAlcanzados && logId != null) {
+        if (_objetivoGlobal != null && _globalKmAlcanzados) {
           await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
         }
 
@@ -4837,6 +4836,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 centro: centro, modo: 'solitario');
             if (mounted) setState(() => _territorios = lista);
             _dibujarTerritoriosEnMapa();
+            // Precargar barrios en background para reducir latencia al iniciar
+            if (centro != null) _cargarBarriosOSM(centro);
           },
         ),
         const SizedBox(width: 10),

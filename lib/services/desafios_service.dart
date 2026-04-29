@@ -212,26 +212,25 @@ class DesafiosService {
     List<DesafioInfo> last2 = [];
 
     late StreamController<List<DesafioInfo>> ctrl;
+    StreamSubscription<List<DesafioInfo>>? sub1;
+    StreamSubscription<List<DesafioInfo>>? sub2;
+
+    void emit() {
+      if (ctrl.isClosed) return;
+      final merged = [...last1, ...last2];
+      merged.sort((a, b) =>
+          (b.inicio ?? DateTime(0)).compareTo(a.inicio ?? DateTime(0)));
+      ctrl.add(merged);
+    }
+
     ctrl = StreamController<List<DesafioInfo>>.broadcast(
       onListen: () {
-        s1.listen((l) {
-          last1 = l;
-          if (!ctrl.isClosed) {
-            final merged = [...last1, ...last2];
-            merged.sort((a, b) => (b.inicio ?? DateTime(0))
-                .compareTo(a.inicio ?? DateTime(0)));
-            ctrl.add(merged);
-          }
-        });
-        s2.listen((l) {
-          last2 = l;
-          if (!ctrl.isClosed) {
-            final merged = [...last1, ...last2];
-            merged.sort((a, b) => (b.inicio ?? DateTime(0))
-                .compareTo(a.inicio ?? DateTime(0)));
-            ctrl.add(merged);
-          }
-        });
+        sub1 = s1.listen((l) { last1 = l; emit(); });
+        sub2 = s2.listen((l) { last2 = l; emit(); });
+      },
+      onCancel: () {
+        sub1?.cancel();
+        sub2?.cancel();
       },
     );
     return ctrl.stream;

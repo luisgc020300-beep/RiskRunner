@@ -202,6 +202,22 @@ class StatsService {
   static String mapboxToken = '';
 
   // ==========================================================================
+  // HELPERS DE VELOCIDAD — reutilizables en cualquier pantalla
+  // ==========================================================================
+
+  /// km/h. Devuelve 0.0 si el tiempo es 0.
+  static double velocidadKmh(double distanciaKm, int tiempoSeg) {
+    if (tiempoSeg <= 0) return 0.0;
+    return distanciaKm / (tiempoSeg / 3600.0);
+  }
+
+  /// min/km (ritmo). Devuelve 0.0 si la distancia es 0.
+  static double ritmoMinKm(double distanciaKm, int tiempoSeg) {
+    if (distanciaKm <= 0) return 0.0;
+    return (tiempoSeg / 60.0) / distanciaKm;
+  }
+
+  // ==========================================================================
   // CARGA DE CARRERAS
   // ==========================================================================
 
@@ -363,9 +379,17 @@ class StatsService {
   // Convierte los puntos de un territorio en nombres de calle/barrio
   // ==========================================================================
 
-  /// Obtiene el nombre de zona/barrio para un territorio a partir de su centroide
+  static final Map<String, String> _geocodingCache = {};
+
+  static String _geocodingKey(LatLng c) =>
+      '${(c.latitude * 1000).round()},${(c.longitude * 1000).round()}';
+
+  /// Obtiene el nombre de zona/barrio para un territorio a partir de su centroide.
+  /// Resultados cacheados en memoria (precisión ~100 m).
   static Future<String> obtenerNombreZona(LatLng centro) async {
     if (mapboxToken.isEmpty) return 'Zona desconocida';
+    final key = _geocodingKey(centro);
+    if (_geocodingCache.containsKey(key)) return _geocodingCache[key]!;
     try {
       final url = Uri.parse(
         'https://api.mapbox.com/geocoding/v5/mapbox.places/'
@@ -379,8 +403,9 @@ class StatsService {
         final data     = json.decode(resp.body);
         final features = data['features'] as List<dynamic>?;
         if (features != null && features.isNotEmpty) {
-          // Preferir neighborhood > locality > place
-          return features.first['text'] as String? ?? 'Zona desconocida';
+          final nombre = features.first['text'] as String? ?? 'Zona desconocida';
+          _geocodingCache[key] = nombre;
+          return nombre;
         }
       }
     } catch (e) {
@@ -389,16 +414,16 @@ class StatsService {
     return 'Zona desconocida';
   }
 
-  /// Batch geocoding para múltiples territorios
-  /// Devuelve un mapa de índice → nombre de zona
+  /// Batch geocoding para múltiples territorios (máx. 10 para limitar coste API).
+  /// Devuelve un mapa de índice → nombre de zona.
   static Future<Map<int, String>> geocodificarTerritorios(
       List<LatLng> centroides) async {
     final resultado = <int, String>{};
-    for (int i = 0; i < centroides.length; i++) {
+    final limite    = centroides.length.clamp(0, 10);
+    for (int i = 0; i < limite; i++) {
       resultado[i] = await obtenerNombreZona(centroides[i]);
-      // Pequeño delay para no saturar la API de Mapbox
-      if (i < centroides.length - 1) {
-        await Future.delayed(const Duration(milliseconds: 100));
+      if (i < limite - 1) {
+        await Future.delayed(const Duration(milliseconds: 120));
       }
     }
     return resultado;

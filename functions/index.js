@@ -1395,36 +1395,24 @@ exports.atacarTerritorio = onCall(
         p => !_puntoEnPoligono(p, poliAtacante)
       );
 
+      const centroInterseccion = _centroide(interseccion);
+      const nuevoTerRef        = db.collection('territories').doc();
+
       if (puntosRestantes.length >= 3) {
         const centroRestante = _centroide(puntosRestantes);
-        
-        // ── CASO B: ROBO PARCIAL ──
-      const barrioRestante = puntosRestantes.length >= 3
-        ? await _obtenerBarrio(centroRestante.y, centroRestante.x)
-        : null;
 
-const barrioNuevo = await _obtenerBarrio(
-  centroInterseccion.y,
-  centroInterseccion.x
-);
-
-        // El trozo restante conserva su HP intacto — solo la zona pisada
-        // por el atacante se vio afectada. El resto del polígono no cambia de HP.
         batch.update(terRef, {
           puntos:                puntosRestantes.map(p => ({ lat: p.y, lng: p.x })),
           centro:                { lat: centroRestante.y, lng: centroRestante.x },
           centroLat:             centroRestante.y,
           centroLng:             centroRestante.x,
-          hp:                    hpActual, // HP original conservado en la zona no pisada
+          hp:                    hpActual,
           hpMax:                 100,
           ultimaActualizacionHp: FieldValue.serverTimestamp(),
         });
       } else {
         batch.delete(terRef);
       }
-
-      const centroInterseccion = _centroide(interseccion);
-      const nuevoTerRef        = db.collection('territories').doc();
 
       batch.set(nuevoTerRef, {
         userId:                atacanteId,

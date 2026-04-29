@@ -225,7 +225,7 @@ class ZonaService {
 
   static Future<Map<String, double>> calcularDominioZonaCompleto(
       ZonaInfo zona) async {
-    final snap = await _db.collection('territories').get();
+    final snap = await _db.collection('territories').limit(2000).get();
     final Map<String, double> dominio = {};
     for (final doc in snap.docs) {
       final data = doc.data();

@@ -8,6 +8,7 @@ const { onDocumentCreated,
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getMessaging }       = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore();
@@ -1543,14 +1544,6 @@ function _lunes(offsetDias = 0) {
   return d;
 }
 
-function _calcularKmRequeridos(baseKm, difficultyLevel) {
-  if (difficultyLevel <= 1) return baseKm;
-  if (difficultyLevel <= 4) return baseKm * 1.5;
-  if (difficultyLevel <= 7) return baseKm * 2.5;
-  if (difficultyLevel <= 9) return baseKm * 4.0;
-  return baseKm * 6.0;
-}
-
 function _shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1558,4 +1551,74 @@ function _shuffle(arr) {
   }
   return arr;
 }
+// =============================================================================
+// 14. PUSH NOTIFICATION — se dispara cuando se crea una notificación en Firestore
+// =============================================================================
+const _FCM_TITLES = {
+  territory_lost:              'Territorio perdido',
+  territory_weakened:          'Territorio debilitado',
+  territory_under_attack:      '¡Ataque en curso!',
+  territory_bitten:            'Te han robado un trozo',
+  territory_king_lost:         'Reinado perdido',
+  desafio_ganado:              '¡Desafio ganado!',
+  desafio_perdido:             'Desafio perdido',
+  follow:                      'Nuevo seguidor',
+  guerra_global_recompensa:    'Recompensa semanal',
+  global_territory_conquered:  '¡Conquista Global!',
+  global_territory_lost:       'Territorio Global perdido',
+  titulo_rey:                  '¡Eres el Rey!',
+  amistad_aceptada:            'Solicitud aceptada',
+};
+
+exports.onNotificationCreated = onDocumentCreated(
+  { document: 'notifications/{notifId}', region: 'europe-west1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    const toUserId = data.toUserId;
+    if (!toUserId) return;
+
+    const playerSnap = await db.collection('players').doc(toUserId).get();
+    if (!playerSnap.exists) return;
+
+    const token = playerSnap.data()?.fcm_token;
+    if (!token || typeof token !== 'string') return;
+
+    const tipo  = data.type || 'info';
+    const title = _FCM_TITLES[tipo] || 'Risk Runner';
+    const body  = data.message || '';
+
+    try {
+      await getMessaging().send({
+        token,
+        notification: { title, body },
+        data: {
+          type:       tipo,
+          notifId:    event.params.notifId,
+          toUserId,
+          fromUserId: data.fromUserId || '',
+          desafioId:  data.desafioId  || '',
+        },
+        android: {
+          priority: 'high',
+          notification: { channelId: 'riskrunner_default', sound: 'default' },
+        },
+        apns: {
+          payload: { aps: { sound: 'default', badge: 1 } },
+        },
+      });
+    } catch (e) {
+      if (
+        e.code === 'messaging/registration-token-not-registered' ||
+        e.code === 'messaging/invalid-registration-token'
+      ) {
+        await db.collection('players').doc(toUserId).update({ fcm_token: null });
+      } else {
+        console.error('[onNotificationCreated] FCM error:', e.code, e.message);
+      }
+    }
+  }
+);
+
 // v7 — atacarTerritorio integrado
