@@ -214,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _completedChallengesCache = [];
   bool _mostrarTodosLosLogros = false;
   Timer? _dailyResetTimer;
-  Duration _timeUntilReset = Duration.zero;
+  final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
   // ── Mapa
   List<TerritoryData> _territorios = [];
@@ -312,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _pageController.dispose();
     _dailyResetTimer?.cancel();
+    _timeUntilReset.dispose();
     _entradaCtrl.dispose();
     _loopCtrl.dispose();
     _scanCtrl.dispose();
@@ -1060,13 +1061,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final resetTime = lastResetTime.add(const Duration(hours: 24));
     _dailyResetTimer?.cancel();
     _dailyResetTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        final now = DateTime.now();
-        setState(() => _timeUntilReset = resetTime.difference(now));
-        if (_timeUntilReset.isNegative || _timeUntilReset.inSeconds == 0) {
-          _dailyResetTimer?.cancel();
-          _handleDailyReset();
-        }
+      if (!mounted) return;
+      final remaining = resetTime.difference(DateTime.now());
+      _timeUntilReset.value = remaining;
+      if (remaining.isNegative || remaining.inSeconds == 0) {
+        _dailyResetTimer?.cancel();
+        _handleDailyReset();
       }
     });
   }
@@ -2550,18 +2550,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDailyResetTimer() {
-    final h = _timeUntilReset.inHours.toString().padLeft(2, '0');
-    final m = _timeUntilReset.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = _timeUntilReset.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: _T.bg1, border: Border.all(color: _T.border2)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.timer_outlined, color: _T.muted, size: 12),
-        const SizedBox(width: 6),
-        Text('RESET EN $h:$m:$s',
-            style: _raj(11, FontWeight.w700, _T.text, spacing: 1.5)),
-      ]),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: _timeUntilReset,
+      builder: (_, remaining, __) {
+        final h = remaining.inHours.toString().padLeft(2, '0');
+        final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+        final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(color: _T.bg1, border: Border.all(color: _T.border2)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.timer_outlined, color: _T.muted, size: 12),
+            const SizedBox(width: 6),
+            Text('RESET EN $h:$m:$s',
+                style: _raj(11, FontWeight.w700, _T.text, spacing: 1.5)),
+          ]),
+        );
+      },
     );
   }
 

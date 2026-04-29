@@ -35,7 +35,7 @@ class _ClanWarScreenState extends State<ClanWarScreen>
 
   late AnimationController _pulse;
   Timer? _timer;
-  Duration _restante = Duration.zero;
+  final _restante = ValueNotifier<Duration>(Duration.zero);
 
   @override
   void initState() {
@@ -43,9 +43,10 @@ class _ClanWarScreenState extends State<ClanWarScreen>
     _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 1))
       ..repeat(reverse: true);
 
-    _restante = widget.war.fin.difference(DateTime.now());
+    _restante.value = widget.war.fin.difference(DateTime.now());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _restante = widget.war.fin.difference(DateTime.now()));
+      if (!mounted) return;
+      _restante.value = widget.war.fin.difference(DateTime.now());
     });
   }
 
@@ -53,15 +54,16 @@ class _ClanWarScreenState extends State<ClanWarScreen>
   void dispose() {
     _pulse.dispose();
     _timer?.cancel();
+    _restante.dispose();
     super.dispose();
   }
 
-  String get _tiempoStr {
-    if (_restante.isNegative) return 'FINALIZADA';
-    final h = _restante.inHours;
-    final m = _restante.inMinutes.remainder(60);
-    final s = _restante.inSeconds.remainder(60);
-    if (h >= 24) return '${_restante.inDays}d ${h.remainder(24)}h';
+  static String _tiempoStr(Duration d) {
+    if (d.isNegative) return 'FINALIZADA';
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h >= 24) return '${d.inDays}d ${h.remainder(24)}h';
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
@@ -215,21 +217,26 @@ class _ClanWarScreenState extends State<ClanWarScreen>
   }
 
   Widget _buildTemporizador() {
-    final ended = _restante.isNegative;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        color: _kSurface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(children: [
-        Text(ended ? 'Guerra finalizada' : 'Tiempo restante',
-            style: _dm(12, FontWeight.w500, ended ? _kSubtext : _kAccent)),
-        const SizedBox(height: 6),
-        Text(_tiempoStr, style: _raj(38, FontWeight.w900,
-            ended ? _kSubtext : _kWhite, sp: 2)),
-      ]),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: _restante,
+      builder: (_, remaining, __) {
+        final ended = remaining.isNegative;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: _kSurface,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(children: [
+            Text(ended ? 'Guerra finalizada' : 'Tiempo restante',
+                style: _dm(12, FontWeight.w500, ended ? _kSubtext : _kAccent)),
+            const SizedBox(height: 6),
+            Text(_tiempoStr(remaining), style: _raj(38, FontWeight.w900,
+                ended ? _kSubtext : _kWhite, sp: 2)),
+          ]),
+        );
+      },
     );
   }
 

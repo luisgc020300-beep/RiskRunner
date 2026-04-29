@@ -1760,13 +1760,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await src?.updateGeoJSON(gj);
       }
 
-      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
         if (!mounted || _mapboxMap == null) return;
         if (_pulsoUp) {
-          _pulsoOpacity += 0.025;
+          _pulsoOpacity += 0.05;
           if (_pulsoOpacity >= 0.60) _pulsoUp = false;
         } else {
-          _pulsoOpacity -= 0.025;
+          _pulsoOpacity -= 0.05;
           if (_pulsoOpacity <= 0.15) _pulsoUp = true;
         }
         try {
@@ -2618,10 +2618,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _velocidadActualKmh = 0;
       _bounceAnim.stop();
       _positionStream?.cancel();
-      _positionStream = Geolocator.getPositionStream(
-          locationSettings: _kGpsPausado).listen((pos) {
-        if (mounted) setState(() => _currentPosition = pos);
-      });
+      _positionStream = null;
       _ajustarPresenciaPausado();
       if (_currentPosition != null) {
         _moverCamara(lat: _currentPosition!.latitude,
