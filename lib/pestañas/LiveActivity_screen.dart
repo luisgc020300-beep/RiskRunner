@@ -695,6 +695,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
     _buildings3dCreated       = false;
     _territoriosLayersCreated = false;
+    _centrosLayerCreated      = false;
+    _globalesLayerCreated     = false;
     Future.delayed(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       _addBuildings3D();
@@ -1582,11 +1584,39 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   String _buildCentrosGeoJson() {
     final feats = _territorios.map((t) {
       final c        = t.centro;
-      final colorHex = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+      final colorHex = _colorToHex(t.color);
       return '{"type":"Feature","properties":{"color":"$colorHex"},'
           '"geometry":{"type":"Point","coordinates":[${c.longitude},${c.latitude}]}}';
     }).join(',');
     return '{"type":"FeatureCollection","features":[$feats]}';
+  }
+
+  Future<void> _crearCentrosLayer() async {
+    if (_centrosLayerCreated || _territorios.isEmpty || _mapboxMap == null) return;
+    try { await _mapboxMap!.style.removeStyleLayer(_centrosLayerId); } catch (_) {}
+    try { await _mapboxMap!.style.removeStyleSource(_centrosSourceId); } catch (_) {}
+    final gj = _buildCentrosGeoJson();
+    await _mapboxMap!.style.addSource(
+        mapbox.GeoJsonSource(id: _centrosSourceId, data: gj));
+    await _mapboxMap!.style.addLayer(
+        mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-color', ['get', 'color']);
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-radius',
+        ['interpolate', ['linear'], ['zoom'],
+          1, 4.0, 5, 7.0, 10, 5.0, 18, 4.0]);
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-opacity', 0.88);
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-stroke-width', 1.5);
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-stroke-color', '#000000');
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-stroke-opacity', 0.35);
+    await _mapboxMap!.style.setStyleLayerProperty(
+        _centrosLayerId, 'circle-blur', 0.2);
+    _centrosLayerCreated = true;
   }
 
   Future<void> _dibujarTerritoriosEnMapa() async {
@@ -1634,6 +1664,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           final cSrc = await _mapboxMap!.style
               .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
           await cSrc?.updateGeoJSON(_buildCentrosGeoJson());
+        } else {
+          await _crearCentrosLayer();
         }
         return;
       }
@@ -1725,38 +1757,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _territoriosLayersCreated = true;
       _actualizarCoronesMapa();
 
-      if (!_centrosLayerCreated) {
-        if (_territorios.isNotEmpty) {
-          final gj = _buildCentrosGeoJson();
-          await _mapboxMap!.style.addSource(
-              mapbox.GeoJsonSource(id: _centrosSourceId, data: gj));
-          await _mapboxMap!.style.addLayer(
-              mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-color', ['get', 'color']);
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-radius',
-              ['interpolate', ['linear'], ['zoom'],
-                1,  4.0,
-                5,  7.0,
-                10, 5.0,
-                18, 4.0]);
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-opacity', 0.88);
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-stroke-width', 1.5);
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-stroke-color', '#FFFFFF');
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-stroke-opacity', 0.6);
-          await _mapboxMap!.style.setStyleLayerProperty(
-              _centrosLayerId, 'circle-blur', 0.2);
-          _centrosLayerCreated = true;
-        }
-      } else {
+      if (_centrosLayerCreated) {
         final src = await _mapboxMap!.style
             .getSource(_centrosSourceId) as mapbox.GeoJsonSource?;
         await src?.updateGeoJSON(_buildCentrosGeoJson());
+      } else {
+        await _crearCentrosLayer();
       }
 
       _pulsoTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
@@ -2964,6 +2970,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 if (mounted) {
                   setState(() => _territorios = nuevos);
                   _territoriosLayersCreated = false;
+                  _centrosLayerCreated      = false;
                   await _dibujarTerritoriosEnMapa();
                 }
               return 1;
@@ -4536,7 +4543,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.addLayer(mapbox.CircleLayer(id: _globalesLayerId, sourceId: _globalesSourceId));
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-color', ['get', 'color']);
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-radius',
-            ['interpolate', ['linear'], ['zoom'], 0, 5.0, 2, 8.0, 4, 5.0, 6, 0.0]);
+            ['interpolate', ['linear'], ['zoom'], 0, 4.0, 3, 8.0, 6, 6.0, 18, 5.0]);
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-opacity', 0.92);
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-blur', 0.25);
         _globalesLayerCreated = true;
@@ -4964,6 +4971,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   _mapboxMap?.loadStyleURI(uri);
                   _buildings3dCreated       = false;
                   _territoriosLayersCreated = false;
+                  _centrosLayerCreated      = false;
+                  _globalesLayerCreated     = false;
                   Future.delayed(const Duration(milliseconds: 800), () {
                     if (!mounted) return;
                     _addBuildings3D();

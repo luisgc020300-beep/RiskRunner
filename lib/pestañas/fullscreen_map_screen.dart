@@ -4755,279 +4755,234 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _kSurface,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border(
-            top:   BorderSide(color: _kBorder2),
-            left:  BorderSide(color: _kBorder2),
-            right: BorderSide(color: _kBorder2),
-          ),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 14),
-            width: 36, height: 3,
-            decoration: BoxDecoration(color: _kBorder2,
-                borderRadius: BorderRadius.circular(2))),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-            child: Row(children: [
-              Container(width: 3, height: 18, color: _kRed,
-                  margin: const EdgeInsets.only(right: 10)),
-              Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(ownerNick.toUpperCase(),
-                    style: _raj(15, FontWeight.w900, _kWhite,
-                        spacing: 1.5)),
-                if (det.nombreTerritorio != null &&
-                    det.nombreTerritorio!.isNotEmpty)
-                  Text('"${det.nombreTerritorio}"',
-                      style: _raj(11, FontWeight.w600, _kGold,
-                          spacing: 0.5)),
-              ])),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: cEstado.withValues(alpha: 0.08),
-                    border: Border.all(
-                        color: cEstado.withValues(alpha: 0.4)),
-                    borderRadius: BorderRadius.circular(4)),
-                child: Text(estado.toUpperCase(),
-                    style: _raj(9, FontWeight.w900, cEstado,
-                        spacing: 1))),
-            ]),
-          ),
-          if (det.puntos.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 160,
-                  child: FlutterMap(
-                    options: MapOptions(
-                        initialCenter: centro,
-                        initialZoom: 15,
-                        interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.pinchZoom |
-                                InteractiveFlag.doubleTapZoom)),
-                    children: [
-                      TileLayer(
-                          urlTemplate: _kMapboxUrl,
-                          userAgentPackageName: 'com.runner_risk.app',
-                          tileDimension: 256,
-                          keepBuffer: 4,
-                          panBuffer: 1),
-                      PolygonLayer(polygons: [
-                        Polygon(
-                            points: det.puntos,
-                            color: _kRed.withValues(alpha: 0.2),
-                            borderColor: _kRed,
-                            borderStrokeWidth: 2)
-                      ]),
-                    ],
-                  ),
-                ),
-              ),
+      builder: (_) {
+        TerritoryData? td;
+        try {
+          td = _state.territorios.firstWhere((x) => x.docId == det.docId);
+        } catch (_) {}
+        final Color accent = td?.color ?? cEstado;
+        final int hp       = td?.hpActual ?? kHpMax;
+        final double hpFrac = (hp / kHpMax).clamp(0.0, 1.0);
+        final Color hpColor;
+        switch (td?.estadoHp ?? EstadoHp.saludable) {
+          case EstadoHp.saludable: hpColor = _kSafe; break;
+          case EstadoHp.danado:    hpColor = _kWarn; break;
+          case EstadoHp.critico:   hpColor = _kRed;  break;
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: _kSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            border: Border(
+              top:   BorderSide(color: accent.withValues(alpha: 0.55), width: 2),
+              left:  BorderSide(color: _kBorder2),
+              right: BorderSide(color: _kBorder2),
             ),
-          if (!esMio)
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              width: 32, height: 3,
+              decoration: BoxDecoration(
+                  color: _kBorder, borderRadius: BorderRadius.circular(2))),
+
+            // Header
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-              child: Builder(builder: (_) {
-                // Buscar el TerritoryData correspondiente para mostrar HP
-                TerritoryData? td;
-                try {
-                  td = _state.territorios.firstWhere(
-                      (x) => x.docId == det.docId);
-                } catch (_) {}
-
-                if (td == null) return const SizedBox.shrink();
-
-                final hp = td.hpActual;
-                final hpFraction = hp / kHpMax.toDouble();
-                final Color hpColor;
-                final String hpLabel;
-                switch (td.estadoHp) {
-                  case EstadoHp.saludable:
-                    hpColor = _kSafe;
-                    hpLabel = 'Territorio saludable';
-                    break;
-                  case EstadoHp.danado:
-                    hpColor = _kWarn;
-                    hpLabel = 'Territorio debilitado';
-                    break;
-                  case EstadoHp.critico:
-                    hpColor = _kRed;
-                    hpLabel = 'En estado crítico';
-                    break;
-                }
-                return Column(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(
+                  width: 2, height: 36, color: accent,
+                  margin: const EdgeInsets.only(right: 10, top: 2)),
+                Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(
-                          color: hpColor, shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(
-                              color: hpColor.withValues(alpha: 0.6),
-                              blurRadius: 4)],
-                        ),
-                        margin: const EdgeInsets.only(right: 6),
-                      ),
-                      Text(hpLabel,
-                          style: _raj(10, FontWeight.w700, hpColor,
-                              spacing: 0.5)),
-                      const Spacer(),
-                      Text('$hp/$kHpMax HP',
-                          style: _raj(10, FontWeight.w700, hpColor)),
-                    ]),
-                    const SizedBox(height: 6),
-                    Stack(children: [
-                      Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                              color: _kBorder2,
-                              borderRadius:
-                                  BorderRadius.circular(3))),
-                      FractionallySizedBox(
-                        widthFactor: hpFraction.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: hpColor,
-                            borderRadius: BorderRadius.circular(3),
-                            boxShadow: [BoxShadow(
-                                color: hpColor.withValues(alpha: 0.5),
-                                blurRadius: 8)],
-                          ),
-                        ),
-                      ),
-                    ]),
+                    Text(ownerNick.toUpperCase(),
+                        style: _raj(14, FontWeight.w900, _kWhite, spacing: 1.0)),
                     const SizedBox(height: 2),
-                    Row(children: [
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
-                      const Spacer(),
-                      Container(width: 1, height: 6, color: _kBorder2),
+                    Text(
+                      det.nombreTerritorio != null && det.nombreTerritorio!.isNotEmpty
+                          ? det.nombreTerritorio!
+                          : 'Sin nombre asignado',
+                      style: _raj(11, FontWeight.w500, _kSub)),
+                  ],
+                )),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: cEstado.withValues(alpha: 0.06),
+                    border: Border.all(color: cEstado.withValues(alpha: 0.28)),
+                    borderRadius: BorderRadius.circular(3)),
+                  child: Text(estado.toUpperCase(),
+                      style: _raj(8, FontWeight.w800, cEstado, spacing: 0.8))),
+              ]),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: _kBorder2),
+
+            // Mini map
+            if (det.puntos.isNotEmpty)
+              SizedBox(
+                height: 140,
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: centro,
+                    initialZoom: 15,
+                    interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.pinchZoom |
+                            InteractiveFlag.doubleTapZoom)),
+                  children: [
+                    TileLayer(
+                        urlTemplate: _kMapboxUrl,
+                        userAgentPackageName: 'com.runner_risk.app',
+                        tileDimension: 256,
+                        keepBuffer: 4,
+                        panBuffer: 1),
+                    PolygonLayer(polygons: [
+                      Polygon(
+                          points: det.puntos,
+                          color: accent.withValues(alpha: 0.15),
+                          borderColor: accent,
+                          borderStrokeWidth: 2),
                     ]),
                   ],
-                );
-              }),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [
-              _dStat(
-                  'SIN VISITAR',
-                  det.diasSinVisitar != null
-                      ? '${det.diasSinVisitar}d'
-                      : '--',
-                  _kDim),
-              Container(width: 1, height: 36, color: _kBorder2),
-              _dStat('DISTANCIA',
-                  '${det.dist.toStringAsFixed(1)} km', _kText),
-              Container(width: 1, height: 36, color: _kBorder2),
-              _dStat('PUNTOS', '${det.puntos.length}', _kGold),
-            ]),
-          ),
-          if (conquistable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: GestureDetector(
-                onTap: () => _ejecutarConquista(det, ownerNick),
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _kRed.withValues(alpha: 0.12),
-                    border: Border.all(
-                        color: _kRed.withValues(alpha: 0.6)),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.sports_kabaddi_rounded,
-                          color: _kRed, size: 18),
-                      const SizedBox(width: 10),
-                      Text('CONQUISTAR TERRITORIO',
-                          style: _raj(13, FontWeight.w900, _kRed,
-                              spacing: 2)),
-                    ]),
                 ),
               ),
-            ),
-          if (!esMio && !conquistable)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    vertical: 12, horizontal: 14),
-                decoration: BoxDecoration(
-                    color: _kSurface2,
-                    border: Border.all(color: _kBorder2),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Row(children: [
-                  const Icon(Icons.lock_outline_rounded,
-                      color: _kSub, size: 14),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(
-                    'Necesita '
-                    '${kDiasParaDeterioroFuncional - (det.diasSinVisitar ?? 0)} '
-                    'días más sin visita.',
-                    style: _raj(10, FontWeight.w600, _kSub),
-                  )),
+
+            if (det.puntos.isNotEmpty)
+              const Divider(height: 1, thickness: 1, color: _kBorder2),
+
+            // HP bar (enemy territories only)
+            if (td != null && !esMio)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: Column(children: [
+                  Row(children: [
+                    Text(estado.toUpperCase(),
+                        style: _raj(9, FontWeight.w700, hpColor, spacing: 0.8)),
+                    const Spacer(),
+                    Text('$hp / $kHpMax HP',
+                        style: _raj(9, FontWeight.w500, _kSub)),
+                  ]),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(1.5),
+                    child: Stack(children: [
+                      Container(height: 3, color: _kBorder2),
+                      FractionallySizedBox(
+                        widthFactor: hpFrac,
+                        child: Container(height: 3, color: hpColor)),
+                    ]),
+                  ),
                 ]),
               ),
-            ),
-          if (esMio)
+
+            // Stats
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _mostrarDialogoRenombrar(det);
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.08),
-                    border: Border.all(
-                        color: _kGold.withValues(alpha: 0.4)),
-                    borderRadius: BorderRadius.circular(6),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Row(children: [
+                _dStat(
+                    'SIN VISITAR',
+                    det.diasSinVisitar != null ? '${det.diasSinVisitar}d' : '—',
+                    _kText),
+                Container(width: 1, height: 32, color: _kBorder2),
+                _dStat('DISTANCIA',
+                    '${det.dist.toStringAsFixed(1)} km', _kText),
+                Container(width: 1, height: 32, color: _kBorder2),
+                _dStat('VÉRTICES', '${det.puntos.length}', _kText),
+              ]),
+            ),
+
+            const Divider(height: 1, thickness: 1, color: _kBorder2),
+            const SizedBox(height: 8),
+
+            // Action buttons
+            if (conquistable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: GestureDetector(
+                  onTap: () => _ejecutarConquista(det, ownerNick),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _kRed.withValues(alpha: 0.06),
+                      border: Border.all(color: _kRed.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.sports_kabaddi_rounded,
+                              color: _kRed, size: 16),
+                          const SizedBox(width: 10),
+                          Text('CONQUISTAR TERRITORIO',
+                              style: _raj(12, FontWeight.w900, _kRed,
+                                  spacing: 1.5)),
+                        ]),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.edit_rounded,
-                          color: _kGold, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        det.nombreTerritorio != null &&
-                                det.nombreTerritorio!.isNotEmpty
-                            ? 'CAMBIAR NOMBRE'
-                            : 'PONERLE NOMBRE',
-                        style: _raj(12, FontWeight.w900, _kGold,
-                            spacing: 1.5)),
-                    ]),
                 ),
               ),
-            ),
-          const SizedBox(height: 8),
-        ]),
-      ),
+            if (!esMio && !conquistable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 11, horizontal: 14),
+                  decoration: BoxDecoration(
+                      color: _kSurface2,
+                      border: Border.all(color: _kBorder2),
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Row(children: [
+                    const Icon(Icons.lock_outline_rounded,
+                        color: _kSub, size: 13),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      'Faltan ${kDiasParaDeterioroFuncional - (det.diasSinVisitar ?? 0)} días sin visita para conquistar.',
+                      style: _raj(10, FontWeight.w500, _kSub),
+                    )),
+                  ]),
+                ),
+              ),
+            if (esMio)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _mostrarDialogoRenombrar(det);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.06),
+                      border: Border.all(color: accent.withValues(alpha: 0.3)),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.edit_outlined, color: accent, size: 15),
+                          const SizedBox(width: 8),
+                          Text(
+                            det.nombreTerritorio != null &&
+                                    det.nombreTerritorio!.isNotEmpty
+                                ? 'EDITAR NOMBRE'
+                                : 'ASIGNAR NOMBRE',
+                            style: _raj(12, FontWeight.w800, accent,
+                                spacing: 1.2)),
+                        ]),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ]),
+        );
+      },
     );
   }
 

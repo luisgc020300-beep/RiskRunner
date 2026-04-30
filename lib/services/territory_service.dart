@@ -421,12 +421,11 @@ class TerritoryService {
   // para cuando la posición GPS aún no está disponible).
   // ──────────────────────────────────────────────────────────────────────────
   static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
-    // Los territorios propios SIEMPRE se muestran, independientemente del modo.
     if (modo == 'solitario') {
-      return lista.where((t) => t.esMio || t.modo == 'solitario').toList();
+      return lista.where((t) => t.modo == 'solitario').toList();
     }
-    // competitivo: propios + ajenos legacy (null) + ajenos marcados competitivo
-    return lista.where((t) => t.esMio || t.modo != 'solitario').toList();
+    // competitivo: competitivos + legacy (null) — excluye explícitamente los solitario
+    return lista.where((t) => t.modo == null || t.modo == 'competitivo').toList();
   }
 
   static Future<List<TerritoryData>> cargarTodosLosTerritorios({
