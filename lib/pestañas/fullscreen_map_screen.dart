@@ -1673,8 +1673,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         animation: _toggleCtrl,
                         builder: (_, __) => Text(
                           _toggleAnim.value > 0.5
-                              ? 'MAPA DE CIUDAD'
-                              : 'MAPA GLOBAL',
+                              ? 'MAPA GLOBAL'
+                              : 'MAPA DE CIUDAD',
                           style: _raj(13, FontWeight.w900, _kWhite,
                               spacing: 2),
                         ),
@@ -1860,7 +1860,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Icon(Icons.location_on_rounded,
                       color: isCiudad ? _kBlue : _kSub, size: 13),
                   const SizedBox(width: 5),
-                  Text('MI CIUDAD',
+                  Text('COMPETITIVO',
                       style: _raj(9, FontWeight.w900,
                           isCiudad ? _kWhite : _kSub, spacing: 1.0)),
                 ]),

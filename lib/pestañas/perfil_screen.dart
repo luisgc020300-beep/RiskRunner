@@ -1193,7 +1193,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         builder: (_, __) => Column(mainAxisSize: MainAxisSize.min, children: [
           SizedBox(width: 48, height: 48, child: CustomPaint(painter: _LoaderPainter(accent: _kAccent, progress: _scan.value, pulse: _pulse.value))),
           const SizedBox(height: 20),
-          Text('CARGANDO EXPEDIENTE', style: _rajdhani(10, FontWeight.w700, _p.dim, spacing: 4)),
+          Text('CARGANDO PERFIL', style: _rajdhani(10, FontWeight.w700, _p.dim, spacing: 4)),
         ]),
       ),
     );

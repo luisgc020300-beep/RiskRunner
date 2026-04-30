@@ -583,7 +583,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             controller: _searchController,
             style: TextStyle(color: p.text1, fontSize: 13, letterSpacing: 0.3),
             decoration: InputDecoration(
-              hintText: 'Buscar explorador...', hintStyle: TextStyle(color: p.dim, fontSize: 13),
+              hintText: 'Buscar...', hintStyle: TextStyle(color: p.dim, fontSize: 13),
               border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12)))),
           if (_buscando)
             Padding(padding: const EdgeInsets.only(right: 14),
@@ -665,7 +665,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           height: 40,
           decoration: BoxDecoration(color: _p.surface, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
-            _ToggleBtn(label: 'MI LIGA', icon: ligaInfo.icon, active: _rankingModeLiga, activeColor: _kAccent,
+            _ToggleBtn(label: 'LIGAS', icon: ligaInfo.icon, active: _rankingModeLiga, activeColor: _kAccent,
               onTap: () => setState(() { _rankingModeLiga = true; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),
             _ToggleBtn(label: 'GLOBAL', icon: Icons.public_rounded, active: !_rankingModeLiga, activeColor: _kAccent,
@@ -808,7 +808,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
               Icon(ligaInfo.icon, color: ligaInfo.color, size: 16), const SizedBox(width: 8),
               Text('TOP 100 · ${ligaInfo.name.toUpperCase()}', style: TextStyle(color: _accent, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2.5)),
               const Spacer(),
-              Text('${docs.length} exploradores', style: TextStyle(color: _p.subtext, fontSize: 10))])),
+              Text('${docs.length} personas', style: TextStyle(color: _p.subtext, fontSize: 10))])),
           Expanded(child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32), itemCount: docs.length,
             itemBuilder: (ctx, i) {

@@ -2437,7 +2437,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       builder: (ctx) => CupertinoAlertDialog(
         title: Text(_modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
         content: Text(_modoSolitario
-            ? 'Vas a iniciar una sesión en modo explorador.'
+            ? 'Vas a iniciar una sesión en modo solitario.'
             : 'Vas a iniciar una conquista de territorio.'),
         actions: [
           CupertinoDialogAction(

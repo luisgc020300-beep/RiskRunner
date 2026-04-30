@@ -1088,7 +1088,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget _buildHeader() {
     final titulo = widget.targetNickname != null
         ? widget.targetNickname!.toUpperCase()
-        : _esGuerraGlobal ? 'INFORME DE CAMPAÑA GLOBAL' : 'INFORME DE CAMPAÑA';
+        : _esGuerraGlobal ? 'RESUMEN DE LA CARRERA GLOBAL' : 'RESUMEN DE LA CARRERA';
     final ahora  = DateTime.now();
     const meses  = ['ENE','FEB','MAR','ABR','MAY','JUN',
                      'JUL','AGO','SEP','OCT','NOV','DIC'];
