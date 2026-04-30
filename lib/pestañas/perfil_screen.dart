@@ -686,16 +686,16 @@ class _PerfilScreenState extends State<PerfilScreen>
       onTap: _mostrarModalReto,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 11),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: _p.surface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _p.border),
+          color: _kAccent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.sports_mma_rounded, color: _kAccent, size: 13),
-          const SizedBox(width: 6),
-          Text('RETAR', style: _rajdhani(12, FontWeight.w700, _kAccent, spacing: 1.2)),
+          const Icon(Icons.sports_mma_rounded, color: Colors.white, size: 15),
+          const SizedBox(width: 7),
+          Text('Retar', style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
         ]),
       ),
     );
@@ -1218,7 +1218,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                 Row(children: [
                   Expanded(child: _buildBotonRetar()),
                   const SizedBox(width: 8),
-                  Expanded(child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, _p.text, _abrirChat)),
+                  Expanded(child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat)),
                 ]),
               ]),
             ),
@@ -2887,24 +2887,26 @@ class _PerfilScreenState extends State<PerfilScreen>
           Expanded(child: _socialBtn('Rechazar', Icons.close_rounded, Colors.redAccent, _eliminarAmistad, outlined: true)),
         ]);
       default:
-        return _socialBtn('Añadir operativo', Icons.person_add_outlined, _p.text, _enviarSolicitudAmistad);
+        return _socialBtn('Añadir operativo', Icons.person_add_outlined, Colors.white, _enviarSolicitudAmistad);
     }
   }
 
-  Widget _socialBtn(String label, IconData icon, Color color, VoidCallback onTap, {bool outlined = false}) {
+  Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {
+    final bg     = outlined ? Colors.transparent : accent.withValues(alpha: 0.12);
+    final border = outlined ? _p.border2 : accent.withValues(alpha: 0.35);
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 11),
+        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: outlined ? Colors.transparent : _p.surface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _p.border),
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: border),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: color, size: 15),
+          Icon(icon, color: Colors.white, size: 15),
           const SizedBox(width: 7),
-          Text(label, style: _rajdhani(12, FontWeight.w600, color, spacing: 0.3)),
+          Text(label, style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
         ]),
       ),
     );
