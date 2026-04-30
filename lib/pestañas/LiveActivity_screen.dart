@@ -529,6 +529,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _buildings3dCreated      = false;
   bool _territoriosLayersCreated = false;
   bool _centrosLayerCreated     = false;
+  bool _styleLoaded             = false;
 
   // Web fallback (flutter_map)
   MapController? _webMapCtrl;
@@ -691,19 +692,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _toggleModoNoche() {
     setState(() { _modoManual = true; _modoNoche = !_modoNoche; });
     if (_estiloMapa == 'normal') {
+      _buildings3dCreated       = false;
+      _territoriosLayersCreated = false;
+      _centrosLayerCreated      = false;
+      _globalesLayerCreated     = false;
+      _styleLoaded              = false;
       _mapboxMap?.loadStyleURI(_mapStyle);
     }
-    _buildings3dCreated       = false;
-    _territoriosLayersCreated = false;
-    _centrosLayerCreated      = false;
-    _globalesLayerCreated     = false;
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      _addBuildings3D();
-      _configurarAtmosfera();
-      _mejorarAgua();
-      _dibujarTerritoriosEnMapa();
-    });
   }
 
   String get _mapStyle {
@@ -1258,18 +1253,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       pitch: _kPitchNormal,
       animated: false,
     );
-    await Future.delayed(const Duration(milliseconds: 500));
-    await _addBuildings3D();
-    await _configurarAtmosfera();
-    await _mejorarAgua();
-    await _dibujarTerritoriosEnMapa();
-
     _iluminacionTimer?.cancel();
     _iluminacionTimer = Timer.periodic(const Duration(minutes: 20), (_) {
       if (!mounted) return;
       _configurarAtmosfera();
       _mejorarAgua();
     });
+  }
+
+  void _onStyleLoaded(mapbox.StyleLoadedEventData _) async {
+    _styleLoaded = true;
+    await _addBuildings3D();
+    await _configurarAtmosfera();
+    await _mejorarAgua();
+    await _dibujarTerritoriosEnMapa();
   }
 
   Future<void> _moverCamara({
@@ -1620,7 +1617,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   Future<void> _dibujarTerritoriosEnMapa() async {
-    if (_mapboxMap == null || _territorios.isEmpty) return;
+    if (_mapboxMap == null || !_styleLoaded || _territorios.isEmpty) return;
 
     final features = _territorios.map((t) {
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
@@ -4066,6 +4063,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
       },
       onMapCreated: _onMapCreated,
+      onStyleLoadedListener: _onStyleLoaded,
     );
   }
 
@@ -4818,7 +4816,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 : null;
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'competitivo');
-            if (mounted) setState(() => _territorios = lista);
+            if (mounted) {
+              setState(() => _territorios = lista);
+              _dibujarTerritoriosEnMapa();
+            }
             _aplicarTerritoriosFantasma();
           },
         ),
@@ -4967,18 +4968,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 onTap: () {
                   if (_estiloMapa == e['id']) return;
                   setState(() => _estiloMapa = e['id'] as String);
-                  final uri = _mapUriParaEstilo(e['id'] as String);
-                  _mapboxMap?.loadStyleURI(uri);
                   _buildings3dCreated       = false;
                   _territoriosLayersCreated = false;
                   _centrosLayerCreated      = false;
                   _globalesLayerCreated     = false;
-                  Future.delayed(const Duration(milliseconds: 800), () {
-                    if (!mounted) return;
-                    _addBuildings3D();
-                    _configurarAtmosfera();
-                    _dibujarTerritoriosEnMapa();
-                  });
+                  _styleLoaded              = false;
+                  _mapboxMap?.loadStyleURI(_mapUriParaEstilo(e['id'] as String));
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
