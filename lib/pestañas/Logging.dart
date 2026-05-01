@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,153 +6,25 @@ import 'Home_screen.dart';
 import 'Registrarse_screen.dart';
 
 // =============================================================================
-// PALETA — Dark unified
+// PALETA — iOS Dark (consistente con RegisterScreen)
 // =============================================================================
-const _kBg        = Color(0xFF080808);
-const _kParch     = Color(0xFF111113);
-const _kParchDark = Color(0xFF1C1C1E);
-const _kInk       = Color(0xFFEEEEEE);
-const _kMuted     = Color(0xFF8E8E93);
-const _kBorder    = Color(0xFF38383A);
-const _kAccent    = Color(0xFFE02020);
-const _kGold      = Color(0xFFFFD60A);
-const _kError     = Color(0xFFFF6B6B);
+const _kBg     = Color(0xFF1C1C1E);
+const _kSurf   = Color(0xFF2C2C2E);
+const _kSurf2  = Color(0xFF3A3A3C);
+const _kInk    = Color(0xFFFFFFFF);
+const _kSub    = Color(0xFFAEAEB2);
+const _kMuted  = Color(0xFF8E8E93);
+const _kBorder = Color(0xFF48484A);
+const _kRed    = Color(0xFFFF453A);
 
-// Hero typewriter strings
-const _kHeroLine1 = 'Corre.\nConquista.\n';
-const _kHeroLine2 = 'Domina.';
-
-// =============================================================================
-// HELPERS TIPOGRÁFICOS
-// — Bebas Neue : titulares hero y botones
-// — DM Sans    : labels, inputs, body
-// =============================================================================
-TextStyle _bebas(double size, Color color, {double spacing = 1.0}) =>
-    GoogleFonts.bebasNeue(fontSize: size, color: color, letterSpacing: spacing);
-
-TextStyle _sans(double size, Color color,
-    {FontWeight weight = FontWeight.w400,
-    double spacing = 0,
-    FontStyle style = FontStyle.normal}) =>
+TextStyle _t(double size, Color color,
+    {FontWeight weight = FontWeight.w400, double spacing = 0}) =>
     GoogleFonts.dmSans(
-      fontSize: size,
-      color: color,
-      fontWeight: weight,
+      fontSize:      size,
+      color:         color,
+      fontWeight:    weight,
       letterSpacing: spacing,
-      fontStyle: style,
     );
-
-// =============================================================================
-// PAINTER — cuadrícula táctica + arcos + scanlines CRT + vignette + pulso
-// =============================================================================
-class _HeroPainter extends CustomPainter {
-  final double pulse;
-  const _HeroPainter({required this.pulse});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final W = size.width;
-    final H = size.height;
-
-    // Fondo oscuro
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, W, H),
-      Paint()..color = _kBg,
-    );
-
-    // Cuadrícula táctica — rojo muy suave
-    final gridPaint = Paint()
-      ..color = _kAccent.withValues(alpha: 0.045)
-      ..strokeWidth = 0.5;
-    for (double x = 0; x < W; x += 28) {
-      canvas.drawLine(Offset(x, 0), Offset(x, H), gridPaint);
-    }
-    for (double y = 0; y < H; y += 28) {
-      canvas.drawLine(Offset(0, y), Offset(W, y), gridPaint);
-    }
-
-    // Arco grande rojo — top-right
-    canvas.drawCircle(
-      Offset(W + 60, -60),
-      280,
-      Paint()
-        ..color = _kAccent.withValues(alpha: 0.07)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 60,
-    );
-
-    // Arco delgado rojo — complementario
-    canvas.drawCircle(
-      Offset(W - 10, 10),
-      120,
-      Paint()
-        ..color = _kAccent.withValues(alpha: 0.12)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Arco inferior izquierdo
-    canvas.drawCircle(
-      Offset(-40, H + 100),
-      240,
-      Paint()
-        ..color = _kAccent.withValues(alpha: 0.07)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Heat line inferior
-    final heatPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          _kAccent.withValues(alpha: 0.6),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromLTWH(0, H - 2, W, 2))
-      ..strokeWidth = 1.5;
-    canvas.drawLine(Offset(0, H - 1), Offset(W, H - 1), heatPaint);
-
-    // Punto pulsante
-    const px = 24.0;
-    const py = 52.0;
-    canvas.drawCircle(
-      const Offset(px, py),
-      4 + 20 * pulse,
-      Paint()..color = _kAccent.withValues(alpha: 0.12 * (1 - pulse)),
-    );
-    canvas.drawCircle(
-      const Offset(px, py),
-      4 + 21 * pulse,
-      Paint()
-        ..color = _kAccent.withValues(alpha: 0.25 * (1 - pulse))
-        ..strokeWidth = 0.8
-        ..style = PaintingStyle.stroke,
-    );
-    canvas.drawCircle(const Offset(px, py), 4, Paint()..color = _kAccent);
-    final pulse2 = (pulse + 0.4) % 1.0;
-    canvas.drawCircle(
-      const Offset(px, py),
-      4 + 20 * pulse2,
-      Paint()..color = _kAccent.withValues(alpha: 0.08 * (1 - pulse2)),
-    );
-
-    // Vignette radial suave
-    final vignette = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.transparent,
-          const Color(0xFF000000).withValues(alpha: 0.45),
-        ],
-        stops: const [0.5, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, W, H));
-    canvas.drawRect(Rect.fromLTWH(0, 0, W, H), vignette);
-  }
-
-  @override
-  bool shouldRepaint(_HeroPainter o) => o.pulse != pulse;
-}
 
 // =============================================================================
 // LOGIN SCREEN
@@ -177,13 +48,9 @@ class _LoginScreenState extends State<LoginScreen>
   bool _emailActive = false;
   bool _passActive  = false;
 
-  late AnimationController _pulseCtrl;
-  late Animation<double>   _pulse;
   late AnimationController _entryCtrl;
   late Animation<double>   _entryFade;
   late Animation<Offset>   _entrySlide;
-  late AnimationController _typeCtrl;
-  late Animation<int>      _typeAnim;
   late AnimationController _shakeCtrl;
   late Animation<double>   _shakeAnim;
 
@@ -191,15 +58,9 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
+      statusBarColor:          Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
-
-    // Pulso fondo
-    _pulseCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2500))
-      ..repeat(reverse: true);
-    _pulse = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
 
     // Entrada de pantalla
     _entryCtrl = AnimationController(
@@ -209,20 +70,6 @@ class _LoginScreenState extends State<LoginScreen>
             begin: const Offset(0, 0.04), end: Offset.zero)
         .animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut));
     _entryCtrl.forward();
-
-    // Máquina de escribir: arranca al completarse la entrada
-    _typeCtrl = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1200));
-    _typeAnim = IntTween(
-            begin: 0,
-            end: _kHeroLine1.length + _kHeroLine2.length)
-        .animate(CurvedAnimation(parent: _typeCtrl, curve: Curves.linear));
-    _entryCtrl.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        _typeCtrl.forward();
-      }
-    });
 
     // Shake en error
     _shakeCtrl = AnimationController(
@@ -240,7 +87,6 @@ class _LoginScreenState extends State<LoginScreen>
     _passFocus.addListener(
         () => setState(() => _passActive = _passFocus.hasFocus));
 
-    // Limpiar error al escribir
     _emailCtrl.addListener(_clearError);
     _passCtrl.addListener(_clearError);
   }
@@ -251,9 +97,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
     _entryCtrl.dispose();
-    _typeCtrl.dispose();
     _shakeCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
@@ -305,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _signInWithGoogle() async {
-    _showSnack('GOOGLE SIGN-IN — PRÓXIMAMENTE');
+    _showSnack('Google Sign-In próximamente');
   }
 
   Future<void> _resetPassword() async {
@@ -317,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       if (mounted) setState(() => _error = '');
-      _showSnack('INSTRUCCIONES DE RECUPERACIÓN ENVIADAS');
+      _showSnack('Instrucciones de recuperación enviadas');
     } catch (_) {
       if (mounted) _setError('ERROR AL ENVIAR EL EMAIL');
     }
@@ -325,17 +169,17 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration: const Duration(seconds: 3),
+      duration:        const Duration(seconds: 3),
       backgroundColor: Colors.transparent,
-      elevation: 0,
+      elevation:       0,
       content: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: _kBg,
-          border: Border.all(color: _kGold.withValues(alpha: 0.4)),
+          color:        _kSurf,
           borderRadius: BorderRadius.circular(12),
+          border:       Border.all(color: _kBorder),
         ),
-        child: Text(msg, style: _bebas(13, _kGold, spacing: 2.0)),
+        child: Text(msg, style: _t(13, _kSub, weight: FontWeight.w500)),
       ),
     ));
   }
@@ -343,11 +187,9 @@ class _LoginScreenState extends State<LoginScreen>
   // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final screenH = MediaQuery.of(context).size.height;
-    final heroH   = (screenH * 0.46).clamp(260.0, 380.0);
-
+    final top = MediaQuery.of(context).padding.top;
     return Scaffold(
-      backgroundColor: _kParch,
+      backgroundColor: _kBg,
       resizeToAvoidBottomInset: true,
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -359,134 +201,10 @@ class _LoginScreenState extends State<LoginScreen>
             child: CustomScrollView(
               physics: const ClampingScrollPhysics(),
               slivers: [
-
-                // ── HERO ──────────────────────────────────────────────────
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: heroH,
-                    child: Stack(
-                      children: [
-                        // Fondo animado
-                        Positioned.fill(
-                          child: AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (_, __) => CustomPaint(
-                              painter: _HeroPainter(pulse: _pulse.value),
-                            ),
-                          ),
-                        ),
-
-                        // Sello circular
-                        Positioned(
-                          top: MediaQuery.of(context).padding.top + 14,
-                          right: 18,
-                          child: _buildStamp(),
-                        ),
-
-                        // Status line
-                       
-
-                        // Coordenadas — esquina inferior derecha
-                        Positioned(
-                          bottom: 44,
-                          right: 18,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text("40°25'N",
-                                  style: _sans(7,
-                                      Colors.white.withValues(alpha: 0.18),
-                                      spacing: 1.0)),
-                              Text("3°41'W",
-                                  style: _sans(7,
-                                      Colors.white.withValues(alpha: 0.18),
-                                      spacing: 1.0)),
-                            ],
-                          ),
-                        ),
-
-                        // Indicador EN VIVO
-                        Positioned(
-                          bottom: 38,
-                          left: 24,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AnimatedBuilder(
-                                animation: _pulse,
-                                builder: (_, __) => Container(
-                                  width: 5,
-                                  height: 5,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _kAccent.withValues(
-                                        alpha: 0.5 + 0.5 * _pulse.value),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text('EN VIVO',
-                                  style: _sans(7.5,
-                                      Colors.white.withValues(alpha: 0.28),
-                                      weight: FontWeight.w500, spacing: 1.5)),
-                            ],
-                          ),
-                        ),
-
-                        // Hero text con typewriter
-                        Positioned(
-                          left: 28,
-                          right: 28,
-                          bottom: 48,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('RISKRUNNER',
-                                  style: _sans(9.5,
-                                      Colors.white.withValues(alpha: 0.22),
-                                      weight: FontWeight.w600, spacing: 5.0)),
-                              const SizedBox(height: 10),
-                              _buildTypewriterText(),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Traza perímetros. Roba territorio.\nCompite en tu ciudad.',
-                                style: _sans(11,
-                                    Colors.white.withValues(alpha: 0.35),
-                                    weight: FontWeight.w300,
-                                    style: FontStyle.italic),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── FORMULARIO ────────────────────────────────────────────
+                SliverToBoxAdapter(child: _buildHeader(top)),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 22, 24, 48),
-                  sliver: SliverToBoxAdapter(
-                    child: AutofillGroup(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildFormIntro(),
-                          const SizedBox(height: 22),
-                          _buildForm(),
-                          const SizedBox(height: 20),
-                          _buildMainButton(),
-                          const SizedBox(height: 14),
-                          _buildOrDivider(),
-                          const SizedBox(height: 14),
-                          _buildGoogleButton(),
-                          _buildFooter(),
-                        ],
-                      ),
-                    ),
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 60),
+                  sliver: SliverToBoxAdapter(child: _buildBody()),
                 ),
               ],
             ),
@@ -496,185 +214,124 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  // ── TYPEWRITER ────────────────────────────────────────────────────────────
-  Widget _buildTypewriterText() => AnimatedBuilder(
-    animation: Listenable.merge([_typeAnim, _pulse]),
-    builder: (_, __) {
-      final n    = _typeAnim.value;
-      final n1   = math.min(n, _kHeroLine1.length);
-      final n2   = math.max(0, n - _kHeroLine1.length);
-      final done = n == _kHeroLine1.length + _kHeroLine2.length;
-      return RichText(
-        text: TextSpan(
-          style: _bebas(50, Colors.white, spacing: 1.5),
-          children: [
-            TextSpan(text: _kHeroLine1.substring(0, n1)),
-            TextSpan(
-              text: _kHeroLine2.substring(0, n2),
-              style: _bebas(50, _kAccent, spacing: 1.5),
-            ),
-            if (!done)
-              TextSpan(
-                text: '|',
-                style: _bebas(
-                  50,
-                  n < _kHeroLine1.length
-                      ? Colors.white.withValues(alpha: 0.6)
-                      : _kAccent.withValues(alpha: 0.7),
-                  spacing: 0,
-                ),
-              )
-            else if (_pulse.value > 0.5)
-              TextSpan(
-                text: '|',
-                style: _bebas(50, _kAccent.withValues(alpha: 0.9),
-                    spacing: 0),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-
-  // ── SELLO ─────────────────────────────────────────────────────────────────
-  Widget _buildStamp() => Transform.rotate(
-    angle: -0.2,
-    child: Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-            color: _kAccent.withValues(alpha: 0.45), width: 1.5),
-      ),
-      child: Center(
-        child: Text(
-          'ZONA\nACTIVA\n▲',
-          textAlign: TextAlign.center,
-          style: _sans(6, _kAccent.withValues(alpha: 0.65),
-              weight: FontWeight.w600, spacing: 0.8),
-        ),
-      ),
-    ),
-  );
-
-  // ── INTRO FORMULARIO ──────────────────────────────────────────────────────
-  Widget _buildFormIntro() => IntrinsicHeight(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  // ── HEADER ────────────────────────────────────────────────────────────────
+  Widget _buildHeader(double topPad) => Padding(
+    padding: EdgeInsets.fromLTRB(20, topPad + 60, 20, 48),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 3,
-          margin: const EdgeInsets.only(right: 12),
-          color: _kAccent,
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Bienvenido de vuelta.',
-                style: _sans(18, const Color(0xFFEEEEEE), weight: FontWeight.w700)),
-            const SizedBox(height: 3),
-            Text('Tu territorio te espera.',
-                style: _sans(11.5, const Color(0xFF8E8E93),
-                    weight: FontWeight.w300, style: FontStyle.italic)),
-          ],
-        ),
+        Text('RISKRUNNER',
+            style: _t(10, _kMuted, weight: FontWeight.w600, spacing: 3)),
+        const SizedBox(height: 10),
+        Text('Bienvenido.',
+            style: _t(30, _kInk, weight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Text('Tu territorio te espera.',
+            style: _t(15, _kMuted)),
       ],
     ),
   );
 
-  // ── FORM ──────────────────────────────────────────────────────────────────
-  Widget _buildForm() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      if (_error.isNotEmpty) ...[
-        AnimatedBuilder(
-          animation: _shakeAnim,
-          builder: (_, child) => Transform.translate(
-            offset: Offset(_shakeAnim.value, 0),
-            child: child,
+  // ── BODY ──────────────────────────────────────────────────────────────────
+  Widget _buildBody() => AutofillGroup(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Banner de error
+        if (_error.isNotEmpty) ...[
+          AnimatedBuilder(
+            animation: _shakeAnim,
+            builder: (_, child) => Transform.translate(
+                offset: Offset(_shakeAnim.value, 0), child: child),
+            child: _buildErrorBanner(),
           ),
-          child: Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: _kError.withValues(alpha: 0.08),
-              border: const Border(
-                  left: BorderSide(color: _kError, width: 2.5)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: _kError, size: 13),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(_error,
-                    style: _sans(10, _kError,
-                        weight: FontWeight.w600, spacing: 1.5)),
-              ),
-            ]),
-          ),
-        ),
-      ],
-
-      _buildFieldLabel('Email'),
-      const SizedBox(height: 6),
-      _buildInput(
-        ctrl:            _emailCtrl,
-        focus:           _emailFocus,
-        active:          _emailActive,
-        hint:            'tu@email.com',
-        type:            TextInputType.emailAddress,
-        autofillHint:    AutofillHints.email,
-        textInputAction: TextInputAction.next,
-        onSubmitted:     (_) =>
-            FocusScope.of(context).requestFocus(_passFocus),
-      ),
-      const SizedBox(height: 14),
-
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildFieldLabel('Contraseña'),
-          GestureDetector(
-            onTap: _resetPassword,
-            child: Text('¿Olvidaste tus credenciales?',
-                style: _sans(10.5, _kMuted)),
-          ),
+          const SizedBox(height: 20),
         ],
-      ),
-      const SizedBox(height: 6),
-      _buildInput(
-        ctrl:            _passCtrl,
-        focus:           _passFocus,
-        active:          _passActive,
-        hint:            '••••••••',
-        obscure:         _obscurePass,
-        autofillHint:    AutofillHints.password,
-        textInputAction: TextInputAction.done,
-        onSubmitted:     (_) => _login(),
-        suffix: GestureDetector(
-          onTap: () => setState(() => _obscurePass = !_obscurePass),
-          child: Icon(
-            _obscurePass
-                ? Icons.visibility_off_outlined
-                : Icons.visibility_outlined,
-            color: _obscurePass
-                ? _kMuted.withValues(alpha: 0.5)
-                : _kInk,
-            size: 18,
+
+        // ── Email
+        _buildFieldLabel('Email'),
+        const SizedBox(height: 6),
+        _buildInput(
+          ctrl:            _emailCtrl,
+          focus:           _emailFocus,
+          active:          _emailActive,
+          hint:            'tu@email.com',
+          type:            TextInputType.emailAddress,
+          autofillHint:    AutofillHints.email,
+          textInputAction: TextInputAction.next,
+          onSubmitted:     (_) =>
+              FocusScope.of(context).requestFocus(_passFocus),
+        ),
+        const SizedBox(height: 20),
+
+        // ── Contraseña
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildFieldLabel('Contraseña'),
+            GestureDetector(
+              onTap: _resetPassword,
+              child: Text('¿Olvidaste la contraseña?',
+                  style: _t(12, _kSub)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _buildInput(
+          ctrl:            _passCtrl,
+          focus:           _passFocus,
+          active:          _passActive,
+          hint:            '••••••••',
+          obscure:         _obscurePass,
+          autofillHint:    AutofillHints.password,
+          textInputAction: TextInputAction.done,
+          onSubmitted:     (_) => _login(),
+          suffix: GestureDetector(
+            onTap: () => setState(() => _obscurePass = !_obscurePass),
+            child: Icon(
+              _obscurePass
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: _kMuted, size: 18,
+            ),
           ),
         ),
+
+        const SizedBox(height: 28),
+        _buildLoginButton(),
+        const SizedBox(height: 16),
+        _buildOrDivider(),
+        const SizedBox(height: 16),
+        _buildGoogleButton(),
+        _buildFooter(),
+      ],
+    ),
+  );
+
+  // ── ERROR BANNER ──────────────────────────────────────────────────────────
+  Widget _buildErrorBanner() => Container(
+    width:   double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    decoration: BoxDecoration(
+      color:        _kRed.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(10),
+      border:       Border.all(color: _kRed.withValues(alpha: 0.30)),
+    ),
+    child: Row(children: [
+      const Icon(Icons.info_outline_rounded, color: _kRed, size: 16),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(_error,
+            style: _t(12, _kRed, weight: FontWeight.w600, spacing: 0.3)),
       ),
-    ],
+    ]),
   );
 
-  Widget _buildFieldLabel(String text) => Text(
-    text.toUpperCase(),
-    style: _sans(9, _kMuted, weight: FontWeight.w500, spacing: 2.2),
-  );
+  // ── LABEL ─────────────────────────────────────────────────────────────────
+  Widget _buildFieldLabel(String label) =>
+      Text(label, style: _t(13, _kSub, weight: FontWeight.w500));
 
+  // ── INPUT ─────────────────────────────────────────────────────────────────
   Widget _buildInput({
     required TextEditingController ctrl,
     required FocusNode focus,
@@ -695,100 +352,80 @@ class _LoginScreenState extends State<LoginScreen>
         textInputAction: textInputAction,
         autofillHints:   autofillHint != null ? [autofillHint] : null,
         onSubmitted:     onSubmitted,
-        style:       _sans(15, Colors.white),
-        cursorColor: Colors.white,
+        style:           _t(16, _kInk),
+        cursorColor:     _kInk,
         decoration: InputDecoration(
-          hintText:  hint,
-          hintStyle: _sans(15, _kMuted),
-          filled:    true,
-          fillColor: active ? _kParch : _kParchDark,
+          hintText:    hint,
+          hintStyle:   _t(16, _kMuted),
+          filled:      true,
+          fillColor:   active ? _kSurf2 : _kSurf,
           suffixIcon: suffix != null
               ? Padding(
-                  padding: const EdgeInsets.only(right: 14), child: suffix)
+                  padding: const EdgeInsets.only(right: 14),
+                  child: suffix)
               : null,
           suffixIconConstraints:
               const BoxConstraints(minWidth: 40, minHeight: 0),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: _kBorder, width: 1.5),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: _kBorder),
           ),
-          focusedBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: _kAccent, width: 1.5),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+                color: _kInk.withValues(alpha: 0.55), width: 1.5),
           ),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       );
 
-  // ── BOTÓN PRINCIPAL ───────────────────────────────────────────────────────
-  Widget _buildMainButton() => SizedBox(
-    width: double.infinity,
-    height: 52,
-    child: ElevatedButton(
-      onPressed: _loading ? null : _login,
-      style: ElevatedButton.styleFrom(
-        backgroundColor:         _kAccent,
-        disabledBackgroundColor: _kAccent.withValues(alpha: 0.4),
-        foregroundColor:         Colors.white,
-        elevation:               0,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12))),
-        padding: const EdgeInsets.only(left: 20, right: 8),
+  // ── BOTÓN LOGIN ───────────────────────────────────────────────────────────
+  Widget _buildLoginButton() => GestureDetector(
+    onTap: _loading ? null : () {
+      HapticFeedback.mediumImpact();
+      _login();
+    },
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width:  double.infinity,
+      height: 54,
+      decoration: BoxDecoration(
+        color:        _loading ? _kSurf2 : _kInk,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: _loading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                  color: Colors.white, strokeWidth: 1.8))
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('ACCEDER AL MANDO',
-                    style: _bebas(16, Colors.white, spacing: 3.0)),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: _kAccent,
-                    borderRadius: BorderRadius.all(Radius.circular(3)),
-                  ),
-                  child: const Icon(Icons.arrow_forward,
-                      color: Colors.white, size: 15),
-                ),
-              ],
-            ),
+      child: Center(
+        child: _loading
+            ? const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(
+                    color: _kMuted, strokeWidth: 2))
+            : Text('Acceder',
+                style: _t(16, _kBg, weight: FontWeight.w600)),
+      ),
     ),
   );
 
   // ── DIVIDER ───────────────────────────────────────────────────────────────
   Widget _buildOrDivider() => Row(children: [
-    Expanded(
-        child: Divider(
-            color: _kBorder.withValues(alpha: 0.5), thickness: 1)),
+    const Expanded(child: Divider(color: _kBorder, thickness: 0.5)),
     Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Text('o', style: _sans(10, _kMuted, spacing: 1.5)),
+      child: Text('o', style: _t(12, _kMuted)),
     ),
-    Expanded(
-        child: Divider(
-            color: _kBorder.withValues(alpha: 0.5), thickness: 1)),
+    const Expanded(child: Divider(color: _kBorder, thickness: 0.5)),
   ]);
 
   // ── BOTÓN GOOGLE ──────────────────────────────────────────────────────────
-  Widget _buildGoogleButton() => SizedBox(
-    width: double.infinity,
-    height: 46,
-    child: OutlinedButton(
-      onPressed: _loading ? null : _signInWithGoogle,
-      style: OutlinedButton.styleFrom(
-        side:            const BorderSide(color: _kBorder, width: 1.5),
-        foregroundColor: Colors.white,
-        backgroundColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12))),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+  Widget _buildGoogleButton() => GestureDetector(
+    onTap: _loading ? null : _signInWithGoogle,
+    child: Container(
+      width:  double.infinity,
+      height: 50,
+      decoration: BoxDecoration(
+        color:        _kSurf,
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: _kBorder),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -796,7 +433,7 @@ class _LoginScreenState extends State<LoginScreen>
           const _GoogleIcon(),
           const SizedBox(width: 10),
           Text('Continuar con Google',
-              style: _sans(13, Colors.white, weight: FontWeight.w400)),
+              style: _t(14, _kSub, weight: FontWeight.w500)),
         ],
       ),
     ),
@@ -804,27 +441,24 @@ class _LoginScreenState extends State<LoginScreen>
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   Widget _buildFooter() => Padding(
-    padding: const EdgeInsets.only(top: 22),
+    padding: const EdgeInsets.only(top: 28),
     child: Center(
       child: RichText(
         text: TextSpan(
-          style: _sans(12, _kMuted, weight: FontWeight.w300),
+          style: _t(13, _kMuted),
           children: [
-            const TextSpan(text: '¿Sin credenciales? '),
+            const TextSpan(text: '¿Sin cuenta? '),
             WidgetSpan(
               child: GestureDetector(
                 onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
                         builder: (_) => const RegisterScreen())),
-                child: Text(
-                  'Alistarse gratis',
-                  style:
-                      _sans(12, _kAccent, weight: FontWeight.w500).copyWith(
-                    decoration:      TextDecoration.underline,
-                    decorationColor: _kAccent.withValues(alpha: 0.35),
-                  ),
-                ),
+                child: Text('Registrarse gratis',
+                    style: _t(13, _kSub, weight: FontWeight.w600).copyWith(
+                      decoration:      TextDecoration.underline,
+                      decorationColor: _kBorder,
+                    )),
               ),
             ),
           ],

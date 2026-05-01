@@ -5,136 +5,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // =============================================================================
-// PALETA — Pergamino de Guerra v2
+// PALETA — iOS Dark
 // =============================================================================
-const _kBg        = Color(0xFFE8E8ED);
-const _kParch     = Color(0xFF1C1C1E);
-const _kParchDark = Color(0xFF3C3C43);
-const _kInk       = Color(0xFF1C1C1E);
-const _kMuted     = Color(0xFF8E8E93);
-const _kBorder    = Color(0xFFC6C6C8);
-const _kAccent    = Color(0xFFE02020);
-const _kAccent2   = Color(0xFF636366);
-const _kGold      = Color(0xFFFFD60A);
-const _kGoldDim   = Color(0xFFAEAEB2);
-const _kSafe      = Color(0xFF4CAF50);
-const _kError     = Color(0xFF7A1A0A);
+const _kBg     = Color(0xFF1C1C1E);
+const _kSurf   = Color(0xFF2C2C2E);
+const _kSurf2  = Color(0xFF3A3A3C);
+const _kInk    = Color(0xFFFFFFFF);
+const _kSub    = Color(0xFFAEAEB2);
+const _kMuted  = Color(0xFF8E8E93);
+const _kBorder = Color(0xFF48484A);
+const _kGreen  = Color(0xFF30D158);
+const _kRed    = Color(0xFFFF453A);
 
-// =============================================================================
-// HELPERS TIPOGRÁFICOS
-// =============================================================================
-TextStyle _bebas(double size, Color color, {double spacing = 1.0}) =>
-    GoogleFonts.bebasNeue(fontSize: size, color: color, letterSpacing: spacing);
-
-TextStyle _sans(double size, Color color,
-    {FontWeight weight = FontWeight.w400,
-    double spacing = 0,
-    FontStyle style = FontStyle.normal}) =>
+TextStyle _t(double size, Color color,
+    {FontWeight weight = FontWeight.w400, double spacing = 0}) =>
     GoogleFonts.dmSans(
-      fontSize: size,
-      color: color,
-      fontWeight: weight,
+      fontSize:      size,
+      color:         color,
+      fontWeight:    weight,
       letterSpacing: spacing,
-      fontStyle: style,
     );
-
-// =============================================================================
-// HERO PAINTER — cuadrícula táctica + arcos + scanlines CRT + vignette + pulso
-// =============================================================================
-class _HeroPainter extends CustomPainter {
-  final double pulse;
-  const _HeroPainter({required this.pulse});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final W = size.width;
-    final H = size.height;
-
-    // Fondo
-    canvas.drawRect(Rect.fromLTWH(0, 0, W, H),
-        Paint()..color = _kBg);
-
-    // Cuadrícula táctica
-    final gridPaint = Paint()
-      ..color = _kGold.withValues(alpha: 0.07)
-      ..strokeWidth = 0.5;
-    for (double x = 0; x < W; x += 22) {
-      canvas.drawLine(Offset(x, 0), Offset(x, H), gridPaint);
-    }
-    for (double y = 0; y < H; y += 22) {
-      canvas.drawLine(Offset(0, y), Offset(W, y), gridPaint);
-    }
-
-    // Scanlines CRT
-    final scanPaint = Paint()
-      ..color = const Color(0xFF000000).withValues(alpha: 0.045)
-      ..strokeWidth = 1;
-    for (double y = 0; y < H; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(W, y), scanPaint);
-    }
-
-    // Arco exterior
-    canvas.drawCircle(
-      Offset(W + 80, -80), 300,
-      Paint()
-        ..color = _kGold.withValues(alpha: 0.06)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 40,
-    );
-
-    // Arco interior dorado
-    canvas.drawCircle(
-      Offset(W - 10, 10), 110,
-      Paint()
-        ..color = _kGold.withValues(alpha: 0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Arco inferior izquierdo
-    canvas.drawCircle(
-      Offset(-60, H + 120), 260,
-      Paint()
-        ..color = _kAccent.withValues(alpha: 0.10)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
-    );
-
-    // Meridianos
-    canvas.drawLine(Offset(0, H * 0.5), Offset(W, H * 0.5),
-        Paint()..color = _kGold.withValues(alpha: 0.05)..strokeWidth = 0.5);
-    canvas.drawLine(Offset(W * 0.5, 0), Offset(W * 0.5, H),
-        Paint()..color = _kGold.withValues(alpha: 0.05)..strokeWidth = 0.5);
-
-    // Heat line inferior animada
-    final heatPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          _kAccent.withValues(alpha: 0.3 + 0.2 * pulse),
-          _kGoldDim.withValues(alpha: 0.3 + 0.2 * pulse),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.3, 0.6, 1.0],
-      ).createShader(Rect.fromLTWH(0, H - 2, W, 2))
-      ..strokeWidth = 2;
-    canvas.drawLine(Offset(0, H - 1), Offset(W, H - 1), heatPaint);
-
-    // Vignette radial
-    final vignette = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.transparent,
-          const Color(0xFF000000).withValues(alpha: 0.55),
-        ],
-        stops: const [0.45, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, W, H));
-    canvas.drawRect(Rect.fromLTWH(0, 0, W, H), vignette);
-  }
-
-  @override
-  bool shouldRepaint(_HeroPainter o) => o.pulse != pulse;
-}
 
 // =============================================================================
 // REGISTER SCREEN
@@ -172,7 +62,6 @@ class _RegisterScreenState extends State<RegisterScreen>
   late Animation<double> _headerReveal;
   late Animation<double> _formReveal;
   late Animation<double> _footerReveal;
-  late Animation<double> _pulse;
   late Animation<double> _shakeAnim;
 
   // Validación en tiempo real
@@ -188,8 +77,8 @@ class _RegisterScreenState extends State<RegisterScreen>
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
+      statusBarColor:            Colors.transparent,
+      statusBarIconBrightness:   Brightness.light,
     ));
 
     // Animación de entrada escalonada
@@ -208,8 +97,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     _footerReveal = CurvedAnimation(
         parent: _masterCtrl,
         curve: const Interval(0.65, 1.00, curve: Curves.easeOut));
-    _pulse = CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut);
-
     // Shake en error
     _shakeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 380));
@@ -345,11 +232,9 @@ class _RegisterScreenState extends State<RegisterScreen>
   // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final screenH = MediaQuery.of(context).size.height;
-    final heroH   = (screenH * 0.30).clamp(220.0, 320.0);
-
+    final top = MediaQuery.of(context).padding.top;
     return Scaffold(
-      backgroundColor: _kParch,
+      backgroundColor: _kBg,
       resizeToAvoidBottomInset: true,
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -357,248 +242,10 @@ class _RegisterScreenState extends State<RegisterScreen>
         child: CustomScrollView(
           physics: const ClampingScrollPhysics(),
           slivers: [
-
-            // ── HERO ──────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: AnimatedBuilder(
-                animation: _headerReveal,
-                builder: (_, __) => Opacity(
-                  opacity: _headerReveal.value.clamp(0.0, 1.0),
-                  child: SizedBox(
-                    height: heroH,
-                    child: Stack(
-                      children: [
-                        // Fondo animado
-                        Positioned.fill(
-                          child: AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (_, __) => CustomPaint(
-                              painter: _HeroPainter(pulse: _pulse.value),
-                            ),
-                          ),
-                        ),
-
-                        // Sello circular
-                        Positioned(
-                          top: MediaQuery.of(context).padding.top + 14,
-                          right: 18,
-                          child: _buildStamp(),
-                        ),
-
-                        // Botón volver
-                        Positioned(
-                          top: MediaQuery.of(context).padding.top + 12,
-                          left: 24,
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.07),
-                                borderRadius:
-                                    const BorderRadius.all(Radius.circular(4)),
-                                border: Border.all(
-                                    color: Colors.white
-                                        .withValues(alpha: 0.12)),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Contenido hero
-                        Positioned(
-                          left: 28,
-                          right: 28,
-                          bottom: 36,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('RISKRUNNER',
-                                  style: _sans(9.5,
-                                      Colors.white.withValues(alpha: 0.18),
-                                      weight: FontWeight.w600,
-                                      spacing: 5.0)),
-                              const SizedBox(height: 6),
-                              RichText(
-                                text: TextSpan(
-                                  style: _bebas(34, _kParch, spacing: 1.5),
-                                  children: [
-                                    const TextSpan(text: 'Únete al\n'),
-                                    TextSpan(
-                                      text: 'conflicto.',
-                                      style: _bebas(34, _kAccent2,
-                                          spacing: 1.5),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Corte diagonal
-                        Positioned(
-                          bottom: -1,
-                          left: 0,
-                          right: 0,
-                          child: ClipPath(
-                            clipper: const _DiagonalClipper(),
-                            child: Container(height: 32, color: _kParch),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // ── FORMULARIO ────────────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildHeader(top)),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(24, 18, 24, 48),
-              sliver: SliverToBoxAdapter(
-                child: AnimatedBuilder(
-                  animation: _formReveal,
-                  builder: (_, __) => Opacity(
-                    opacity: _formReveal.value.clamp(0.0, 1.0),
-                    child: Transform.translate(
-                      offset: Offset(0, 16 * (1 - _formReveal.value)),
-                      child: AutofillGroup(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildFormIntro(),
-                            const SizedBox(height: 20),
-
-                            // Banner de error con shake
-                            if (_error.isNotEmpty) ...[
-                              AnimatedBuilder(
-                                animation: _shakeAnim,
-                                builder: (_, child) => Transform.translate(
-                                  offset: Offset(_shakeAnim.value, 0),
-                                  child: child,
-                                ),
-                                child: _buildErrorBanner(),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-
-                            // ── Callsign
-                            _buildFieldLabel('Callsign',
-                                _nickOk && _nicknameCtrl.text.isNotEmpty),
-                            const SizedBox(height: 6),
-                            _buildInput(
-                              ctrl:            _nicknameCtrl,
-                              focus:           _nickFocus,
-                              hint:            'Tu nombre de corredor',
-                              valid:           _nickOk && _nicknameCtrl.text.isNotEmpty,
-                              maxLength:       20,
-                              autofillHint:    AutofillHints.username,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted:     (_) => FocusScope.of(context)
-                                  .requestFocus(_emailFocus),
-                            ),
-                            _buildHint(
-                                'Mín. 3 caracteres · Visible para otros jugadores · Único'),
-                            const SizedBox(height: 14),
-
-                            // ── Email
-                            _buildFieldLabel('Email',
-                                _emailOk && _emailCtrl.text.isNotEmpty),
-                            const SizedBox(height: 6),
-                            _buildInput(
-                              ctrl:            _emailCtrl,
-                              focus:           _emailFocus,
-                              hint:            'tu@email.com',
-                              type:            TextInputType.emailAddress,
-                              valid:           _emailOk && _emailCtrl.text.isNotEmpty,
-                              autofillHint:    AutofillHints.email,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted:     (_) => FocusScope.of(context)
-                                  .requestFocus(_passFocus),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // ── Contraseña
-                            _buildFieldLabel('Contraseña',
-                                _passOk && _passCtrl.text.isNotEmpty),
-                            const SizedBox(height: 6),
-                            _buildInput(
-                              ctrl:            _passCtrl,
-                              focus:           _passFocus,
-                              hint:            'Mínimo 6 caracteres',
-                              obscure:         _obscurePass,
-                              valid:           _passOk && _passCtrl.text.isNotEmpty,
-                              autofillHint:    AutofillHints.newPassword,
-                              textInputAction: TextInputAction.next,
-                              onSubmitted:     (_) => FocusScope.of(context)
-                                  .requestFocus(_confirmFocus),
-                              suffix: GestureDetector(
-                                onTap: () =>
-                                    setState(() => _obscurePass = !_obscurePass),
-                                child: Icon(
-                                  _obscurePass
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: _kMuted,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // ── Confirmar contraseña
-                            _buildFieldLabel('Confirmar contraseña',
-                                _confirmOk && _confirmCtrl.text.isNotEmpty),
-                            const SizedBox(height: 6),
-                            _buildInput(
-                              ctrl:            _confirmCtrl,
-                              focus:           _confirmFocus,
-                              hint:            'Repite la contraseña',
-                              obscure:         _obscureConfirm,
-                              valid:           _confirmOk && _confirmCtrl.text.isNotEmpty,
-                              autofillHint:    AutofillHints.newPassword,
-                              textInputAction: TextInputAction.done,
-                              onSubmitted:     (_) => _register(),
-                              suffix: GestureDetector(
-                                onTap: () => setState(
-                                    () => _obscureConfirm = !_obscureConfirm),
-                                child: Icon(
-                                  _obscureConfirm
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: _kMuted,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-                            _buildPrivilegios(),
-                            const SizedBox(height: 24),
-                            _buildRegisterButton(),
-
-                            AnimatedBuilder(
-                              animation: _footerReveal,
-                              builder: (_, __) => Opacity(
-                                opacity: _footerReveal.value.clamp(0.0, 1.0),
-                                child: _buildFooter(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 60),
+              sliver: SliverToBoxAdapter(child: _buildBody()),
             ),
           ],
         ),
@@ -606,90 +253,213 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── SELLO ─────────────────────────────────────────────────────────────────
-  Widget _buildStamp() => Transform.rotate(
-    angle: -0.2,
-    child: Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-            color: _kAccent.withValues(alpha: 0.45), width: 1.5),
-      ),
-      child: Center(
-        child: Text(
-          'RECLU\nTAS\n▲',
-          textAlign: TextAlign.center,
-          style: _sans(6, _kAccent.withValues(alpha: 0.65),
-              weight: FontWeight.w600, spacing: 0.8),
+  // ── HEADER ────────────────────────────────────────────────────────────────
+  Widget _buildHeader(double topPad) => AnimatedBuilder(
+    animation: _headerReveal,
+    builder: (_, __) => Opacity(
+      opacity: _headerReveal.value.clamp(0.0, 1.0),
+      child: Transform.translate(
+        offset: Offset(0, 18 * (1 - _headerReveal.value)),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, topPad + 14, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Botón volver
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color:        _kSurf,
+                    borderRadius: BorderRadius.circular(10),
+                    border:       Border.all(color: _kBorder),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: _kMuted, size: 14),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text('RISKRUNNER',
+                  style: _t(10, _kMuted, weight: FontWeight.w600, spacing: 3)),
+              const SizedBox(height: 10),
+              Text('Crear cuenta',
+                  style: _t(30, _kInk, weight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text('Empieza a conquistar tu ciudad.',
+                  style: _t(15, _kMuted)),
+            ],
+          ),
         ),
       ),
     ),
   );
 
-  // ── INTRO FORMULARIO ──────────────────────────────────────────────────────
-  Widget _buildFormIntro() => IntrinsicHeight(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          width: 3,
-          margin: const EdgeInsets.only(right: 12),
-          color: _kAccent,
+  // ── BODY (formulario) ─────────────────────────────────────────────────────
+  Widget _buildBody() => AnimatedBuilder(
+    animation: _formReveal,
+    builder: (_, __) => Opacity(
+      opacity: _formReveal.value.clamp(0.0, 1.0),
+      child: Transform.translate(
+        offset: Offset(0, 16 * (1 - _formReveal.value)),
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Banner de error
+              if (_error.isNotEmpty) ...[
+                AnimatedBuilder(
+                  animation: _shakeAnim,
+                  builder: (_, child) => Transform.translate(
+                      offset: Offset(_shakeAnim.value, 0), child: child),
+                  child: _buildErrorBanner(),
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // ── Callsign
+              _buildFieldLabel('Callsign',
+                  _nickOk && _nicknameCtrl.text.isNotEmpty),
+              const SizedBox(height: 6),
+              _buildInput(
+                ctrl:            _nicknameCtrl,
+                focus:           _nickFocus,
+                hint:            'Tu nombre de corredor',
+                valid:           _nickOk && _nicknameCtrl.text.isNotEmpty,
+                maxLength:       20,
+                autofillHint:    AutofillHints.username,
+                textInputAction: TextInputAction.next,
+                onSubmitted:     (_) =>
+                    FocusScope.of(context).requestFocus(_emailFocus),
+              ),
+              _buildHint(
+                  'Mín. 3 caracteres · Visible para otros jugadores · Único'),
+              const SizedBox(height: 20),
+
+              // ── Email
+              _buildFieldLabel('Email',
+                  _emailOk && _emailCtrl.text.isNotEmpty),
+              const SizedBox(height: 6),
+              _buildInput(
+                ctrl:            _emailCtrl,
+                focus:           _emailFocus,
+                hint:            'tu@email.com',
+                type:            TextInputType.emailAddress,
+                valid:           _emailOk && _emailCtrl.text.isNotEmpty,
+                autofillHint:    AutofillHints.email,
+                textInputAction: TextInputAction.next,
+                onSubmitted:     (_) =>
+                    FocusScope.of(context).requestFocus(_passFocus),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Contraseña
+              _buildFieldLabel('Contraseña',
+                  _passOk && _passCtrl.text.isNotEmpty),
+              const SizedBox(height: 6),
+              _buildInput(
+                ctrl:            _passCtrl,
+                focus:           _passFocus,
+                hint:            'Mínimo 6 caracteres',
+                obscure:         _obscurePass,
+                valid:           _passOk && _passCtrl.text.isNotEmpty,
+                autofillHint:    AutofillHints.newPassword,
+                textInputAction: TextInputAction.next,
+                onSubmitted:     (_) =>
+                    FocusScope.of(context).requestFocus(_confirmFocus),
+                suffix: GestureDetector(
+                  onTap: () => setState(() => _obscurePass = !_obscurePass),
+                  child: Icon(
+                    _obscurePass
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: _kMuted, size: 18,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Confirmar contraseña
+              _buildFieldLabel('Confirmar contraseña',
+                  _confirmOk && _confirmCtrl.text.isNotEmpty),
+              const SizedBox(height: 6),
+              _buildInput(
+                ctrl:            _confirmCtrl,
+                focus:           _confirmFocus,
+                hint:            'Repite la contraseña',
+                obscure:         _obscureConfirm,
+                valid:           _confirmOk && _confirmCtrl.text.isNotEmpty,
+                autofillHint:    AutofillHints.newPassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted:     (_) => _register(),
+                suffix: GestureDetector(
+                  onTap: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
+                  child: Icon(
+                    _obscureConfirm
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: _kMuted, size: 18,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+              _buildPerks(),
+              const SizedBox(height: 28),
+              _buildRegisterButton(),
+
+              AnimatedBuilder(
+                animation: _footerReveal,
+                builder: (_, __) => Opacity(
+                    opacity: _footerReveal.value.clamp(0.0, 1.0),
+                    child: _buildFooter()),
+              ),
+            ],
+          ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Crea tu cuenta.',
-                style: _sans(18, _kInk, weight: FontWeight.w700)),
-            const SizedBox(height: 3),
-            Text('Empieza a conquistar desde el minuto uno.',
-                style: _sans(11.5, _kMuted,
-                    weight: FontWeight.w300, style: FontStyle.italic)),
-          ],
-        ),
-      ],
+      ),
     ),
   );
 
   // ── ERROR BANNER ──────────────────────────────────────────────────────────
   Widget _buildErrorBanner() => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-    decoration: const BoxDecoration(
-      color: Color(0x14500000),
-      border: Border(left: BorderSide(color: _kError, width: 2.5)),
+    width:   double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    decoration: BoxDecoration(
+      color:        _kRed.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(10),
+      border:       Border.all(color: _kRed.withValues(alpha: 0.30)),
     ),
     child: Row(children: [
-      const Icon(Icons.warning_amber_rounded, color: _kError, size: 13),
-      const SizedBox(width: 8),
+      const Icon(Icons.info_outline_rounded, color: _kRed, size: 16),
+      const SizedBox(width: 10),
       Expanded(
-          child: Text(_error,
-              style:
-                  _sans(10, _kError, weight: FontWeight.w600, spacing: 1.5))),
+        child: Text(_error,
+            style: _t(12, _kRed, weight: FontWeight.w600, spacing: 0.3)),
+      ),
     ]),
   );
 
-  // ── FIELD LABEL ───────────────────────────────────────────────────────────
-  Widget _buildFieldLabel(String text, [bool valid = false]) => Row(
+  // ── LABEL + HINT ──────────────────────────────────────────────────────────
+  Widget _buildFieldLabel(String label, [bool valid = false]) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(
-        text.toUpperCase(),
-        style: _sans(9, valid ? _kSafe : _kMuted,
-            weight: FontWeight.w500, spacing: 2.2),
-      ),
+      Text(label,
+          style: _t(13, valid ? _kGreen : _kSub, weight: FontWeight.w500)),
       if (valid) ...[
-        const SizedBox(width: 6),
-        const Icon(Icons.check_rounded, color: _kSafe, size: 11),
+        const SizedBox(width: 5),
+        const Icon(Icons.check_circle_rounded, color: _kGreen, size: 13),
       ],
     ],
   );
 
   Widget _buildHint(String text) => Padding(
-    padding: const EdgeInsets.only(top: 5),
-    child: Text(text, style: _sans(10, _kMuted, weight: FontWeight.w300)),
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(text, style: _t(11, _kMuted)),
   );
 
   // ── INPUT ─────────────────────────────────────────────────────────────────
@@ -715,140 +485,106 @@ class _RegisterScreenState extends State<RegisterScreen>
         textInputAction: textInputAction,
         autofillHints:   autofillHint != null ? [autofillHint] : null,
         onSubmitted:     onSubmitted,
-        style:       _sans(15, Colors.white),
-        cursorColor: Colors.white,
+        style:           _t(16, _kInk),
+        cursorColor:     _kInk,
         decoration: InputDecoration(
           hintText:    hint,
-          hintStyle:   _sans(15, _kMuted),
+          hintStyle:   _t(16, _kMuted),
           counterText: '',
           filled:      true,
-          fillColor:   _kParchDark,
+          fillColor:   _kSurf,
           suffixIcon: suffix != null
               ? Padding(
-                  padding: const EdgeInsets.only(right: 14), child: suffix)
+                  padding: const EdgeInsets.only(right: 14),
+                  child: suffix)
               : null,
           suffixIconConstraints:
               const BoxConstraints(minWidth: 40, minHeight: 0),
           enabledBorder: OutlineInputBorder(
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
+            borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
-              color: valid ? _kSafe.withValues(alpha: 0.5) : _kBorder,
-              width: 1.5,
+              color: valid
+                  ? _kGreen.withValues(alpha: 0.55)
+                  : _kBorder,
             ),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
+            borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
-              color: valid ? _kSafe.withValues(alpha: 0.8) : _kAccent,
+              color:  valid ? _kGreen : _kInk.withValues(alpha: 0.60),
               width: 1.5,
             ),
           ),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       );
 
-  // ── PRIVILEGIOS DE FUNDADOR ───────────────────────────────────────────────
-  Widget _buildPrivilegios() {
-    final items = [
-      (
-        Icons.shield_outlined,
-        const Color(0xFF6C9FD4),
-        '7 días de escudo',
-        'Tu territorio no puede ser robado al inicio',
-      ),
-      (
-        Icons.monetization_on_outlined,
-        _kGold,
-        '100 monedas',
-        'Para empezar la conquista',
-      ),
-      (
-        Icons.flash_on_outlined,
-        _kAccent,
-        'Acceso inmediato',
-        'Empieza a conquistar desde el minuto uno',
-      ),
+  // ── PERKS ─────────────────────────────────────────────────────────────────
+  Widget _buildPerks() {
+    final perks = [
+      (Icons.shield_outlined,         const Color(0xFF0A84FF), '7 días de escudo',   'Tu territorio no puede ser robado al inicio'),
+      (Icons.toll_outlined,           const Color(0xFFFFD60A), '100 monedas',        'Para empezar la conquista'),
+      (Icons.location_on_outlined,    const Color(0xFF30D158), 'Acceso inmediato',   'Empieza a conquistar desde el minuto uno'),
     ];
 
     return Container(
       decoration: BoxDecoration(
-        color: _kParch,
-        borderRadius: const BorderRadius.all(Radius.circular(4)),
-        border: Border.all(color: _kBorder, width: 1.5),
+        color:        _kSurf,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: const BoxDecoration(
-              border: Border(
-                  bottom: BorderSide(color: _kBorder)),
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                children: [
-                  Container(width: 3, color: _kGold),
-                  const SizedBox(width: 10),
-                  Text('PRIVILEGIOS DE FUNDADOR',
-                      style: _sans(9, _kMuted,
-                          weight: FontWeight.w600, spacing: 2.2)),
-                ],
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Row(children: [
+              const Icon(Icons.card_giftcard_outlined,
+                  color: _kMuted, size: 14),
+              const SizedBox(width: 8),
+              Text('INCLUIDO AL REGISTRARTE',
+                  style: _t(10, _kMuted,
+                      weight: FontWeight.w600, spacing: 1.5)),
+            ]),
           ),
+          Container(height: 0.5, color: _kBorder),
 
-          // Items
-          ...items.asMap().entries.map((entry) {
-            final i      = entry.key;
-            final item   = entry.value;
-            final isLast = i == items.length - 1;
-            return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              decoration: isLast
-                  ? null
-                  : const BoxDecoration(
-                      border: Border(
-                          bottom: BorderSide(color: _kBorder, width: 0.8))),
-              child: Row(
-                children: [
+          // Ítems
+          ...perks.asMap().entries.map((e) {
+            final i    = e.key;
+            final p    = e.value;
+            final last = i == perks.length - 1;
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+                child: Row(children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 36, height: 36,
                     decoration: BoxDecoration(
-                      color: item.$2.withValues(alpha: 0.1),
-                      borderRadius:
-                          const BorderRadius.all(Radius.circular(4)),
-                      border: Border.all(
-                          color: item.$2.withValues(alpha: 0.25), width: 1),
+                      color:        p.$2.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(item.$1, color: item.$2, size: 16),
+                    child: Icon(p.$1, color: p.$2, size: 17),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.$3,
-                            style: _sans(12.5, _kInk,
-                                weight: FontWeight.w700)),
-                        const SizedBox(height: 1),
-                        Text(item.$4,
-                            style: _sans(10.5, _kMuted,
-                                weight: FontWeight.w300)),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.$3,
+                          style: _t(14, _kInk, weight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(p.$4, style: _t(12, _kMuted)),
+                    ],
+                  )),
                   const SizedBox(width: 8),
-                  const Icon(Icons.check_circle_outline_rounded,
-                      color: _kSafe, size: 16),
-                ],
+                  const Icon(Icons.check_rounded,
+                      color: _kGreen, size: 16),
+                ]),
               ),
-            );
+              if (!last) Container(height: 0.5, color: _kBorder),
+            ]);
           }),
         ],
       ),
@@ -856,83 +592,56 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   // ── BOTÓN REGISTRARSE ─────────────────────────────────────────────────────
-  Widget _buildRegisterButton() => SizedBox(
-    width: double.infinity,
-    height: 52,
-    child: ElevatedButton(
-      onPressed: _loading ? null : _register,
-      style: ElevatedButton.styleFrom(
-        backgroundColor:
-            _formOk ? _kInk : _kInk.withValues(alpha: 0.35),
-        disabledBackgroundColor: _kInk.withValues(alpha: 0.35),
-        foregroundColor: _kParch,
-        elevation: 0,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(4))),
-        padding: const EdgeInsets.only(left: 20, right: 8),
+  Widget _buildRegisterButton() => GestureDetector(
+    onTap: (_loading || !_formOk) ? null : () {
+      HapticFeedback.mediumImpact();
+      _register();
+    },
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width:  double.infinity,
+      height: 54,
+      decoration: BoxDecoration(
+        color: _formOk
+            ? _kInk
+            : _kSurf2,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: _loading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                  color: _kParch, strokeWidth: 1.8))
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'UNIRSE AL CONFLICTO',
-                  style: _bebas(
-                    16,
-                    _formOk
-                        ? _kParch
-                        : _kParch.withValues(alpha: 0.4),
-                    spacing: 3.0,
-                  ),
-                ),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: _formOk
-                        ? _kAccent
-                        : _kAccent.withValues(alpha: 0.3),
-                    borderRadius:
-                        const BorderRadius.all(Radius.circular(3)),
-                  ),
-                  child: Icon(
-                    Icons.arrow_forward,
-                    color: _formOk
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.4),
-                    size: 15,
-                  ),
-                ),
-              ],
-            ),
+      child: Center(
+        child: _loading
+            ? SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(
+                  color:       _formOk ? _kBg : _kMuted,
+                  strokeWidth: 2,
+                ))
+            : Text(
+                'Crear cuenta',
+                style: _t(16,
+                    _formOk ? _kBg : _kMuted,
+                    weight: FontWeight.w600),
+              ),
+      ),
     ),
   );
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
   Widget _buildFooter() => Padding(
-    padding: const EdgeInsets.only(top: 20),
+    padding: const EdgeInsets.only(top: 24),
     child: Center(
       child: RichText(
         text: TextSpan(
-          style: _sans(12, _kMuted, weight: FontWeight.w300),
+          style: _t(13, _kMuted),
           children: [
             const TextSpan(text: '¿Ya tienes cuenta? '),
             WidgetSpan(
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
-                child: Text(
-                  'Acceder',
-                  style:
-                      _sans(12, _kAccent, weight: FontWeight.w500).copyWith(
-                    decoration:      TextDecoration.underline,
-                    decorationColor: _kAccent.withValues(alpha: 0.35),
-                  ),
-                ),
+                child: Text('Acceder',
+                    style: _t(13, _kSub, weight: FontWeight.w600).copyWith(
+                      decoration:      TextDecoration.underline,
+                      decorationColor: _kBorder,
+                    )),
               ),
             ),
           ],
@@ -940,24 +649,4 @@ class _RegisterScreenState extends State<RegisterScreen>
       ),
     ),
   );
-}
-
-// =============================================================================
-// DIAGONAL CLIPPER
-// =============================================================================
-class _DiagonalClipper extends CustomClipper<Path> {
-  const _DiagonalClipper();
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.moveTo(0, size.height);
-    path.lineTo(size.width, 0);
-    path.lineTo(size.width, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(_) => false;
 }
