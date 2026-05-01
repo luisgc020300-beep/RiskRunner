@@ -1697,121 +1697,83 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // =============================================================================
   Widget _buildPostCard(FeedPost post) {
     final isRun = post.tipo == 'run' || post.tipo == 'territorio';
-
-    return Stack(children: [
-      Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        decoration: BoxDecoration(
-          color: _T.bg1,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _T.border2),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 16, offset: const Offset(0, 4)),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
-            child: Row(children: [
-              GestureDetector(
-                onTap: () => _navegarAlPerfil(post),
-                child: _buildAvatar(post, radius: 18),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _navegarAlPerfil(post),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Text(post.userNickname.toUpperCase(),
-                          style: _raj(12, FontWeight.w900, _T.white, spacing: 1.5)),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                            color: _T.bg3, border: Border.all(color: _T.border2)),
-                        child: Text('NIV.${post.userNivel}',
-                            style: _raj(8, FontWeight.w900, _T.sub)),
-                      ),
-                    ]),
-                    const SizedBox(height: 2),
-                    Text(_timeAgo(post.fecha), style: _raj(11, FontWeight.w500, _T.muted)),
-                  ]),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: _T.bronze.withValues(alpha: 0.07),
-                    border: Border.all(color: _T.bronze.withValues(alpha: 0.22))),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_iconForTipo(post.tipo), color: _T.bronze, size: 11),
-                  const SizedBox(width: 4),
-                  Text(_labelForTipo(post.tipo),
-                      style: _raj(8, FontWeight.w900, _T.bronze, spacing: 1)),
-                ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(Icons.more_horiz, color: _T.muted, size: 17),
-              ),
-            ]),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Header
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () => _navegarAlPerfil(post),
+            child: _buildAvatar(post, radius: 20),
           ),
-          if (post.titulo != null || post.descripcion != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _navegarAlPerfil(post),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (post.titulo != null)
-                  Text(post.titulo!,
-                      style: _raj(14, FontWeight.w800, _T.white, height: 1.3)),
-                if (post.descripcion != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(post.descripcion!,
-                        style: _raj(13, FontWeight.w500, _T.sub, height: 1.4)),
-                  ),
+                Text(post.userNickname,
+                    style: _raj(14, FontWeight.w700, _T.white)),
+                const SizedBox(height: 1),
+                Text(_timeAgo(post.fecha),
+                    style: _raj(11, FontWeight.w400, _T.dim)),
               ]),
             ),
-          if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
-            _buildRunStatsBar(post),
-          if (post.mediaBase64 != null)
-            _buildMediaImage(post)
-          else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
-            _buildRouteMap(post)
-          else
-            const SizedBox(height: 4),
-          Container(height: 1, color: _T.border2.withValues(alpha: 0.5)),
-          _buildPostActions(post),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: _T.bg2,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(_iconForTipo(post.tipo), color: _T.sub, size: 11),
+              const SizedBox(width: 4),
+              Text(_labelForTipo(post.tipo),
+                  style: _raj(9, FontWeight.w600, _T.sub, spacing: 0.3)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.more_horiz, color: _T.dim, size: 20),
         ]),
       ),
-      Positioned(
-        left: 16, top: 0, bottom: 0,
-        child: Container(
-          width: 3,
-          decoration: BoxDecoration(
-            color: _T.red.withValues(alpha: 0.75),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-            ),
-          ),
+      // ── Título + descripción
+      if (post.titulo != null || post.descripcion != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (post.titulo != null)
+              Text(post.titulo!, style: _raj(15, FontWeight.w700, _T.white, height: 1.3)),
+            if (post.descripcion != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(post.descripcion!,
+                    style: _raj(13, FontWeight.w400, _T.sub, height: 1.5)),
+              ),
+          ]),
         ),
-      ),
+      // ── Stats carrera
+      if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
+        _buildRunStatsBar(post),
+      // ── Media / mapa
+      if (post.mediaBase64 != null)
+        _buildMediaImage(post)
+      else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
+        _buildRouteMap(post),
+      // ── Acciones
+      _buildPostActions(post),
+      Divider(height: 1, thickness: 0.5, color: _T.border),
     ]);
   }
 
-  Widget _buildAvatar(FeedPost post, {double radius = 18}) {
-    // Prioriza el avatar actualizado del cache; si no, usa el snapshot del post
+  Widget _buildAvatar(FeedPost post, {double radius = 20}) {
     final foto = _avatarCache.containsKey(post.userId)
         ? _avatarCache[post.userId]
         : post.userAvatarBase64;
     return Container(
-      width: radius * 2 + 4, height: radius * 2 + 4,
+      width: radius * 2 + 2, height: radius * 2 + 2,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: _T.bronze.withValues(alpha: 0.45), width: 1.5),
+        border: Border.all(color: _T.border, width: 1),
       ),
       child: ClipOval(
         child: foto != null
@@ -1844,12 +1806,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           : '${m}m ${s.toString().padLeft(2, '0')}s';
     }
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: _T.bg0,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _T.border2),
+        color: _T.bg2,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
         if (post.distanciaKm != null)
@@ -1883,10 +1844,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildMediaImage(FeedPost post) {
     return Container(
-      height: 280, margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      height: 300,
+      margin: const EdgeInsets.only(bottom: 4),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(color: _T.bg0),
-      child: Image.memory(base64Decode(post.mediaBase64!), fit: BoxFit.cover),
+      decoration: const BoxDecoration(),
+      child: Image.memory(base64Decode(post.mediaBase64!),
+          width: double.infinity, fit: BoxFit.cover),
     );
   }
 
@@ -1895,9 +1858,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
     final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
     return Container(
-      height: 190, margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      height: 200,
+      margin: const EdgeInsets.only(bottom: 4),
       clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(border: Border.all(color: _T.border2)),
+      decoration: const BoxDecoration(),
       child: Stack(children: [
         FlutterMap(
           options: MapOptions(
@@ -1951,30 +1915,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildPostActions(FeedPost post) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+      padding: const EdgeInsets.fromLTRB(6, 4, 10, 10),
       child: Row(children: [
         _actionBtn(
           icon: post.likedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
           label: post.likes > 0 ? '${post.likes}' : null,
-          color: post.likedByMe ? _T.bronze : _T.muted,
+          color: post.likedByMe ? _T.white : _T.sub,
           onTap: () => _toggleLike(post),
         ),
-        const SizedBox(width: 2),
         _actionBtn(
           icon: Icons.chat_bubble_outline_rounded,
           label: post.comentarios > 0 ? '${post.comentarios}' : null,
-          color: _T.muted,
+          color: _T.sub,
           onTap: () => _mostrarComentariosSheet(post),
         ),
-        const SizedBox(width: 2),
-        _actionBtn(icon: Icons.share_outlined, color: _T.muted, onTap: () {}),
+        _actionBtn(icon: Icons.share_outlined, color: _T.sub, onTap: () {}),
         const Spacer(),
         if (post.ruta != null && post.ruta!.isNotEmpty)
-          _actionBtn(icon: Icons.route_outlined, color: _T.dim, onTap: () => _guardarRuta(post)),
-        const SizedBox(width: 2),
+          _actionBtn(icon: Icons.route_outlined, color: _T.sub, onTap: () => _guardarRuta(post)),
         _actionBtn(
           icon: post.savedByMe ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-          color: post.savedByMe ? _T.bronze : _T.muted,
+          color: post.savedByMe ? _T.white : _T.sub,
           onTap: () => _toggleSave(post),
         ),
       ]),
@@ -1986,12 +1947,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, color: color, size: 19),
+          Icon(icon, color: color, size: 22),
           if (label != null) ...[
-            const SizedBox(width: 4),
-            Text(label, style: _raj(12, FontWeight.w700, color)),
+            const SizedBox(width: 5),
+            Text(label, style: _raj(13, FontWeight.w600, color)),
           ],
         ]),
       ),
