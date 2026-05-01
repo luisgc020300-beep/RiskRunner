@@ -1388,7 +1388,8 @@ class _ResumenScreenState extends State<ResumenScreen>
                   TileLayer(
                     urlTemplate:          _kMapboxTileUrl,
                     userAgentPackageName: 'com.runner_risk.app',
-                    tileDimension:        512,
+                    tileProvider:         NetworkTileProvider(),
+                    tileDimension:        256,
                   ),
                   if (_territoriosEnMapa.isNotEmpty)
                     PolygonLayer(polygons: _territoriosEnMapa.map((t) =>

@@ -2788,7 +2788,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   FlutterMap(
                     options: MapOptions(initialCenter: centro, initialZoom: 14, interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag)),
                     children: [
-                      TileLayer(urlTemplate: _kMapboxTileUrl, userAgentPackageName: 'com.runner_risk.app', tileDimension: 256, additionalOptions: const {'accessToken': _kMapboxToken}),
+                      TileLayer(urlTemplate: _kMapboxTileUrl, tileProvider: NetworkTileProvider(), userAgentPackageName: 'com.runner_risk.app'),
                       PolygonLayer(polygons: poligonos),
                       MarkerLayer(markers: _territoriosDelUsuario.map((t) {
                         final pts  = t['puntos'] as List<LatLng>;
