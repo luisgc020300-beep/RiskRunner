@@ -49,10 +49,6 @@ const _kWhite    = Color(0xFF1C1C1E);
 const _kRed      = Color(0xFFE02020);
 const _kSafe     = Color(0xFF30D158);
 const _kWarn     = Color(0xFFFF9500);
-// Versiones apagadas para usar en sheets (menos neon)
-const _kSafeDim  = Color(0xFF1E7A38);
-const _kWarnDim  = Color(0xFF9B6A00);
-const _kRedDim   = Color(0xFF8B2020);
 const _kGold     = Color(0xFFFFD60A);
 const _kGoldDim  = Color(0xFFAEAEB2);
 const _kGoldLight = Color(0xFFFFD60A);
@@ -3777,7 +3773,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       decoration: BoxDecoration(
         color: _shBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        border: Border(top: BorderSide(color: _kRed.withValues(alpha: 0.45), width: 1.5)),
+        border: Border(top: BorderSide(color: _shBorder, width: 1)),
         boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -2))],
       ),
       child: ListView(
@@ -3789,7 +3785,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _shHeader(
             icon: Icons.shield_rounded,
             modeLabel: 'MI CIUDAD',
-            modeColor: _kRed,
+            modeColor: _kSub,
             heroValue: '$mios',
             heroLabel: 'zonas conquistadas',
             trailing: _shStatusBadge(det, pel),
@@ -3848,7 +3844,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         decoration: BoxDecoration(
           color: _shBg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border(top: BorderSide(color: _kSafe.withValues(alpha: 0.45), width: 1.5)),
+          border: Border(top: BorderSide(color: _shBorder, width: 1)),
           boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -2))],
         ),
         child: ListView(
@@ -3860,13 +3856,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _shHeader(
               icon: Icons.explore_rounded,
               modeLabel: 'EXPLORADOR',
-              modeColor: _kSafe,
+              modeColor: _kSub,
               heroValue: _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
               heroLabel: 'zonas cercanas',
               trailing: (!_cargandoBarrios && !_barriosCargados && barriosOrdenados.isEmpty)
                   ? GestureDetector(
                       onTap: () => _cargarBarriosSolitario(_state.centro),
-                      child: _shPillBadge('Cargar', Icons.download_rounded, _kSafe),
+                      child: _shPillBadge('Cargar', Icons.download_rounded, _kSub),
                     )
                   : null,
             ),
@@ -3877,7 +3873,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 _ShStat('$avgPct%', 'COBERTURA'),
               ]),
             if (_cargandoBarrios)
-              _shLoading('Cargando zonas', 'Consultando OpenStreetMap', _kSafe)
+              _shLoading('Cargando zonas', 'Consultando OpenStreetMap', _kSub)
             else if (barriosOrdenados.isNotEmpty) ...[
               _shSectionTitle('Zonas cercanas'),
               ...barriosOrdenados.map(_shBarrioCell),
@@ -3908,7 +3904,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       decoration: BoxDecoration(
         color: _shBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        border: Border(top: BorderSide(color: _kGold.withValues(alpha: 0.5), width: 1.5)),
+        border: Border(top: BorderSide(color: _shBorder, width: 1)),
         boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -2))],
       ),
       child: ListView(
@@ -3920,12 +3916,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _shHeader(
             icon: Icons.public_rounded,
             modeLabel: 'GUERRA GLOBAL',
-            modeColor: _kGold,
+            modeColor: _kSub,
             heroValue: '${mios.length}',
             heroSuffix: '/ $max',
             heroLabel: 'dominios',
-            trailing: _shPillBadge('${_state.diasRestantesSemana}d', Icons.timer_outlined, _kGoldDim),
-            below: _shCapacityBar(mios.length, max, _kGold),
+            trailing: _shPillBadge('${_state.diasRestantesSemana}d', Icons.timer_outlined, _kSub),
+            below: _shCapacityBar(mios.length, max, _kSub),
           ),
           _shStatBar([
             _ShStat('${mios.length}', 'MÍOS'),
@@ -4066,33 +4062,33 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   );
 
   Widget _shStatusBadge(int det, int pel) {
-    if (pel > 0) return _shPillBadge('$pel críticos', Icons.warning_rounded, _kRedDim);
-    if (det > 0) return _shPillBadge('$det desgaste', Icons.shield_outlined, _kWarnDim);
-    return _shPillBadge('Todo OK', Icons.check_circle_outline_rounded, _kSafeDim);
+    if (pel > 0) return _shPillBadge('$pel críticos', Icons.warning_rounded, _kSub);
+    if (det > 0) return _shPillBadge('$det desgaste', Icons.shield_outlined, _kSub);
+    return _shPillBadge('Todo OK', Icons.check_circle_outline_rounded, _kSub);
   }
 
   Widget _shAlert(int det, int pel) => Container(
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
     padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
     decoration: BoxDecoration(
-      color: _kRed.withValues(alpha: 0.04),
+      color: _shSurf,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: _kRed.withValues(alpha: 0.14)),
+      border: Border.all(color: _shBorder),
     ),
     child: Row(children: [
       Container(
         width: 3, height: 30,
-        decoration: BoxDecoration(color: _kRed, borderRadius: BorderRadius.circular(2)),
+        decoration: BoxDecoration(color: _kSub, borderRadius: BorderRadius.circular(2)),
       ),
       const SizedBox(width: 10),
-      const Icon(Icons.shield_outlined, color: _kRed, size: 14),
+      Icon(Icons.shield_outlined, color: _kSub, size: 14),
       const SizedBox(width: 8),
       Expanded(
         child: Text(
           pel > 0
               ? '$pel ${pel == 1 ? 'territorio puede' : 'territorios pueden'} ser conquistados.'
               : '$det ${det == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos pronto.',
-          style: _raj(11, FontWeight.w500, _kRed),
+          style: _raj(11, FontWeight.w500, _kDim),
         ),
       ),
     ]),
@@ -4138,7 +4134,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       Row(children: [
         Text('CAPACIDAD', style: _raj(8, FontWeight.w700, _kSub, spacing: 1)),
         const Spacer(),
-        Text('$current / $max', style: _raj(9, FontWeight.w700, color)),
+        Text('$current / $max', style: _raj(9, FontWeight.w700, _kDim)),
       ]),
       const SizedBox(height: 5),
       Stack(children: [
@@ -4154,9 +4150,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           child: Container(
             height: 3,
             decoration: BoxDecoration(
-              color: color,
+              color: _kDim,
               borderRadius: BorderRadius.circular(2),
-              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 6)],
             ),
           ),
         ),
@@ -4166,7 +4161,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Widget _shBarrioCell(_BarrioData b) {
     final pct = b.porcentajeCubierto;
-    final Color color = pct >= 1.0 ? _kSafeDim : pct > 0 ? _kWarnDim : _kSub;
+    const Color color = _kSub;
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -4182,7 +4177,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: _shSurf,
-          border: Border.all(color: pct > 0 ? color.withValues(alpha: 0.25) : _shBorder),
+          border: Border.all(color: _shBorder),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -4204,11 +4199,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 child: Container(
                   height: 2,
                   decoration: BoxDecoration(
-                    color: color,
+                    color: _kDim,
                     borderRadius: BorderRadius.circular(2),
-                    boxShadow: pct > 0
-                        ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4)]
-                        : null,
                   ),
                 ),
               ),
@@ -4216,7 +4208,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           ])),
           const SizedBox(width: 12),
           Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
-              style: _raj(13, FontWeight.w800, color)),
+              style: _raj(13, FontWeight.w800, _shText)),
         ]),
       ),
     );
