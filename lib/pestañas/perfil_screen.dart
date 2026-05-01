@@ -688,9 +688,9 @@ class _PerfilScreenState extends State<PerfilScreen>
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: _kAccent.withValues(alpha: 0.12),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.sports_mma_rounded, color: Colors.white, size: 15),
@@ -2892,16 +2892,14 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {
-    final bg     = outlined ? Colors.transparent : accent.withValues(alpha: 0.12);
-    final border = outlined ? _p.border2 : accent.withValues(alpha: 0.35);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: bg,
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(icon, color: Colors.white, size: 15),
