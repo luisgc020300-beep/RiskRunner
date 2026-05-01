@@ -1306,35 +1306,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
-  // Devuelve [azimutDeg, elevacionDeg] del sol para la ubicación y hora actual
-  List<double> _calcularPosicionSol(DateTime dt) {
-    final latRad = (_currentPosition?.latitude  ?? 40.4167) * math.pi / 180;
-    final lng    =  _currentPosition?.longitude ?? -3.70325;
-    final hour   = dt.hour + dt.minute / 60.0 + dt.second / 3600.0;
-    final doy    = dt.difference(DateTime(dt.year)).inDays.toDouble();
-    final decl   = 23.45 * math.pi / 180 *
-        math.sin((360.0 / 365.0 * (doy - 81)) * math.pi / 180);
-    final ha     = (hour - 12.0 + lng / 15.0) * 15.0 * math.pi / 180;
-    final sinElev = (math.sin(decl) * math.sin(latRad) +
-        math.cos(decl) * math.cos(latRad) * math.cos(ha)).clamp(-1.0, 1.0);
-    final elevDeg = math.asin(sinElev) * 180 / math.pi;
-    final azRad   = math.atan2(
-      -math.cos(decl) * math.sin(ha),
-      math.sin(decl) * math.cos(latRad) -
-          math.cos(decl) * math.sin(latRad) * math.cos(ha),
-    );
-    return [(azRad * 180 / math.pi + 360) % 360, elevDeg];
-  }
 
   Future<void> _configurarAtmosfera() async {
     if (_mapboxMap == null) return;
     try {
-      final sun   = _calcularPosicionSol(DateTime.now());
-      final az    = sun[0];
-      final elev  = sun[1];
-      final polar = (90.0 - elev).clamp(0.0, 180.0);
-      final night  = _modoNoche || elev < -5;
-      final golden = !night && elev < 8;
+      // Iluminación fija según modo claro/oscuro — sin depender de la hora real.
+      const double azFijo   = 180.0; // sur
+      const double elevFijo = 45.0;  // mediodía
+      const double polarFijo = 45.0;
+      final night = _modoNoche;
 
       final layers = await _mapboxMap!.style.getStyleLayers();
       if (!layers.any((l) => l?.id == 'sky-layer')) {
@@ -1350,21 +1330,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'sky-layer', 'sky-atmosphere-halo-color', 'rgba(5,12,40,0.9)');
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-sun-intensity', 0.0);
-      } else if (golden) {
-        await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-type', 'gradient');
-        await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-gradient', [
-          'interpolate', ['linear'], ['sky-radial-progress'],
-          0.0, 'rgba(255,110,20,1)',
-          0.3, 'rgba(255,175,60,0.75)',
-          0.6, 'rgba(80,130,210,0.45)',
-          1.0, 'rgba(8,20,60,0.15)',
-        ]);
-        await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-gradient-center', [az, polar]);
-        await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-gradient-radius', 90.0);
       } else {
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-type', 'atmosphere');
@@ -1373,24 +1338,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-halo-color', 'rgba(195,228,255,0.9)');
         await _mapboxMap!.style.setStyleLayerProperty(
-            'sky-layer', 'sky-atmosphere-sun', [az, polar]);
+            'sky-layer', 'sky-atmosphere-sun', [azFijo, polarFijo]);
         await _mapboxMap!.style.setStyleLayerProperty(
             'sky-layer', 'sky-atmosphere-sun-intensity', 22.0);
       }
       await _mapboxMap!.style.setStyleLayerProperty(
           'sky-layer', 'sky-opacity', 1.0);
 
-      await _aplicarFog(elev, night, golden);
-      await _aplicarIluminacion(az, elev, night, golden);
+      await _aplicarIluminacion(azFijo, elevFijo, night, false);
     } catch (e) {
       debugPrint('_configurarAtmosfera: $e');
     }
   }
 
-  Future<void> _aplicarFog(double elev, bool night, bool golden) async {
-    // setStyleAtmosphere no disponible en mapbox_maps_flutter 2.x —
-    // el sky-layer ya proporciona el efecto de neblina en el horizonte.
-  }
 
   Future<void> _aplicarIluminacion(
       double az, double elev, bool night, bool golden) async {
@@ -1492,19 +1452,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-height',
           ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
-      final sun    = _calcularPosicionSol(DateTime.now());
-      final elev   = sun[1];
-      final night  = _modoNoche || elev < -5;
-      final golden = !night && elev < 8;
+      // Colores fijos según modo claro/oscuro — sin depender de la hora real.
+      final night = _modoNoche;
       final List<Object> bColors;
       if (night) {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
           0,   '#9C8060', 8,   '#B09070',
           25,  '#C4A878', 60,  '#D4B880', 120, '#C09858'];
-      } else if (golden) {
-        bColors = ['interpolate', ['linear'], ['get', 'height'],
-          0,   '#F8D8A0', 8,   '#F0BC70',
-          25,  '#D89840', 60,  '#BC7820', 120, '#9A580C'];
       } else {
         bColors = ['interpolate', ['linear'], ['get', 'height'],
           0,   '#F2EAD6', 8,   '#E8D4A8',

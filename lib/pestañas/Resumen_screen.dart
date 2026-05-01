@@ -23,8 +23,6 @@ const _kSurface2 = Color(0xFFE5E5EA);
 const _kBorder   = Color(0xFFC6C6C8);
 const _kBorder2  = Color(0xFFD1D1D6);
 const _kRed      = Color(0xFFE02020);
-const _kRedDim   = Color(0xFFFF6B6B);
-const _kRedGlow  = Color(0x22E02020);
 const _kBright   = Color(0xFF1C1C1E);
 const _kWhite    = Color(0xFF1C1C1E);
 const _kGrey     = Color(0xFF636366);
@@ -95,8 +93,6 @@ class _ResumenScreenState extends State<ResumenScreen>
   late AnimationController _odometroCtrl;
   late AnimationController _pulseCtrl;
   late AnimationController _rutaCtrl;
-  late AnimationController _glitchCtrl;
-
   late Animation<double> _headerReveal;
   late Animation<double> _heroReveal;
   late Animation<double> _mapReveal;
@@ -105,7 +101,6 @@ class _ResumenScreenState extends State<ResumenScreen>
   late Animation<double> _distAnim;
   late Animation<double> _pulse;
   late Animation<double> _rutaProgress;
-  late Animation<double> _glitch;
 
   // ── Mapa
   final MapController _mapController = MapController();
@@ -178,10 +173,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     _pulse = Tween<double>(begin: 0.2, end: 0.8).animate(
         CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
-    _glitchCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 80));
-    _glitch = Tween<double>(begin: 0, end: 1).animate(_glitchCtrl);
-
     userId = widget.targetUserId ??
         FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -198,7 +189,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     _odometroCtrl.dispose();
     _pulseCtrl.dispose();
     _rutaCtrl.dispose();
-    _glitchCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -261,13 +251,6 @@ class _ResumenScreenState extends State<ResumenScreen>
           () { if (mounted) _odometroCtrl.forward(); });
       Future.delayed(const Duration(milliseconds: 700),
           () { if (mounted) _rutaCtrl.forward(); });
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) {
-          _glitchCtrl.repeat(reverse: true);
-          Future.delayed(const Duration(milliseconds: 600),
-              () { if (mounted) _glitchCtrl.stop(); });
-        }
-      });
     }
   }
 
@@ -751,7 +734,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
         onRefresh: _cargarHistorialTotal,
-        color: _kRed,
+        color: _kGrey,
         backgroundColor: _kSurface2,
         child: Stack(children: [
           Positioned.fill(child: CustomPaint(painter: _OperativeBg())),
@@ -1096,93 +1079,67 @@ class _ResumenScreenState extends State<ResumenScreen>
         '${ahora.day.toString().padLeft(2, '0')} ${meses[ahora.month - 1]} ${ahora.year}';
 
     return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      if (Navigator.canPop(context))
-        GestureDetector(
-          onTap: () { HapticFeedback.lightImpact(); Navigator.pop(context); },
-          child: Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              color:        _kSurface,
-              borderRadius: BorderRadius.circular(8),
-              border:       Border.all(color: _kBorder2),
-            ),
-            child: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: _kGrey, size: 13),
+      GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);
+          }
+        },
+        child: Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            color:        _kSurface,
+            borderRadius: BorderRadius.circular(8),
+            border:       Border.all(color: _kBorder2),
           ),
-        )
-      else
-        const SizedBox(width: 38),
+          child: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: _kGrey, size: 13),
+        ),
+      ),
       const SizedBox(width: 12),
       Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AnimatedBuilder(animation: _glitchCtrl, builder: (_, __) {
-            final s = (_glitch.value > 0.5) ? 1.5 : 0.0;
-            return Stack(children: [
-              Transform.translate(
-                offset: Offset(s, 0),
-                child: Text(titulo, style: TextStyle(
-                    color:      _kGrey.withValues(alpha: 0.25),
-                    fontSize:   titulo.length > 20 ? 16 : 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5)),
-              ),
-              Text(titulo, style: TextStyle(
-                  color:      _kWhite,
-                  fontSize:   titulo.length > 20 ? 16 : 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5)),
-            ]);
-          }),
-          const SizedBox(height: 2),
-          Row(children: [
-            Container(
-              width: 5, height: 5,
-              decoration: BoxDecoration(
-                color:  _esGuerraGlobal ? _kGold : _kRed,
-                shape:  BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(fecha, style: const TextStyle(
-                color: _kGrey, fontSize: 10, letterSpacing: 1)),
-          ]),
+          Text(titulo, style: TextStyle(
+              color:         _kWhite,
+              fontSize:      titulo.length > 20 ? 15 : 19,
+              fontWeight:    FontWeight.w900,
+              letterSpacing: 0.5)),
+          const SizedBox(height: 3),
+          Text(fecha, style: const TextStyle(
+              color: _kGreyDim, fontSize: 10, letterSpacing: 0.5)),
         ],
       )),
-      AnimatedBuilder(animation: _pulseCtrl, builder: (_, __) =>
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: (_esGuerraGlobal ? _kGold : _kRed).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: (_esGuerraGlobal ? _kGold : _kRed)
-                  .withValues(alpha: _pulse.value * 0.6 + 0.1),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color:        _kSurface,
+          borderRadius: BorderRadius.circular(6),
+          border:       Border.all(color: _kBorder2),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 5, height: 5,
+            decoration: BoxDecoration(
+              color: _esGuerraGlobal ? _kGold : _kGrey,
+              shape: BoxShape.circle,
             ),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 5, height: 5,
-              decoration: BoxDecoration(
-                color:  _esGuerraGlobal ? _kGold : _kRed,
-                shape:  BoxShape.circle,
-                boxShadow: [BoxShadow(
-                    color:      _esGuerraGlobal ? _kGold : _kRed,
-                    blurRadius: 5)],
-              ),
+          const SizedBox(width: 6),
+          Text(
+            _esGuerraGlobal ? 'GLOBAL' : 'HOY',
+            style: TextStyle(
+              color:         _esGuerraGlobal ? _kGold : _kGrey,
+              fontSize:      8,
+              fontWeight:    FontWeight.w900,
+              letterSpacing: 2,
             ),
-            const SizedBox(width: 6),
-            Text(
-              _esGuerraGlobal ? 'GLOBAL' : 'HOY',
-              style: TextStyle(
-                color:         _esGuerraGlobal ? _kGold : _kRed,
-                fontSize:      8,
-                fontWeight:    FontWeight.w900,
-                letterSpacing: 2.5,
-              ),
-            ),
-          ]),
-        )),
+          ),
+        ]),
+      ),
     ]);
   }
 
@@ -1195,61 +1152,46 @@ class _ResumenScreenState extends State<ResumenScreen>
         color:        _kSurface,
         borderRadius: BorderRadius.circular(12),
         border:       Border.all(color: _kBorder2),
-        boxShadow: [
-          BoxShadow(
-              color: _kRed.withValues(alpha: 0.06),
-              blurRadius: 30, spreadRadius: -5),
-          BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10),
-        ],
       ),
-      child: Stack(children: [
-        Positioned.fill(child: IgnorePointer(
-            child: CustomPaint(painter: _ScanlinesPainter()))),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _sectionLabel('DISTANCIA TOTAL'),
-          const SizedBox(height: 14),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(_distMostrada.toStringAsFixed(2),
-              style: const TextStyle(
-                color:       _kWhite,
-                fontSize:    76,
-                fontWeight:  FontWeight.w900,
-                height:      0.95,
-                letterSpacing: -2,
-                shadows: [
-                  Shadow(color: _kRed, blurRadius: 24),
-                  Shadow(color: Color(0x33E53935), blurRadius: 50),
-                ],
-              ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionLabel('DISTANCIA TOTAL'),
+        const SizedBox(height: 14),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(_distMostrada.toStringAsFixed(2),
+            style: const TextStyle(
+              color:         _kWhite,
+              fontSize:      76,
+              fontWeight:    FontWeight.w900,
+              height:        0.95,
+              letterSpacing: -2,
             ),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8, left: 8),
-              child: Text('KM', style: TextStyle(
-                  color:         _kRed,
-                  fontSize:      22,
-                  fontWeight:    FontWeight.w900,
-                  letterSpacing: 3)),
-            ),
-          ]),
-          const SizedBox(height: 10),
-          AnimatedBuilder(animation: _odometroCtrl, builder: (_, __) =>
-            Stack(children: [
-              Container(height: 2, width: double.infinity,
-                  decoration: BoxDecoration(
-                      color:        _kBorder2,
-                      borderRadius: BorderRadius.circular(1))),
-              FractionallySizedBox(
-                widthFactor: _odometroCtrl.value,
-                child: Container(height: 2,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(1),
-                    gradient: const LinearGradient(
-                        colors: [_kRedDim, _kRed, _kRedGlow]),
-                  ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10, left: 10),
+            child: Text('KM', style: TextStyle(
+                color:         _kGreyDim,
+                fontSize:      20,
+                fontWeight:    FontWeight.w700,
+                letterSpacing: 2)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        AnimatedBuilder(animation: _odometroCtrl, builder: (_, __) =>
+          Stack(children: [
+            Container(height: 2, width: double.infinity,
+                decoration: BoxDecoration(
+                    color:        _kBorder2,
+                    borderRadius: BorderRadius.circular(1))),
+            FractionallySizedBox(
+              widthFactor: _odometroCtrl.value,
+              child: Container(height: 2,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(1),
+                  color: _kGrey,
                 ),
               ),
-            ])),
-        ]),
+            ),
+          ])),
       ]),
     );
   }
@@ -1410,11 +1352,11 @@ class _ResumenScreenState extends State<ResumenScreen>
                           Polyline(
                               points:      widget.ruta.sublist(0, n),
                               strokeWidth: 9.0,
-                              color:       _kRed.withValues(alpha: 0.18)),
+                              color:       _acento.withValues(alpha: 0.20)),
                           Polyline(
                               points:      widget.ruta.sublist(0, n),
                               strokeWidth: 3.5,
-                              color:       _kRed),
+                              color:       _acento),
                         ]);
                       },
                     ),
@@ -1423,7 +1365,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       Marker(
                         point: _centroMapa!,
                         child: Icon(Icons.location_on,
-                            color: _kRed, size: 28),
+                            color: _acento, size: 28),
                       ),
                     ]),
                 ],
@@ -2044,17 +1986,3 @@ class _OperativeBg extends CustomPainter {
   bool shouldRepaint(_OperativeBg old) => false;
 }
 
-class _ScanlinesPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color       = Colors.white.withValues(alpha: 0.02)
-      ..strokeWidth = 1;
-    const step = 18.0;
-    for (double y = step; y < size.height; y += step)
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-  }
-
-  @override
-  bool shouldRepaint(_ScanlinesPainter old) => false;
-}
