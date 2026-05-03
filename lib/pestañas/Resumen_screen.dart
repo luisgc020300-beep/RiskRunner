@@ -37,8 +37,11 @@ const _kGlobalRedDim  = Color(0xFF7A1414);
 // =============================================================================
 // MAPBOX
 // =============================================================================
-const _kMapboxToken   = Env.mapboxPublicToken;
+const _kMapboxToken    = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
+    'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
+    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+const _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
     '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
@@ -1328,10 +1331,13 @@ class _ResumenScreenState extends State<ResumenScreen>
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate:          _kMapboxTileUrl,
+                    urlTemplate: MediaQuery.platformBrightnessOf(context) == Brightness.dark
+                        ? _kMapboxDarkUrl
+                        : _kMapboxTileUrl,
                     userAgentPackageName: 'com.runner_risk.app',
-                    tileProvider:         NetworkTileProvider(),
-                    tileDimension:        256,
+                    tileDimension: 256,
+                    keepBuffer:    4,
+                    panBuffer:     1,
                   ),
                   if (_territoriosEnMapa.isNotEmpty)
                     PolygonLayer(polygons: _territoriosEnMapa.map((t) =>

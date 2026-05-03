@@ -18,7 +18,7 @@ import '../widgets/custom_navbar.dart';
 import 'historial_guerra_screen.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 import '../services/league_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
@@ -142,22 +142,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   int             _tabPrincipal     = 0;
 
   Color _colorTerritorio = const Color(0xFF8B1A1A);
-  bool  _colorPanelExpandido = false;
-
-  static const List<_RiskColor> _coloresDisponibles = [
-    _RiskColor(Color(0xFFD63B3B), 'Rojo Imperio'),
-    _RiskColor(Color(0xFF3B6BBF), 'Azul Atlántico'),
-    _RiskColor(Color(0xFF4FA830), 'Verde Ejército'),
-    _RiskColor(Color(0xFFC49430), 'Ocre Sáhara'),
-    _RiskColor(Color(0xFF8B35CC), 'Violeta Regio'),
-    _RiskColor(Color(0xFF2EAAAA), 'Teal Glaciar'),
-    _RiskColor(Color(0xFFA85820), 'Marrón Fortaleza'),
-    _RiskColor(Color(0xFF7A8A96), 'Gris Acero'),
-    _RiskColor(Color(0xFFC46830), 'Bronce Asedio'),
-    _RiskColor(Color(0xFF2A9470), 'Verde Selva'),
-    _RiskColor(Color(0xFFB03070), 'Granate Real'),
-    _RiskColor(Color(0xFF5050B0), 'Azul Noche'),
-  ];
 
   String  _friendshipStatus  = 'none';
   String? _friendshipDocId;
@@ -172,9 +156,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   int         _puntosLiga  = 0;
   LeagueInfo? _ligaInfo;
 
-  List<Map<String, dynamic>> _territoriosDelUsuario  = [];
-  bool _loadingTerritoriosMapa   = false;
-  bool _mapaTerritoriosExpandido = true;
+  List<Map<String, dynamic>> _territoriosDelUsuario = [];
 
   final MapController _liveMapCtrl = MapController();
   LatLng _liveCenter = const LatLng(40.4168, -3.7038);
@@ -607,7 +589,6 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Future<void> _cargarTerritoriosDelUsuario() async {
     if (viewedUserId == null) return;
-    setState(() => _loadingTerritoriosMapa = true);
     try {
       final snap = await FirebaseFirestore.instance.collection('territories').where('userId', isEqualTo: viewedUserId).get();
       final List<Map<String, dynamic>> lista = [];
@@ -619,8 +600,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         lista.add({'docId': doc.id, 'puntos': puntos});
       }
       if (mounted) {
-        setState(() { _territoriosDelUsuario = lista; _loadingTerritoriosMapa = false; _mapaTerritoriosExpandido = true; });
-        // Actualizar centro del mapa si hay territorios, sin relanzar streams
+        setState(() => _territoriosDelUsuario = lista);
         if (lista.isNotEmpty) {
           final pts = lista.first['puntos'] as List<LatLng>;
           if (pts.isNotEmpty) {
@@ -630,7 +610,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           }
         }
       }
-    } catch (e) { debugPrint('Error territorios: $e'); if (mounted) setState(() => _loadingTerritoriosMapa = false); }
+    } catch (e) { debugPrint('Error territorios: $e'); }
   }
 
   Future<void> _initLiveMap() async {
@@ -1001,14 +981,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     } catch (_) { if (mounted) { setState(() => isSaving = false); _mostrarSnackbar('Error al guardar', error: true); } }
   }
 
-  Future<void> _guardarColorTerritorio(Color color) async {
-    if (!isOwnProfile) return;
-    setState(() => _colorTerritorio = color);
-    try {
-      await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'territorio_color': color.value});
-      _mostrarSnackbar('Color de territorio actualizado');
-    } catch (_) { _mostrarSnackbar('Error al guardar el color', error: true); }
-  }
 
   void _mostrarSnackbar(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1246,7 +1218,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final tabs = [
       (Icons.bar_chart_rounded,    'STATS',     false),
       (Icons.shield_outlined,      'HISTORIAL', false),
-      (Icons.map_outlined,         'ZONA',      false),
+      (Icons.grid_on_rounded,      'POSTS',     false),
       (Icons.sports_mma_rounded,   'DUELOS',    _desafiosActivosCount > 0),
     ];
 
@@ -1322,7 +1294,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         }
         return _buildTabStats();
       case 1: return _buildTabHistorial();
-      case 2: return _buildTabZona();
+      case 2: return _buildTabPublicaciones();
       case 3: return _buildTabDuelos();
       default: return const SizedBox.shrink();
     }
@@ -1367,22 +1339,182 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _buildTabZona() {
-    if (_territoriosDelUsuario.isEmpty && !_loadingTerritoriosMapa) {
-      Future.microtask(_cargarTerritoriosDelUsuario);
-    }
-    return FadeTransition(
-      opacity: _fadeZona3,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        child: Column(children: [
-          _buildMapaPanel(),
-          if (isOwnProfile) ...[const SizedBox(height: 28), _buildColorPanel()],
-          const SizedBox(height: 100),
+  Widget _buildTabPublicaciones() {
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('posts')
+          .where('userId', isEqualTo: viewedUserId)
+          .orderBy('timestamp', descending: true)
+          .limit(60)
+          .get(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 48),
+            child: Center(child: SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(color: _p.dim, strokeWidth: 1.5))),
+          );
+        }
+        final posts = snap.data?.docs ?? [];
+        if (posts.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.directions_run_rounded, color: _p.muted, size: 36),
+              const SizedBox(height: 12),
+              Text(
+                isOwnProfile ? 'Comparte tus carreras' : 'Sin publicaciones aún',
+                style: _rajdhani(14, FontWeight.w600, _p.sub),
+              ),
+              if (isOwnProfile) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Al terminar una carrera puedes publicarla en el feed',
+                  style: _rajdhani(11, FontWeight.w400, _p.dim),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ]),
+          );
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 2,
+            mainAxisSpacing: 2,
+          ),
+          itemCount: posts.length,
+          itemBuilder: (ctx, i) {
+            final data = posts[i].data() as Map<String, dynamic>;
+            return _buildPostCell(data);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPostCell(Map<String, dynamic> data) {
+    final dist = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final ts   = data['timestamp'] as Timestamp?;
+    final date = ts != null
+        ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year % 100}'
+        : '';
+    final rawRoute = data['ruta'] as List<dynamic>?;
+    final route = rawRoute?.map((p) {
+      final m = p as Map;
+      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
+    }).toList() ?? <Offset>[];
+
+    return GestureDetector(
+      onTap: () => _mostrarDetallePost(data),
+      child: Container(
+        color: _p.surface,
+        child: Stack(fit: StackFit.expand, children: [
+          if (route.length > 1)
+            CustomPaint(painter: _RouteMiniPainter(route, _colorTerritorio)),
+          Positioned.fill(
+            child: DecoratedBox(decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, _p.bg.withValues(alpha: 0.85)],
+                stops: const [0.4, 1.0],
+              ),
+            )),
+          ),
+          Positioned(bottom: 6, left: 7,
+            child: Text('${dist.toStringAsFixed(1)} km',
+                style: _rajdhani(11, FontWeight.w800, _p.title))),
+          Positioned(top: 6, right: 6,
+            child: Text(date, style: _rajdhani(8, FontWeight.w500, _p.dim))),
         ]),
       ),
     );
   }
+
+  void _mostrarDetallePost(Map<String, dynamic> data) {
+    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
+    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
+    final desc   = (data['descripcion'] as String? ?? '').trim();
+    final ts     = data['timestamp'] as Timestamp?;
+    final rawRoute = data['ruta'] as List<dynamic>?;
+    final route  = rawRoute?.map((p) {
+      final m = p as Map;
+      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
+    }).toList() ?? <Offset>[];
+    final mins = tiempo ~/ 60;
+    final secs = tiempo % 60;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _p.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 32, height: 3,
+              decoration: BoxDecoration(
+                  color: _p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          if (route.length > 1) ...[
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: _p.surface2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _p.border2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: CustomPaint(
+                    painter: _RouteMiniPainter(route, _colorTerritorio,
+                        strokeWidth: 2.5)),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Row(children: [
+            _postStat('${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
+            _postDivider(),
+            _postStat(
+                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                'TIEMPO'),
+            _postDivider(),
+            _postStat('${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
+          ]),
+          if (desc.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(height: 1, color: _p.border2),
+            const SizedBox(height: 12),
+            Text(desc, style: _rajdhani(13, FontWeight.w400, _p.text)),
+          ],
+          if (ts != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
+              style: _rajdhani(10, FontWeight.w400, _p.dim),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _postStat(String val, String label) =>
+      Expanded(child: Column(children: [
+        Text(val, style: _rajdhani(13, FontWeight.w800, _p.title)),
+        const SizedBox(height: 2),
+        Text(label, style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 1)),
+      ]));
+
+  Widget _postDivider() => Container(
+      width: 1, height: 32, color: _p.border2,
+      margin: const EdgeInsets.symmetric(horizontal: 4));
 
   // ═══════════════════════════════════════════════════════════
   //  TAB DUELOS — nuevo
@@ -2745,109 +2877,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _buildMapaPanel() {
-    List<Polygon> poligonos = [];
-    LatLng centro = const LatLng(37.1350, -3.6330);
-    if (_territoriosDelUsuario.isNotEmpty) {
-      double latSum = 0, lngSum = 0, total = 0;
-      for (final t in _territoriosDelUsuario) {
-        final puntos = t['puntos'] as List<LatLng>;
-        for (final p in puntos) { latSum += p.latitude; lngSum += p.longitude; total++; }
-        poligonos.add(Polygon(points: puntos, color: _colorTerritorio.withValues(alpha: 0.30), borderColor: _colorTerritorio, borderStrokeWidth: 2));
-      }
-      if (total > 0) centro = LatLng(latSum / total, lngSum / total);
-    }
-    return _Panel(
-      accent: _kAccent, label: isOwnProfile ? 'MIS TERRITORIOS' : 'SUS TERRITORIOS', icon: Icons.map_outlined,
-      child: Column(children: [
-        GestureDetector(
-          onTap: () { if (!_mapaTerritoriosExpandido && _territoriosDelUsuario.isEmpty) { _cargarTerritoriosDelUsuario(); } else { setState(() => _mapaTerritoriosExpandido = !_mapaTerritoriosExpandido); } },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _p.border)),
-            child: Row(children: [
-              Container(width: 7, height: 7, decoration: BoxDecoration(color: _colorTerritorio, shape: BoxShape.circle)),
-              const SizedBox(width: 10),
-              _loadingTerritoriosMapa ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)) : Text(_mapaTerritoriosExpandido ? 'Ocultar mapa' : 'Ver en el mapa', style: _rajdhani(12, FontWeight.w500, _p.dim)),
-              const Spacer(),
-              Icon(_mapaTerritoriosExpandido ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 18),
-            ]),
-          ),
-        ),
-        if (_mapaTerritoriosExpandido) ...[
-          const SizedBox(height: 8),
-          if (_territoriosDelUsuario.isEmpty && !_loadingTerritoriosMapa)
-            _emptyRow('Sin territorios aún')
-          else if (_territoriosDelUsuario.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 240,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: _p.border)),
-                child: Stack(children: [
-                  FlutterMap(
-                    options: MapOptions(initialCenter: centro, initialZoom: 14, interactionOptions: const InteractionOptions(flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag)),
-                    children: [
-                      TileLayer(urlTemplate: _kMapboxTileUrl, tileProvider: NetworkTileProvider(), userAgentPackageName: 'com.runner_risk.app'),
-                      PolygonLayer(polygons: poligonos),
-                      MarkerLayer(markers: _territoriosDelUsuario.map((t) {
-                        final pts  = t['puntos'] as List<LatLng>;
-                        final latC = pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
-                        final lngC = pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
-                        return Marker(point: LatLng(latC, lngC), width: 70, height: 20, child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.85), borderRadius: BorderRadius.circular(3), border: Border.all(color: _colorTerritorio, width: 1)), child: Text(nickname, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: _rajdhani(8, FontWeight.w700, _colorTerritorio, spacing: 0.5))));
-                      }).toList()),
-                    ],
-                  ),
-                  Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(4)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.flag_rounded, color: Colors.black, size: 9), const SizedBox(width: 3), Text('${_territoriosDelUsuario.length}', style: _rajdhani(10, FontWeight.w700, Colors.black))]))),
-                ]),
-              ),
-            ),
-        ],
-      ]),
-    );
-  }
-
-  Widget _buildColorPanel() {
-    final _RiskColor? colorActual = _coloresDisponibles.where((c) => c.color.value == _colorTerritorio.value).firstOrNull;
-    final String nombreActual = colorActual?.nombre ?? 'Personalizado';
-    return _Panel(
-      accent: _kAccent, label: 'COLOR DE TERRITORIO', icon: Icons.palette_outlined,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Identifica tus zonas en el mapa y cómo te ven otros jugadores.', style: _rajdhani(11, FontWeight.w400, _p.sub)),
-        const SizedBox(height: 14),
-        GestureDetector(
-          onTap: () => setState(() => _colorPanelExpandido = !_colorPanelExpandido),
-          child: Row(children: [
-            Container(width: 40, height: 40, decoration: BoxDecoration(color: _colorTerritorio, borderRadius: BorderRadius.circular(8))),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('COLOR ACTUAL', style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 2)), const SizedBox(height: 2), Text(nombreActual, style: _rajdhani(14, FontWeight.w700, _colorTerritorio))])),
-            AnimatedRotation(turns: _colorPanelExpandido ? 0.5 : 0, duration: const Duration(milliseconds: 250), child: Container(width: 28, height: 28, decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border.all(color: _p.border2)), child: Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 18))),
-          ]),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic,
-          child: _colorPanelExpandido
-              ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const SizedBox(height: 16),
-                  Container(height: 1, color: _p.border, margin: const EdgeInsets.only(bottom: 14)),
-                  Wrap(spacing: 10, runSpacing: 14, children: _coloresDisponibles.map((rc) {
-                    final bool sel = _colorTerritorio.value == rc.color.value;
-                    return GestureDetector(
-                      onTap: () { _guardarColorTerritorio(rc.color); setState(() => _colorPanelExpandido = false); },
-                      child: SizedBox(width: 56, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        AnimatedContainer(duration: const Duration(milliseconds: 200), width: sel ? 44 : 38, height: sel ? 44 : 38, decoration: BoxDecoration(color: rc.color, borderRadius: BorderRadius.circular(9), border: Border.all(color: sel ? Colors.white : _p.border, width: sel ? 2 : 1), boxShadow: sel ? [BoxShadow(color: rc.color.withValues(alpha: 0.5), blurRadius: 8)] : []), child: sel ? const Icon(Icons.check_rounded, color: Colors.white, size: 16) : null),
-                        const SizedBox(height: 5),
-                        Text(rc.nombre.split(' ').last, style: _rajdhani(8, sel ? FontWeight.w700 : FontWeight.w500, sel ? _colorTerritorio : _p.dim), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ])),
-                    );
-                  }).toList()),
-                ])
-              : const SizedBox.shrink(),
-        ),
-      ]),
-    );
-  }
-
   Widget _popupItem(IconData icon, String label, Color color) {
     return Row(children: [
       Container(width: 26, height: 26, decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: 0.12))), child: Icon(icon, color: color, size: 13)),
@@ -3078,9 +3107,56 @@ class _LoaderPainter extends CustomPainter {
   bool shouldRepaint(_LoaderPainter o) => o.progress != progress || o.pulse != pulse;
 }
 
-class _RiskColor {
-  final Color color; final String nombre;
-  const _RiskColor(this.color, this.nombre);
+class _RouteMiniPainter extends CustomPainter {
+  final List<Offset> points; // raw (lng, lat) pairs
+  final Color color;
+  final double strokeWidth;
+  const _RouteMiniPainter(this.points, this.color, {this.strokeWidth = 1.5});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.length < 2) return;
+    double minX = points.map((p) => p.dx).reduce(math.min);
+    double maxX = points.map((p) => p.dx).reduce(math.max);
+    double minY = points.map((p) => p.dy).reduce(math.min);
+    double maxY = points.map((p) => p.dy).reduce(math.max);
+    final rangeX = maxX - minX;
+    final rangeY = maxY - minY;
+    if (rangeX == 0 || rangeY == 0) return;
+    final pad = size.width * 0.12;
+    final scale = math.min(
+      (size.width - pad * 2) / rangeX,
+      (size.height - pad * 2) / rangeY,
+    );
+    final offX = pad + (size.width  - pad * 2 - rangeX * scale) / 2;
+    final offY = pad + (size.height - pad * 2 - rangeY * scale) / 2;
+
+    Offset norm(Offset p) => Offset(
+      offX + (p.dx - minX) * scale,
+      size.height - (offY + (p.dy - minY) * scale), // flip lat
+    );
+
+    final path = Path()..moveTo(norm(points[0]).dx, norm(points[0]).dy);
+    for (int i = 1; i < points.length; i++) {
+      final n = norm(points[i]);
+      path.lineTo(n.dx, n.dy);
+    }
+    canvas.drawPath(path, Paint()
+      ..color = color.withValues(alpha: 0.25)
+      ..strokeWidth = strokeWidth + 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+    canvas.drawPath(path, Paint()
+      ..color = color.withValues(alpha: 0.75)
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round);
+  }
+
+  @override
+  bool shouldRepaint(_RouteMiniPainter old) => false;
 }
 
 class _BotonFoto extends StatelessWidget {
