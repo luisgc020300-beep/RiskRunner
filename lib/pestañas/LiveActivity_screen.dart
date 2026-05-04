@@ -566,6 +566,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   List<Map<String, dynamic>> _puntosGlobo       = [];
   bool _puntosGloboCargados                     = false;
   bool _puntosGloboLayerCreated                 = false;
+  bool _actualizandoGloboLayer                  = false;
+  bool _dibujandoTerritorios                    = false;
 
   // ── SELECCIÓN GLOBAL EN GLOBO
   bool _seleccionandoGlobal  = false;
@@ -703,6 +705,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _centrosLayerCreated      = false;
       _globalesLayerCreated     = false;
       _puntosGloboLayerCreated  = false;
+      _actualizandoGloboLayer   = false;
+      _dibujandoTerritorios     = false;
       _styleLoaded              = false;
       _mapboxMap?.loadStyleURI(_mapStyle);
     }
@@ -1277,19 +1281,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   void _onStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _styleLoaded = true;
-    // Small delay so the style sources are fully registered before we add layers
     await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
     await _addBuildings3D();
-    // Retry once if first attempt failed (race between style-loaded and source registration)
     if (!_buildings3dCreated) {
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) await _addBuildings3D();
     }
-    await _configurarAtmosfera();
-    await _mejorarAgua();
-    await _dibujarTerritoriosEnMapa();
-    await _cargarYMostrarPuntosGlobo();
+    if (!mounted) return;
+    // Ejecutar en paralelo: atmósfera+agua son independientes de territorios+globo
+    await Future.wait([
+      _configurarAtmosfera(),
+      _mejorarAgua(),
+      _dibujarTerritoriosEnMapa(),
+      _cargarYMostrarPuntosGlobo(),
+    ]);
   }
 
   Future<void> _moverCamara({
@@ -1598,16 +1604,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Future<void> _cargarYMostrarPuntosGlobo() async {
     if (!_puntosGloboCargados) {
-      final puntos = await TerritoryService.cargarPuntosGlobo();
-      if (!mounted) return;
-      _puntosGlobo = puntos;
-      _puntosGloboCargados = true;
+      try {
+        final puntos = await TerritoryService.cargarPuntosGlobo();
+        if (!mounted) return;
+        _puntosGlobo = puntos;
+        _puntosGloboCargados = true;
+      } catch (e) {
+        debugPrint('puntosGlobo fetch error: $e');
+        // Reintento único tras 2 s
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        try {
+          final puntos = await TerritoryService.cargarPuntosGlobo();
+          if (!mounted) return;
+          _puntosGlobo = puntos;
+          _puntosGloboCargados = true;
+        } catch (_) {
+          return;
+        }
+      }
     }
     await _actualizarPuntosGloboLayer();
   }
 
   Future<void> _actualizarPuntosGloboLayer() async {
     if (_mapboxMap == null || _puntosGlobo.isEmpty) return;
+    if (_actualizandoGloboLayer) return; // evitar llamadas concurrentes
+    _actualizandoGloboLayer = true;
     try {
       final feats = _puntosGlobo.map((p) {
         final raw   = p['color'] as int;
@@ -1625,34 +1648,40 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
         await _mapboxMap!.style.addSource(
             mapbox.GeoJsonSource(id: _puntosGloboSrcId, data: gj));
+        // maxZoom: 9.5 — Mapbox oculta los puntos automáticamente al hacer zoom in
         await _mapboxMap!.style.addLayer(
-            mapbox.CircleLayer(id: _puntosGloboLayerId, sourceId: _puntosGloboSrcId));
+            mapbox.CircleLayer(
+              id: _puntosGloboLayerId,
+              sourceId: _puntosGloboSrcId,
+              maxZoom: 9.5,
+            ));
 
-        // Color: el propio del territorio
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-color', ['get', 'color']);
 
-        // Radio: propios más grandes, ajenos más pequeños
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-radius', [
           'case', ['==', ['get', 'esMio'], true],
-          ['interpolate', ['linear'], ['zoom'], 1, 6.0, 4, 9.0, 8, 7.0, 14, 5.0],
-          ['interpolate', ['linear'], ['zoom'], 1, 3.0, 4, 5.0, 8, 4.0, 14, 3.5],
+          ['interpolate', ['linear'], ['zoom'], 1, 6.0, 4, 9.0, 8, 7.0],
+          ['interpolate', ['linear'], ['zoom'], 1, 3.0, 4, 5.0, 8, 4.0],
         ]);
 
-        // Opacidad: propios sólidos, ajenos más tenues
+        // Fade-out suave al acercarse al umbral de zoom
         await _mapboxMap!.style.setStyleLayerProperty(
-            _puntosGloboLayerId, 'circle-opacity',
-            ['case', ['==', ['get', 'esMio'], true], 1.0, 0.55]);
+            _puntosGloboLayerId, 'circle-opacity', [
+          'interpolate', ['linear'], ['zoom'],
+          8.0, ['case', ['==', ['get', 'esMio'], true], 1.0, 0.55],
+          9.5, 0.0,
+        ]);
 
-        // Borde blanco solo en los propios
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-stroke-width',
             ['case', ['==', ['get', 'esMio'], true], 2.0, 0.0]);
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-stroke-color', '#FFFFFF');
         await _mapboxMap!.style.setStyleLayerProperty(
-            _puntosGloboLayerId, 'circle-stroke-opacity', 0.90);
+            _puntosGloboLayerId, 'circle-stroke-opacity',
+            ['interpolate', ['linear'], ['zoom'], 8.0, 0.9, 9.5, 0.0]);
 
         _puntosGloboLayerCreated = true;
       } else {
@@ -1662,6 +1691,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
     } catch (e) {
       debugPrint('puntosGlobo layer: $e');
+      _puntosGloboLayerCreated = false; // fuerza recreación en próximo intento
+    } finally {
+      _actualizandoGloboLayer = false;
     }
   }
 
@@ -1699,6 +1731,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || !_styleLoaded || _territorios.isEmpty) return;
+    // Evitar creación concurrente de capas (zoom rápido puede disparar esto varias veces)
+    if (_dibujandoTerritorios && !_territoriosLayersCreated) return;
+    _dibujandoTerritorios = true;
 
     final features = _territorios.map((t) {
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
@@ -1760,7 +1795,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .addSource(mapbox.GeoJsonSource(id: _sourceId, data: geojson));
 
       await _mapboxMap!.style
-          .addLayer(mapbox.FillLayer(id: _fillLayerId, sourceId: _sourceId));
+          .addLayer(mapbox.FillLayer(id: _fillLayerId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillLayerId, 'fill-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -1773,7 +1808,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .setStyleLayerProperty(_fillLayerId, 'fill-antialias', true);
 
       await _mapboxMap!.style.addLayer(
-          mapbox.FillLayer(id: _fillInnerLayerId, sourceId: _sourceId));
+          mapbox.FillLayer(id: _fillInnerLayerId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _fillInnerLayerId, 'fill-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -1786,7 +1821,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .setStyleLayerProperty(_fillInnerLayerId, 'fill-antialias', true);
 
       await _mapboxMap!.style
-          .addLayer(mapbox.LineLayer(id: _borderLayerId, sourceId: _sourceId));
+          .addLayer(mapbox.LineLayer(id: _borderLayerId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style.setStyleLayerProperty(
@@ -1804,7 +1839,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       // Halo exterior táctico fino (solo propios)
       await _mapboxMap!.style.addLayer(
-          mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId));
+          mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderOuterGlowId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
@@ -1819,7 +1854,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       // Inner pulse: brillo de actividad sutil
       await _mapboxMap!.style.addLayer(
-          mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId));
+          mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
@@ -1860,6 +1895,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       });
     } catch (e) {
       debugPrint('Error territorios: $e');
+    } finally {
+      _dibujandoTerritorios = false;
     }
   }
 
@@ -5054,6 +5091,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   _territoriosLayersCreated = false;
                   _centrosLayerCreated      = false;
                   _globalesLayerCreated     = false;
+                  _puntosGloboLayerCreated  = false;
+                  _actualizandoGloboLayer   = false;
+                  _dibujandoTerritorios     = false;
                   _styleLoaded              = false;
                   _mapboxMap?.loadStyleURI(_mapUriParaEstilo(e['id'] as String));
                 },

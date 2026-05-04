@@ -526,20 +526,17 @@ class TerritoryService {
     }
 
     try {
-      // Propios — todos
-      final propiosSnap = await _db
-          .collection('territories')
-          .where('userId', isEqualTo: user.uid)
-          .get();
+      // Ambas queries en paralelo para reducir latencia
+      final results2 = await Future.wait([
+        _db.collection('territories').where('userId', isEqualTo: user.uid).get(),
+        _db.collection('territories').limit(200).get(),
+      ]);
+      final propiosSnap = results2[0];
+      final otrosSnap   = results2[1];
+
       for (final doc in propiosSnap.docs) {
         addPunto(doc, true);
       }
-
-      // Muestra global de otros (sin filtro geo, límite razonable)
-      final otrosSnap = await _db
-          .collection('territories')
-          .limit(200)
-          .get();
       for (final doc in otrosSnap.docs) {
         addPunto(doc, doc.data()['userId'] == user.uid);
       }
