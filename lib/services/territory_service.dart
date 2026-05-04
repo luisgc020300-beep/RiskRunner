@@ -422,10 +422,10 @@ class TerritoryService {
   // ──────────────────────────────────────────────────────────────────────────
   static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
     if (modo == 'solitario') {
-      return lista.where((t) => t.modo == 'solitario').toList();
+      return lista.where((t) => t.esMio || t.modo == 'solitario').toList();
     }
-    // competitivo: competitivos + legacy (null) — excluye explícitamente los solitario
-    return lista.where((t) => t.modo == null || t.modo == 'competitivo').toList();
+    // competitivo: competitivos + legacy (null) — excluye los solitario ajenos
+    return lista.where((t) => t.esMio || t.modo == null || t.modo == 'competitivo').toList();
   }
 
   static Future<List<TerritoryData>> cargarTodosLosTerritorios({
@@ -499,6 +499,55 @@ class TerritoryService {
     _cacheTimestamp    = DateTime.now();
     debugPrint('🌍 TerritoryService: ${resultado.length} territorios en radio de ${(kRadGrados * 111).round()} km');
     return modo != null ? _filtrarPorModo(resultado, modo) : resultado;
+  }
+
+  /// Carga puntos de todos los territorios para mostrar en el globo terráqueo.
+  /// Devuelve mapas con {lat, lng, color (int), esMio (bool)}.
+  /// Primero carga todos los propios, luego una muestra de los demás.
+  static Future<List<Map<String, dynamic>>> cargarPuntosGlobo() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    final results  = <Map<String, dynamic>>[];
+    final seenIds  = <String>{};
+
+    void addPunto(QueryDocumentSnapshot<Map<String, dynamic>> doc, bool esMio) {
+      if (!seenIds.add(doc.id)) return;
+      final d   = doc.data();
+      final lat = (d['centroLat'] as num?)?.toDouble();
+      final lng = (d['centroLng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return;
+      results.add({
+        'lat':   lat,
+        'lng':   lng,
+        'color': (d['color'] as num?)?.toInt() ?? 0xFFD4722A,
+        'esMio': esMio,
+      });
+    }
+
+    try {
+      // Propios — todos
+      final propiosSnap = await _db
+          .collection('territories')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+      for (final doc in propiosSnap.docs) {
+        addPunto(doc, true);
+      }
+
+      // Muestra global de otros (sin filtro geo, límite razonable)
+      final otrosSnap = await _db
+          .collection('territories')
+          .limit(200)
+          .get();
+      for (final doc in otrosSnap.docs) {
+        addPunto(doc, doc.data()['userId'] == user.uid);
+      }
+    } catch (e) {
+      debugPrint('cargarPuntosGlobo: $e');
+    }
+
+    return results;
   }
 
   /// Convierte documentos Firestore en [TerritoryData].

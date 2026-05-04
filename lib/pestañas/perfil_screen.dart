@@ -1,5 +1,4 @@
 // lib/screens/perfil_screen.dart
-import '../scripts/seed_fantasmas_granada.dart';
 import 'settings_screen.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -168,7 +167,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   AvatarConfig _avatarConfig = const AvatarConfig();
 
   // ── Sistema de Reyes ─────────────────────────────────────
-  bool _esAdmin = false;
   List<TituloRey> _titulosActivos  = [];
   List<TituloRey> _todosLosTitulos = [];
 
@@ -428,7 +426,6 @@ class _PerfilScreenState extends State<PerfilScreen>
       if (isOwnProfile) _nicknameController.text = nickname;
       if (colorInt != null) _colorTerritorio = Color(colorInt);
       if (parsedAvatar != null) _avatarConfig = parsedAvatar;
-      if (isOwnProfile) _esAdmin = data['esAdmin'] as bool? ?? false;
       _isPremium  = (data['is_premium'] as bool?) ?? SubscriptionService.currentStatus.isPremium;
       _clanNombre = data['clanNombre'] as String?;
       _clanTag    = data['clanTag'] as String?;
@@ -1072,87 +1069,12 @@ class _PerfilScreenState extends State<PerfilScreen>
               onPressed: () => Navigator.pop(context))
           : null,
       actions: isOwnProfile ? [
-        PopupMenuButton<String>(
+        IconButton(
           icon: Icon(Icons.settings_outlined, color: iconColor, size: 20),
-          color: _p.surface2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: _p.border2)),
-          onSelected: (v) async {
-            switch (v) {
-              case 'avatar': _abrirCustomizador(); break;
-              case 'settings': SettingsScreen.mostrar(context); break;
-              case 'guerra': Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())); break;
-              case 'liga':
-                _mostrarSnackbar('Inicializando ligas...');
-                await LeagueService.migrarJugadoresSinLiga();
-                await _cargarTodo();
-                _mostrarSnackbar('Ligas inicializadas');
-                break;
-              case 'temporada': _mostrarDialogoCerrarTemporada(); break;
-              case 'seed_fantasmas':
-                await SeedFantasmasGranada.ejecutar();
-                _mostrarSnackbar(' Fantasmas creados');
-                break;
-              case 'logout':
-                await FirebaseAuth.instance.signOut();
-                if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-                break;
-            }
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(value: 'avatar', child: _popupItem(Icons.palette_rounded, 'Personalizar avatar', _p.text)),
-            PopupMenuItem(value: 'settings', child: _popupItem(Icons.settings_outlined, 'Configuración', _p.text)),
-            PopupMenuItem(value: 'guerra', child: _popupItem(Icons.history_rounded, 'Historial de guerra', Colors.redAccent)),
-            PopupMenuItem(value: 'liga', child: _popupItem(Icons.sync_rounded, 'Inicializar puntos de liga', Colors.tealAccent)),
-            if (_esAdmin)
-              PopupMenuItem(value: 'temporada', child: _popupItem(Icons.emoji_events_rounded, 'Cerrar temporada', _kGold)),
-            if (_esAdmin)
-              PopupMenuItem(value: 'seed_fantasmas', child: _popupItem(Icons.blur_on, 'Seed fantasmas Granada', Colors.purpleAccent)),
-            const PopupMenuDivider(),
-            PopupMenuItem(value: 'logout', child: _popupItem(Icons.logout_rounded, 'Cerrar sesión', Colors.redAccent)),
-          ],
+          onPressed: () => SettingsScreen.mostrar(context),
         ),
         const SizedBox(width: 4),
       ] : [],
-    );
-  }
-
-  void _mostrarDialogoCerrarTemporada() async {
-    final temporada = await ZonaService.getTemporadaActiva();
-    if (!mounted) return;
-    if (temporada == null) { _mostrarSnackbar('No hay temporada activa', error: true); return; }
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _p.surface2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _p.border2)),
-        title: Row(children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD60A), size: 18),
-          const SizedBox(width: 10),
-          Text('Cerrar ${temporada.label}', style: _rajdhani(16, FontWeight.w700, _p.title)),
-        ]),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Se calculará el rey de cada barrio y se entregarán las recompensas.', style: _rajdhani(13, FontWeight.w400, _p.sub)),
-          const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _kGold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(6), border: Border.all(color: _kGold.withValues(alpha: 0.20))), child: Row(children: [const Icon(Icons.monetization_on_rounded, color: _kGold, size: 12), const SizedBox(width: 5), Expanded(child: Text('Recompensa por zona: ${temporada.monedasBase} monedas + corona desbloqueada', style: _rajdhani(11, FontWeight.w500, _kGold)))])),
-          const SizedBox(height: 8),
-          Text('Esta acción no se puede deshacer.', style: _rajdhani(11, FontWeight.w500, Colors.redAccent.withValues(alpha: 0.8))),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _p.dim))),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              _mostrarSnackbar('Calculando reyes...');
-              try {
-                final n = await ZonaService.cerrarTemporada(temporada.id);
-                _mostrarSnackbar(' $n títulos otorgados. Temporada cerrada.');
-                await _cargarTitulos();
-              } catch (e) { _mostrarSnackbar('Error: $e', error: true); }
-            },
-            child: Text('CERRAR TEMPORADA', style: _rajdhani(12, FontWeight.w700, _kGold)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -2873,14 +2795,6 @@ class _PerfilScreenState extends State<PerfilScreen>
               );
             }).toList()),
     );
-  }
-
-  Widget _popupItem(IconData icon, String label, Color color) {
-    return Row(children: [
-      Container(width: 26, height: 26, decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: 0.12))), child: Icon(icon, color: color, size: 13)),
-      const SizedBox(width: 12),
-      Text(label, style: _rajdhani(13, FontWeight.w600, _p.text)),
-    ]);
   }
 
   Widget _followCounter(int count, String label) => Column(

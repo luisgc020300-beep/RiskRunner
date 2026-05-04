@@ -521,6 +521,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _centrosLayerId      = 'territorios-centros-layer';
   static const String _globalesSourceId    = 'globales-centros-src';
   static const String _globalesLayerId     = 'globales-centros-layer';
+  static const String _puntosGloboSrcId   = 'puntosGlobo-src';
+  static const String _puntosGloboLayerId = 'puntosGlobo-layer';
   static const String _kTileUrl =
       'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
       '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
@@ -559,6 +561,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
   String? _globalTerritoryLastOwner;
   bool _stopping = false;
+
+  // ── PUNTOS DE TERRITORIOS EN EL GLOBO
+  List<Map<String, dynamic>> _puntosGlobo       = [];
+  bool _puntosGloboCargados                     = false;
+  bool _puntosGloboLayerCreated                 = false;
 
   // ── SELECCIÓN GLOBAL EN GLOBO
   bool _seleccionandoGlobal  = false;
@@ -695,6 +702,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _territoriosLayersCreated = false;
       _centrosLayerCreated      = false;
       _globalesLayerCreated     = false;
+      _puntosGloboLayerCreated  = false;
       _styleLoaded              = false;
       _mapboxMap?.loadStyleURI(_mapStyle);
     }
@@ -1244,6 +1252,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
+    await map.location.updateSettings(mapbox.LocationComponentSettings(
+      enabled: true,
+      puckBearingEnabled: true,
+      locationPuck: mapbox.LocationPuck(
+        locationPuck2D: mapbox.DefaultLocationPuck2D(),
+      ),
+    ));
     await _moverCamara(
       lat: _currentPosition?.latitude ?? 40.4167,
       lng: _currentPosition?.longitude ?? -3.70325,
@@ -1262,10 +1277,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   void _onStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _styleLoaded = true;
+    // Small delay so the style sources are fully registered before we add layers
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
     await _addBuildings3D();
+    // Retry once if first attempt failed (race between style-loaded and source registration)
+    if (!_buildings3dCreated) {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (mounted) await _addBuildings3D();
+    }
     await _configurarAtmosfera();
     await _mejorarAgua();
     await _dibujarTerritoriosEnMapa();
+    await _cargarYMostrarPuntosGlobo();
   }
 
   Future<void> _moverCamara({
@@ -1569,6 +1593,110 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _centrosLayerCreated = true;
   }
 
+  // ==========================================================================
+  // PUNTOS DE TERRITORIOS EN EL GLOBO (propios + otros jugadores)
+  // ==========================================================================
+  Future<void> _cargarYMostrarPuntosGlobo() async {
+    if (!_puntosGloboCargados) {
+      final puntos = await TerritoryService.cargarPuntosGlobo();
+      if (!mounted) return;
+      _puntosGlobo = puntos;
+      _puntosGloboCargados = true;
+    }
+    await _actualizarPuntosGloboLayer();
+  }
+
+  Future<void> _actualizarPuntosGloboLayer() async {
+    if (_mapboxMap == null || _puntosGlobo.isEmpty) return;
+    try {
+      final feats = _puntosGlobo.map((p) {
+        final raw   = p['color'] as int;
+        final hex   = '#${raw.toRadixString(16).padLeft(8, '0').substring(2)}';
+        final esMio = p['esMio'] as bool;
+        return '{"type":"Feature",'
+            '"properties":{"color":"$hex","esMio":${esMio ? 'true' : 'false'}},'
+            '"geometry":{"type":"Point","coordinates":[${p['lng']},${p['lat']}]}}';
+      }).join(',');
+      final gj = '{"type":"FeatureCollection","features":[$feats]}';
+
+      if (!_puntosGloboLayerCreated) {
+        try { await _mapboxMap!.style.removeStyleLayer(_puntosGloboLayerId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleSource(_puntosGloboSrcId); } catch (_) {}
+
+        await _mapboxMap!.style.addSource(
+            mapbox.GeoJsonSource(id: _puntosGloboSrcId, data: gj));
+        await _mapboxMap!.style.addLayer(
+            mapbox.CircleLayer(id: _puntosGloboLayerId, sourceId: _puntosGloboSrcId));
+
+        // Color: el propio del territorio
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-color', ['get', 'color']);
+
+        // Radio: propios más grandes, ajenos más pequeños
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-radius', [
+          'case', ['==', ['get', 'esMio'], true],
+          ['interpolate', ['linear'], ['zoom'], 1, 6.0, 4, 9.0, 8, 7.0, 14, 5.0],
+          ['interpolate', ['linear'], ['zoom'], 1, 3.0, 4, 5.0, 8, 4.0, 14, 3.5],
+        ]);
+
+        // Opacidad: propios sólidos, ajenos más tenues
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-opacity',
+            ['case', ['==', ['get', 'esMio'], true], 1.0, 0.55]);
+
+        // Borde blanco solo en los propios
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-stroke-width',
+            ['case', ['==', ['get', 'esMio'], true], 2.0, 0.0]);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-stroke-color', '#FFFFFF');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-stroke-opacity', 0.90);
+
+        _puntosGloboLayerCreated = true;
+      } else {
+        final src = await _mapboxMap!.style
+            .getSource(_puntosGloboSrcId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(gj);
+      }
+    } catch (e) {
+      debugPrint('puntosGlobo layer: $e');
+    }
+  }
+
+  void _onMapTap(mapbox.MapContentGestureContext ctx) async {
+    if (_mapboxMap == null || _puntosGlobo.isEmpty) return;
+    final cam  = await _mapboxMap!.getCameraState();
+    if (cam.zoom > 8) return; // solo activo en vista globo
+
+    final tapLat = ctx.point.coordinates.lat.toDouble();
+    final tapLng = ctx.point.coordinates.lng.toDouble();
+
+    Map<String, dynamic>? nearest;
+    double minDist = double.infinity;
+    for (final p in _puntosGlobo) {
+      final dLat = (p['lat'] as double) - tapLat;
+      final dLng = (p['lng'] as double) - tapLng;
+      final d    = dLat * dLat + dLng * dLng;
+      if (d < minDist) { minDist = d; nearest = p; }
+    }
+    // Umbral ~300 km (≈2.7° al cuadrado ≈ 7.3)
+    if (nearest == null || minDist > 8.0) return;
+
+    HapticFeedback.selectionClick();
+    await _moverCamara(
+      lat:      nearest['lat'] as double,
+      lng:      nearest['lng'] as double,
+      zoom:     14.0,
+      pitch:    _kPitchNormal,
+      bearing:  0,
+      animated: true,
+      duracion: 1400,
+    );
+  }
+
+
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || !_styleLoaded || _territorios.isEmpty) return;
 
@@ -1578,11 +1706,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       final colorHex    = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
       final borderWidth = t.esMio
-          ? 2.8
+          ? 3.2
           : switch (t.estadoHp) {
-              EstadoHp.saludable => 1.4,
-              EstadoHp.danado    => 1.8,
-              EstadoHp.critico   => 2.2,
+              EstadoHp.saludable => 1.6,
+              EstadoHp.danado    => 2.0,
+              EstadoHp.critico   => 2.4,
             };
       final innerOpacity = t.esMio ? t.opacidadRelleno * 0.55 : 0.0;
 
@@ -1670,39 +1798,39 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ['get', 'borderOpacity'],
       ]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderLayerId, 'line-join', 'round');
+          .setStyleLayerProperty(_borderLayerId, 'line-join', 'miter');
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderLayerId, 'line-cap', 'round');
+          .setStyleLayerProperty(_borderLayerId, 'line-cap', 'square');
 
-      // Outer glow: anillo exterior más amplio y difuso (solo propios)
+      // Halo exterior táctico fino (solo propios)
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderOuterGlowId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 28.0);
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 8.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderOuterGlowId, 'line-opacity',
-          ['case', ['==', ['get', 'esMio'], true], 0.18, 0.0]);
+          ['case', ['==', ['get', 'esMio'], true], 0.08, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 18.0);
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 4.0);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-join', 'round');
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-join', 'miter');
 
-      // Inner pulse: anillo animado más estrecho
+      // Inner pulse: brillo de actividad sutil
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 14.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 4.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-opacity',
           ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 8.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 2.0);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'round');
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'miter');
 
       _territoriosLayersCreated = true;
       _actualizarCoronesMapa();
@@ -1718,11 +1846,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _pulsoTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
         if (!mounted || _mapboxMap == null) return;
         if (_pulsoUp) {
-          _pulsoOpacity += 0.05;
-          if (_pulsoOpacity >= 0.60) _pulsoUp = false;
+          _pulsoOpacity += 0.04;
+          if (_pulsoOpacity >= 0.28) _pulsoUp = false;
         } else {
-          _pulsoOpacity -= 0.05;
-          if (_pulsoOpacity <= 0.15) _pulsoUp = true;
+          _pulsoOpacity -= 0.04;
+          if (_pulsoOpacity <= 0.08) _pulsoUp = true;
         }
         try {
           _mapboxMap!.style.setStyleLayerProperty(
@@ -4017,6 +4145,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       },
       onMapCreated: _onMapCreated,
       onStyleLoadedListener: _onStyleLoaded,
+      onTapListener: _onMapTap,
     );
   }
 

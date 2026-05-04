@@ -4,6 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/theme_notifier.dart';
+import '../models/avatar_config.dart';
+import '../services/league_service.dart';
+import '../services/zona_service.dart';
+import '../scripts/seed_fantasmas_granada.dart';
+import 'avatar_customizer_screen.dart';
+import 'historial_guerra_screen.dart';
 
 // ── Colores de territorio disponibles ──────────────────────────────���─────────
 const _kTerritoryColors = [
@@ -45,16 +51,19 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  Color? _colorTerritorio;
-  bool   _savingColor = false;
+  Color?       _colorTerritorio;
+  bool         _savingColor    = false;
+  bool         _esAdmin        = false;
+  AvatarConfig _avatarConfig   = const AvatarConfig();
+  int          _monedas        = 0;
 
   @override
   void initState() {
     super.initState();
-    _cargarColor();
+    _cargarDatos();
   }
 
-  Future<void> _cargarColor() async {
+  Future<void> _cargarDatos() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
@@ -62,11 +71,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
           .collection('players')
           .doc(uid)
           .get();
-      final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
-      if (mounted && colorInt != null) {
-        setState(() => _colorTerritorio = Color(colorInt));
+      final d = doc.data() ?? {};
+      final colorInt = (d['territorio_color'] as num?)?.toInt();
+      final avatarJson = d['avatar'] as Map<String, dynamic>?;
+      if (mounted) {
+        setState(() {
+          if (colorInt != null) _colorTerritorio = Color(colorInt);
+          _esAdmin   = d['esAdmin'] as bool? ?? false;
+          _monedas   = (d['monedas'] as num?)?.toInt() ?? 0;
+          if (avatarJson != null) {
+            try { _avatarConfig = AvatarConfig.fromMap(avatarJson); } catch (_) {}
+          }
+        });
       }
     } catch (_) {}
+  }
+
+  Future<void> _abrirCustomizador() async {
+    final nuevaConfig = await Navigator.push<AvatarConfig>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AvatarCustomizerScreen(
+          initialConfig: _avatarConfig,
+          monedas: _monedas,
+        ),
+      ),
+    );
+    if (nuevaConfig != null && mounted) {
+      setState(() => _avatarConfig = nuevaConfig);
+    }
+  }
+
+  Future<void> _inicializarLiga(Color surface) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text('Inicializar liga',
+            style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w600)),
+        content: Text('Se migrarán todos los jugadores sin liga asignada.',
+            style: GoogleFonts.inter(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Confirmar',
+                style: GoogleFonts.inter(color: Colors.tealAccent, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicializando ligas...')));
+    await LeagueService.migrarJugadoresSinLiga();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ligas inicializadas')));
+    }
+  }
+
+  Future<void> _mostrarDialogoCerrarTemporada(Color surface, Color textPri, Color textSec) async {
+    final temporada = await ZonaService.getTemporadaActiva();
+    if (!mounted) return;
+    if (temporada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay temporada activa')));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD60A), size: 18),
+          const SizedBox(width: 10),
+          Text('Cerrar ${temporada.label}',
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: textPri)),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Se calculará el rey de cada barrio y se entregarán las recompensas.',
+              style: GoogleFonts.inter(fontSize: 13, color: textSec)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD60A).withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFFFD60A).withValues(alpha: 0.20)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
+              const SizedBox(width: 5),
+              Expanded(child: Text(
+                'Recompensa: ${temporada.monedasBase} monedas + corona',
+                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFFFD60A)),
+              )),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Text('Esta acción no se puede deshacer.',
+              style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent)),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: GoogleFonts.inter(fontWeight: FontWeight.w500, color: textSec)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Calculando reyes...')));
+              try {
+                final n = await ZonaService.cerrarTemporada(temporada.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('$n títulos otorgados. Temporada cerrada.')));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')));
+                }
+              }
+            },
+            child: Text('CERRAR TEMPORADA',
+                style: GoogleFonts.inter(color: const Color(0xFFFFD60A), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _seedFantasmas() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Creando fantasmas...')));
+    await SeedFantasmasGranada.ejecutar();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fantasmas creados')));
+    }
   }
 
   Future<void> _guardarColor(Color color) async {
@@ -314,6 +464,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _Divider(color: border),
             _NavTile(
+              icon: Icons.palette_rounded,
+              iconColor: const Color(0xFF5E5CE6),
+              title: 'Personalizar avatar',
+              textPri: textPri,
+              textSec: textSec,
+              onTap: _abrirCustomizador,
+            ),
+            _Divider(color: border),
+            _NavTile(
+              icon: Icons.history_rounded,
+              iconColor: Colors.redAccent,
+              title: 'Historial de guerra',
+              textPri: textPri,
+              textSec: textSec,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())),
+            ),
+            _Divider(color: border),
+            _NavTile(
               icon: Icons.notifications_none_rounded,
               iconColor: const Color(0xFFFF9F0A),
               title: 'Notificaciones',
@@ -349,6 +518,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () {},
             ),
           ]),
+
+          // ── ADMIN (solo si esAdmin) ───────────────────────────────
+          if (_esAdmin) ...[
+            const SizedBox(height: 24),
+            _SectionHeader(text: 'ADMINISTRACIÓN', color: textSec),
+            _SettingsGroup(surface: surface, border: border, children: [
+              _NavTile(
+                icon: Icons.sync_rounded,
+                iconColor: Colors.tealAccent,
+                title: 'Inicializar puntos de liga',
+                textPri: textPri,
+                textSec: textSec,
+                showChevron: false,
+                onTap: () => _inicializarLiga(surface),
+              ),
+              _Divider(color: border),
+              _NavTile(
+                icon: Icons.emoji_events_rounded,
+                iconColor: const Color(0xFFFFD60A),
+                title: 'Cerrar temporada',
+                textPri: textPri,
+                textSec: textSec,
+                showChevron: false,
+                onTap: () => _mostrarDialogoCerrarTemporada(surface, textPri, textSec),
+              ),
+              _Divider(color: border),
+              _NavTile(
+                icon: Icons.blur_on,
+                iconColor: Colors.purpleAccent,
+                title: 'Seed fantasmas Granada',
+                textPri: textPri,
+                textSec: textSec,
+                showChevron: false,
+                onTap: _seedFantasmas,
+              ),
+            ]),
+          ],
 
           const SizedBox(height: 24),
 

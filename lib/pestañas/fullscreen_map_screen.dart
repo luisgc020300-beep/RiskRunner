@@ -2184,7 +2184,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   )).toList(),
                 ),
 
-              // Glow exterior territorios propios
+              // Borde exterior fino territorios propios (halo táctico)
               if (territorios.any((t) => t.esMio))
                 PolygonLayer(
                   polygons: territorios.where((t) => t.esMio).map((t) {
@@ -2192,8 +2192,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     return Polygon(
                       points: t.puntos,
                       color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.18 * decay),
-                      borderStrokeWidth: 14.0,
+                      borderColor: t.color.withValues(alpha: 0.08 * decay),
+                      borderStrokeWidth: 6.0,
                     );
                   }).toList(),
                 ),
@@ -2208,12 +2208,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     return Polygon(
                       points: t.puntos,
                       color: frio
-                          ? Colors.grey.withValues(alpha: 0.18)
-                          : t.color.withValues(alpha: 0.30 * decay),
+                          ? Colors.grey.withValues(alpha: 0.22)
+                          : t.color.withValues(alpha: 0.38 * decay),
                       borderColor: frio
-                          ? Colors.grey.withValues(alpha: 0.55)
-                          : t.color.withValues(alpha: decay),
-                      borderStrokeWidth: 3.5,
+                          ? Colors.grey.withValues(alpha: 0.70)
+                          : t.color.withValues(alpha: (0.90 * decay).clamp(0.0, 1.0)),
+                      borderStrokeWidth: 2.5,
                     );
                   }).toList(),
                 ),
@@ -2366,17 +2366,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256,
-            keepBuffer: 4,
-            panBuffer: 1),
+            keepBuffer: 8,
+            panBuffer: 3,
+            maxNativeZoom: 19),
 
-        // Glow exterior solo para territorios propios (renderizar primero)
+        // Halo táctico fino — solo territorios propios
         if (territorios.any((t) => t.esMio))
           PolygonLayer(
             polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
               points: t.puntos,
               color: Colors.transparent,
-              borderColor: t.color.withValues(alpha: 0.18),
-              borderStrokeWidth: 14.0,
+              borderColor: t.color.withValues(alpha: 0.08),
+              borderStrokeWidth: 6.0,
             )).toList(),
           ),
 
@@ -2412,15 +2413,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 return Polygon(
                   points: t.puntos,
                   color: sel
-                      ? t.color.withValues(alpha: 0.50)
+                      ? t.color.withValues(alpha: 0.55)
                       : (t.esMio
-                          ? t.color.withValues(alpha: 0.30)
+                          ? t.color.withValues(alpha: 0.38)
                           : t.color.withValues(alpha: t.opacidadRelleno)),
                   borderColor: sel
                       ? t.color
-                      : t.color.withValues(alpha: t.opacidadBorde),
+                      : t.color.withValues(alpha: t.esMio ? 0.90 : t.opacidadBorde),
                   borderStrokeWidth:
-                      sel ? 4.5 : (t.esMio ? 3.5 : (t.estaDeterirado ? 1.0 : 2.0)),
+                      sel ? 4.0 : (t.esMio ? 2.5 : (t.estaDeterirado ? 1.5 : 2.0)),
                 );
               }).toList(),
             ),
