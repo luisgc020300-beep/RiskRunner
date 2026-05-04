@@ -163,7 +163,7 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
         .listen((snap) {
       chatUnread = 0;
       for (final doc in snap.docs) {
-        final d = doc.data() as Map<String, dynamic>;
+        final d = doc.data();
         chatUnread += (d['unread_$uid'] as num? ?? 0).toInt();
       }
       emitir();

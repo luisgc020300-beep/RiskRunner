@@ -61,7 +61,7 @@ class StoryModel {
   }
 
   factory StoryModel.fromFirestore(DocumentSnapshot doc, Color color) {
-    final d          = doc.data() as Map<String, dynamic>;
+    final d          = (doc.data() ?? {}) as Map<String, dynamic>;
     final createdTs  = d['createdAt'] as Timestamp?;
     final expiresTs  = d['expiresAt'] as Timestamp?;
     final viewedList = (d['viewedBy'] as List<dynamic>?) ?? [];

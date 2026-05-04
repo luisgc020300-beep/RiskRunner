@@ -31,6 +31,7 @@ import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
+import '../config/env.dart';
 
 // =============================================================================
 // PALETA
@@ -521,9 +522,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _globalesSourceId    = 'globales-centros-src';
   static const String _globalesLayerId     = 'globales-centros-layer';
   static const String _kTileUrl =
-      'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv'
-      '/tiles/256/{z}/{x}/{y}@2x?access_token='
-      'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+      'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
+      '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
   bool _routeLayerCreated       = false;
   bool _buildings3dCreated      = false;
@@ -576,8 +576,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     super.initState();
     _modoNoche = _esHoraNoche();
 
-    StatsService.mapboxToken =
-        'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+    StatsService.mapboxToken = Env.mapboxPublicToken;
 
     _cuentaAtrasAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));

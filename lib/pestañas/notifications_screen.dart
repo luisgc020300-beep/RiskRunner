@@ -681,7 +681,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       if (mounted) _snack('Contrapropuesta enviada', _kRed);
     } catch (e) {
-      debugPrint('Error contrapropuesta: $e');
+      if (mounted) _snack('Error al enviar la contrapropuesta', Colors.redAccent);
     }
   }
 
@@ -759,7 +759,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             arguments: {'desafioId': targetId});
       }
     } catch (e) {
-      debugPrint('Error aceptando desafío: $e');
+      if (mounted) _snack('Error al aceptar el desafío', Colors.redAccent);
     }
   }
 
@@ -788,7 +788,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       if (mounted) _snack('Desafío rechazado', Colors.black54);
     } catch (e) {
-      debugPrint('Error rechazando desafío: $e');
+      if (mounted) _snack('Error al rechazar el desafío', Colors.redAccent);
     }
   }
 
@@ -817,7 +817,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       if (mounted) _snack('Desafío cancelado — monedas devueltas', Colors.black54);
     } catch (e) {
-      debugPrint('Error cancelando desafío: $e');
+      if (mounted) _snack('Error al cancelar el desafío', Colors.redAccent);
     }
   }
 
@@ -905,7 +905,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           final cardBdr  = isDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
           final textMain = isDark ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
 
-          return ListView.builder(
+          return RefreshIndicator(
+            onRefresh: () async {},
+            color: _kRed,
+            child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
             itemCount: items.length,
             itemBuilder: (context, i) {
@@ -975,6 +979,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ),
               );
             },
+          ),
           );
         },
       ),

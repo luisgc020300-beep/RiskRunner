@@ -205,7 +205,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
                 'Contacta con soporte si te han cobrado.';
           });
         }
-      } on Exception catch (e) {
+      } catch (e) {
         if (mounted) setState(() {
           _comprando = null;
           final msg = e.toString().toLowerCase();

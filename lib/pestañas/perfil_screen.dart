@@ -30,10 +30,8 @@ import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
 import 'coin_shop_screen.dart';
 
-const _kMapboxToken   = Env.mapboxPublicToken;
-const _kMapboxStyleId = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/$_kMapboxStyleId/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
 // Colores fijos
 const _kAccent = Color(0xFFE02020);
@@ -1388,7 +1386,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           ),
           itemCount: posts.length,
           itemBuilder: (ctx, i) {
-            final data = posts[i].data() as Map<String, dynamic>;
+            final data = (posts[i].data() ?? {}) as Map<String, dynamic>;
             return _buildPostCell(data);
           },
         );

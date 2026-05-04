@@ -56,7 +56,7 @@ class DesafioInfo {
   });
 
   factory DesafioInfo.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     return DesafioInfo(
       id:            doc.id,
       retadorId:     d['retadorId']   as String? ?? '',

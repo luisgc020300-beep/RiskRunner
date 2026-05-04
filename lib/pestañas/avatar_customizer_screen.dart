@@ -71,8 +71,13 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
           .update({'avatar_config': _config.toMap()});
       if (mounted) Navigator.pop(context, _config);
     } catch (e) {
-      debugPrint('Error guardando avatar: $e');
-      if (mounted) setState(() => _guardando = false);
+      if (mounted) {
+        setState(() => _guardando = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al guardar el avatar. Inténtalo de nuevo.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 

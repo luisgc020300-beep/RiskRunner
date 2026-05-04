@@ -27,6 +27,12 @@ service cloud.firestore {
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       allow update: if isAuth() && resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+
+      // Historial de conquistas — solo lectura, escritura exclusiva de Cloud Functions
+      match /history/{historyId} {
+        allow read:  if isAuth();
+        allow write: if false;
+      }
     }
 
     // ── presencia_activa ──────────────────────────────────────────────────────

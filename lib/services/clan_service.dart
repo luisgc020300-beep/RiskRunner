@@ -111,7 +111,7 @@ class ClanData {
   });
 
   factory ClanData.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     final rawMiembros = d['miembros'] as List<dynamic>? ?? [];
     return ClanData(
       clanId:      doc.id,
@@ -167,7 +167,7 @@ class ClanWar {
   });
 
   factory ClanWar.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     final rawPun = d['puntuacion'] as Map<String, dynamic>? ?? {};
     return ClanWar(
       warId:        doc.id,
@@ -228,7 +228,7 @@ class ClanInvite {
   });
 
   factory ClanInvite.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     return ClanInvite(
       inviteId:    doc.id,
       clanId:      d['clanId'] as String? ?? '',
@@ -553,7 +553,7 @@ class ClanService {
         .where('estado', isEqualTo: 'activa')
         .get();
     for (final doc in existing.docs) {
-      final d = doc.data() as Map<String, dynamic>;
+      final d = doc.data();
       final a = (d['clanA'] as Map)['id'];
       final b = (d['clanB'] as Map)['id'];
       if ((a == miClan.clanId && b == rivalClan.clanId) ||

@@ -24,13 +24,14 @@ import 'notifications_screen.dart';
 import 'perfil_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
 import '../widgets/conquista_overlay.dart';
+import '../config/env.dart';
 
 // =============================================================================
 // MAPBOX
 // =============================================================================
-const _kMapboxToken = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
+const _kMapboxToken = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/luiisgoomezz1/cmmdzh1aj00f501r68crag5gv/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // DESIGN TOKENS — Paleta dorada/pergamino
@@ -135,7 +136,7 @@ class FeedPost {
   });
 
   factory FeedPost.fromFirestore(DocumentSnapshot doc, String myUid) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     final ts = d['timestamp'] as Timestamp?;
     final rawRuta = d['ruta'] as List<dynamic>?;
     List<LatLng>? ruta;
@@ -1997,7 +1998,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   itemCount: docs.length,
-                  itemBuilder: (_, i) => _buildCommentRow(docs[i].data() as Map<String, dynamic>),
+                  itemBuilder: (_, i) => _buildCommentRow((docs[i].data() ?? {}) as Map<String, dynamic>),
                 );
               },
             ),
@@ -2178,7 +2179,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     return Column(children: _dailyChallenges.map((doc) {
-      final data       = doc.data() as Map<String, dynamic>;
+      final data       = (doc.data() ?? {}) as Map<String, dynamic>;
       final esPremium  = data['es_premium'] as bool? ?? false;
       return Material(
         color: Colors.transparent,

@@ -27,7 +27,7 @@ class ZonaInfo {
   });
 
   factory ZonaInfo.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     final rawPts = d['poligono'] as List<dynamic>? ?? [];
     final pts = rawPts.map((p) {
       final m = p as Map<String, dynamic>;
@@ -74,7 +74,7 @@ class TituloRey {
   });
 
   factory TituloRey.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     return TituloRey(
       id: doc.id,
       userId: d['userId'] as String? ?? '',
@@ -114,7 +114,7 @@ class TemporadaInfo {
   });
 
   factory TemporadaInfo.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = (doc.data() ?? {}) as Map<String, dynamic>;
     return TemporadaInfo(
       id: doc.id,
       numero: (d['numero'] as num? ?? 1).toInt(),

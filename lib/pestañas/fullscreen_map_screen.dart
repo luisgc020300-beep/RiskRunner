@@ -326,7 +326,7 @@ class _MapDataService {
     }
     final Map<String, List<_TerDet>> tersPorOwner = {};
     for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = (doc.data() ?? {}) as Map<String, dynamic>;
       final rawPts = data['puntos'] as List<dynamic>?;
       if (rawPts == null || rawPts.isEmpty) continue;
       final pts = _parsePuntos(rawPts);
@@ -1603,6 +1603,54 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 child: _buildTerritoryCard(_state.territorioSeleccionado!),
               );
             }
+          },
+        ),
+
+        ListenableBuilder(
+          listenable: _state,
+          builder: (_, __) {
+            if (_state.modoGlobal || _state.modoSolitario) return const SizedBox.shrink();
+            if (_state.loadingTerritorios || _state.territorios.isNotEmpty) return const SizedBox.shrink();
+            final screenH = MediaQuery.of(context).size.height;
+            return Positioned(
+              top: screenH * 0.12,
+              left: 32, right: 32,
+              child: IgnorePointer(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                      decoration: BoxDecoration(
+                        color: _kBg.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _kBorder2),
+                      ),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                          width: 56, height: 56,
+                          decoration: BoxDecoration(
+                            color: _kSurface2,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _kBorder),
+                          ),
+                          child: const Icon(Icons.map_outlined, color: _kSub, size: 26),
+                        ),
+                        const SizedBox(height: 16),
+                        Text('SIN TERRITORIOS', style: _raj(13, FontWeight.w900, _kText, spacing: 3)),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No hay territorios en esta zona.\nSal a correr para descubrir y\nconquistar los más cercanos.',
+                          textAlign: TextAlign.center,
+                          style: _raj(12, FontWeight.w500, _kSub, height: 1.6),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            );
           },
         ),
 
