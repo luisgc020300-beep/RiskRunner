@@ -422,10 +422,11 @@ class TerritoryService {
   // ──────────────────────────────────────────────────────────────────────────
   static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
     if (modo == 'solitario') {
-      return lista.where((t) => t.esMio || t.modo == 'solitario').toList();
+      // Solo territorios creados en modo solitario (propios + ajenos)
+      return lista.where((t) => t.modo == 'solitario').toList();
     }
-    // competitivo: competitivos + legacy (null) — excluye los solitario ajenos
-    return lista.where((t) => t.esMio || t.modo == null || t.modo == 'competitivo').toList();
+    // Competitivo: competitivos + legacy (null) — excluye todos los solitario
+    return lista.where((t) => t.modo == null || t.modo == 'competitivo').toList();
   }
 
   static Future<List<TerritoryData>> cargarTodosLosTerritorios({

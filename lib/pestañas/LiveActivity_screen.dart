@@ -1288,6 +1288,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) await _addBuildings3D();
     }
+    if (!_buildings3dCreated) {
+      await Future.delayed(const Duration(milliseconds: 2000));
+      if (mounted) await _addBuildings3D();
+    }
     if (!mounted) return;
     // Ejecutar en paralelo: atmósfera+agua son independientes de territorios+globo
     await Future.wait([
@@ -3086,8 +3090,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   modo: _modoSolitario ? 'solitario' : 'competitivo');
                 if (mounted) {
                   setState(() => _territorios = nuevos);
-                  _territoriosLayersCreated = false;
-                  _centrosLayerCreated      = false;
                   await _dibujarTerritoriosEnMapa();
                 }
               return 1;
