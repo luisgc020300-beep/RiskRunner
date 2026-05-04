@@ -1659,29 +1659,31 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-color', ['get', 'color']);
 
+        // Radios pequeños y precisos — estética táctica/militar
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-radius', [
           'case', ['==', ['get', 'esMio'], true],
-          ['interpolate', ['linear'], ['zoom'], 1, 6.0, 4, 9.0, 8, 7.0],
-          ['interpolate', ['linear'], ['zoom'], 1, 3.0, 4, 5.0, 8, 4.0],
+          ['interpolate', ['linear'], ['zoom'], 1, 3.5, 4, 5.5, 8, 5.0],
+          ['interpolate', ['linear'], ['zoom'], 1, 1.8, 4, 2.8, 8, 2.5],
         ]);
 
-        // Fade-out suave al acercarse al umbral de zoom
+        // Opacidad: propios sólidos, ajenos muy tenues
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-opacity', [
           'interpolate', ['linear'], ['zoom'],
-          8.0, ['case', ['==', ['get', 'esMio'], true], 1.0, 0.55],
+          8.0, ['case', ['==', ['get', 'esMio'], true], 0.92, 0.38],
           9.5, 0.0,
         ]);
 
+        // Contorno oscuro fino solo en propios (sin blanco brillante)
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-stroke-width',
-            ['case', ['==', ['get', 'esMio'], true], 2.0, 0.0]);
+            ['case', ['==', ['get', 'esMio'], true], 1.0, 0.0]);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _puntosGloboLayerId, 'circle-stroke-color', '#FFFFFF');
+            _puntosGloboLayerId, 'circle-stroke-color', '#0a0a0a');
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-stroke-opacity',
-            ['interpolate', ['linear'], ['zoom'], 8.0, 0.9, 9.5, 0.0]);
+            ['interpolate', ['linear'], ['zoom'], 8.0, 0.7, 9.5, 0.0]);
 
         _puntosGloboLayerCreated = true;
       } else {
@@ -1747,7 +1749,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               EstadoHp.danado    => 2.0,
               EstadoHp.critico   => 2.4,
             };
-      final innerOpacity = t.esMio ? t.opacidadRelleno * 0.55 : 0.0;
+      final innerOpacity = t.esMio ? t.opacidadRelleno * 0.28 : 0.0;
 
       return _encodeJson({
         'type': 'Feature',
@@ -1837,33 +1839,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-cap', 'square');
 
-      // Halo exterior táctico fino (solo propios)
+      // Halo exterior mínimo — sutil indicador de propiedad
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderOuterGlowId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 8.0);
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 4.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderOuterGlowId, 'line-opacity',
-          ['case', ['==', ['get', 'esMio'], true], 0.08, 0.0]);
+          ['case', ['==', ['get', 'esMio'], true], 0.04, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 4.0);
+          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 3.0);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderOuterGlowId, 'line-join', 'miter');
 
-      // Inner pulse: brillo de actividad sutil
+      // Pulso táctico — muy contenido
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderPulseLayerId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-color', ['get', 'color']);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 4.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-width', 2.0);
       await _mapboxMap!.style.setStyleLayerProperty(
           _borderPulseLayerId, 'line-opacity',
           ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
       await _mapboxMap!.style
-          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 2.0);
+          .setStyleLayerProperty(_borderPulseLayerId, 'line-blur', 1.5);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'miter');
 
@@ -1878,14 +1880,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _crearCentrosLayer();
       }
 
-      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
         if (!mounted || _mapboxMap == null) return;
         if (_pulsoUp) {
-          _pulsoOpacity += 0.04;
-          if (_pulsoOpacity >= 0.28) _pulsoUp = false;
+          _pulsoOpacity += 0.02;
+          if (_pulsoOpacity >= 0.13) _pulsoUp = false;
         } else {
-          _pulsoOpacity -= 0.04;
-          if (_pulsoOpacity <= 0.08) _pulsoUp = true;
+          _pulsoOpacity -= 0.02;
+          if (_pulsoOpacity <= 0.04) _pulsoUp = true;
         }
         try {
           _mapboxMap!.style.setStyleLayerProperty(

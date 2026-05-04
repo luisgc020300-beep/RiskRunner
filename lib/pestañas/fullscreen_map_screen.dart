@@ -2184,7 +2184,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   )).toList(),
                 ),
 
-              // Borde exterior fino territorios propios (halo táctico)
+              // Halo táctico mínimo — propios
               if (territorios.any((t) => t.esMio))
                 PolygonLayer(
                   polygons: territorios.where((t) => t.esMio).map((t) {
@@ -2192,8 +2192,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     return Polygon(
                       points: t.puntos,
                       color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.08 * decay),
-                      borderStrokeWidth: 6.0,
+                      borderColor: t.color.withValues(alpha: 0.04 * decay),
+                      borderStrokeWidth: 4.0,
                     );
                   }).toList(),
                 ),
@@ -2208,12 +2208,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     return Polygon(
                       points: t.puntos,
                       color: frio
-                          ? Colors.grey.withValues(alpha: 0.22)
-                          : t.color.withValues(alpha: 0.38 * decay),
+                          ? Colors.grey.withValues(alpha: 0.14)
+                          : t.color.withValues(alpha: 0.24 * decay),
                       borderColor: frio
-                          ? Colors.grey.withValues(alpha: 0.70)
-                          : t.color.withValues(alpha: (0.90 * decay).clamp(0.0, 1.0)),
-                      borderStrokeWidth: 2.5,
+                          ? Colors.grey.withValues(alpha: 0.60)
+                          : t.color.withValues(alpha: (0.85 * decay).clamp(0.0, 1.0)),
+                      borderStrokeWidth: 2.0,
                     );
                   }).toList(),
                 ),
@@ -2370,14 +2370,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             panBuffer: 3,
             maxNativeZoom: 19),
 
-        // Halo táctico fino — solo territorios propios
+        // Halo táctico mínimo — solo territorios propios
         if (territorios.any((t) => t.esMio))
           PolygonLayer(
             polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
               points: t.puntos,
               color: Colors.transparent,
-              borderColor: t.color.withValues(alpha: 0.08),
-              borderStrokeWidth: 6.0,
+              borderColor: t.color.withValues(alpha: 0.04),
+              borderStrokeWidth: 4.0,
             )).toList(),
           ),
 
@@ -2413,15 +2413,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 return Polygon(
                   points: t.puntos,
                   color: sel
-                      ? t.color.withValues(alpha: 0.55)
-                      : (t.esMio
-                          ? t.color.withValues(alpha: 0.38)
-                          : t.color.withValues(alpha: t.opacidadRelleno)),
+                      ? t.color.withValues(alpha: 0.40)
+                      : t.color.withValues(alpha: t.opacidadRelleno),
                   borderColor: sel
                       ? t.color
-                      : t.color.withValues(alpha: t.esMio ? 0.90 : t.opacidadBorde),
+                      : t.color.withValues(alpha: t.opacidadBorde),
                   borderStrokeWidth:
-                      sel ? 4.0 : (t.esMio ? 2.5 : (t.estaDeterirado ? 1.5 : 2.0)),
+                      sel ? 3.0 : (t.esMio ? 2.0 : (t.estaDeterirado ? 1.2 : 1.6)),
                 );
               }).toList(),
             ),

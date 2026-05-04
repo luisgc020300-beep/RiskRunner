@@ -175,17 +175,17 @@ class TerritoryData {
 
 double get opacidadRelleno {
   switch (estadoHp) {
-    case EstadoHp.saludable: return esMio ? 0.60 : 0.38;
-    case EstadoHp.danado:    return esMio ? 0.35 : 0.22;
-    case EstadoHp.critico:   return esMio ? 0.18 : 0.10;
+    case EstadoHp.saludable: return esMio ? 0.32 : 0.20;
+    case EstadoHp.danado:    return esMio ? 0.20 : 0.13;
+    case EstadoHp.critico:   return esMio ? 0.10 : 0.06;
   }
 }
 
 double get opacidadBorde {
   switch (estadoHp) {
-    case EstadoHp.saludable: return esMio ? 1.00 : 0.80;
-    case EstadoHp.danado:    return esMio ? 0.80 : 0.55;
-    case EstadoHp.critico:   return esMio ? 0.55 : 0.30;
+    case EstadoHp.saludable: return esMio ? 0.95 : 0.70;
+    case EstadoHp.danado:    return esMio ? 0.75 : 0.45;
+    case EstadoHp.critico:   return esMio ? 0.50 : 0.25;
   }
 }
 
