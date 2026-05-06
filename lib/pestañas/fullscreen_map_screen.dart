@@ -838,6 +838,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     super.initState();
     _state = _MapState();
     _state.addListener(_onErrorCheck);
+    _state.addListener(_recalcularPorcentajesBarrios);
 
     _pulseCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2000))
@@ -881,9 +882,30 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
+  void _recalcularPorcentajesBarrios() {
+    if (!_state.modoSolitario || _barriosCercanos.isEmpty) return;
+    final misTers = _state.territorios.where((t) => t.esMio).toList();
+    bool changed = false;
+    for (final barrio in _barriosCercanos) {
+      double areaCubierta = 0.0;
+      for (final ter in misTers) {
+        if (_puntoEnPoligonoSol(ter.centro, barrio.puntos)) {
+          areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
+        }
+      }
+      final newPct = (areaCubierta / barrio.areaM2).clamp(0.0, 1.0);
+      if ((newPct - barrio.porcentajeCubierto).abs() > 0.001) {
+        barrio.porcentajeCubierto = newPct;
+        changed = true;
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _state.removeListener(_onErrorCheck);
+    _state.removeListener(_recalcularPorcentajesBarrios);
     _state.dispose();
     _pulseCtrl.dispose();
     _selCtrl.dispose();
@@ -2166,9 +2188,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         : pct > 0 ? _kWarn : _kDim;
                     return Polygon(
                       points: b.puntos,
-                      color: color.withValues(alpha: 0.10),
-                      borderColor: Colors.white.withValues(alpha: 0.90),
-                      borderStrokeWidth: 3.5,
+                      color: color.withValues(alpha: pct > 0 ? 0.16 : 0.06),
+                      borderColor: _mapaOscuro
+                          ? Colors.white.withValues(alpha: 0.80)
+                          : const Color(0xFF1A1A1A).withValues(alpha: 0.70),
+                      borderStrokeWidth: 2.5,
                     );
                   }).toList(),
                 ),
