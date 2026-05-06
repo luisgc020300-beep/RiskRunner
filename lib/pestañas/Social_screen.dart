@@ -1656,6 +1656,137 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _mostrarOpciones() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(children: [
+                  _opcionChat(
+                    icon: Icons.person_outline_rounded,
+                    label: 'Ver perfil de ${widget.friendNickname}',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => PerfilScreen(targetUserId: widget.friendId),
+                      ));
+                    },
+                  ),
+                  _divOpc(),
+                  _opcionChat(
+                    icon: Icons.notifications_off_outlined,
+                    label: 'Silenciar conversación',
+                    onTap: () { Navigator.pop(context); _silenciarConversacion(); },
+                  ),
+                  _divOpc(),
+                  _opcionChat(
+                    icon: Icons.mark_chat_unread_outlined,
+                    label: 'Marcar como no leído',
+                    onTap: () { Navigator.pop(context); _marcarNoLeido(); },
+                  ),
+                  _divOpc(),
+                  _opcionChat(
+                    icon: Icons.delete_outline_rounded,
+                    label: 'Eliminar conversación',
+                    color: const Color(0xFFFF453A),
+                    onTap: () { Navigator.pop(context); _confirmarEliminar(); },
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1C1E),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(
+                    child: Text('Cancelar',
+                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _opcionChat({required IconData icon, required String label, required VoidCallback onTap, Color? color}) {
+    final c = color ?? Colors.white;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        child: Row(children: [
+          Expanded(child: Text(label, style: TextStyle(color: c, fontSize: 16))),
+          Icon(icon, color: c, size: 20),
+        ]),
+      ),
+    );
+  }
+
+  Widget _divOpc() => const Divider(height: 1, color: Color(0xFF38383A), indent: 18, endIndent: 0);
+
+  Future<void> _silenciarConversacion() async {
+    try {
+      await _chatRef.set({'muted_${widget.currentUserId}': true}, SetOptions(merge: true));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Conversación silenciada'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ));
+    } catch (_) {}
+  }
+
+  Future<void> _marcarNoLeido() async {
+    try {
+      await _chatRef.set({'unread_${widget.currentUserId}': 1}, SetOptions(merge: true));
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (_) {}
+  }
+
+  Future<void> _confirmarEliminar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Eliminar conversación', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        content: Text('El chat con ${widget.friendNickname} se eliminará para ti.',
+          style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white70))),
+          TextButton(onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar', style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _chatRef.set({'deleted_${widget.currentUserId}': true}, SetOptions(merge: true));
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -1675,7 +1806,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ]),
         ]),
       ]),
-      actions: [Padding(padding: const EdgeInsets.only(right: 16), child: Icon(Icons.more_horiz, color: _p.dim, size: 20))]),
+      actions: [
+      IconButton(
+        onPressed: _mostrarOpciones,
+        icon: Icon(Icons.more_horiz, color: _p.dim, size: 20),
+        padding: EdgeInsets.zero,
+      ),
+    ]),
     body: Column(children: [
       Expanded(child: StreamBuilder<QuerySnapshot>(
         stream: _msgsRef.orderBy('timestamp', descending: false).snapshots(),

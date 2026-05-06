@@ -2192,8 +2192,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     return Polygon(
                       points: t.puntos,
                       color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.04 * decay),
-                      borderStrokeWidth: 4.0,
+                      borderColor: t.color.withValues(alpha: 0.08 * decay),
+                      borderStrokeWidth: 6.0,
                     );
                   }).toList(),
                 ),
@@ -2209,11 +2209,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       points: t.puntos,
                       color: frio
                           ? Colors.grey.withValues(alpha: 0.14)
-                          : t.color.withValues(alpha: 0.24 * decay),
+                          : t.color.withValues(alpha: 0.30 * decay),
                       borderColor: frio
                           ? Colors.grey.withValues(alpha: 0.60)
-                          : t.color.withValues(alpha: (0.85 * decay).clamp(0.0, 1.0)),
-                      borderStrokeWidth: 2.0,
+                          : t.color.withValues(alpha: (0.90 * decay).clamp(0.0, 1.0)),
+                      borderStrokeWidth: 2.8,
                     );
                   }).toList(),
                 ),
@@ -2376,9 +2376,22 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
               points: t.puntos,
               color: Colors.transparent,
-              borderColor: t.color.withValues(alpha: 0.04),
-              borderStrokeWidth: 4.0,
+              borderColor: t.color.withValues(alpha: 0.08),
+              borderStrokeWidth: 6.0,
             )).toList(),
+          ),
+
+        // Halo rojo — territorios rivales en estado crítico
+        if (territorios.any((t) => !t.esMio && t.estadoHp == EstadoHp.critico))
+          PolygonLayer(
+            polygons: territorios
+                .where((t) => !t.esMio && t.estadoHp == EstadoHp.critico)
+                .map((t) => Polygon(
+                  points: t.puntos,
+                  color: Colors.transparent,
+                  borderColor: const Color(0xFFCC2222).withValues(alpha: 0.22),
+                  borderStrokeWidth: 7.0,
+                )).toList(),
           ),
 
         if (territorios.isNotEmpty)
@@ -2410,6 +2423,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             child: PolygonLayer(
               polygons: territorios.map((t) {
                 final bool sel = seleccionado?.docId == t.docId;
+                final double bWidth = sel
+                    ? 3.0
+                    : t.esMio
+                        ? 2.8
+                        : switch (t.estadoHp) {
+                            EstadoHp.saludable => 1.6,
+                            EstadoHp.danado    => 2.0,
+                            EstadoHp.critico   => 2.4,
+                          };
                 return Polygon(
                   points: t.puntos,
                   color: sel
@@ -2418,8 +2440,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   borderColor: sel
                       ? t.color
                       : t.color.withValues(alpha: t.opacidadBorde),
-                  borderStrokeWidth:
-                      sel ? 3.0 : (t.esMio ? 2.0 : (t.estaDeterirado ? 1.2 : 1.6)),
+                  borderStrokeWidth: bWidth,
                 );
               }).toList(),
             ),
@@ -3071,6 +3092,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
 
     final double hpFraction = t.hpActual / kHpMax.toDouble();
+    // En modo competitivo, los territorios rivales no revelan nombre ni HP
+    final bool rivalCompetitivo = !t.esMio && !_state.modoSolitario;
 
     return ScaleTransition(
       scale: _selAnim,
@@ -3109,13 +3132,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Text(
                       t.esMio
                           ? 'MI TERRITORIO'
-                          : t.ownerNickname.toUpperCase(),
+                          : rivalCompetitivo
+                              ? 'ZONA RIVAL'
+                              : t.ownerNickname.toUpperCase(),
                       style: _raj(13, FontWeight.w900, _shText,
                           spacing: 1.5)),
                   Text(
                       t.esMio
                           ? 'ZONA CONTROLADA'
-                          : 'TERRITORIO RIVAL',
+                          : rivalCompetitivo
+                              ? 'INFORMACIÓN BLOQUEADA'
+                              : 'TERRITORIO RIVAL',
                       style: _raj(8, FontWeight.w700,
                           t.esMio ? t.color : _kSub, spacing: 2)),
                 ])),
@@ -3132,11 +3159,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               ]),
             ),
 
-            // ── Stats row (siempre visible, para propios Y rivales) ────────
+            // ── Stats row ────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               child: Row(children: [
-                _cardStat(estadoIcon, estadoLabel, cEstado),
+                rivalCompetitivo
+                    ? _cardStat(Icons.lock_outline_rounded, 'OCULTO', _kSub)
+                    : _cardStat(estadoIcon, estadoLabel, cEstado),
                 _vDiv(),
                 _cardStat(Icons.flag_rounded, '${t.puntos.length} PTS', _shText),
                 _vDiv(),
@@ -3152,91 +3181,100 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               ]),
             ),
 
-            // ── Barra de vida — FIX: visible para TODOS (propios y rivales) ─
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 6, height: 6,
-                      decoration: BoxDecoration(
-                        color: cEstado, shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(
-                            color: cEstado.withValues(alpha: 0.6),
-                            blurRadius: 4)],
+            // ── Barra de vida — oculta en modo competitivo para rivales ──────
+            if (!rivalCompetitivo)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                        width: 6, height: 6,
+                        decoration: BoxDecoration(
+                          color: cEstado, shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(
+                              color: cEstado.withValues(alpha: 0.6),
+                              blurRadius: 4)],
+                        ),
+                        margin: const EdgeInsets.only(right: 6),
                       ),
-                      margin: const EdgeInsets.only(right: 6),
-                    ),
-                    Text(
-                      t.estadoHp == EstadoHp.saludable
-                          ? 'Territorio saludable'
-                          : t.estadoHp == EstadoHp.danado
-                              ? 'Territorio debilitado'
-                              : 'En estado crítico',
-                      style: _raj(9, FontWeight.w700, cEstado,
-                          spacing: 0.5),
-                    ),
-                    const Spacer(),
-                    // FIX: mostrar valor numérico de HP
-                    Text(
-                      '${t.hpActual}/${kHpMax} HP',
-                      style: _raj(9, FontWeight.w700, cEstado,
-                          spacing: 0.5),
-                    ),
-                  ]),
-                  const SizedBox(height: 5),
-                  Stack(children: [
-                    Container(
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _shBorder,
-                        borderRadius: BorderRadius.circular(2),
+                      Text(
+                        t.estadoHp == EstadoHp.saludable
+                            ? 'Territorio saludable'
+                            : t.estadoHp == EstadoHp.danado
+                                ? 'Territorio debilitado'
+                                : 'En estado crítico',
+                        style: _raj(9, FontWeight.w700, cEstado,
+                            spacing: 0.5),
                       ),
-                    ),
-                    FractionallySizedBox(
-                      widthFactor: hpFraction.clamp(0.0, 1.0),
-                      child: Container(
+                      const Spacer(),
+                      Text(
+                        '${t.hpActual}/$kHpMax HP',
+                        style: _raj(9, FontWeight.w700, cEstado,
+                            spacing: 0.5),
+                      ),
+                    ]),
+                    const SizedBox(height: 5),
+                    Stack(children: [
+                      Container(
                         height: 4,
                         decoration: BoxDecoration(
-                          color: cEstado,
+                          color: _shBorder,
                           borderRadius: BorderRadius.circular(2),
-                          boxShadow: [BoxShadow(
-                              color: cEstado.withValues(alpha: 0.5),
-                              blurRadius: 6)],
                         ),
                       ),
-                    ),
-                  ]),
-                  // Días sin visitar (solo rivales)
-                  if (!t.esMio) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Icon(Icons.schedule_rounded, color: _kSub, size: 11),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
-                        style: _raj(9, FontWeight.w600, _kSub),
-                      ),
-                      if (t.esConquistableSinPasar) ...[
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      FractionallySizedBox(
+                        widthFactor: hpFraction.clamp(0.0, 1.0),
+                        child: Container(
+                          height: 4,
                           decoration: BoxDecoration(
-                            color: _kRed.withValues(alpha: 0.12),
-                            border: Border.all(color: _kRed.withValues(alpha: 0.5)),
-                            borderRadius: BorderRadius.circular(3),
+                            color: cEstado,
+                            borderRadius: BorderRadius.circular(2),
+                            boxShadow: [BoxShadow(
+                                color: cEstado.withValues(alpha: 0.5),
+                                blurRadius: 6)],
                           ),
-                          child: Text('CONQUISTABLE',
-                              style: _raj(8, FontWeight.w900, _kRed)),
                         ),
-                      ],
+                      ),
                     ]),
+                    if (!t.esMio) ...[
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        Icon(Icons.schedule_rounded, color: _kSub, size: 11),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
+                          style: _raj(9, FontWeight.w600, _kSub),
+                        ),
+                        if (t.esConquistableSinPasar) ...[
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _kRed.withValues(alpha: 0.12),
+                              border: Border.all(color: _kRed.withValues(alpha: 0.5)),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text('CONQUISTABLE',
+                                style: _raj(8, FontWeight.w900, _kRed)),
+                          ),
+                        ],
+                      ]),
+                    ],
                   ],
-                ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Row(children: [
+                  Icon(Icons.info_outline_rounded, color: _kSub, size: 12),
+                  const SizedBox(width: 6),
+                  Text('Corre sobre este territorio para revelar su estado',
+                    style: _raj(9, FontWeight.w600, _kSub, spacing: 0.3)),
+                ]),
               ),
-            ),
 
             // ── Stats extra: dominio + velocidad + rey ─────────────────────
             Padding(

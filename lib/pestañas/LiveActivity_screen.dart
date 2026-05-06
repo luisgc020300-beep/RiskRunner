@@ -537,6 +537,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   MapController? _webMapCtrl;
 
   Timer? _pulsoTimer;
+  TerritoryData? _territorioInfo;
+  Timer? _infoTimer;
   double _pulsoOpacity = 0.9;
   Timer? _iluminacionTimer;
   bool   _pulsoUp      = false;
@@ -669,6 +671,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
     _pulsoTimer?.cancel();
+    _infoTimer?.cancel();
     _timerResistencia?.cancel();
     _iluminacionTimer?.cancel();
     _narrador.resetear();
@@ -1688,6 +1691,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             _puntosGloboLayerId, 'circle-stroke-opacity',
             ['interpolate', ['linear'], ['zoom'], 8.0, 0.7, 9.5, 0.0]);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboLayerId, 'circle-blur',
+            ['case', ['==', ['get', 'esMio'], true], 0.0, 0.20]);
 
         _puntosGloboLayerCreated = true;
       } else {
@@ -1704,13 +1710,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   void _onMapTap(mapbox.MapContentGestureContext ctx) async {
-    if (_mapboxMap == null || _puntosGlobo.isEmpty) return;
-    final cam  = await _mapboxMap!.getCameraState();
-    if (cam.zoom > 8) return; // solo activo en vista globo
-
+    if (_mapboxMap == null) return;
+    final cam = await _mapboxMap!.getCameraState();
     final tapLat = ctx.point.coordinates.lat.toDouble();
     final tapLng = ctx.point.coordinates.lng.toDouble();
 
+    if (cam.zoom > 8) {
+      // Modo running: mostrar info del territorio más cercano al tap
+      if (!isTracking || _territorios.isEmpty) return;
+      _mostrarInfoTerritorioCercano(tapLat, tapLng);
+      return;
+    }
+
+    // Modo globo: volar al territorio más cercano
+    if (_puntosGlobo.isEmpty) return;
     Map<String, dynamic>? nearest;
     double minDist = double.infinity;
     for (final p in _puntosGlobo) {
@@ -1731,6 +1744,112 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       bearing:  0,
       animated: true,
       duracion: 1400,
+    );
+  }
+
+  void _mostrarInfoTerritorioCercano(double tapLat, double tapLng) {
+    TerritoryData? nearest;
+    double minDist = double.infinity;
+    for (final t in _territorios) {
+      final dLat = t.centro.latitude  - tapLat;
+      final dLng = t.centro.longitude - tapLng;
+      final d    = dLat * dLat + dLng * dLng;
+      if (d < minDist) { minDist = d; nearest = t; }
+    }
+    // Umbral ~500m (~0.0045° al cuadrado ≈ 0.00002)
+    if (nearest == null || minDist > 0.00002) return;
+    HapticFeedback.selectionClick();
+    _infoTimer?.cancel();
+    setState(() => _territorioInfo = nearest);
+    _infoTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) setState(() => _territorioInfo = null);
+    });
+  }
+
+  Widget _buildTerritoryInfoOverlay() {
+    final t = _territorioInfo;
+    if (t == null) return const SizedBox.shrink();
+
+    final Color hpColor = t.estadoHp == EstadoHp.critico
+        ? const Color(0xFFE02020)
+        : t.estadoHp == EstadoHp.danado
+            ? const Color(0xFFFF9800)
+            : const Color(0xFF30D158);
+
+    final String hpLabel = t.estadoHp == EstadoHp.critico
+        ? 'CRÍTICO — fácil de atacar'
+        : t.estadoHp == EstadoHp.danado
+            ? 'DAÑADO — resistencia media'
+            : 'SALUDABLE — difícil de atacar';
+
+    return Positioned(
+      bottom: 170,
+      left: 14,
+      right: 14,
+      child: GestureDetector(
+        onTap: () { _infoTimer?.cancel(); setState(() => _territorioInfo = null); },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D0D0F).withValues(alpha: 0.95),
+            border: Border.all(color: t.color.withValues(alpha: 0.55), width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(color: t.color.withValues(alpha: 0.22), blurRadius: 20),
+              const BoxShadow(color: Colors.black54, blurRadius: 12),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                Container(width: 3, height: 16, color: t.color,
+                    margin: const EdgeInsets.only(right: 8)),
+                Expanded(
+                  child: Text(
+                    t.esMio ? 'TU TERRITORIO' : t.ownerNickname.toUpperCase(),
+                    style: GoogleFonts.rajdhani(
+                        color: Colors.white, fontSize: 13,
+                        fontWeight: FontWeight.w800, letterSpacing: 1.5),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () { _infoTimer?.cancel(); setState(() => _territorioInfo = null); },
+                  child: const Icon(Icons.close_rounded, color: Colors.white38, size: 15),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                Container(
+                  width: 6, height: 6, margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: hpColor, shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: hpColor.withValues(alpha: 0.6), blurRadius: 4)],
+                  ),
+                ),
+                Expanded(child: Text(hpLabel,
+                    style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
+                        fontWeight: FontWeight.w700, letterSpacing: 0.8))),
+                Text('${t.hpActual}/$kHpMax HP',
+                    style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
+                        fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: (t.hpActual / kHpMax).clamp(0.0, 1.0),
+                  backgroundColor: Colors.white12,
+                  valueColor: AlwaysStoppedAnimation<Color>(hpColor),
+                  minHeight: 3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1808,7 +1927,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _fillLayerId, 'fill-opacity', [
         'case', ['==', ['get', 'esFantasma'], true],
         ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'fillOpacity']],
-        ['get', 'fillOpacity'],
+        ['*', ['get', 'fillOpacity'], ['interpolate', ['linear'], ['zoom'], 7.5, 0.0, 9.5, 1.0]],
       ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillLayerId, 'fill-antialias', true);
@@ -1821,7 +1940,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _fillInnerLayerId, 'fill-opacity', [
         'case', ['==', ['get', 'esFantasma'], true],
         ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'innerOpacity']],
-        ['get', 'innerOpacity'],
+        ['*', ['get', 'innerOpacity'], ['interpolate', ['linear'], ['zoom'], 7.5, 0.0, 9.5, 1.0]],
       ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_fillInnerLayerId, 'fill-antialias', true);
@@ -1836,25 +1955,42 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _borderLayerId, 'line-opacity', [
         'case', ['==', ['get', 'esFantasma'], true],
         ['interpolate', ['linear'], ['zoom'], 9, 0, 12, ['get', 'borderOpacity']],
-        ['get', 'borderOpacity'],
+        ['*', ['get', 'borderOpacity'], ['interpolate', ['linear'], ['zoom'], 7.5, 0.0, 9.0, 1.0]],
       ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-join', 'miter');
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderLayerId, 'line-cap', 'square');
 
-      // Halo exterior mínimo — sutil indicador de propiedad
+      // Halo exterior — propiedad propia + alerta roja en rivales críticos
       await _mapboxMap!.style.addLayer(
           mapbox.LineLayer(id: _borderOuterGlowId, sourceId: _sourceId, minZoom: 7.0));
       await _mapboxMap!.style.setStyleLayerProperty(
-          _borderOuterGlowId, 'line-color', ['get', 'color']);
-      await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-width', 4.0);
+          _borderOuterGlowId, 'line-color', [
+        'case',
+        ['==', ['get', 'estadoHp'], 'critico'], '#CC2222',
+        ['get', 'color'],
+      ]);
       await _mapboxMap!.style.setStyleLayerProperty(
-          _borderOuterGlowId, 'line-opacity',
-          ['case', ['==', ['get', 'esMio'], true], 0.04, 0.0]);
-      await _mapboxMap!.style
-          .setStyleLayerProperty(_borderOuterGlowId, 'line-blur', 3.0);
+          _borderOuterGlowId, 'line-width', [
+        'case',
+        ['==', ['get', 'estadoHp'], 'critico'], 7.0,
+        ['==', ['get', 'esMio'], true], 5.0,
+        4.0,
+      ]);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderOuterGlowId, 'line-opacity', [
+        'case',
+        ['==', ['get', 'esMio'], true], 0.05,
+        ['all', ['==', ['get', 'esMio'], false], ['==', ['get', 'estadoHp'], 'critico']], 0.12,
+        0.0,
+      ]);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _borderOuterGlowId, 'line-blur', [
+        'case',
+        ['==', ['get', 'estadoHp'], 'critico'], 5.0,
+        3.0,
+      ]);
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderOuterGlowId, 'line-join', 'miter');
 
@@ -3765,6 +3901,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         if (_globalConquistando)
           Positioned.fill(child: _buildConquistadoOverlay()),
+        if (_territorioInfo != null) _buildTerritoryInfoOverlay(),
         Positioned(bottom: 0, left: 0, right: 0, child: _buildBotonera()),
       ]),
     );
