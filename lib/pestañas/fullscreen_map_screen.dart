@@ -2688,237 +2688,202 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       : t.isOwned
                           ? (t.ownerColor ?? t.tierColor)
                           : _kDim;
+                  final bool isLegend = t.tier == TerritoryTier.legendario;
 
-                  final bool isLegend =
-                      t.tier == TerritoryTier.legendario;
-                  final double circleSize = isLegend ? 44.0 : 36.0;
-                  final double emojiSize  = isLegend ? 20.0 : 16.0;
+                  final double glowR = isMine
+                      ? 5.0 + 3.0 * _pulse.value
+                      : (t.isOwned ? 3.0 : 0.0);
+                  final double glowA = isMine
+                      ? 0.18 + 0.12 * _pulse.value
+                      : (t.isOwned ? 0.09 : 0.0);
 
-                  final double glowRadius = (isMine || isLegend)
-                      ? 8.0 + 6.0 * _pulse.value
-                      : (t.isOwned ? 5.0 : 3.0);
-                  final double glowOpacity = (isMine || isLegend)
-                      ? 0.25 + 0.25 * _pulse.value
-                      : (t.isOwned ? 0.12 : 0.05);
-
-                  // ── Modo lejano (zoom < 4) ──────────────────────────────
+                  // ── Modo lejano (zoom < 4) — anillo compacto ───────────
                   if (_zoomGlobal < 4.0) {
+                    final double sz    = isSel ? 24.0 : (isLegend ? 22.0 : 19.0);
+                    final double dotSz = isMine ? 7.0 : (t.isOwned ? 5.0 : 3.0);
                     return Marker(
                       point: t.center,
-                      width: circleSize + 16,
-                      height: circleSize + 16,
+                      width: sz + glowR * 2 + 4,
+                      height: sz + glowR * 2 + 4,
                       child: GestureDetector(
                         onTap: () => _onGlobalTerritoryTap(t),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (isMine || t.isOwned)
-                              Container(
-                                width: circleSize + glowRadius * 2,
-                                height: circleSize + glowRadius * 2,
+                        child: Stack(alignment: Alignment.center, children: [
+                          if (isMine || t.isOwned)
+                            Container(
+                              width: sz + glowR * 2,
+                              height: sz + glowR * 2,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(
+                                  color: baseColor.withValues(alpha: glowA),
+                                  blurRadius: glowR * 2,
+                                )],
+                              ),
+                            ),
+                          Container(
+                            width: sz,
+                            height: sz,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF08080B).withValues(alpha: 0.92),
+                              border: Border.all(
+                                color: isSel
+                                    ? baseColor
+                                    : baseColor.withValues(alpha:
+                                        isMine ? 0.92 : (t.isOwned ? 0.68 : 0.35)),
+                                width: isSel ? 2.0 : (isMine ? 1.8 : 1.2),
+                              ),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: dotSz, height: dotSz,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
+                                  color: baseColor.withValues(
+                                      alpha: t.isOwned ? 1.0 : 0.35),
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (isMine)
+                            Positioned(
+                              top: 1, right: 1,
+                              child: Container(
+                                width: 7, height: 7,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _kGold,
                                   boxShadow: [BoxShadow(
-                                    color: baseColor
-                                        .withValues(alpha: glowOpacity),
-                                    blurRadius: glowRadius * 2,
-                                    spreadRadius: glowRadius * 0.3,
+                                    color: _kGold.withValues(alpha: 0.70),
+                                    blurRadius: 4,
                                   )],
                                 ),
                               ),
-                            Container(
-                              width: circleSize,
-                              height: circleSize,
-                              decoration: BoxDecoration(
-                                color: t.isOwned
-                                    ? baseColor.withValues(alpha: isMine ? 0.30 : 0.18)
-                                    : Colors.black.withValues(alpha: 0.55),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isSel
-                                      ? baseColor
-                                      : baseColor.withValues(alpha: isMine
-                                          ? 0.90
-                                          : (t.isOwned ? 0.60 : 0.30)),
-                                  width: isSel
-                                      ? 2.5
-                                      : (isMine ? 2.0 : 1.2),
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(t.icon,
-                                    style: TextStyle(
-                                        fontSize: emojiSize)),
-                              ),
                             ),
-                            if (isMine)
-                              Positioned(
-                                top: 0, right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: _kGold,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [BoxShadow(
-                                        color: _kGold.withValues(alpha: 0.6),
-                                        blurRadius: 6)],
-                                  ),
-                                  child: const Icon(Icons.stars_rounded,
-                                      size: 9, color: Colors.white),
-                                ),
-                              ),
-                          ],
-                        ),
+                        ]),
                       ),
                     );
                   }
 
-                  // ── Modo cercano (zoom >= 4) ────────────────────────────
-                  final double mW = isLegend ? 120.0 : 105.0;
-                  final double mH = isLegend ? 110.0 : 95.0;
-                  final double fontSize = isLegend ? 8.5 : 7.5;
+                  // ── Modo cercano (zoom >= 4) — anillo + etiqueta mínima ─
+                  final double sz    = isSel ? (isLegend ? 30.0 : 26.0) : (isLegend ? 26.0 : 22.0);
+                  final double dotSz = isMine ? 9.0 : (t.isOwned ? 6.0 : 3.0);
+                  final double fs    = isLegend ? 8.0 : 7.0;
 
                   return Marker(
                     point: t.center,
-                    width: mW,
-                    height: mH,
+                    width: isLegend ? 108.0 : 96.0,
+                    height: isLegend ? 88.0 : 74.0,
                     child: GestureDetector(
                       onTap: () => _onGlobalTerritoryTap(t),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              if (isMine || t.isOwned || isLegend)
-                                Container(
-                                  width: circleSize + glowRadius * 2,
-                                  height: circleSize + glowRadius * 2,
+                          Stack(alignment: Alignment.center, children: [
+                            if (isMine || t.isOwned || isLegend)
+                              Container(
+                                width: sz + glowR * 2,
+                                height: sz + glowR * 2,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [BoxShadow(
+                                    color: baseColor.withValues(alpha: glowA),
+                                    blurRadius: glowR * 2,
+                                  )],
+                                ),
+                              ),
+                            Container(
+                              width: sz,
+                              height: sz,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF08080B).withValues(alpha: 0.92),
+                                border: Border.all(
+                                  color: isSel
+                                      ? baseColor
+                                      : baseColor.withValues(alpha:
+                                          isMine ? 0.92 : (t.isOwned ? 0.68 : 0.35)),
+                                  width: isSel ? 2.0 : (isMine ? 1.8 : (isLegend ? 1.5 : 1.2)),
+                                ),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: dotSz, height: dotSz,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
+                                    color: baseColor.withValues(
+                                        alpha: t.isOwned ? 1.0 : 0.35),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (isMine)
+                              Positioned(
+                                top: 1, right: 1,
+                                child: Container(
+                                  width: 8, height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _kGold,
                                     boxShadow: [BoxShadow(
-                                      color: baseColor
-                                          .withValues(alpha: glowOpacity),
-                                      blurRadius: glowRadius * 2,
-                                      spreadRadius: glowRadius * 0.5,
+                                      color: _kGold.withValues(alpha: 0.70),
+                                      blurRadius: 4,
                                     )],
                                   ),
                                 ),
-                              Container(
-                                width: circleSize,
-                                height: circleSize,
-                                decoration: BoxDecoration(
-                                  color: t.isOwned
-                                      ? baseColor.withValues(alpha: isMine ? 0.30 : 0.18)
-                                      : Colors.black.withValues(alpha: 0.55),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSel
-                                        ? baseColor
-                                        : baseColor.withValues(alpha: isMine
-                                            ? 0.90
-                                            : (t.isOwned ? 0.65 : 0.35)),
-                                    width: isSel
-                                        ? 2.5
-                                        : (isMine ? 2.0 : 1.5),
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(t.icon,
-                                      style: TextStyle(
-                                          fontSize: emojiSize)),
-                                ),
                               ),
-                              if (isMine)
-                                Positioned(
-                                  top: 0, right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 3, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: _kGold,
-                                      borderRadius:
-                                          BorderRadius.circular(4),
-                                      boxShadow: [BoxShadow(
-                                          color: _kGold.withValues(alpha: 0.6),
-                                          blurRadius: 6)],
-                                    ),
-                                    child: const Icon(Icons.stars_rounded,
-                                        size: 10, color: Colors.white),
-                                  ),
-                                ),
-                            ],
-                          ),
-
+                          ]),
                           const SizedBox(height: 3),
-
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 4),
+                                horizontal: 5, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isMine
-                                  ? _kGold.withValues(alpha: 0.18)
-                                  : t.isOwned
-                                      ? baseColor.withValues(alpha: 0.12)
-                                      : Colors.black.withValues(alpha: 0.82),
-                              borderRadius: BorderRadius.circular(4),
+                              color: const Color(0xFF08080B).withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(3),
                               border: Border.all(
                                 color: isMine
-                                    ? _kGold.withValues(alpha: 0.60)
+                                    ? _kGold.withValues(alpha: 0.55)
                                     : t.isOwned
-                                        ? baseColor.withValues(alpha: 0.50)
-                                        : _kDim.withValues(alpha: 0.30),
-                                width: isMine ? 1.2 : 0.8,
+                                        ? baseColor.withValues(alpha: 0.38)
+                                        : Colors.white.withValues(alpha: 0.08),
+                                width: 0.8,
                               ),
-                              boxShadow: isMine
-                                  ? [BoxShadow(
-                                      color: _kGold.withValues(alpha: 0.25),
-                                      blurRadius: 8)]
-                                  : t.isOwned
-                                      ? [BoxShadow(
-                                          color: baseColor.withValues(alpha: 0.15),
-                                          blurRadius: 6)]
-                                      : null,
                             ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  t.epicName.length > 14
-                                      ? '${t.epicName.substring(0, 13)}…'
+                                  t.epicName.length > 13
+                                      ? '${t.epicName.substring(0, 12)}…'
                                       : t.epicName,
-                                  style: TextStyle(
+                                  style: GoogleFonts.rajdhani(
                                     color: isMine
                                         ? _kGoldLight
-                                        : t.isOwned
-                                            ? _kWhite
-                                            : _kSub,
-                                    fontSize: fontSize,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.2,
+                                        : (t.isOwned ? Colors.white : _kSub),
+                                    fontSize: fs,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 2),
                                 Text(
                                   isMine
-                                      ? '[ TÚ ]'
+                                      ? 'TÚ'
                                       : t.isOwned
-                                          ? t.ownerNickname!
+                                          ? (t.ownerNickname ?? '?')
                                           : 'LIBRE',
-                                  style: TextStyle(
+                                  style: GoogleFonts.rajdhani(
                                     color: isMine
                                         ? _kGold
                                         : t.isOwned
-                                            ? baseColor
-                                            : _kSafe,
-                                    fontSize: fontSize - 1,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.4,
+                                            ? baseColor.withValues(alpha: 0.85)
+                                            : _kDim,
+                                    fontSize: 6.5,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.8,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                // KM requeridos actualizados (clausulaKm)
                                 if (_zoomGlobal >= 5.0) ...[
                                   const SizedBox(height: 1),
                                   Row(
@@ -2927,18 +2892,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                       Text(
                                         '${t.difficultyLevel}/10  ',
                                         style: TextStyle(
-                                          color: _dificultadColor(
-                                              t.difficultyLevel),
-                                          fontSize: fontSize - 2,
+                                          color: _dificultadColor(t.difficultyLevel),
+                                          fontSize: fs - 2,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                      // ← clausulaKm real
                                       Text(
                                         '${t.kmRequired.toStringAsFixed(1)}km',
                                         style: TextStyle(
                                           color: _kSub,
-                                          fontSize: fontSize - 2,
+                                          fontSize: fs - 2,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),

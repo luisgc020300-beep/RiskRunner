@@ -1588,21 +1588,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _mapboxMap!.style.addLayer(
         mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-color', ['get', 'color']);
+        _centrosLayerId, 'circle-color', '#08080B');
     await _mapboxMap!.style.setStyleLayerProperty(
         _centrosLayerId, 'circle-radius',
         ['interpolate', ['linear'], ['zoom'],
-          1, 4.0, 5, 7.0, 10, 5.0, 18, 4.0]);
+          1, 4.0, 5, 7.0, 10, 5.5, 18, 4.5]);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-opacity', 0.88);
+        _centrosLayerId, 'circle-opacity', 0.92);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-stroke-width', 1.5);
+        _centrosLayerId, 'circle-stroke-width', 1.8);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-stroke-color', '#000000');
+        _centrosLayerId, 'circle-stroke-color', ['get', 'color']);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-stroke-opacity', 0.35);
+        _centrosLayerId, 'circle-stroke-opacity', 0.90);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-blur', 0.2);
+        _centrosLayerId, 'circle-blur', 0.0);
     _centrosLayerCreated = true;
   }
 
@@ -4799,11 +4799,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         final gj = '{"type":"FeatureCollection","features":[$feats]}';
         await _mapboxMap!.style.addSource(mapbox.GeoJsonSource(id: _globalesSourceId, data: gj));
         await _mapboxMap!.style.addLayer(mapbox.CircleLayer(id: _globalesLayerId, sourceId: _globalesSourceId));
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-color', '#08080B');
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-opacity', 0.90);
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-radius',
-            ['interpolate', ['linear'], ['zoom'], 0, 4.0, 3, 8.0, 6, 6.0, 18, 5.0]);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-opacity', 0.92);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-blur', 0.25);
+            ['interpolate', ['linear'], ['zoom'], 0, 4.0, 3, 8.0, 6, 7.0, 18, 6.0]);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-width', 2.0);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-opacity', 0.92);
+        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-blur', 0.0);
         _globalesLayerCreated = true;
       } else {
         if (visible && _terrGlobales.isNotEmpty) {
