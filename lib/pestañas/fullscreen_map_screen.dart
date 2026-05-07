@@ -813,7 +813,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   double _zoomGlobal = 2.5;
 
   // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
-  static const double _kInitialZoom = 5.0;
+  static const double _kInitialZoom = 14.0;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
@@ -2656,28 +2656,33 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 polygons: _state.territoriosGlobales.map((t) {
                   final isSel  = sel?.id == t.id;
                   final isMine = t.isMine;
-                  final baseColor =
-                      isMine ? _kGold : t.displayColor;
+                  // Owned zones: use owner's configured color.
+                  // Unowned zones: color by difficulty (green→orange→red).
+                  final baseColor = isMine
+                      ? _kGold
+                      : t.isOwned
+                          ? t.displayColor
+                          : _dificultadColor(t.difficultyLevel);
 
                   return Polygon(
                     points: t.points,
                     color: isSel
-                        ? baseColor.withValues(alpha: 0.50)
+                        ? baseColor.withValues(alpha: 0.45)
                         : baseColor.withValues(alpha: isMine
                             ? 0.35
-                            : (t.isOwned ? 0.22 : 0.10)),
+                            : (t.isOwned ? 0.22 : 0.14)),
                     borderColor: isSel
                         ? baseColor
                         : baseColor.withValues(alpha: isMine
                             ? 1.0
-                            : (t.isOwned ? 0.75 : 0.40)),
+                            : (t.isOwned ? 0.80 : 0.60)),
                     borderStrokeWidth: isSel
                         ? 3.5
                         : isMine
                             ? 2.5
                             : (t.tier == TerritoryTier.legendario
-                                ? 2.0
-                                : 1.5),
+                                ? 2.2
+                                : 1.8),
                   );
                 }).toList(),
               ),

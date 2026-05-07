@@ -521,6 +521,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _centrosLayerId      = 'territorios-centros-layer';
   static const String _globalesSourceId    = 'globales-centros-src';
   static const String _globalesLayerId     = 'globales-centros-layer';
+  static const String _globalesSelSourceId = 'globales-sel-src';
+  static const String _globalesSelLayerId  = 'globales-sel-layer';
   static const String _puntosGloboSrcId   = 'puntosGlobo-src';
   static const String _puntosGloboLayerId = 'puntosGlobo-layer';
   static const String _kTileUrl =
@@ -575,8 +577,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _seleccionandoGlobal  = false;
   bool _mostrarSituacion     = false;
   List<_GlobTerrData> _terrGlobales = [];
-  bool _cargandoGlobales     = false;
-  bool _globalesLayerCreated = false;
+  bool   _cargandoGlobales      = false;
+  bool   _globalesLayerCreated  = false;
+  bool   _globalesSelLayerCreated = false;
+  Timer? _globalesPulseTimer;
+  double _globalesPulseT        = 0.0;
+  bool   _globalesPulseUpdating = false;
   _GlobTerrData? _terrPreviseleccionado;
 
   // ==========================================================================
@@ -674,6 +680,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _infoTimer?.cancel();
     _timerResistencia?.cancel();
     _iluminacionTimer?.cancel();
+    _globalesPulseTimer?.cancel();
     _narrador.resetear();
     _cuentaAtrasAnim.dispose();
     _hudAnim.dispose();
@@ -706,8 +713,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _buildings3dCreated       = false;
       _territoriosLayersCreated = false;
       _centrosLayerCreated      = false;
-      _globalesLayerCreated     = false;
-      _puntosGloboLayerCreated  = false;
+      _globalesLayerCreated      = false;
+      _globalesSelLayerCreated   = false;
+      _globalesPulseTimer?.cancel();
+      _globalesPulseTimer        = null;
+      _puntosGloboLayerCreated   = false;
       _actualizandoGloboLayer   = false;
       _dibujandoTerritorios     = false;
       _styleLoaded              = false;
@@ -743,6 +753,45 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}'
       '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
       '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
+
+  // Renders a tactical ring-and-dot marker image for the location puck.
+  Future<Uint8List> _buildTacticalPuckImage({double size = 52}) async {
+    final s = size;
+    final r = ui.PictureRecorder();
+    final canvas = Canvas(r);
+
+    // Outer dark fill
+    canvas.drawCircle(
+      Offset(s / 2, s / 2), s / 2 - 2,
+      Paint()..color = const Color(0xFF08080B),
+    );
+    // Gold ring
+    canvas.drawCircle(
+      Offset(s / 2, s / 2), s / 2 - 5,
+      Paint()
+        ..color = const Color(0xFFFFD60A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5,
+    );
+    // Thin inner ring
+    canvas.drawCircle(
+      Offset(s / 2, s / 2), s / 2 - 12,
+      Paint()
+        ..color = const Color(0xFFFFD60A).withValues(alpha: 0.30)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+    // Center dot
+    canvas.drawCircle(
+      Offset(s / 2, s / 2), 4.5,
+      Paint()..color = const Color(0xFFFFD60A),
+    );
+
+    final pic = r.endRecording();
+    final img = await pic.toImage(s.toInt(), s.toInt());
+    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
+  }
 
   String _encodeJson(dynamic obj) {
     if (obj is Map)
@@ -1259,11 +1308,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
+    final puckImg = await _buildTacticalPuckImage();
     await map.location.updateSettings(mapbox.LocationComponentSettings(
       enabled: true,
-      puckBearingEnabled: true,
+      puckBearingEnabled: false,
       locationPuck: mapbox.LocationPuck(
-        locationPuck2D: mapbox.DefaultLocationPuck2D(),
+        locationPuck2D: mapbox.DefaultLocationPuck2D(
+          topImage: puckImg,
+          bearingImage: null,
+          shadowImage: null,
+        ),
       ),
     ));
     await _moverCamara(
@@ -4826,16 +4880,91 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  Future<void> _actualizarGlobalSeleccionado(_GlobTerrData? t) async {
+    if (kIsWeb || _mapboxMap == null) return;
+    _globalesPulseTimer?.cancel();
+    _globalesPulseTimer = null;
+
+    if (t == null) {
+      if (_globalesSelLayerCreated) {
+        try {
+          await _mapboxMap!.style.setStyleLayerProperty(
+              _globalesSelLayerId, 'visibility', 'none');
+        } catch (_) {}
+      }
+      return;
+    }
+
+    final ch  = _colorToHex(t.color);
+    final gj  = '{"type":"FeatureCollection","features":['
+        '{"type":"Feature","properties":{"color":"$ch"},'
+        '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}]}';
+
+    try {
+      if (!_globalesSelLayerCreated) {
+        try { await _mapboxMap!.style.removeStyleLayer(_globalesSelLayerId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleSource(_globalesSelSourceId); } catch (_) {}
+        await _mapboxMap!.style.addSource(
+            mapbox.GeoJsonSource(id: _globalesSelSourceId, data: gj));
+        await _mapboxMap!.style.addLayer(
+            mapbox.CircleLayer(id: _globalesSelLayerId, sourceId: _globalesSelSourceId));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-color', 'rgba(0,0,0,0)');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-stroke-width', 2.5);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-blur', 0.2);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-radius', 14.0);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-stroke-opacity', 0.7);
+        _globalesSelLayerCreated = true;
+      } else {
+        final src = await _mapboxMap!.style
+            .getSource(_globalesSelSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(gj);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'visibility', 'visible');
+      }
+    } catch (e) {
+      debugPrint('Error sel globales layer: $e');
+      return;
+    }
+
+    // Pulse animation via periodic timer
+    _globalesPulseT = 0.0;
+    _globalesPulseTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      if (!mounted || _mapboxMap == null || _globalesPulseUpdating) return;
+      _globalesPulseUpdating = true;
+      _globalesPulseT += 0.22;
+      final r  = 14.0 + 6.0 * math.sin(_globalesPulseT);
+      final op = 0.50 + 0.40 * math.sin(_globalesPulseT);
+      try {
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-radius', r);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _globalesSelLayerId, 'circle-stroke-opacity', op.clamp(0.0, 1.0));
+      } catch (_) {}
+      _globalesPulseUpdating = false;
+    });
+  }
+
   Future<void> _flyToTerritorioGlobal(_GlobTerrData t) async {
     HapticFeedback.selectionClick();
     setState(() => _terrPreviseleccionado = t);
     if (!kIsWeb && _mapboxMap != null) {
       await _moverCamara(lat: t.lat, lng: t.lng, zoom: 3.5, pitch: 0, bearing: 0, animated: true, forzar: true);
     }
+    _actualizarGlobalSeleccionado(t);
   }
 
   void _seleccionarTerritorioGlobal(_GlobTerrData t) {
     HapticFeedback.mediumImpact();
+    _actualizarGlobalSeleccionado(null);
     setState(() {
       _seleccionandoGlobal = false;
       _terrPreviseleccionado = null;
@@ -4858,6 +4987,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   void _cancelarSeleccionGlobal() {
+    _actualizarGlobalSeleccionado(null);
     setState(() {
       _seleccionandoGlobal = false;
       _terrPreviseleccionado = null;
