@@ -18,6 +18,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../services/territory_service.dart';
+import '../services/game_state_service.dart';
 import '../services/activity_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../config/env.dart';
@@ -98,188 +99,6 @@ class _BarrioData {
   }
 }
 
-// =============================================================================
-// MODELOS GUERRA GLOBAL
-// =============================================================================
-
-enum TerritoryTier { pequeno, mediano, legendario }
-
-class GlobalTerritory {
-  final String id;
-  final String name;
-  final String epicName;
-  final String inspiration;
-  final String icon;
-  final TerritoryTier tier;
-  final double baseKm;
-  final int baseReward;
-  final bool rewardLeague;
-  final LatLng center;
-  final List<LatLng> points;
-  final String? ownerNickname;
-  final String? ownerUid;
-  final Color? ownerColor;
-  final int difficultyLevel;
-  final int conquestCount;
-  final Color territoryColor;
-
-  /// Cláusula real leída de Firestore (km que hay que correr para conquistar).
-  /// Arranca igual a baseKm y sube ×1.15 con cada conquista.
-  final double clausulaKm;
-
-  const GlobalTerritory({
-    required this.id,
-    required this.name,
-    required this.epicName,
-    required this.inspiration,
-    required this.icon,
-    required this.tier,
-    required this.baseKm,
-    required this.baseReward,
-    required this.rewardLeague,
-    required this.center,
-    required this.points,
-    this.ownerNickname,
-    this.ownerUid,
-    this.ownerColor,
-    this.difficultyLevel = 1,
-    this.conquestCount = 0,
-    required this.territoryColor,
-    double? clausulaKm,
-  }) : clausulaKm = clausulaKm ?? baseKm;
-
-  GlobalTerritory copyWith({
-    String? ownerNickname,
-    String? ownerUid,
-    Color?  ownerColor,
-    bool    clearOwner = false,
-    int?    difficultyLevel,
-    int?    conquestCount,
-    double? clausulaKm,
-  }) {
-    return GlobalTerritory(
-      id:              id,
-      name:            name,
-      epicName:        epicName,
-      inspiration:     inspiration,
-      icon:            icon,
-      tier:            tier,
-      baseKm:          baseKm,
-      baseReward:      baseReward,
-      rewardLeague:    rewardLeague,
-      center:          center,
-      points:          points,
-      ownerNickname:   clearOwner ? null : (ownerNickname  ?? this.ownerNickname),
-      ownerUid:        clearOwner ? null : (ownerUid       ?? this.ownerUid),
-      ownerColor:      clearOwner ? null : (ownerColor     ?? this.ownerColor),
-      difficultyLevel: difficultyLevel ?? this.difficultyLevel,
-      conquestCount:   conquestCount  ?? this.conquestCount,
-      territoryColor:  territoryColor,
-      clausulaKm:      clausulaKm ?? this.clausulaKm,
-    );
-  }
-
-  // Color efectivo: color del dueño si existe, sino color base del tier
-  Color get displayColor {
-    if (ownerColor != null) return ownerColor!;
-    return territoryColor;
-  }
-
-  /// KM requeridos — lee directamente clausulaKm de Firestore.
-  double get kmRequired => clausulaKm;
-
-  int get rewardActual {
-    return (baseReward * (1 + (difficultyLevel - 1) * 0.15)).round();
-  }
-
-  bool get isOwned => ownerUid != null;
-  bool get isMine  => ownerUid == FirebaseAuth.instance.currentUser?.uid;
-
-  Color get tierColor {
-    switch (tier) {
-      case TerritoryTier.pequeno:    return _kSafe;
-      case TerritoryTier.mediano:    return _kCyan;
-      case TerritoryTier.legendario: return _kGold;
-    }
-  }
-
-  String get tierLabel {
-    switch (tier) {
-      case TerritoryTier.pequeno:    return 'COMÚN';
-      case TerritoryTier.mediano:    return 'ÉPICO';
-      case TerritoryTier.legendario: return 'LEGENDARIO';
-    }
-  }
-}
-
-List<GlobalTerritory> _buildSampleTerritories() {
-  return [
-    GlobalTerritory(
-      id: 'gt_001', name: 'El Pueblo del Río', epicName: 'La Aldea del Río Eterno',
-      inspiration: 'Pueblo europeo', icon: '🌉', tier: TerritoryTier.pequeno,
-      baseKm: 5, baseReward: 50, rewardLeague: false,
-      center: const LatLng(48.8566, 2.3522),
-      points: _buildHexPoints(const LatLng(48.8566, 2.3522), 0.01),
-      territoryColor: _kSafe, difficultyLevel: 3, conquestCount: 2,
-      clausulaKm: 5,
-    ),
-    GlobalTerritory(
-      id: 'gt_002', name: 'La Fortaleza del Norte', epicName: 'La Gran Fortaleza Septentrional',
-      inspiration: 'Nueva York', icon: '🗼', tier: TerritoryTier.mediano,
-      baseKm: 12, baseReward: 180, rewardLeague: false,
-      center: const LatLng(40.7128, -74.0060),
-      points: _buildHexPoints(const LatLng(40.7128, -74.0060), 0.015),
-      territoryColor: _kCyan, difficultyLevel: 5, conquestCount: 4,
-      clausulaKm: 12,
-    ),
-    GlobalTerritory(
-      id: 'gt_003', name: 'El Corazón del Mapa', epicName: 'El Núcleo Eterno',
-      inspiration: 'Centro del mundo virtual', icon: '💎', tier: TerritoryTier.legendario,
-      baseKm: 40, baseReward: 1200, rewardLeague: true,
-      center: const LatLng(35.6762, 139.6503),
-      points: _buildHexPoints(const LatLng(35.6762, 139.6503), 0.02),
-      territoryColor: _kGold, difficultyLevel: 8, conquestCount: 7,
-      clausulaKm: 40,
-    ),
-    GlobalTerritory(
-      id: 'gt_004', name: 'La Ciudad de las Espadas', epicName: 'La Ciudadela de Acero',
-      inspiration: 'Madrid', icon: '⚔️', tier: TerritoryTier.mediano,
-      baseKm: 10, baseReward: 150, rewardLeague: false,
-      center: const LatLng(40.4168, -3.7038),
-      points: _buildHexPoints(const LatLng(40.4168, -3.7038), 0.012),
-      territoryColor: _kCyan, difficultyLevel: 2, conquestCount: 1,
-      clausulaKm: 10,
-    ),
-    GlobalTerritory(
-      id: 'gt_005', name: 'El Oasis del Desierto', epicName: 'El Oasis de los Mil Soles',
-      inspiration: 'Oasis africano', icon: '🌴', tier: TerritoryTier.pequeno,
-      baseKm: 7, baseReward: 70, rewardLeague: false,
-      center: const LatLng(30.0444, 31.2357),
-      points: _buildHexPoints(const LatLng(30.0444, 31.2357), 0.01),
-      territoryColor: _kSafe, difficultyLevel: 1, conquestCount: 0,
-      clausulaKm: 7,
-    ),
-    GlobalTerritory(
-      id: 'gt_006', name: 'La Ciudadela Eterna', epicName: 'La Ciudadela Inexpugnable',
-      inspiration: 'Ciudad épica', icon: '🏰', tier: TerritoryTier.legendario,
-      baseKm: 25, baseReward: 500, rewardLeague: true,
-      center: const LatLng(-33.8688, 151.2093),
-      points: _buildHexPoints(const LatLng(-33.8688, 151.2093), 0.018),
-      territoryColor: _kGold, difficultyLevel: 10, conquestCount: 9,
-      clausulaKm: 25,
-    ),
-  ];
-}
-
-List<LatLng> _buildHexPoints(LatLng center, double radius) {
-  return List.generate(6, (i) {
-    final angle = (i * 60 - 30) * math.pi / 180;
-    return LatLng(
-      center.latitude  + radius * math.sin(angle),
-      center.longitude + radius * math.cos(angle),
-    );
-  });
-}
 
 // =============================================================================
 // MODELOS MI CIUDAD
@@ -472,6 +291,7 @@ class _MapState extends ChangeNotifier {
   void clearError() { errorMessage = null; }
 
   void setModoSolitario(bool v) {
+    GameStateService.instance.currentMode = v ? 'solitario' : 'competitivo';
     modoSolitario = v;
     if (v) {
       modoGlobal = false;
@@ -484,6 +304,7 @@ class _MapState extends ChangeNotifier {
   void toggleModoGlobal() {
     modoGlobal = !modoGlobal;
     if (modoGlobal) modoSolitario = false;
+    GameStateService.instance.currentMode = modoGlobal ? 'global' : 'competitivo';
     territorioSeleccionado = null;
     territorioGlobalSeleccionado = null;
     if (modoGlobal) {
@@ -544,108 +365,51 @@ class _MapState extends ChangeNotifier {
       }).toList();
 
       territoriosMios = territoriosGlobales.where((t) => t.ownerUid == uid).length;
+      GameStateService.instance.setGlobalTerritories(territoriosGlobales);
       notifyListeners();
     });
   }
 
   Future<void> _cargarTerritoriosGlobales() async {
+    // Usar cache compartido si sigue siendo válido
+    final cached = GameStateService.instance.getGlobalTerritories();
+    if (cached != null) {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      territoriosGlobales = List<GlobalTerritory>.from(cached);
+      territoriosMios     = territoriosGlobales.where((t) => t.ownerUid == uid).length;
+      loadingGlobal = false;
+      notifyListeners();
+      return;
+    }
+
     loadingGlobal = true;
     notifyListeners();
 
-    // Intentar cargar desde Firestore; si no hay datos, usar muestra local
     try {
       final snap = await FirebaseFirestore.instance
           .collection('global_territories')
           .where('activo', isEqualTo: true)
           .get();
 
-      if (snap.docs.isNotEmpty) {
-        final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-        final List<GlobalTerritory> fromDb = [];
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final List<GlobalTerritory> fromDb = [];
+      for (final doc in snap.docs) {
+        final t = GlobalTerritory.fromFirestore(doc);
+        if (t != null) fromDb.add(t);
+      }
 
-        for (final doc in snap.docs) {
-          final data = doc.data();
-
-          // Tier
-          final tierStr = data['tier'] as String? ?? 'pequeno';
-          final tier = tierStr == 'legendario'
-              ? TerritoryTier.legendario
-              : tierStr == 'mediano'
-                  ? TerritoryTier.mediano
-                  : TerritoryTier.pequeno;
-
-          // Puntos (puede estar vacío para territorios globales que no tienen polígono)
-          final rawPts = data['puntos'] as List<dynamic>?;
-          List<LatLng> pts = [];
-          if (rawPts != null && rawPts.isNotEmpty) {
-            pts = rawPts.map((p) {
-              final m = p as Map<String, dynamic>;
-              return LatLng(
-                (m['lat'] as num).toDouble(),
-                (m['lng'] as num? ?? m['latitude'] as num? ?? 0).toDouble(),
-              );
-            }).toList();
-          }
-
-          // Centro
-          final centroMap = data['centro'] as Map<String, dynamic>?;
-          final centerLat = centroMap != null
-              ? (centroMap['lat'] as num?)?.toDouble() ?? 0.0
-              : (data['centroLat'] as num?)?.toDouble() ?? 0.0;
-          final centerLng = centroMap != null
-              ? (centroMap['lng'] as num?)?.toDouble() ?? 0.0
-              : (data['centroLng'] as num?)?.toDouble() ?? 0.0;
-
-          final center = LatLng(centerLat, centerLng);
-
-          // Si no tiene puntos, generamos un hexágono de muestra
-          if (pts.isEmpty && (centerLat != 0 || centerLng != 0)) {
-            pts = _buildHexPoints(center, tier == TerritoryTier.legendario ? 0.02 : 0.012);
-          }
-
-          final baseKm     = (data['baseKm']     as num?)?.toDouble() ?? 5.0;
-          final clausulaKm = (data['clausulaKm'] as num?)?.toDouble() ?? baseKm;
-
-          final ownerUid      = data['ownerUid']     as String?;
-          final ownerColorInt = data['ownerColor']   as int?;
-
-          final tierColor = tier == TerritoryTier.legendario
-              ? _kGold
-              : tier == TerritoryTier.mediano
-                  ? _kCyan
-                  : _kSafe;
-
-          fromDb.add(GlobalTerritory(
-            id:              doc.id,
-            name:            data['nombre']   as String? ?? data['epicName'] as String? ?? doc.id,
-            epicName:        data['epicName'] as String? ?? data['nombre']   as String? ?? doc.id,
-            inspiration:     data['inspiration'] as String? ?? '',
-            icon:            data['icon']     as String? ?? '🏴',
-            tier:            tier,
-            baseKm:          baseKm,
-            clausulaKm:      clausulaKm,
-            baseReward:      (data['baseReward'] as num?)?.toInt() ?? 50,
-            rewardLeague:    data['rewardLeague'] as bool? ?? false,
-            center:          center,
-            points:          pts,
-            ownerNickname:   data['ownerNickname'] as String?,
-            ownerUid:        ownerUid,
-            ownerColor:      ownerColorInt != null ? Color(ownerColorInt) : null,
-            difficultyLevel: (data['difficultyLevel'] as num?)?.toInt() ?? 1,
-            conquestCount:   (data['conquestCount']   as num?)?.toInt() ?? 0,
-            territoryColor:  tierColor,
-          ));
-        }
-
-        territoriosGlobales  = fromDb;
-        territoriosMios      = fromDb.where((t) => t.ownerUid == uid).length;
+      if (fromDb.isNotEmpty) {
+        territoriosGlobales = fromDb;
+        territoriosMios     = fromDb.where((t) => t.ownerUid == uid).length;
+        GameStateService.instance.setGlobalTerritories(fromDb);
       } else {
-        // Sin datos en Firestore → muestra de ejemplo
-        territoriosGlobales = _buildSampleTerritories();
+        territoriosGlobales = buildSampleGlobalTerritories();
+        territoriosMios     = 0;
       }
     } catch (e) {
       debugPrint('Error cargando territorios globales: $e');
-      territoriosGlobales = _buildSampleTerritories();
+      territoriosGlobales = buildSampleGlobalTerritories();
+      territoriosMios     = 0;
     }
 
     final now = DateTime.now();
@@ -653,7 +417,6 @@ class _MapState extends ChangeNotifier {
         days: (8 - now.weekday) % 7 == 0 ? 7 : (8 - now.weekday) % 7));
     diasRestantesSemana = nextMonday.difference(now).inDays;
 
-    // Contar jugadores activos en los últimos 7 días
     try {
       final cutoff = Timestamp.fromDate(now.subtract(const Duration(days: 7)));
       final logsSnap = await FirebaseFirestore.instance
@@ -866,11 +629,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _initData();
     _feedFuture = ActivityService.obtenerFeedReciente();
 
-    // Si se abre en modo selección, pasar directamente a vista global
     if (widget.selectionMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_state.modoGlobal) _toggleModo();
       });
+    } else {
+      final savedMode = GameStateService.instance.currentMode;
+      if (savedMode == 'global') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_state.modoGlobal) _toggleModo();
+        });
+      } else if (savedMode == 'solitario') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_state.modoSolitario) _activarModoSolitario();
+        });
+      }
     }
   }
 
@@ -993,9 +766,25 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.setLoadingTerritorios(true);
     try {
       final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
+
+      // Usar cache compartido si sigue siendo válido
+      final cached = modo == 'solitario'
+          ? GameStateService.instance.getSolitarioTerritories()
+          : GameStateService.instance.getCompetitiveTerritories();
+      if (cached != null) {
+        _state.setTerritorios(List<TerritoryData>.from(cached));
+        return;
+      }
+
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       _state.setTerritorios(lista);
+
+      if (modo == 'solitario') {
+        GameStateService.instance.setSolitarioTerritories(lista);
+      } else {
+        GameStateService.instance.setCompetitiveTerritories(lista);
+      }
     } catch (e) {
       debugPrint('FullscreenMap cargarTerritorios error: $e');
       _state.setError('No se pudieron cargar los territorios');
@@ -1006,6 +795,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_refreshing) return;
     setState(() => _refreshing = true);
     TerritoryService.invalidarCache();
+    GameStateService.instance.invalidateTerritories();
     _MapState.invalidarDetallesCache();
     await _cargarTerritorios();
     await _rellenarConFantasmas();

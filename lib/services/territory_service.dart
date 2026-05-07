@@ -1133,3 +1133,241 @@ class TerritoryService {
     });
   }
 }
+
+// =============================================================================
+// GLOBAL TERRITORY — modelo compartido entre LiveActivity y FullscreenMap
+// =============================================================================
+
+const Color kTierColorSmall  = Color(0xFF30D158);
+const Color kTierColorMedium = Color(0xFF636366);
+const Color kTierColorLegend = Color(0xFFFFD60A);
+
+enum TerritoryTier { pequeno, mediano, legendario }
+
+class GlobalTerritory {
+  final String id;
+  final String name;
+  final String epicName;
+  final String inspiration;
+  final String icon;
+  final TerritoryTier tier;
+  final double baseKm;
+  final int baseReward;
+  final bool rewardLeague;
+  final LatLng center;
+  final List<LatLng> points;
+  final String? ownerNickname;
+  final String? ownerUid;
+  final Color? ownerColor;
+  final int difficultyLevel;
+  final int conquestCount;
+  final Color territoryColor;
+  final double clausulaKm;
+
+  const GlobalTerritory({
+    required this.id,
+    required this.name,
+    required this.epicName,
+    required this.inspiration,
+    required this.icon,
+    required this.tier,
+    required this.baseKm,
+    required this.baseReward,
+    required this.rewardLeague,
+    required this.center,
+    required this.points,
+    this.ownerNickname,
+    this.ownerUid,
+    this.ownerColor,
+    this.difficultyLevel = 1,
+    this.conquestCount = 0,
+    required this.territoryColor,
+    double? clausulaKm,
+  }) : clausulaKm = clausulaKm ?? baseKm;
+
+  GlobalTerritory copyWith({
+    String?     ownerNickname,
+    String?     ownerUid,
+    Color?      ownerColor,
+    bool        clearOwner = false,
+    int?        difficultyLevel,
+    int?        conquestCount,
+    double?     clausulaKm,
+  }) => GlobalTerritory(
+    id:              id,
+    name:            name,
+    epicName:        epicName,
+    inspiration:     inspiration,
+    icon:            icon,
+    tier:            tier,
+    baseKm:          baseKm,
+    baseReward:      baseReward,
+    rewardLeague:    rewardLeague,
+    center:          center,
+    points:          points,
+    ownerNickname:   clearOwner ? null : (ownerNickname ?? this.ownerNickname),
+    ownerUid:        clearOwner ? null : (ownerUid      ?? this.ownerUid),
+    ownerColor:      clearOwner ? null : (ownerColor    ?? this.ownerColor),
+    difficultyLevel: difficultyLevel ?? this.difficultyLevel,
+    conquestCount:   conquestCount   ?? this.conquestCount,
+    territoryColor:  territoryColor,
+    clausulaKm:      clausulaKm ?? this.clausulaKm,
+  );
+
+  Color  get displayColor  => ownerColor ?? territoryColor;
+  double get kmRequired    => clausulaKm;
+  int    get rewardActual  => (baseReward * (1 + (difficultyLevel - 1) * 0.15)).round();
+  bool   get isOwned       => ownerUid != null;
+  bool   get isMine        => ownerUid == FirebaseAuth.instance.currentUser?.uid;
+
+  Color get tierColor {
+    switch (tier) {
+      case TerritoryTier.pequeno:    return kTierColorSmall;
+      case TerritoryTier.mediano:    return kTierColorMedium;
+      case TerritoryTier.legendario: return kTierColorLegend;
+    }
+  }
+
+  String get tierLabel {
+    switch (tier) {
+      case TerritoryTier.pequeno:    return 'COMÚN';
+      case TerritoryTier.mediano:    return 'ÉPICO';
+      case TerritoryTier.legendario: return 'LEGENDARIO';
+    }
+  }
+
+  // Parsea un documento Firestore; devuelve null si las coordenadas son 0,0.
+  static GlobalTerritory? fromFirestore(
+      QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data();
+
+    final tierStr = d['tier'] as String? ?? 'pequeno';
+    final tier    = tierStr == 'legendario'
+        ? TerritoryTier.legendario
+        : tierStr == 'mediano'
+            ? TerritoryTier.mediano
+            : TerritoryTier.pequeno;
+
+    final centroMap = d['centro'] as Map<String, dynamic>?;
+    final centerLat = centroMap != null
+        ? (centroMap['lat'] as num?)?.toDouble() ?? 0.0
+        : (d['centroLat'] as num?)?.toDouble() ?? 0.0;
+    final centerLng = centroMap != null
+        ? (centroMap['lng'] as num?)?.toDouble() ?? 0.0
+        : (d['centroLng'] as num?)?.toDouble() ?? 0.0;
+
+    if (centerLat == 0 && centerLng == 0) return null;
+
+    final center = LatLng(centerLat, centerLng);
+
+    final rawPts = d['puntos'] as List<dynamic>?;
+    List<LatLng> pts = [];
+    if (rawPts != null && rawPts.isNotEmpty) {
+      pts = rawPts.map((p) {
+        final m = p as Map<String, dynamic>;
+        return LatLng(
+          (m['lat'] as num).toDouble(),
+          (m['lng'] as num? ?? m['latitude'] as num? ?? 0).toDouble(),
+        );
+      }).toList();
+    }
+    if (pts.isEmpty) {
+      final radius = tier == TerritoryTier.legendario ? 0.02 : 0.012;
+      pts = buildGlobalHexPoints(center, radius);
+    }
+
+    final baseKm     = (d['baseKm']     as num?)?.toDouble() ?? 5.0;
+    final clausulaKm = (d['clausulaKm'] as num?)?.toDouble() ?? baseKm;
+    final ownerColorInt = d['ownerColor'] as int?;
+
+    final tierColor = tier == TerritoryTier.legendario
+        ? kTierColorLegend
+        : tier == TerritoryTier.mediano
+            ? kTierColorMedium
+            : kTierColorSmall;
+
+    return GlobalTerritory(
+      id:              doc.id,
+      name:            d['nombre']      as String? ?? d['epicName']  as String? ?? doc.id,
+      epicName:        d['epicName']    as String? ?? d['nombre']    as String? ?? doc.id,
+      inspiration:     d['inspiration'] as String? ?? '',
+      icon:            d['icon']        as String? ?? '🏴',
+      tier:            tier,
+      baseKm:          baseKm,
+      clausulaKm:      clausulaKm,
+      baseReward:      (d['baseReward']      as num?)?.toInt() ?? 50,
+      rewardLeague:    d['rewardLeague']     as bool? ?? false,
+      center:          center,
+      points:          pts,
+      ownerNickname:   d['ownerNickname']    as String?,
+      ownerUid:        d['ownerUid']         as String?,
+      ownerColor:      ownerColorInt != null ? Color(ownerColorInt) : null,
+      difficultyLevel: (d['difficultyLevel'] as num?)?.toInt() ?? 1,
+      conquestCount:   (d['conquestCount']   as num?)?.toInt() ?? 0,
+      territoryColor:  tierColor,
+    );
+  }
+}
+
+/// Territorios de ejemplo usados por AMBAS pantallas cuando Firestore
+/// no tiene datos con activo:true. Los IDs deben coincidir con los de Firestore.
+List<GlobalTerritory> buildSampleGlobalTerritories() => [
+  GlobalTerritory(
+    id: 'gt_paris', name: 'El Barrio Eterno',
+    epicName: 'La Ciudad de la Luz', inspiration: 'París', icon: '🗼',
+    tier: TerritoryTier.pequeno, baseKm: 5, baseReward: 120, rewardLeague: false,
+    center: const LatLng(48.8566, 2.3522),
+    points: buildGlobalHexPoints(const LatLng(48.8566, 2.3522), 0.01),
+    territoryColor: kTierColorSmall, difficultyLevel: 3, clausulaKm: 5,
+  ),
+  GlobalTerritory(
+    id: 'gt_nyc', name: 'La Gran Fortaleza',
+    epicName: 'La Gran Manzana', inspiration: 'Nueva York', icon: '🗽',
+    tier: TerritoryTier.mediano, baseKm: 8, baseReward: 200, rewardLeague: false,
+    center: const LatLng(40.7128, -74.0060),
+    points: buildGlobalHexPoints(const LatLng(40.7128, -74.0060), 0.012),
+    territoryColor: kTierColorMedium, difficultyLevel: 5, clausulaKm: 8,
+  ),
+  GlobalTerritory(
+    id: 'gt_tokyo', name: 'El Corazón del Mapa',
+    epicName: 'Tokio Eterno', inspiration: 'Tokio', icon: '⛩️',
+    tier: TerritoryTier.legendario, baseKm: 12, baseReward: 350, rewardLeague: true,
+    center: const LatLng(35.6762, 139.6503),
+    points: buildGlobalHexPoints(const LatLng(35.6762, 139.6503), 0.02),
+    territoryColor: kTierColorLegend, difficultyLevel: 8, clausulaKm: 12,
+  ),
+  GlobalTerritory(
+    id: 'gt_madrid', name: 'La Ciudad de las Espadas',
+    epicName: 'La Villa y Corte', inspiration: 'Madrid', icon: '🏛️',
+    tier: TerritoryTier.pequeno, baseKm: 5, baseReward: 100, rewardLeague: false,
+    center: const LatLng(40.4168, -3.7038),
+    points: buildGlobalHexPoints(const LatLng(40.4168, -3.7038), 0.01),
+    territoryColor: kTierColorSmall, difficultyLevel: 2, clausulaKm: 5,
+  ),
+  GlobalTerritory(
+    id: 'gt_sydney', name: 'La Ciudadela del Pacífico',
+    epicName: 'Ciudad del Puerto', inspiration: 'Sídney', icon: '🦘',
+    tier: TerritoryTier.mediano, baseKm: 10, baseReward: 250, rewardLeague: false,
+    center: const LatLng(-33.8688, 151.2093),
+    points: buildGlobalHexPoints(const LatLng(-33.8688, 151.2093), 0.012),
+    territoryColor: kTierColorMedium, difficultyLevel: 6, clausulaKm: 10,
+  ),
+  GlobalTerritory(
+    id: 'gt_cairo', name: 'El Oasis Milenario',
+    epicName: 'La Ciudad Milenaria', inspiration: 'El Cairo', icon: '🏺',
+    tier: TerritoryTier.pequeno, baseKm: 7, baseReward: 150, rewardLeague: false,
+    center: const LatLng(30.0444, 31.2357),
+    points: buildGlobalHexPoints(const LatLng(30.0444, 31.2357), 0.01),
+    territoryColor: kTierColorSmall, difficultyLevel: 4, clausulaKm: 7,
+  ),
+];
+
+List<LatLng> buildGlobalHexPoints(LatLng center, double radius) {
+  return List.generate(6, (i) {
+    final angle = (i * 60 - 30) * math.pi / 180;
+    return LatLng(
+      center.latitude  + radius * math.sin(angle),
+      center.longitude + radius * math.cos(angle),
+    );
+  });
+}

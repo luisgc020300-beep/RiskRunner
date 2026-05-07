@@ -20,6 +20,7 @@ import 'package:http/http.dart' as http;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
+import '../services/game_state_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
@@ -100,26 +101,6 @@ const _kPresenciaPausadoSeg    = 30;
 
 final Map<int, Uint8List> _avatarCache = {};
 const int _kAvatarCacheMax = 50;
-
-// =============================================================================
-// MODELO TERRITORIO GLOBAL (para el globo terraqueo de LiveActivity)
-// =============================================================================
-class _GlobTerrData {
-  final String  id;
-  final String  name;
-  final String  icon;
-  final double  lat, lng;
-  final double  kmRequired;
-  final int     reward;
-  final String? ownerUid;
-  final String? ownerNick;
-  final Color   color;
-  const _GlobTerrData({
-    required this.id,  required this.name, required this.icon,
-    required this.lat, required this.lng,  required this.kmRequired,
-    required this.reward, this.ownerUid, this.ownerNick, required this.color,
-  });
-}
 
 // =============================================================================
 // MODELO BARRIO
@@ -576,14 +557,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ── SELECCIÓN GLOBAL EN GLOBO
   bool _seleccionandoGlobal  = false;
   bool _mostrarSituacion     = false;
-  List<_GlobTerrData> _terrGlobales = [];
+  List<GlobalTerritory> _terrGlobales = [];
   bool   _cargandoGlobales      = false;
   bool   _globalesLayerCreated  = false;
   bool   _globalesSelLayerCreated = false;
   Timer? _globalesPulseTimer;
   double _globalesPulseT        = 0.0;
   bool   _globalesPulseUpdating = false;
-  _GlobTerrData? _terrPreviseleccionado;
+  GlobalTerritory? _terrPreviseleccionado;
 
   // ==========================================================================
   // INIT / DISPOSE
@@ -840,12 +821,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         } catch (_) {}
       }
 
-      final lista = await TerritoryService.cargarTodosLosTerritorios(
-          centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
-      if (mounted) {
-        setState(() { _territorios = lista; _territoriosCargados = true; });
+      final cached = _modoSolitario
+          ? GameStateService.instance.getSolitarioTerritories()
+          : GameStateService.instance.getCompetitiveTerritories();
+      if (cached != null && mounted) {
+        setState(() { _territorios = List<TerritoryData>.from(cached); _territoriosCargados = true; });
         _dibujarTerritoriosEnMapa();
         _aplicarTerritoriosFantasma();
+      } else {
+        final lista = await TerritoryService.cargarTodosLosTerritorios(
+            centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
+        if (mounted) {
+          setState(() { _territorios = lista; _territoriosCargados = true; });
+          if (_modoSolitario) {
+            GameStateService.instance.setSolitarioTerritories(lista);
+          } else {
+            GameStateService.instance.setCompetitiveTerritories(lista);
+          }
+          _dibujarTerritoriosEnMapa();
+          _aplicarTerritoriosFantasma();
+        }
       }
     } catch (e) {
       debugPrint('Error datos iniciales: $e');
@@ -1009,11 +1004,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
         if (debeCargarse && _territoriosCargados) {
           TerritoryService.invalidarCache();
+          GameStateService.instance.invalidateTerritories();
           final centro = LatLng(pos.latitude, pos.longitude);
           final lista  = await TerritoryService.cargarTodosLosTerritorios(
               centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
           if (mounted) {
             setState(() => _territorios = lista);
+            if (_modoSolitario) {
+              GameStateService.instance.setSolitarioTerritories(lista);
+            } else {
+              GameStateService.instance.setCompetitiveTerritories(lista);
+            }
             _dibujarTerritoriosEnMapa();
           }
         }
@@ -1613,6 +1614,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           centro: centro, modo: 'competitivo');
       if (mounted) {
         setState(() => _territorios = lista);
+        GameStateService.instance.setCompetitiveTerritories(lista);
         _dibujarTerritoriosEnMapa();
       }
     } catch (e) {
@@ -3080,6 +3082,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         conquistados = 1;
         final nuevosTerritorios =
             await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
+        GameStateService.instance.setSolitarioTerritories(nuevosTerritorios);
         if (mounted) setState(() => _territorios = nuevosTerritorios);
         await _verificarBarriosCompletados();
         if (mounted) await ConquistaOverlay.mostrar(context, esInvasion: false);
@@ -3278,6 +3281,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               }
               final nuevos = await TerritoryService.cargarTodosLosTerritorios(
                   modo: _modoSolitario ? 'solitario' : 'competitivo');
+                if (_modoSolitario) {
+                  GameStateService.instance.setSolitarioTerritories(nuevos);
+                } else {
+                  GameStateService.instance.setCompetitiveTerritories(nuevos);
+                }
                 if (mounted) {
                   setState(() => _territorios = nuevos);
                   await _dibujarTerritoriosEnMapa();
@@ -3797,6 +3805,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (!mounted) return;
       final nuevos = await TerritoryService.cargarTodosLosTerritorios(
           modo: _modoSolitario ? 'solitario' : 'competitivo');
+      if (_modoSolitario) {
+        GameStateService.instance.setSolitarioTerritories(nuevos);
+      } else {
+        GameStateService.instance.setCompetitiveTerritories(nuevos);
+      }
       if (!mounted) return;
       setState(() => _territorios = nuevos);
       final messenger = ScaffoldMessenger.of(context);
@@ -4785,6 +4798,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _cargarGlobales() async {
     if (!mounted) return;
+
+    // Usar cache compartido si sigue siendo válido
+    final cached = GameStateService.instance.getGlobalTerritories();
+    if (cached != null && mounted) {
+      setState(() { _terrGlobales = List<GlobalTerritory>.from(cached); _cargandoGlobales = false; });
+      return;
+    }
+
     setState(() => _cargandoGlobales = true);
     try {
       final snap = await FirebaseFirestore.instance
@@ -4792,52 +4813,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           .where('activo', isEqualTo: true)
           .get();
       if (!mounted) return;
-      final list = <_GlobTerrData>[];
+      final list = <GlobalTerritory>[];
       for (final doc in snap.docs) {
-        final d = doc.data();
-        final centroMap = d['centro'] as Map<String, dynamic>?;
-        final lat = centroMap != null
-            ? (centroMap['lat'] as num?)?.toDouble() ?? 0.0
-            : (d['centroLat'] as num?)?.toDouble() ?? 0.0;
-        final lng = centroMap != null
-            ? (centroMap['lng'] as num?)?.toDouble() ?? 0.0
-            : (d['centroLng'] as num?)?.toDouble() ?? 0.0;
-        if (lat == 0 && lng == 0) continue;
-        final tierStr = d['tier'] as String? ?? 'pequeno';
-        final Color tierColor = tierStr == 'legendario'
-            ? _kGold
-            : tierStr == 'mediano'
-                ? const Color(0xFF00C8FF)
-                : const Color(0xFF30D158);
-        final ownerColorInt = d['ownerColor'] as int?;
-        list.add(_GlobTerrData(
-          id:         doc.id,
-          name:       d['epicName'] as String? ?? d['nombre'] as String? ?? doc.id,
-          icon:       d['icon']     as String? ?? '🏴',
-          lat:        lat, lng: lng,
-          kmRequired: (d['clausulaKm'] as num?)?.toDouble() ?? (d['baseKm'] as num?)?.toDouble() ?? 5.0,
-          reward:     (d['baseReward'] as num?)?.toInt() ?? 50,
-          ownerUid:   d['ownerUid']      as String?,
-          ownerNick:  d['ownerNickname'] as String?,
-          color:      ownerColorInt != null ? Color(ownerColorInt) : tierColor,
-        ));
+        final t = GlobalTerritory.fromFirestore(doc);
+        if (t != null) list.add(t);
       }
-      if (list.isEmpty) list.addAll(_buildGlobalesHardcoded());
+      if (list.isEmpty) list.addAll(buildSampleGlobalTerritories());
+      GameStateService.instance.setGlobalTerritories(list);
       if (mounted) setState(() { _terrGlobales = list; _cargandoGlobales = false; });
     } catch (e) {
       debugPrint('Error cargando globales: $e');
-      if (mounted) setState(() { _terrGlobales = _buildGlobalesHardcoded(); _cargandoGlobales = false; });
+      if (mounted) setState(() { _terrGlobales = buildSampleGlobalTerritories(); _cargandoGlobales = false; });
     }
   }
-
-  List<_GlobTerrData> _buildGlobalesHardcoded() => [
-    _GlobTerrData(id: 'paris',  name: 'La Ciudad de la Luz', icon: '🗼', lat: 48.8566, lng:  2.3522,   kmRequired: 5,  reward: 120, color: _kGold),
-    _GlobTerrData(id: 'nyc',    name: 'La Gran Manzana',     icon: '🗽', lat: 40.7128, lng: -74.0060,  kmRequired: 8,  reward: 200, color: const Color(0xFF00C8FF)),
-    _GlobTerrData(id: 'tokyo',  name: 'Tokio Eterno',        icon: '⛩️', lat: 35.6762, lng: 139.6503,  kmRequired: 12, reward: 350, color: _kGold),
-    _GlobTerrData(id: 'madrid', name: 'La Villa y Corte',    icon: '🏛️', lat: 40.4168, lng:  -3.7038,  kmRequired: 5,  reward: 100, color: const Color(0xFF30D158)),
-    _GlobTerrData(id: 'sydney', name: 'Ciudad del Puerto',   icon: '🦘', lat: -33.8688, lng: 151.2093, kmRequired: 10, reward: 250, color: const Color(0xFF00C8FF)),
-    _GlobTerrData(id: 'cairo',  name: 'La Ciudad Milenaria', icon: '🏺', lat: 30.0444, lng:  31.2357,  kmRequired: 7,  reward: 150, color: _kGold),
-  ];
 
   Future<void> _actualizarGlobalesEnGlobo({required bool visible}) async {
     if (kIsWeb || _mapboxMap == null) return;
@@ -4846,9 +4834,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (!_globalesLayerCreated) {
         if (!visible || _terrGlobales.isEmpty) return;
         final feats = _terrGlobales.map((t) {
-          final ch = _colorToHex(t.color);
+          final ch = _colorToHex(t.displayColor);
           return '{"type":"Feature","properties":{"color":"$ch"},'
-              '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}';
+              '"geometry":{"type":"Point","coordinates":[${t.center.longitude},${t.center.latitude}]}}';
         }).join(',');
         final gj = '{"type":"FeatureCollection","features":[$feats]}';
         await _mapboxMap!.style.addSource(mapbox.GeoJsonSource(id: _globalesSourceId, data: gj));
@@ -4865,9 +4853,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       } else {
         if (visible && _terrGlobales.isNotEmpty) {
           final feats = _terrGlobales.map((t) {
-            final ch = _colorToHex(t.color);
+            final ch = _colorToHex(t.displayColor);
             return '{"type":"Feature","properties":{"color":"$ch"},'
-                '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}';
+                '"geometry":{"type":"Point","coordinates":[${t.center.longitude},${t.center.latitude}]}}';
           }).join(',');
           final gj = '{"type":"FeatureCollection","features":[$feats]}';
           final src = await _mapboxMap!.style.getSource(_globalesSourceId) as mapbox.GeoJsonSource?;
@@ -4880,7 +4868,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
-  Future<void> _actualizarGlobalSeleccionado(_GlobTerrData? t) async {
+  Future<void> _actualizarGlobalSeleccionado(GlobalTerritory? t) async {
     if (kIsWeb || _mapboxMap == null) return;
     _globalesPulseTimer?.cancel();
     _globalesPulseTimer = null;
@@ -4895,10 +4883,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       return;
     }
 
-    final ch  = _colorToHex(t.color);
+    final ch  = _colorToHex(t.displayColor);
     final gj  = '{"type":"FeatureCollection","features":['
         '{"type":"Feature","properties":{"color":"$ch"},'
-        '"geometry":{"type":"Point","coordinates":[${t.lng},${t.lat}]}}]}';
+        '"geometry":{"type":"Point","coordinates":[${t.center.longitude},${t.center.latitude}]}}]}';
 
     try {
       if (!_globalesSelLayerCreated) {
@@ -4953,26 +4941,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     });
   }
 
-  Future<void> _flyToTerritorioGlobal(_GlobTerrData t) async {
+  Future<void> _flyToTerritorioGlobal(GlobalTerritory t) async {
     HapticFeedback.selectionClick();
     setState(() => _terrPreviseleccionado = t);
     if (!kIsWeb && _mapboxMap != null) {
-      await _moverCamara(lat: t.lat, lng: t.lng, zoom: 3.5, pitch: 0, bearing: 0, animated: true, forzar: true);
+      await _moverCamara(lat: t.center.latitude, lng: t.center.longitude, zoom: 3.5, pitch: 0, bearing: 0, animated: true, forzar: true);
     }
     _actualizarGlobalSeleccionado(t);
   }
 
-  void _seleccionarTerritorioGlobal(_GlobTerrData t) {
+  void _seleccionarTerritorioGlobal(GlobalTerritory t) {
     HapticFeedback.mediumImpact();
     _actualizarGlobalSeleccionado(null);
+    GameStateService.instance.currentMode = 'global';
     setState(() {
       _seleccionandoGlobal = false;
       _terrPreviseleccionado = null;
       _objetivoGlobal = {
         'territorioId':     t.id,
-        'territorioNombre': t.name,
+        'territorioNombre': t.epicName,
         'kmRequeridos':     t.kmRequired,
-        'recompensa':       t.reward,
+        'recompensa':       t.rewardActual,
         'ownerUid':         t.ownerUid,
       };
       _modoSolitario = false;
@@ -4982,7 +4971,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _actualizarGlobalesEnGlobo(visible: false);
     final kmReq = t.kmRequired;
     Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) _narrador.anunciarReto('⚔️ Objetivo: conquistar ${t.name} — ${kmReq.toStringAsFixed(1)} km');
+      if (mounted) _narrador.anunciarReto('⚔️ Objetivo: conquistar ${t.epicName} — ${kmReq.toStringAsFixed(1)} km');
     });
   }
 
@@ -5041,24 +5030,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
                       color: isPrev
-                          ? t.color.withValues(alpha: 0.15)
-                          : t.color.withValues(alpha: 0.07),
+                          ? t.displayColor.withValues(alpha: 0.15)
+                          : t.displayColor.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: t.color.withValues(alpha: isPrev ? 0.50 : 0.25),
+                        color: t.displayColor.withValues(alpha: isPrev ? 0.50 : 0.25),
                         width: isPrev ? 1.5 : 1.0,
                       ),
                       boxShadow: isPrev
-                          ? [BoxShadow(color: t.color.withValues(alpha: 0.15), blurRadius: 8)]
+                          ? [BoxShadow(color: t.displayColor.withValues(alpha: 0.15), blurRadius: 8)]
                           : null,
                     ),
                     child: Row(children: [
                       Container(
                         width: 34, height: 34,
                         decoration: BoxDecoration(
-                          color: t.color.withValues(alpha: isPrev ? 0.15 : 0.07),
+                          color: t.displayColor.withValues(alpha: isPrev ? 0.15 : 0.07),
                           shape: BoxShape.circle,
-                          border: Border.all(color: t.color.withValues(alpha: isPrev ? 0.45 : 0.22)),
+                          border: Border.all(color: t.displayColor.withValues(alpha: isPrev ? 0.45 : 0.22)),
                         ),
                         child: Center(
                           child: Icon(
@@ -5067,25 +5056,25 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                                 : t.kmRequired >= 7
                                     ? Icons.shield_rounded
                                     : Icons.flag_rounded,
-                            color: t.color.withValues(alpha: 0.75),
+                            color: t.displayColor.withValues(alpha: 0.75),
                             size: 16,
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(t.name, style: GoogleFonts.inter(
+                        Text(t.epicName, style: GoogleFonts.inter(
                             color: isPrev ? Colors.white : Colors.white60,
                             fontSize: 11, fontWeight: FontWeight.w700)),
-                        if (t.ownerNick != null)
-                          Text(isMine ? 'Tuyo' : t.ownerNick!,
+                        if (t.ownerNickname != null)
+                          Text(isMine ? 'Tuyo' : t.ownerNickname!,
                               style: GoogleFonts.inter(color: Colors.white38, fontSize: 9)),
                       ])),
                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                         Text('${t.kmRequired.toStringAsFixed(1)} km',
                             style: GoogleFonts.inter(
-                                color: t.color.withValues(alpha: 0.70), fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text('+${t.reward}',
+                                color: t.displayColor.withValues(alpha: 0.70), fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text('+${t.rewardActual}',
                             style: GoogleFonts.inter(color: _kGold.withValues(alpha: 0.70), fontSize: 9, fontWeight: FontWeight.w600)),
                       ]),
                     ]),
@@ -5202,8 +5191,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           activeColor: const Color(0xFF4A7A9B),
           onTap: () async {
             HapticFeedback.selectionClick();
+            GameStateService.instance.currentMode = 'competitivo';
             setState(() { _modoSolitario = false; _objetivoGlobal = null; });
             TerritoryService.invalidarCache();
+            GameStateService.instance.invalidateSolitario();
             final centro = _currentPosition != null
                 ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
                 : null;
@@ -5211,6 +5202,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 centro: centro, modo: 'competitivo');
             if (mounted) {
               setState(() => _territorios = lista);
+              GameStateService.instance.setCompetitiveTerritories(lista);
               _dibujarTerritoriosEnMapa();
             }
             _aplicarTerritoriosFantasma();
@@ -5224,14 +5216,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           activeColor: const Color(0xFF4A7A5A),
           onTap: () async {
             HapticFeedback.selectionClick();
+            GameStateService.instance.currentMode = 'solitario';
             setState(() { _modoSolitario = true; _objetivoGlobal = null; });
             TerritoryService.invalidarCache();
+            GameStateService.instance.invalidateCompetitive();
             final centro = _currentPosition != null
                 ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
                 : null;
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'solitario');
-            if (mounted) setState(() => _territorios = lista);
+            if (mounted) {
+              setState(() => _territorios = lista);
+              GameStateService.instance.setSolitarioTerritories(lista);
+            }
             _dibujarTerritoriosEnMapa();
             // Precargar barrios en background para reducir latencia al iniciar
             if (centro != null) _cargarBarriosOSM(centro);
