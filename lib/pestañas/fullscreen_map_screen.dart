@@ -959,11 +959,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Future<void> _initData() async {
     await _resolverCentro();
+    // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
+    _escucharJugadores();
+    _escucharDesafio();
     await _cargarTerritorios();
     await _rellenarConFantasmas();
     if (!mounted) return;
-    _escucharJugadores();
-    _escucharDesafio();
     _sheetEntryCtrl.forward();
   }
 
@@ -979,7 +980,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
         _state.setCentro(LatLng(pos.latitude, pos.longitude));
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('FullscreenMap resolverCentro error: $e');
+    }
   }
 
   Future<void> _cargarTerritorios() async {
@@ -993,7 +996,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       _state.setTerritorios(lista);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('FullscreenMap cargarTerritorios error: $e');
       _state.setError('No se pudieron cargar los territorios');
     }
   }
@@ -2038,7 +2042,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_cargandoBarrios) return;
     if (_barriosCargados && _barriosCercanos.isNotEmpty) return;
     _cargandoBarrios = true;
-    if (mounted) setState(() {});
+    if (mounted) setState(() {});  // muestra spinner de carga
 
     try {
       final lat   = pos.latitude;
@@ -2125,10 +2129,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       setState(() {
         _barriosCercanos = barrios;
         _barriosCargados = true;
+        _cargandoBarrios = false;
       });
     } catch (e) {
       debugPrint('FullscreenMap barrios error: $e');
-    } finally {
       _cargandoBarrios = false;
       if (mounted) setState(() {});
     }
@@ -2175,7 +2179,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 userAgentPackageName: 'com.runner_risk.app',
                 tileDimension: 256,
                 keepBuffer: 4,
-                panBuffer: 1,
+                panBuffer: 2,
+                maxNativeZoom: 19,
               ),
 
               // Polígonos de barrios OSM
@@ -2390,8 +2395,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256,
-            keepBuffer: 8,
-            panBuffer: 3,
+            keepBuffer: 4,
+            panBuffer: 2,
             maxNativeZoom: 19),
 
         // Halo táctico mínimo — solo territorios propios
@@ -2622,7 +2627,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               userAgentPackageName: 'com.runner_risk.app',
               tileDimension: 256,
               keepBuffer: 4,
-              panBuffer: 1),
+              panBuffer: 2,
+              maxNativeZoom: 8),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
