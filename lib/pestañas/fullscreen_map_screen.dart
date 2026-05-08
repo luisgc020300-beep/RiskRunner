@@ -20,6 +20,7 @@ import 'package:shimmer/shimmer.dart';
 import '../services/territory_service.dart';
 import '../services/game_state_service.dart';
 import '../services/activity_service.dart';
+import '../services/route_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../config/env.dart';
 
@@ -254,6 +255,7 @@ class _MapState extends ChangeNotifier {
 
   bool modoGlobal                             = false;
   bool modoSolitario                          = false;
+  bool modoRutas                              = false;
   List<GlobalTerritory> territoriosGlobales   = [];
   bool loadingGlobal                          = false;
   GlobalTerritory? territorioGlobalSeleccionado;
@@ -295,7 +297,22 @@ class _MapState extends ChangeNotifier {
     modoSolitario = v;
     if (v) {
       modoGlobal = false;
+      modoRutas  = false;
       _globalStream?.cancel();
+    }
+    territorioSeleccionado = null;
+    notifyListeners();
+  }
+
+  void setModoRutas(bool v) {
+    modoRutas     = v;
+    modoSolitario = false;
+    modoGlobal    = false;
+    if (v) {
+      _globalStream?.cancel();
+      GameStateService.instance.currentMode = 'ruta';
+    } else {
+      GameStateService.instance.currentMode = 'competitivo';
     }
     territorioSeleccionado = null;
     notifyListeners();
@@ -303,7 +320,7 @@ class _MapState extends ChangeNotifier {
 
   void toggleModoGlobal() {
     modoGlobal = !modoGlobal;
-    if (modoGlobal) modoSolitario = false;
+    if (modoGlobal) { modoSolitario = false; modoRutas = false; }
     GameStateService.instance.currentMode = modoGlobal ? 'global' : 'competitivo';
     territorioSeleccionado = null;
     territorioGlobalSeleccionado = null;
@@ -595,6 +612,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
   Future<List<ActivityEntry>>? _feedFuture;
   final Map<String, List<Map<String, dynamic>>> _historialCache = {};
+
+  // ── Modo Rutas ────────────────────────────────────────────────────────────
+  List<RouteData> _misRutas        = [];
+  bool            _cargandoRutas   = false;
+  RouteData?      _rutaSeleccionada;
 
   @override
   void initState() {
@@ -1390,7 +1412,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       ? _buildSheetGlobal(scrollCtrl)
                       : _state.modoSolitario
                           ? _buildSheetSolitario(scrollCtrl)
-                          : _buildSheet(scrollCtrl, mios, det, pel);
+                          : _state.modoRutas
+                              ? _buildSheetRutas(scrollCtrl)
+                              : _buildSheet(scrollCtrl, mios, det, pel);
                 },
               );
             },
@@ -1681,9 +1705,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Widget _buildModeToggle() {
-    final isCiudad    = !_state.modoGlobal && !_state.modoSolitario;
+    final isCiudad    = !_state.modoGlobal && !_state.modoSolitario && !_state.modoRutas;
     final isSolitario = _state.modoSolitario;
     final isGlobal    = _state.modoGlobal;
+    final isRutas     = _state.modoRutas;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
@@ -1768,6 +1793,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             Expanded(child: GestureDetector(
               onTap: isGlobal ? null : () {
                 if (isSolitario) _state.setModoSolitario(false);
+                if (isRutas)    _state.setModoRutas(false);
                 _toggleModo();
               },
               child: AnimatedContainer(
@@ -1777,8 +1803,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   color: isGlobal
                       ? _kGold.withValues(alpha: 0.12)
                       : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(7)),
                   border: isGlobal
                       ? Border.all(color: _kGold.withValues(alpha: 0.4))
                       : null,
@@ -1802,6 +1826,41 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           style: _raj(8, FontWeight.w900, _kGold)),
                     ),
                   ],
+                ]),
+              ),
+            )),
+
+            Container(width: 1, height: 30, color: _kBorder2),
+
+            // ── RUTAS ─────────────────────────────────────────────────────
+            Expanded(child: GestureDetector(
+              onTap: isRutas ? null : () async {
+                if (isGlobal)    _toggleModo();
+                if (isSolitario) _state.setModoSolitario(false);
+                await _activarModoRutas();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: isRutas
+                      ? const Color(0xFF6A4A9B).withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(7)),
+                  border: isRutas
+                      ? Border.all(color: const Color(0xFF6A4A9B).withValues(alpha: 0.5))
+                      : null,
+                ),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.route_rounded,
+                      size: 12,
+                      color: isRutas ? const Color(0xFF9B72CF) : _kSub),
+                  const SizedBox(width: 5),
+                  Text('RUTAS',
+                      style: _raj(9, FontWeight.w900,
+                          isRutas ? const Color(0xFF9B72CF) : _kSub,
+                          spacing: 1.0)),
                 ]),
               ),
             )),
@@ -1925,6 +1984,32 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       debugPrint('FullscreenMap barrios error: $e');
       _cargandoBarrios = false;
       if (mounted) setState(() {});
+    }
+  }
+
+  // ==========================================================================
+  // MODO RUTAS
+  // ==========================================================================
+  Future<void> _activarModoRutas() async {
+    _state.setModoRutas(true);
+    if (_misRutas.isEmpty && !_cargandoRutas) {
+      await _cargarMisRutas();
+    }
+  }
+
+  Future<void> _cargarMisRutas() async {
+    if (_cargandoRutas) return;
+    if (mounted) setState(() => _cargandoRutas = true);
+    try {
+      final rutas = await RouteService.cargarMisRutas();
+      if (!mounted) return;
+      setState(() {
+        _misRutas      = rutas;
+        _cargandoRutas = false;
+      });
+    } catch (e) {
+      debugPrint('FullscreenMap rutas error: $e');
+      if (mounted) setState(() => _cargandoRutas = false);
     }
   }
 
@@ -2146,8 +2231,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return ListenableBuilder(
       listenable: _state,
       builder: (_, __) {
-        if (_state.modoGlobal)     return _buildMapaGlobal();
-        if (_state.modoSolitario)  return _buildMapaSolitario();
+        if (_state.modoGlobal)    return _buildMapaGlobal();
+        if (_state.modoSolitario) return _buildMapaSolitario();
+        if (_state.modoRutas)     return _buildMapaRutas();
         return _buildMapaCiudad(tieneRuta);
       },
     );
@@ -2386,6 +2472,70 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               );
             }).whereType<Marker>().toList(),
           ),
+      ],
+    );
+  }
+
+  // ==========================================================================
+  // MAPA RUTAS
+  // ==========================================================================
+  Widget _buildMapaRutas() {
+    final selId = _rutaSeleccionada?.id;
+
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _state.centro,
+        initialZoom:   _kInitialZoom,
+        minZoom: 3, maxZoom: 19,
+        onTap: (_, __) => setState(() => _rutaSeleccionada = null),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate:          _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
+          userAgentPackageName: 'com.runner_risk.app',
+          tileDimension: 256,
+          keepBuffer: 4,
+          panBuffer:  2,
+          maxNativeZoom: 19,
+        ),
+        if (_misRutas.isNotEmpty)
+          PolylineLayer(
+            polylines: _misRutas.map((r) {
+              final selected = r.id == selId;
+              return Polyline(
+                points:       r.coords,
+                color:        r.color.withValues(alpha: selected ? 1.0 : 0.65),
+                strokeWidth:  selected ? 5.0 : 3.0,
+              );
+            }).toList(),
+          ),
+        // Marcador de inicio de cada ruta
+        MarkerLayer(
+          markers: _misRutas
+              .where((r) => r.coords.isNotEmpty)
+              .map((r) => Marker(
+                    point:  r.coords.first,
+                    width:  28,
+                    height: 28,
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _rutaSeleccionada = r);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color:  r.color,
+                          shape:  BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+                        ),
+                        child: const Icon(Icons.route_rounded, color: Colors.white, size: 13),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
       ],
     );
   }
@@ -3836,6 +3986,134 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       ),
     ),
   );
+
+  // ==========================================================================
+  // SHEET MODO RUTAS
+  // ==========================================================================
+  Widget _buildSheetRutas(ScrollController scrollCtrl) {
+    final totalKm   = _misRutas.fold(0.0, (s, r) => s + r.distanciaKm);
+    final totalRutas = _misRutas.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _shBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        border: Border(top: BorderSide(color: _shBorder, width: 1)),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -2))],
+      ),
+      child: ListView(
+        controller: scrollCtrl,
+        padding: EdgeInsets.zero,
+        physics: const ClampingScrollPhysics(),
+        children: [
+          _shPill(),
+          _shHeader(
+            icon:       Icons.route_rounded,
+            modeLabel:  'MIS RUTAS',
+            modeColor:  const Color(0xFF9B72CF),
+            heroValue:  '$totalRutas',
+            heroLabel:  totalRutas == 1 ? 'ruta guardada' : 'rutas guardadas',
+            trailing: GestureDetector(
+              onTap: _cargarMisRutas,
+              child: const Icon(Icons.refresh_rounded, color: _kSub, size: 18),
+            ),
+          ),
+          _shStatBar([
+            _ShStat(totalKm.toStringAsFixed(1), 'KM TOTAL'),
+            _ShStat('$totalRutas', 'RUTAS'),
+            if (_misRutas.isNotEmpty) ...[
+              _ShStat(
+                _misRutas.map((r) => r.distanciaKm).reduce(math.max).toStringAsFixed(1),
+                'MEJOR KM',
+              ),
+            ],
+          ]),
+          if (_cargandoRutas)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: CircularProgressIndicator(
+                    color: Color(0xFF9B72CF), strokeWidth: 1.5),
+              ),
+            )
+          else if (_misRutas.isEmpty)
+            _shEmptyState(
+              Icons.route_rounded,
+              'Sin rutas',
+              'Sal a correr en modo Ruta Libre\npara ver tus recorridos aquí',
+            )
+          else ...[
+            _shSectionTitle('Historial de rutas'),
+            ..._misRutas.map((r) => _buildRutaCard(r)),
+          ],
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRutaCard(RouteData r) {
+    final isSelected = _rutaSeleccionada?.id == r.id;
+    final fechaStr   = '${r.fecha.day}/${r.fecha.month}/${r.fecha.year}';
+    final nombre     = (r.nombre != null && r.nombre!.isNotEmpty)
+        ? r.nombre!
+        : 'Ruta $fechaStr';
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _rutaSeleccionada = isSelected ? null : r);
+        if (!isSelected && r.coords.isNotEmpty) {
+          _mapController.move(r.coords.first, 14.5);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF6A4A9B).withValues(alpha: 0.12)
+              : _shSurf,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF9B72CF).withValues(alpha: 0.5)
+                : _shBorder,
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(
+              color:  r.color.withValues(alpha: 0.15),
+              shape:  BoxShape.circle,
+              border: Border.all(color: r.color.withValues(alpha: 0.4)),
+            ),
+            child: Icon(Icons.route_rounded, color: r.color, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(nombre,
+                  style: _raj(13, FontWeight.w700, _shText),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(fechaStr, style: _raj(10, FontWeight.w400, _kSub)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('${r.distanciaKm.toStringAsFixed(2)} km',
+                style: _raj(13, FontWeight.w700, _shText)),
+            const SizedBox(height: 2),
+            Text(r.ritmoStr,
+                style: _raj(10, FontWeight.w400, _kSub)),
+          ]),
+        ]),
+      ),
+    );
+  }
 
   Widget _shHeader({
     required IconData icon,

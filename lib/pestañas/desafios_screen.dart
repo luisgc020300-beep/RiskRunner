@@ -354,14 +354,45 @@ class _CardActivo extends StatelessWidget {
 
         // ── Cómo sumar puntos ────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-            _puntoTip(p, Icons.flag_rounded, 'Conquista', '×10 pts'),
+            _puntoTip(p, Icons.route_rounded,     'Kilómetro', '×5 pts'),
             Container(width: 0.5, height: 28, color: p.sep),
-            _puntoTip(p, Icons.straighten_rounded, 'Kilómetro', '×5 pts'),
+            _puntoTip(p, Icons.flag_rounded,      'Conquista', '+10 pts'),
             Container(width: 0.5, height: 28, color: p.sep),
-            _puntoTip(p, Icons.timer_outlined, 'Tiempo', info.tiempoRestante),
+            _puntoTip(p, Icons.timer_outlined,    'Tiempo',    info.tiempoRestante),
           ]),
+        ),
+
+        // ── Botón iniciar ruta ────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF6A4A9B),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/correr',
+                arguments: {'forzarModoRuta': true},
+              ),
+              icon: const Icon(Icons.route_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'INICIAR RUTA',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
+          ),
         ),
       ]),
     );

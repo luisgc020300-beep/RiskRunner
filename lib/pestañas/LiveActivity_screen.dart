@@ -632,6 +632,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         });
       }
 
+      if (args['forzarModoRuta'] == true) {
+        setState(() {
+          _modoRuta      = true;
+          _modoSolitario = false;
+          _objetivoGlobal = null;
+        });
+        GameStateService.instance.currentMode = 'ruta';
+        if (_territorios.isNotEmpty) setState(() => _territorios = []);
+      }
+
       if (args['objetivoGlobal'] != null) {
         final objetivo = args['objetivoGlobal'] as Map<String, dynamic>;
         setState(() {
