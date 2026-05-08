@@ -149,14 +149,15 @@ class RouteService {
           'fecha':            FieldValue.serverTimestamp(),
         });
 
-        tx.update(playerRef, {
+        // set+merge en vez de update para que funcione aunque el doc no exista
+        tx.set(playerRef, {
           'monedas':                         FieldValue.increment(monedas),
           'rutasStats.totalRutas':           FieldValue.increment(1),
           'rutasStats.totalKm':              FieldValue.increment(distanciaKm),
           'rutasStats.totalSeg':             FieldValue.increment(tiempoSeg),
           'rutasStats.mejorRitmoMinKm':      nuevoMejorRitmo,
           'rutasStats.mayorDistanciaKm':     nuevaMayorDist,
-        });
+        }, SetOptions(merge: true));
       });
 
       return routeRef.id;
@@ -180,13 +181,16 @@ class RouteService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
     try {
+      // Sin orderBy en Firestore para evitar requerir índice compuesto;
+      // ordenamos por fecha en cliente.
       final snap = await _db
           .collection('routes')
           .where('userId', isEqualTo: user.uid)
-          .orderBy('fecha', descending: true)
           .limit(limit)
           .get();
-      return snap.docs.map(RouteData.fromFirestore).toList();
+      final list = snap.docs.map(RouteData.fromFirestore).toList();
+      list.sort((a, b) => b.fecha.compareTo(a.fecha));
+      return list;
     } catch (e) {
       debugPrint('RouteService.cargarMisRutas: $e');
       return [];
