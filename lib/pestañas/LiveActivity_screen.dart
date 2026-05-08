@@ -3972,6 +3972,33 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  // Muestra dialog de confirmación antes de salir del modo ruta con reto activo.
+  // Devuelve true si el cambio debe proceder (sin reto o usuario confirmó cancelarlo).
+  Future<bool> _confirmarCancelacionReto(String modoLabel) async {
+    if (_retoActivo == null) return true;
+    final titulo = _retoActivo!['titulo'] as String? ?? 'Reto activo';
+    final confirmar = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Cambiar de modo'),
+        content: Text('Si cambias a $modoLabel, el reto "$titulo" se cancelará.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Quedarse en Ruta'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Cambiar a $modoLabel'),
+          ),
+        ],
+      ),
+    ) ?? false;
+    if (confirmar && mounted) setState(() => _retoActivo = null);
+    return confirmar;
+  }
+
   Widget _snackWrap({
     Widget? child, Gradient? gradient, Color? color,
     BoxBorder? border, Color shadow = Colors.transparent,
@@ -5324,6 +5351,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           active: isCompetitivo,
           activeColor: const Color(0xFF4A7A9B),
           onTap: () async {
+            if (!await _confirmarCancelacionReto('Competitivo')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
             setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; });
@@ -5349,6 +5377,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           active: _modoSolitario,
           activeColor: const Color(0xFF4A7A5A),
           onTap: () async {
+            if (!await _confirmarCancelacionReto('Solitario')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
             setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; });
@@ -5390,7 +5419,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           label: 'Global',
           active: isGlobal,
           activeColor: const Color(0xFF7A3A3A),
-          onTap: _elegirTerritorioGlobal,
+          onTap: () async {
+            if (!await _confirmarCancelacionReto('Global')) return;
+            _elegirTerritorioGlobal();
+          },
         ),
       ]),
       const SizedBox(height: 14),
