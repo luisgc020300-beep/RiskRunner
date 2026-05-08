@@ -1450,53 +1450,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           },
         ),
 
-        ListenableBuilder(
-          listenable: _state,
-          builder: (_, __) {
-            if (_state.modoGlobal || _state.modoSolitario) return const SizedBox.shrink();
-            if (_state.loadingTerritorios || _state.territorios.isNotEmpty) return const SizedBox.shrink();
-            final screenH = MediaQuery.of(context).size.height;
-            return Positioned(
-              top: screenH * 0.12,
-              left: 32, right: 32,
-              child: IgnorePointer(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-                      decoration: BoxDecoration(
-                        color: _kBg.withValues(alpha: 0.82),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _kBorder2),
-                      ),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Container(
-                          width: 56, height: 56,
-                          decoration: BoxDecoration(
-                            color: _kSurface2,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _kBorder),
-                          ),
-                          child: const Icon(Icons.map_outlined, color: _kSub, size: 26),
-                        ),
-                        const SizedBox(height: 16),
-                        Text('SIN TERRITORIOS', style: _raj(13, FontWeight.w900, _kText, spacing: 3)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No hay territorios en esta zona.\nSal a correr para descubrir y\nconquistar los más cercanos.',
-                          textAlign: TextAlign.center,
-                          style: _raj(12, FontWeight.w500, _kSub, height: 1.6),
-                        ),
-                      ]),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
+        // "SIN TERRITORIOS" se muestra en el sheet, no como overlay sobre el mapa
 
         ListenableBuilder(
           listenable: _state,
@@ -2540,6 +2494,34 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   ))
               .toList(),
         ),
+
+        // Posición del usuario
+        MarkerLayer(markers: [
+          Marker(
+            point: _state.centro, width: 40, height: 40,
+            child: Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _kRed.withValues(alpha: 0.12),
+                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
+              ),
+              child: Center(
+                child: Container(
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: _kRed, width: 2.5),
+                    boxShadow: [BoxShadow(
+                        color: _kRed.withValues(alpha: 0.55),
+                        blurRadius: 10, spreadRadius: 1)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ]),
       ],
     );
   }
@@ -2941,8 +2923,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
 
       if (_fabCentradoEnUsuario) {
-        // Segunda pulsación: volver a la vista inicial del mapa
-        _mapController.move(_state.centro, _kInitialZoom);
+        // Segunda pulsación: zoom out a vista ciudad
+        _mapController.move(_state.centro, 12.0);
         setState(() => _fabCentradoEnUsuario = false);
       } else {
         // Primera pulsación: ir a mi posición actual con zoom cercano
@@ -3829,9 +3811,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: _buildBannerDesafio(_state.desafioActivo!),
             ),
-          if (mios == 0)
-            _shEmptyState(Icons.flag_outlined, 'Sin territorios',
-                'Sal a correr para conquistar tu primera zona')
+          if (_state.loadingTerritorios)
+            _shLoading('Buscando zonas', 'Cargando territorios cercanos', _kSub)
+          else if (_state.territorios.isEmpty)
+            _shEmptyState(Icons.map_outlined, 'Sin territorios',
+                'No hay territorios en esta zona.\nSal a correr para descubrir y\nconquistar los más cercanos.')
+          else if (mios == 0)
+            _shEmptyState(Icons.flag_outlined, 'Zona libre',
+                'Hay ${_state.territorios.length} territorios cerca.\nSal a conquistar el primero.')
           else ...[
             _shSectionTitle('Mis territorios'),
             Padding(
