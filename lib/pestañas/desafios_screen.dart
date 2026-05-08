@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/desafios_service.dart';
+import '../services/game_state_service.dart';
 
 // =============================================================================
 // PALETA ADAPTATIVA (dark / light)
@@ -376,11 +377,14 @@ class _CardActivo extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/correr',
-                arguments: {'forzarModoRuta': true},
-              ),
+              onPressed: () {
+                GameStateService.instance.currentMode = 'ruta';
+                Navigator.pushNamed(
+                  context,
+                  '/correr',
+                  arguments: {'forzarModoRuta': true},
+                );
+              },
               icon: const Icon(Icons.route_rounded, size: 18, color: Colors.white),
               label: const Text(
                 'INICIAR RUTA',
