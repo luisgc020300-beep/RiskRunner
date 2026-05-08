@@ -791,7 +791,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
     _state.setLoadingTerritorios(true);
     try {
-      final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
+      // Pre-leer el modo guardado evita la race condition entre _initData()
+      // (que corre sin await) y _activarModoSolitario() (postFrameCallback):
+      // sin esto, _initData cargaría competitivo aunque el modo sea solitario.
+      final savedMode = GameStateService.instance.currentMode;
+      final modo = (_state.modoSolitario || savedMode == 'solitario') ? 'solitario' : 'competitivo';
 
       // Usar cache compartido si sigue siendo válido
       final cached = modo == 'solitario'
@@ -1836,12 +1840,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.setModoSolitario(true);
     _mapController.move(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
+    _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
     // Resetear si la carga anterior no encontró resultados
     if (_barriosCargados && _barriosCercanos.isEmpty) {
       setState(() { _barriosCargados = false; });
     }
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
+      _recalcularPorcentajesBarrios(); // recalcular tras cargar barrios por primera vez
     }
   }
 
