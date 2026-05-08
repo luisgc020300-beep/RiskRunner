@@ -21,9 +21,11 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
 import '../services/game_state_service.dart';
+import '../services/route_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
+import '../services/league_service.dart';
 import '../services/subscription_service.dart';
 import '../widgets/conquista_overlay.dart';
 import '../widgets/anticheat_warning_overlay.dart';
@@ -440,6 +442,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── Modo de juego
   bool _modoSolitario = false;
+  bool _modoRuta      = false;
 
   // ── Jugador
   Color  _colorTerritorio      = const Color(0xFF636366);
@@ -821,25 +824,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         } catch (_) {}
       }
 
-      final cached = _modoSolitario
-          ? GameStateService.instance.getSolitarioTerritories()
-          : GameStateService.instance.getCompetitiveTerritories();
-      if (cached != null && mounted) {
-        setState(() { _territorios = List<TerritoryData>.from(cached); _territoriosCargados = true; });
-        _dibujarTerritoriosEnMapa();
-        _aplicarTerritoriosFantasma();
-      } else {
-        final lista = await TerritoryService.cargarTodosLosTerritorios(
-            centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
-        if (mounted) {
-          setState(() { _territorios = lista; _territoriosCargados = true; });
-          if (_modoSolitario) {
-            GameStateService.instance.setSolitarioTerritories(lista);
-          } else {
-            GameStateService.instance.setCompetitiveTerritories(lista);
-          }
+      if (!_modoRuta) {
+        final cached = _modoSolitario
+            ? GameStateService.instance.getSolitarioTerritories()
+            : GameStateService.instance.getCompetitiveTerritories();
+        if (cached != null && mounted) {
+          setState(() { _territorios = List<TerritoryData>.from(cached); _territoriosCargados = true; });
           _dibujarTerritoriosEnMapa();
           _aplicarTerritoriosFantasma();
+        } else {
+          final lista = await TerritoryService.cargarTodosLosTerritorios(
+              centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
+          if (mounted) {
+            setState(() { _territorios = lista; _territoriosCargados = true; });
+            if (_modoSolitario) {
+              GameStateService.instance.setSolitarioTerritories(lista);
+            } else {
+              GameStateService.instance.setCompetitiveTerritories(lista);
+            }
+            _dibujarTerritoriosEnMapa();
+            _aplicarTerritoriosFantasma();
+          }
         }
       }
     } catch (e) {
@@ -1002,7 +1007,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             Geolocator.distanceBetween(anteriorCentro.latitude,
                 anteriorCentro.longitude, pos.latitude, pos.longitude) > 500;
 
-        if (debeCargarse && _territoriosCargados) {
+        if (debeCargarse && _territoriosCargados && !_modoRuta) {
           TerritoryService.invalidarCache();
           GameStateService.instance.invalidateTerritories();
           final centro = LatLng(pos.latitude, pos.longitude);
@@ -2748,10 +2753,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => CupertinoAlertDialog(
-        title: Text(_modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
-        content: Text(_modoSolitario
-            ? 'Vas a iniciar una sesión en modo solitario.'
-            : 'Vas a iniciar una conquista de territorio.'),
+        title: Text(_modoRuta
+            ? '¿Listo para correr?'
+            : _modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
+        content: Text(_modoRuta
+            ? 'Vas a iniciar una ruta libre. Se guardará tu recorrido.'
+            : _modoSolitario
+                ? 'Vas a iniciar una sesión en modo solitario.'
+                : 'Vas a iniciar una conquista de territorio.'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
@@ -2763,7 +2772,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               Navigator.pop(ctx);
               _iniciarCuentaAtras();
             },
-            child: Text(_modoSolitario ? '¡Explorar!' : '¡Conquistar!'),
+            child: Text(_modoRuta ? '¡Correr!' : _modoSolitario ? '¡Explorar!' : '¡Conquistar!'),
           ),
         ],
       ),
@@ -3000,16 +3009,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && distanciaFinal > 0) {
-        final monedasBase    = (distanciaFinal * 10).round();
-        final bool esPremium = SubscriptionService.currentStatus.isPremium;
-        final int multiplicador = (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
-        final double factorModo = multiplicadorMonedas(_modoSolitario);
-        final int monedasFinales =
-            (monedasBase * multiplicador * factorModo).round();
-        await FirebaseFirestore.instance
-            .collection('players')
-            .doc(user.uid)
-            .update({'monedas': FieldValue.increment(monedasFinales)});
+        if (!_modoRuta) {
+          final monedasBase    = (distanciaFinal * 10).round();
+          final bool esPremium = SubscriptionService.currentStatus.isPremium;
+          final int multiplicador = (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
+          final double factorModo = multiplicadorMonedas(_modoSolitario);
+          final int monedasFinales =
+              (monedasBase * multiplicador * factorModo).round();
+          await FirebaseFirestore.instance
+              .collection('players')
+              .doc(user.uid)
+              .update({'monedas': FieldValue.increment(monedasFinales)});
+        }
 
         final now = DateTime.now();
         final logRef = await FirebaseFirestore.instance
@@ -3024,14 +3035,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'lngFinal':        _currentPosition?.longitude,
           'timestamp':       FieldValue.serverTimestamp(),
           'ownerColor':      _colorTerritorio.toARGB32(),
-          'titulo': _modoSolitario
-              ? 'Exploración Solitaria'
-              : _objetivoGlobal != null
-                  ? 'Guerra Global · ${_objetivoGlobal!['territorioNombre']}'
-                  : 'Carrera Libre',
-          'modo': _modoSolitario
-              ? 'solitario'
-              : _objetivoGlobal != null ? 'guerra_global' : 'competitivo',
+          'titulo': _modoRuta
+              ? 'Ruta Libre'
+              : _modoSolitario
+                  ? 'Exploración Solitaria'
+                  : _objetivoGlobal != null
+                      ? 'Guerra Global · ${_objetivoGlobal!['territorioNombre']}'
+                      : 'Carrera Libre',
+          'modo': _modoRuta
+              ? 'ruta'
+              : _modoSolitario
+                  ? 'solitario'
+                  : _objetivoGlobal != null ? 'guerra_global' : 'competitivo',
           'fecha_dia':
               '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
           if (_objetivoGlobal != null) ...{
@@ -3071,6 +3086,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
 
     int conquistados = 0;
+
+    if (_modoRuta) {
+      await _guardarRutaLibre(rutaFinal, tiempoFinal, distanciaFinal);
+      return;
+    }
 
     if (_modoSolitario) {
       final creado = await TerritoryService.crearTerritorioSolitario(
@@ -3835,6 +3855,99 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       _mostrarError(e.message ?? 'Error al activar el escudo.');
+    }
+  }
+
+  // ==========================================================================
+  // GUARDAR RUTA LIBRE (modo Ruta)
+  // ==========================================================================
+  Future<void> _guardarRutaLibre(
+      List<LatLng> ruta, Duration tiempo, double distanciaKm) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || distanciaKm <= 0) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+
+    final ritmoMinKm = tiempo.inSeconds > 0 && distanciaKm > 0
+        ? (tiempo.inSeconds / 60.0) / distanciaKm
+        : 0.0;
+    final esPremium  = SubscriptionService.currentStatus.isPremium;
+    final recompensa = RouteService.calcularRecompensa(
+      distanciaKm: distanciaKm,
+      ritmoMinKm:  ritmoMinKm,
+      esPremium:   esPremium,
+      boostActivo: _boostXpActivo,
+    );
+
+    // Popup para nombrar la ruta (opcional)
+    String? nombreElegido;
+    if (mounted) {
+      final ctrl = TextEditingController();
+      await showCupertinoDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('¿Cómo llamamos a esta ruta?'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: CupertinoTextField(
+              controller: ctrl,
+              placeholder: 'Nombre opcional',
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Sin nombre'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                nombreElegido = ctrl.text.trim().isEmpty ? null : ctrl.text.trim();
+                Navigator.pop(ctx);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final routeId = await RouteService.guardarRuta(
+      userId:        user.uid,
+      ownerNickname: _miNickname,
+      color:         _colorTerritorio,
+      coords:        ruta,
+      distanciaKm:   distanciaKm,
+      tiempoSeg:     tiempo.inSeconds,
+      ritmoMinKm:    ritmoMinKm,
+      monedas:       recompensa.monedas,
+      puntosLiga:    recompensa.puntosLiga,
+      nombre:        nombreElegido,
+    );
+
+    if (recompensa.puntosLiga > 0) {
+      LeagueService.sumarPuntosLiga(user.uid, recompensa.puntosLiga)
+          .catchError((e) { debugPrint('LeagueService ruta: $e'); return null; });
+    }
+
+    _stopping = false;
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/resumen', arguments: {
+        'distancia':            distanciaKm,
+        'tiempo':               tiempo,
+        'ruta':                 ruta,
+        'esDesdeCarrera':       true,
+        'territoriosConquistados': 0,
+        'puntosLigaGanados':    recompensa.puntosLiga,
+        'modoRuta':             true,
+        'routeId':              routeId,
+        'monedasRuta':          recompensa.monedas,
+      });
     }
   }
 
@@ -5179,7 +5292,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ]);
     }
 
-    final bool isCompetitivo = !_modoSolitario && _objetivoGlobal == null;
+    final bool isCompetitivo = !_modoSolitario && !_modoRuta && _objetivoGlobal == null;
     final bool isGlobal      = _objetivoGlobal != null;
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
@@ -5192,7 +5305,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () async {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
-            setState(() { _modoSolitario = false; _objetivoGlobal = null; });
+            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; });
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateSolitario();
             final centro = _currentPosition != null
@@ -5208,7 +5321,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _aplicarTerritoriosFantasma();
           },
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         _modeButton(
           icon: CupertinoIcons.person_fill,
           label: 'Solitario',
@@ -5217,7 +5330,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () async {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
-            setState(() { _modoSolitario = true; _objetivoGlobal = null; });
+            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; });
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateCompetitive();
             final centro = _currentPosition != null
@@ -5230,11 +5343,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               GameStateService.instance.setSolitarioTerritories(lista);
             }
             _dibujarTerritoriosEnMapa();
-            // Precargar barrios en background para reducir latencia al iniciar
             if (centro != null) _cargarBarriosOSM(centro);
           },
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
+        _modeButton(
+          icon: Icons.route_rounded,
+          label: 'Ruta',
+          active: _modoRuta,
+          activeColor: const Color(0xFF6A4A9B),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            GameStateService.instance.currentMode = 'ruta';
+            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; });
+            // En modo ruta no hay territorios — limpiar los existentes del mapa
+            if (_territorios.isNotEmpty) {
+              setState(() => _territorios = []);
+              _dibujarTerritoriosEnMapa();
+            }
+          },
+        ),
+        const SizedBox(width: 8),
         _modeButton(
           icon: CupertinoIcons.globe,
           label: 'Global',

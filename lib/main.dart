@@ -239,6 +239,8 @@ class _MyAppState extends State<MyApp> {
                 objetivoGlobal:         args?['objetivoGlobal']  as Map<String, dynamic>?,
                 globalConquistado:      (args?['globalConquistado'] as bool?) ?? false,
                 nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
+                modoRuta:               (args?['modoRuta']      as bool?)     ?? false,
+                monedasRuta:            (args?['monedasRuta']   as int?)      ?? 0,
               ),
             );
 

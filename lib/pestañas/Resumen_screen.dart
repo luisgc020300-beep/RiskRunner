@@ -67,6 +67,10 @@ class ResumenScreen extends StatefulWidget {
   final bool globalConquistado;
   final double? nuevaClausula;
 
+  // ── Modo Ruta Libre
+  final bool   modoRuta;
+  final int    monedasRuta;
+
   const ResumenScreen({
     super.key,
     this.targetUserId,
@@ -82,6 +86,8 @@ class ResumenScreen extends StatefulWidget {
     this.objetivoGlobal,
     this.globalConquistado          = false,
     this.nuevaClausula,
+    this.modoRuta                   = false,
+    this.monedasRuta                = 0,
   });
 
   @override
@@ -216,8 +222,10 @@ class _ResumenScreenState extends State<ResumenScreen>
     await _cargarColorUsuario();
 
     if (widget.esDesdeCarrera) {
-      await _guardarActivityLog();
-      await _guardarYMostrarTerritorioActual();
+      if (!widget.modoRuta) {
+        await _guardarActivityLog();
+        await _guardarYMostrarTerritorioActual();
+      }
       await _actualizarRacha();
       OnboardingService.registrarRunCompletado();
     } else {
@@ -1074,7 +1082,9 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget _buildHeader() {
     final titulo = widget.targetNickname != null
         ? widget.targetNickname!.toUpperCase()
-        : _esGuerraGlobal ? 'RESUMEN DE LA CARRERA GLOBAL' : 'RESUMEN DE LA CARRERA';
+        : widget.modoRuta
+            ? 'RESUMEN DE RUTA LIBRE'
+            : _esGuerraGlobal ? 'RESUMEN DE LA CARRERA GLOBAL' : 'RESUMEN DE LA CARRERA';
     final ahora  = DateTime.now();
     const meses  = ['ENE','FEB','MAR','ABR','MAY','JUN',
                      'JUL','AGO','SEP','OCT','NOV','DIC'];
@@ -1286,9 +1296,11 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget _buildMapSection() {
     final tieneRuta = widget.ruta.length > 1;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel(_territoriosConquistados > 0
-          ? 'TERRITORIO CONQUISTADO'
-          : 'RUTA DE CARRERA'),
+      _sectionLabel(widget.modoRuta
+          ? 'TU RUTA'
+          : _territoriosConquistados > 0
+              ? 'TERRITORIO CONQUISTADO'
+              : 'RUTA DE CARRERA'),
       const SizedBox(height: 10),
       GestureDetector(
         onTap: () {
@@ -1474,9 +1486,11 @@ class _ResumenScreenState extends State<ResumenScreen>
   Widget _buildContextCards() {
     final cards = <Widget>[];
     if (widget.esDesdeCarrera && _rachaActual > 0) cards.add(_buildRachaCard());
+    if (widget.modoRuta && widget.monedasRuta > 0)
+      cards.add(_buildRutaCard());
     if (widget.esDesdeCarrera && _puntosLigaSesion > 0)
       cards.add(_buildLigaCard());
-    if (widget.esDesdeCarrera && _territoriosConquistados > 0)
+    if (widget.esDesdeCarrera && !widget.modoRuta && _territoriosConquistados > 0)
       cards.add(_buildConquistaCard());
     if (cards.isEmpty) return const SizedBox.shrink();
     return Column(children: [
@@ -1501,6 +1515,15 @@ class _ResumenScreenState extends State<ResumenScreen>
       trailing: _ring(pct, '$_rachaActual/$hito', _kGrey),
     );
   }
+
+  Widget _buildRutaCard() => _contextCard(
+    icon:     Icons.route_rounded,
+    tag:      'RUTA LIBRE',
+    headline: '+${widget.monedasRuta} monedas ganadas',
+    sub:      'Basado en distancia y ritmo',
+    color:    const Color(0xFF6A4A9B),
+    trailing: _ring(1.0, '+${widget.monedasRuta}', const Color(0xFF6A4A9B)),
+  );
 
   Widget _buildLigaCard() => _contextCard(
     icon:     Icons.emoji_events_rounded,
