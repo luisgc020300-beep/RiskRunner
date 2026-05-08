@@ -1356,7 +1356,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _configurarAtmosfera(),
       _mejorarAgua(),
       _dibujarTerritoriosEnMapa(),
-      _cargarYMostrarPuntosGlobo(),
+      if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
     ]);
   }
 
@@ -1644,7 +1644,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _mapboxMap!.style.addLayer(
         mapbox.CircleLayer(id: _centrosLayerId, sourceId: _centrosSourceId));
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-color', '#08080B');
+        _centrosLayerId, 'circle-color', ['get', 'color']);
     await _mapboxMap!.style.setStyleLayerProperty(
         _centrosLayerId, 'circle-radius',
         ['interpolate', ['linear'], ['zoom'],
@@ -1654,9 +1654,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _mapboxMap!.style.setStyleLayerProperty(
         _centrosLayerId, 'circle-stroke-width', 1.8);
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-stroke-color', ['get', 'color']);
+        _centrosLayerId, 'circle-stroke-color', '#0a0a0a');
     await _mapboxMap!.style.setStyleLayerProperty(
-        _centrosLayerId, 'circle-stroke-opacity', 0.90);
+        _centrosLayerId, 'circle-stroke-opacity', 0.70);
     await _mapboxMap!.style.setStyleLayerProperty(
         _centrosLayerId, 'circle-blur', 0.0);
     _centrosLayerCreated = true;
