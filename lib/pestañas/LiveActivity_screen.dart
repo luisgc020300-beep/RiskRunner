@@ -32,6 +32,7 @@ import '../widgets/anticheat_warning_overlay.dart';
 import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
+import '../services/health_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
 import '../config/env.dart';
@@ -3190,6 +3191,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) DesafiosService.verificarExpirados(user.uid);
 
+    await HealthService.registrarCarrera(
+      inicio: DateTime.now().subtract(tiempoFinal),
+      fin:    DateTime.now(),
+      distanciaKm: distanciaFinal,
+    );
+
     _stopping = false;
 
     Navigator.pushReplacementNamed(context, '/resumen', arguments: {
@@ -3954,6 +3961,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       DesafiosService.verificarExpirados(user.uid);
     }
+
+    await HealthService.registrarCarrera(
+      inicio: DateTime.now().subtract(tiempo),
+      fin:    DateTime.now(),
+      distanciaKm: distanciaKm,
+    );
 
     _stopping = false;
 

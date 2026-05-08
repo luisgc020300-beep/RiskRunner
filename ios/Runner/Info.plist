@@ -53,6 +53,10 @@
 	<string>Necesitamos tu ubicación para seguir rastreando tu carrera.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>El GPS es necesario para calcular la distancia de tu actividad.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>RiskRunner registra tus carreras en Apple Health para llevar tu historial de actividad.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>RiskRunner guarda tus entrenamientos (distancia, tiempo y calorías) en Apple Health.</string>
 
 	<!-- Push Notifications + background fetch -->
 	<key>UIBackgroundModes</key>
