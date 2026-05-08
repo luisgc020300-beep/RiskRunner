@@ -607,6 +607,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ..addListener(_rotarGlobo);
 
     _determinePosition();
+    final savedMode = GameStateService.instance.currentMode;
+    if (savedMode == 'ruta') { _modoRuta = true; _modoSolitario = false; }
+    else if (savedMode == 'solitario') { _modoSolitario = true; }
     _cargarDatosIniciales();
     _escucharJugadoresActivos();
 
@@ -622,7 +625,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       if (args['retoActivo'] != null) {
         final reto = args['retoActivo'] as Map<String, dynamic>;
-        setState(() => _retoActivo = reto);
+        setState(() {
+          _retoActivo    = reto;
+          _modoRuta      = true;
+          _modoSolitario = false;
+          _territorios   = [];
+        });
+        GameStateService.instance.currentMode = 'ruta';
         final titulo         = reto['titulo'] as String? ?? 'Reto';
         final objetivoMetros =
             (reto['objetivo_valor'] as num?)?.toDouble() ?? 0;
@@ -3179,14 +3188,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null && distanciaFinal > 0) {
-      DesafiosService.acumularPuntos(
-        uid:                     user.uid,
-        distanciaKm:             distanciaFinal,
-        territoriosConquistados: conquistados,
-      );
-      DesafiosService.verificarExpirados(user.uid);
-    }
+    if (user != null) DesafiosService.verificarExpirados(user.uid);
 
     _stopping = false;
 
@@ -3942,6 +3944,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (recompensa.puntosLiga > 0) {
       LeagueService.sumarPuntosLiga(user.uid, recompensa.puntosLiga)
           .catchError((e) { debugPrint('LeagueService ruta: $e'); return null; });
+    }
+
+    if (_retoActivo != null) {
+      DesafiosService.acumularPuntos(
+        uid:                     user.uid,
+        distanciaKm:             distanciaKm,
+        territoriosConquistados: 0,
+      );
+      DesafiosService.verificarExpirados(user.uid);
     }
 
     _stopping = false;

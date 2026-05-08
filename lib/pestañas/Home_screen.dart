@@ -16,6 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/territory_service.dart';
 import '../services/subscription_service.dart';
+import '../services/game_state_service.dart';
 import '../services/story_service.dart';
 import 'coin_shop_screen.dart';
 import '../services/onboarding_service.dart';
@@ -957,11 +958,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
+                    GameStateService.instance.currentMode = 'ruta';
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       '/correr',
                       ModalRoute.withName('/home'),
                       arguments: {
+                        'forzarModoRuta': true,
                         'retoActivo': {
                           'id':             id,
                           'titulo':         titulo,

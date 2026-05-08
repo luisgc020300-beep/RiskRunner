@@ -665,6 +665,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_state.modoSolitario) _activarModoSolitario();
         });
+      } else if (savedMode == 'ruta') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_state.modoRutas) _activarModoRutas();
+        });
       }
     }
   }
