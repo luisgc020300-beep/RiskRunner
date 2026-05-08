@@ -33,6 +33,7 @@ import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
 import '../services/health_service.dart';
+import '../services/ranking_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
 import '../config/env.dart';
@@ -3189,7 +3190,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
 
     final user = FirebaseAuth.instance.currentUser;
-    if (user != null) DesafiosService.verificarExpirados(user.uid);
+    if (user != null) {
+      DesafiosService.verificarExpirados(user.uid);
+      // Puntos ranking semanal para modo Global (5 pts/km + 50 bonus si conquista)
+      if (_objetivoGlobal != null && distanciaFinal > 0) {
+        final pts = (distanciaFinal * 5).round() + (_globalConquistado ? 50 : 0);
+        if (pts > 0) {
+          RankingService.sumarPuntosGlobal(user.uid, pts)
+              .catchError((e) { debugPrint('RankingService global: $e'); return null; });
+        }
+      }
+    }
 
     await HealthService.registrarCarrera(
       inicio: DateTime.now().subtract(tiempoFinal),

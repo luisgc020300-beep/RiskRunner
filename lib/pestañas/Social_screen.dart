@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'perfil_screen.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/league_service.dart';
+import '../services/ranking_service.dart';
 
 // =============================================================================
 //  PALETA — fija (accent + tiers) + adaptativa (bg / text / surface)
@@ -310,7 +311,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   bool _navegandoAChat = false;
   int _misPuntosLiga = 0;
   String _miLiga = 'BRONCE';
-  bool _rankingModeLiga = true;
+  // 'competitivo' | 'semanal' | 'rutas'
+  String _rankingModo = 'competitivo';
+  int _misPuntosSemanal = 0;
+  double _misKmRutas = 0.0;
   String? _ligaSeleccionada;
   StreamSubscription? _solicitudesStream;
   StreamSubscription? _mensajesStream;
@@ -354,13 +358,21 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       final doc = await FirebaseFirestore.instance.collection('players').doc(currentUserId).get();
       if (!doc.exists || !mounted) return;
       final data = doc.data()!;
-      final c   = (data['territorio_color'] as num?)?.toInt();
-      final pts = (data['puntos_liga'] as num? ?? 0).toInt();
+      final c    = (data['territorio_color'] as num?)?.toInt();
+      final pts  = (data['puntos_liga'] as num? ?? 0).toInt();
       final info = LeagueHelper.getLeague(pts);
+      final semanaDoc    = data['semana_global'] as String?;
+      final semanaActual = RankingService.getSemanaActual();
+      final ptsSemanal   = semanaDoc == semanaActual
+          ? (data['puntos_semana_global'] as num? ?? 0).toInt()
+          : 0;
+      final kmRutas = (data['km_totales_rutas'] as num? ?? 0).toDouble();
       setState(() {
         if (c != null) _accent = Color(c);
-        _misPuntosLiga = pts;
-        _miLiga = info.name;
+        _misPuntosLiga    = pts;
+        _miLiga           = info.name;
+        _misPuntosSemanal = ptsSemanal;
+        _misKmRutas       = kmRutas;
         _ligaSeleccionada = null;
       });
     } catch (e) { debugPrint('Error cargando datos propios: $e'); }
@@ -659,19 +671,32 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   Widget _buildRankingTab() {
     final ligaInfo = LeagueHelper.getLeague(_misPuntosLiga);
     return Column(children: [
+      // ── Selector de modo de ranking ──────────────────────────────────────────
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
         child: Container(
           height: 40,
-          decoration: BoxDecoration(color: _p.surface, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+            color: _p.surface, border: Border.all(color: _p.line2),
+            borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
-            _ToggleBtn(label: 'LIGAS', icon: ligaInfo.icon, active: _rankingModeLiga, activeColor: _kAccent,
-              onTap: () => setState(() { _rankingModeLiga = true; _ligaSeleccionada = null; })),
+            _ToggleBtn(
+              label: 'COMPETITIVO', icon: Icons.emoji_events_rounded,
+              active: _rankingModo == 'competitivo', activeColor: _kAccent,
+              onTap: () => setState(() { _rankingModo = 'competitivo'; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),
-            _ToggleBtn(label: 'GLOBAL', icon: Icons.public_rounded, active: !_rankingModeLiga, activeColor: _kAccent,
-              onTap: () => setState(() { _rankingModeLiga = false; _ligaSeleccionada = null; })),
+            _ToggleBtn(
+              label: 'SEMANAL', icon: Icons.public_rounded,
+              active: _rankingModo == 'semanal', activeColor: const Color(0xFF30A0FF),
+              onTap: () => setState(() { _rankingModo = 'semanal'; _ligaSeleccionada = null; })),
+            Container(width: 1, height: 22, color: _p.line2),
+            _ToggleBtn(
+              label: 'RUTAS', icon: Icons.route_rounded,
+              active: _rankingModo == 'rutas', activeColor: const Color(0xFF30D158),
+              onTap: () => setState(() { _rankingModo = 'rutas'; _ligaSeleccionada = null; })),
           ]))),
-      if (_rankingModeLiga) ...[
+      // ── Contenido según modo ─────────────────────────────────────────────────
+      if (_rankingModo == 'competitivo') ...[
         if (_ligaSeleccionada != null) _buildBotonVolver(),
         Expanded(child: RefreshIndicator(
           key: _rkRanking, color: _kAccent, backgroundColor: _p.surface2,
@@ -682,13 +707,111 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   _LeagueBanner(ligaInfo: ligaInfo, puntosLiga: _misPuntosLiga, accent: _accent),
                   const SizedBox(height: 20),
                   _buildTodasLasLigas(ligaInfo),
-                ])))]
+                ])))
+      ] else if (_rankingModo == 'semanal')
+        Expanded(child: RefreshIndicator(
+          key: _rkRanking, color: const Color(0xFF30A0FF), backgroundColor: _p.surface2,
+          onRefresh: () async { await _cargarDatosPropios(); setState(() {}); },
+          child: _buildSemanalRanking()))
       else
         Expanded(child: RefreshIndicator(
-          key: _rkRanking, color: _kAccent, backgroundColor: _p.surface2,
-          onRefresh: () async { setState(() {}); },
-          child: _buildGlobalRanking())),
+          key: _rkRanking, color: const Color(0xFF30D158), backgroundColor: _p.surface2,
+          onRefresh: () async { await _cargarDatosPropios(); setState(() {}); },
+          child: _buildRutasRanking())),
     ]);
+  }
+
+  // ── Ranking semanal Global ──────────────────────────────────────────────────
+  Widget _buildSemanalRanking() {
+    final semana = RankingService.getSemanaActual();
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: RankingService.rankingSemanalStream(),
+      builder: (ctx, snap) {
+        if (!snap.hasData) return _buildRankSkels();
+        if (snap.hasError) return _ErrorState(onRetry: () => setState(() {}));
+        final docs = snap.data!;
+        if (docs.isEmpty) return _EmptyState(
+          icon: Icons.public_rounded,
+          titulo: 'Sin actividad esta semana',
+          subtitulo: 'Corre en modo Global para aparecer\nen el ranking de la semana $semana');
+        return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+            child: Row(children: [
+              const Icon(Icons.public_rounded, color: Color(0xFF30A0FF), size: 14),
+              const SizedBox(width: 8),
+              Text('SEMANA $semana',
+                style: const TextStyle(color: Color(0xFF30A0FF), fontSize: 9,
+                    fontWeight: FontWeight.w800, letterSpacing: 2.5)),
+              const Spacer(),
+              Text('${docs.length} corredores',
+                style: TextStyle(color: _p.subtext, fontSize: 10)),
+            ])),
+          Expanded(child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+            itemCount: docs.length,
+            itemBuilder: (ctx, i) {
+              final data = docs[i];
+              final uid  = data['id'] as String? ?? '';
+              final esYo = uid == currentUserId;
+              final pts  = (data['puntos_semana_global'] as num? ?? 0).toInt();
+              return _Stagger(index: i, child: GestureDetector(
+                onTap: esYo ? null : () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => PerfilScreen(targetUserId: uid))),
+                child: _SimpleRankCard(
+                  posicion: i + 1, nickname: data['nickname'] as String? ?? '?',
+                  nivel: (data['nivel'] as num? ?? 1).toInt(),
+                  fotoBase64: data['foto_base64'] as String?,
+                  esYo: esYo, valor: '$pts', unidad: 'PTS',
+                  color: const Color(0xFF30A0FF), accent: _accent, p: _p)));
+            })),
+        ]);
+      });
+  }
+
+  // ── Ranking Rutas ───────────────────────────────────────────────────────────
+  Widget _buildRutasRanking() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: RankingService.rankingRutasStream(),
+      builder: (ctx, snap) {
+        if (!snap.hasData) return _buildRankSkels();
+        if (snap.hasError) return _ErrorState(onRetry: () => setState(() {}));
+        final docs = snap.data!;
+        if (docs.isEmpty) return const _EmptyState(
+          icon: Icons.route_rounded,
+          titulo: 'Nadie ha corrido rutas aún',
+          subtitulo: 'Completa carreras en modo Rutas\npara aparecer en este ranking');
+        return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
+            child: Row(children: [
+              const Icon(Icons.route_rounded, color: Color(0xFF30D158), size: 14),
+              const SizedBox(width: 8),
+              const Text('TOP EXPLORADORES · KM TOTALES',
+                style: TextStyle(color: Color(0xFF30D158), fontSize: 9,
+                    fontWeight: FontWeight.w800, letterSpacing: 2.5)),
+              const Spacer(),
+              Text('${docs.length} corredores',
+                style: TextStyle(color: _p.subtext, fontSize: 10)),
+            ])),
+          Expanded(child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+            itemCount: docs.length,
+            itemBuilder: (ctx, i) {
+              final data = docs[i];
+              final uid  = data['id'] as String? ?? '';
+              final esYo = uid == currentUserId;
+              final km   = (data['km_totales_rutas'] as num? ?? 0).toDouble();
+              return _Stagger(index: i, child: GestureDetector(
+                onTap: esYo ? null : () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => PerfilScreen(targetUserId: uid))),
+                child: _SimpleRankCard(
+                  posicion: i + 1, nickname: data['nickname'] as String? ?? '?',
+                  nivel: (data['nivel'] as num? ?? 1).toInt(),
+                  fotoBase64: data['foto_base64'] as String?,
+                  esYo: esYo, valor: km.toStringAsFixed(1), unidad: 'KM',
+                  color: const Color(0xFF30D158), accent: _accent, p: _p)));
+            })),
+        ]);
+      });
   }
 
   Widget _buildBotonVolver() {
@@ -823,31 +946,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), ligaInfo: ligaInfo, accent: _accent)));
             })),
         ]);
-      });
-  }
-
-  Widget _buildGlobalRanking() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('players').orderBy('puntos_liga', descending: true).limit(100).snapshots(),
-      builder: (ctx, snapshot) {
-        if (!snapshot.hasData) return _buildRankSkels();
-        if (snapshot.hasError) return _ErrorState(onRetry: () => setState(() {}));
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const _EmptyState(icon: Icons.public_rounded, titulo: 'Sin jugadores aún', subtitulo: 'Sé el primero en conquistar territorio');
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32), itemCount: docs.length,
-          itemBuilder: (ctx, i) {
-            final data = docs[i].data() as Map<String, dynamic>;
-            final bool esYo = docs[i].id == currentUserId;
-            final int ptsLiga = (data['puntos_liga'] as num? ?? 0).toInt();
-            return _Stagger(index: i, child: GestureDetector(
-              onTap: esYo ? null : () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PerfilScreen(targetUserId: docs[i].id))),
-              child: _RankCard(posicion: i + 1, nickname: data['nickname'] ?? '?',
-                nivel: (data['nivel'] as num? ?? 1).toInt(), monedas: (data['monedas'] as num? ?? 0).toInt(),
-                fotoBase64: data['foto_base64'] as String?, esYo: esYo, puntosLiga: ptsLiga,
-                ligaInfo: LeagueHelper.getLeague(ptsLiga), accent: _accent)));
-          });
       });
   }
 
@@ -1220,6 +1318,87 @@ class _RankCard extends StatelessWidget {
                   style: TextStyle(color: top3 ? medal : esYo ? _kAccent : p.text2,
                     fontWeight: FontWeight.w900, fontSize: top3 ? 20 : 15, letterSpacing: -0.5)),
                 Text('pts', style: TextStyle(color: p.dim, fontSize: 9)),
+              ]),
+            ])),
+          if (dest)
+            Positioned(left: 0, top: 0, bottom: 0,
+              child: Container(
+                width: top3 ? 3 : 2,
+                decoration: BoxDecoration(
+                  color: bar,
+                  boxShadow: top3 ? [BoxShadow(color: bar.withValues(alpha: 0.5), blurRadius: 8)] : null,
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(10), bottomLeft: Radius.circular(10))))),
+        ])));
+  }
+}
+
+// =============================================================================
+//  SIMPLE RANK CARD  (Semanal / Rutas — sin insignia de liga)
+// =============================================================================
+class _SimpleRankCard extends StatelessWidget {
+  final int posicion;
+  final String nickname;
+  final int nivel;
+  final String? fotoBase64;
+  final bool esYo;
+  final String valor;
+  final String unidad;
+  final Color color;
+  final Color accent;
+  final _SP p;
+
+  const _SimpleRankCard({
+    required this.posicion, required this.nickname, required this.nivel,
+    required this.fotoBase64, required this.esYo, required this.valor,
+    required this.unidad, required this.color, required this.accent,
+    required this.p,
+  });
+
+  @override
+  Widget build(BuildContext ctx) {
+    final Color medal = posicion == 1 ? _kGold : posicion == 2 ? _kSilver2 : posicion == 3 ? _kBronze2 : p.line2;
+    final bool top3 = posicion <= 3;
+    final bool dest = esYo || top3;
+    final Color bar  = esYo ? accent : (top3 ? medal : color);
+    final double aSize = top3 ? 42.0 : 35.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(children: [
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: top3 ? 14 : 10),
+            decoration: BoxDecoration(
+              color: top3 ? p.surface2 : esYo ? accent.withValues(alpha: 0.06) : p.surface,
+              border: Border.all(color: top3 ? medal.withValues(alpha: 0.2) : esYo ? accent.withValues(alpha: 0.3) : p.line2),
+              borderRadius: BorderRadius.circular(10)),
+            child: Row(children: [
+              SizedBox(width: 38,
+                child: Text('#$posicion',
+                  style: TextStyle(
+                    color: top3 ? medal : esYo ? accent : p.text3,
+                    fontWeight: FontWeight.w900,
+                    fontSize: top3 ? (posicion == 1 ? 15 : 13) : 12),
+                  textAlign: TextAlign.center)),
+              const SizedBox(width: 8),
+              _Avatar(fotoBase64: fotoBase64, nickname: nickname, size: aSize,
+                ringColor: top3 ? medal.withValues(alpha: 0.5) : esYo ? accent.withValues(alpha: 0.6) : color.withValues(alpha: 0.35),
+                glow: top3 || esYo),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(nickname + (esYo ? ' (Tú)' : ''),
+                  style: TextStyle(color: p.text1, fontWeight: top3 ? FontWeight.w900 : FontWeight.w600, fontSize: top3 ? 14 : 13),
+                  overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Text('Niv. $nivel', style: TextStyle(color: p.subtext, fontSize: 10)),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(valor,
+                  style: TextStyle(
+                    color: top3 ? medal : esYo ? accent : color,
+                    fontWeight: FontWeight.w900, fontSize: top3 ? 20 : 15, letterSpacing: -0.5)),
+                Text(unidad, style: TextStyle(color: p.dim, fontSize: 9)),
               ]),
             ])),
           if (dest)

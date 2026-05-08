@@ -157,6 +157,8 @@ class RouteService {
           'rutasStats.totalSeg':             FieldValue.increment(tiempoSeg),
           'rutasStats.mejorRitmoMinKm':      nuevoMejorRitmo,
           'rutasStats.mayorDistanciaKm':     nuevaMayorDist,
+          // Campo denormalizado para el ranking de rutas (evita índice compuesto)
+          'km_totales_rutas':                FieldValue.increment(distanciaKm),
         }, SetOptions(merge: true));
       });
 

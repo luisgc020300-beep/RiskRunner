@@ -58,9 +58,9 @@ class HealthService {
       final distanciaM = (distanciaKm * 1000).round();
 
       await _health.writeWorkoutData(
-        HealthWorkoutActivityType.RUNNING,
-        inicio,
-        fin,
+        activityType: HealthWorkoutActivityType.RUNNING,
+        start: inicio,
+        end: fin,
         totalEnergyBurned: calorias,
         totalEnergyBurnedUnit: HealthDataUnit.KILOCALORIE,
         totalDistance: distanciaM,
