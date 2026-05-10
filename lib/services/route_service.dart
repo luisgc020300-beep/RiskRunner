@@ -184,8 +184,9 @@ class RouteService {
       });
 
       return routeRef.id;
-    } catch (e) {
-      debugPrint('RouteService.guardarRuta: $e');
+    } catch (e, st) {
+      debugPrint('❌ RouteService.guardarRuta FALLÓ: $e');
+      debugPrint('   Stack: $st');
       return null;
     }
   }

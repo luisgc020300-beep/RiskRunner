@@ -4152,6 +4152,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       nombre:        nombreElegido,
     );
 
+    if (routeId == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 6),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: _snackWrap(
+          color: const Color(0xFFCC2222),
+          child: const Text(
+            'Error al guardar la ruta. Revisa tu conexion e intentalo de nuevo.',
+            style: TextStyle(color: Colors.white, fontSize: 13),
+          ),
+        ),
+      ));
+    }
+
     if (recompensa.puntosLiga > 0) {
       LeagueService.sumarPuntosLiga(user.uid, recompensa.puntosLiga)
           .catchError((e) { debugPrint('LeagueService ruta: $e'); return null; });

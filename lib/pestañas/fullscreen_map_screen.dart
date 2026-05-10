@@ -1956,9 +1956,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoRutas() async {
     _state.setModoRutas(true);
-    if (_misRutas.isEmpty && !_cargandoRutas) {
-      await _cargarMisRutas();
-    }
+    await _cargarMisRutas();
   }
 
   Future<void> _cargarMisRutas() async {
