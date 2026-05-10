@@ -385,7 +385,9 @@ class _StarfieldWidgetState extends State<_StarfieldWidget>
 // =============================================================================
 class LiveActivityScreen extends StatefulWidget {
   final Function(double distancia, Duration tiempo, List<LatLng> ruta)? onFinish;
-  const LiveActivityScreen({super.key, this.onFinish});
+  // Ruta guardada de otro jugador que el usuario quiere correr guiado
+  final RouteData? rutaGuiada;
+  const LiveActivityScreen({super.key, this.onFinish, this.rutaGuiada});
 
   @override
   State<LiveActivityScreen> createState() => _LiveActivityScreenState();
@@ -445,6 +447,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ── Modo de juego
   bool _modoSolitario = false;
   bool _modoRuta      = false;
+
+  // ── Ruta guiada (cargada desde RutasExploradorScreen)
+  RouteData? _rutaGuiada;
+  bool   _ghostLayerCreated    = false;
+  static const _kGhostSourceId = 'ghost-route-source';
+  static const _kGhostLayerId  = 'ghost-route-layer';
+  int    _checkpointActual     = 0;
+  bool   _fueraDeRuta          = false;
+  bool   _narratorRutaIniciado = false;
+  Timer? _timerCheckRuta;
 
   // ── Jugador
   Color  _colorTerritorio      = const Color(0xFF636366);
@@ -608,6 +620,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ..repeat()
       ..addListener(_rotarGlobo);
 
+    // Ruta guiada pasada desde RutasExploradorScreen
+    if (widget.rutaGuiada != null) {
+      _rutaGuiada    = widget.rutaGuiada;
+      _modoRuta      = true;
+      _modoSolitario = false;
+      GameStateService.instance.currentMode = 'ruta';
+    }
+
     _determinePosition();
     final savedMode = GameStateService.instance.currentMode;
     if (savedMode == 'ruta') { _modoRuta = true; _modoSolitario = false; }
@@ -681,6 +701,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _jugadoresStream?.cancel();
     _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
+    _timerCheckRuta?.cancel();
     _pulsoTimer?.cancel();
     _infoTimer?.cancel();
     _timerResistencia?.cancel();
@@ -1383,6 +1404,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _mejorarAgua(),
       _dibujarTerritoriosEnMapa(),
       if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
+      if (_rutaGuiada != null) _dibujarGhostRuta(),
     ]);
   }
 
@@ -2155,6 +2177,89 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   // ==========================================================================
+  // RUTA GUIADA
+  // ==========================================================================
+
+  // Dibuja la polilínea fantasma de la ruta guiada sobre el mapa Mapbox.
+  Future<void> _dibujarGhostRuta() async {
+    final ruta = _rutaGuiada;
+    if (_mapboxMap == null || ruta == null || ruta.coords.length < 2) return;
+    final coords = ruta.coords.map((p) => [p.longitude, p.latitude]).toList();
+    final geojson = _encodeJson({
+      'type': 'Feature',
+      'geometry': {'type': 'LineString', 'coordinates': coords},
+    });
+    try {
+      if (!_ghostLayerCreated) {
+        await _mapboxMap!.style.addSource(
+            mapbox.GeoJsonSource(id: _kGhostSourceId, data: geojson));
+        await _mapboxMap!.style.addLayer(
+            mapbox.LineLayer(id: _kGhostLayerId, sourceId: _kGhostSourceId));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _kGhostLayerId, 'line-color', '#FFFFFF');
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _kGhostLayerId, 'line-width', 3.0);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _kGhostLayerId, 'line-opacity', 0.35);
+        _ghostLayerCreated = true;
+      }
+    } catch (e) {
+      debugPrint('Ghost route layer: $e');
+    }
+  }
+
+  // Evalúa checkpoint y desvío en cada actualización de posición.
+  void _actualizarProgresoRutaGuiada(LatLng pos) {
+    final ruta = _rutaGuiada;
+    if (ruta == null || ruta.coords.isEmpty) return;
+
+    // Narración de inicio (una sola vez al arrancar)
+    if (!_narratorRutaIniciado && isTracking) {
+      _narratorRutaIniciado = true;
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          _narrador.eventoInicioRutaGuiada(
+              ruta.nombre ?? 'Ruta sin nombre', ruta.runsCount);
+          if (ruta.esLegendaria) {
+            Future.delayed(const Duration(seconds: 8), () {
+              if (mounted) _narrador.eventoRutaLegendaria(ruta.runsCount);
+            });
+          }
+        }
+      });
+    }
+
+    // Distancia mínima al trazado
+    double minDist = double.infinity;
+    int    nearestIdx = 0;
+    for (var i = 0; i < ruta.coords.length; i++) {
+      final d = Geolocator.distanceBetween(
+          pos.latitude, pos.longitude,
+          ruta.coords[i].latitude, ruta.coords[i].longitude);
+      if (d < minDist) { minDist = d; nearestIdx = i; }
+    }
+
+    // Desvío > 150 m
+    final nuevaFuera = minDist > 150;
+    if (nuevaFuera && !_fueraDeRuta) {
+      _fueraDeRuta = true;
+      _narrador.eventoDesvio();
+    } else if (!nuevaFuera && _fueraDeRuta) {
+      _fueraDeRuta = false;
+      _narrador.eventoVueltaRuta();
+    }
+
+    // Checkpoints cada 20% del recorrido (4 checkpoints: 20 40 60 80 %)
+    const totalCheckpoints = 4;
+    final pctIdx = nearestIdx / ruta.coords.length;
+    final cpActual = (pctIdx * totalCheckpoints).floor();
+    if (cpActual > _checkpointActual && cpActual <= totalCheckpoints) {
+      _checkpointActual = cpActual;
+      _narrador.eventoCheckpoint(_checkpointActual, totalCheckpoints);
+    }
+  }
+
+  // ==========================================================================
   // JUGADORES ACTIVOS
   // ==========================================================================
   void _escucharJugadoresActivos() {
@@ -2721,6 +2826,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
 
         if (!_modoSolitario) _procesarPosicionEnTerritorios(newPt);
+
+        // ── Ruta guiada: checkpoints + desvío ─────────────────────────────
+        if (_rutaGuiada != null && _rutaGuiada!.coords.isNotEmpty) {
+          _actualizarProgresoRutaGuiada(newPt);
+        }
 
         final kmActual = _distanciaTotal.floor();
         if (kmActual > 0) _narrador.eventoKilometro(kmActual);
@@ -3978,6 +4088,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       fin:    DateTime.now(),
       distanciaKm: distanciaKm,
     );
+
+    // Si era una ruta guiada, registrar que fue corrida
+    if (_rutaGuiada != null) {
+      RouteService.registrarCorrida(_rutaGuiada!.id)
+          .catchError((e) { debugPrint('registrarCorrida: $e'); });
+    }
 
     _stopping = false;
 

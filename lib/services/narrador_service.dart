@@ -372,4 +372,86 @@ class NarradorService {
     if (diff > 1.5)                               eventoRitimoMejorando();
     _ritmoUltimos500m = velocidadActualKmh;
   }
+
+  // ── Eventos de ruta guiada ────────────────────────────────────────────────
+
+  void eventoInicioRutaGuiada(String nombre, int runners) {
+    final frases = runners >= kNarradorLegendaryThreshold
+        ? [
+            'Ruta legendaria cargada: $nombre. $runners exploradores han recorrido este camino antes que tú.',
+            'Iniciando misión: $nombre. Una ruta con historia. No decepciones a quienes la trazaron.',
+            '$nombre — ruta de leyenda. Síguete al camino. No hay margen para desviarse.',
+          ]
+        : [
+            'Ruta cargada: $nombre. El recorrido está trazado. Solo tienes que correrlo.',
+            'Misión iniciada: $nombre. Sigue el camino y no mires atrás.',
+            'Iniciando $nombre. Cada paso cuenta. Mantén el rumbo.',
+          ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.conquista,
+      duracion: const Duration(seconds: 6),
+    ));
+  }
+
+  void eventoCheckpoint(int actual, int total) {
+    final pct = ((actual / total) * 100).round();
+    final frases = [
+      'Checkpoint $actual de $total superado. $pct% del recorrido completado.',
+      '$pct% de la ruta. Sigue el trazado. Queda lo mejor.',
+      'Punto de control alcanzado. $actual de $total. El camino no miente.',
+    ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.kilometro,
+      duracion: const Duration(seconds: 5),
+    ));
+  }
+
+  void eventoDesvio() {
+    final frases = [
+      'Atención: te has desviado del recorrido. Vuelve a la ruta.',
+      'Fuera de ruta. El camino está a tu izquierda. Corrígete.',
+      'Desviación detectada. Recupera el trazado.',
+    ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.rival,
+      duracion: const Duration(seconds: 5),
+    ));
+  }
+
+  void eventoVueltaRuta() {
+    final frases = [
+      'De vuelta en ruta. Sigue adelante.',
+      'Recorrido recuperado. Bien hecho.',
+      'En el camino de nuevo. No te desvíes más.',
+    ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.refuerzo,
+      duracion: const Duration(seconds: 4),
+    ));
+  }
+
+  void eventoRutaLegendaria(int runners) {
+    final frases = [
+      'Estás recorriendo una ruta legendaria. Solo $runners corredores la han completado.',
+      'Ruta de leyenda activa. $runners exploradores antes que tú. Deja tu huella.',
+      'Esta ruta tiene historia. $runners corredores. Ahora te toca a ti.',
+    ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.conquista,
+      duracion: const Duration(seconds: 6),
+    ));
+  }
 }
+
+// Threshold para frases de "ruta legendaria" en el narrador
+const int kNarradorLegendaryThreshold = 5;

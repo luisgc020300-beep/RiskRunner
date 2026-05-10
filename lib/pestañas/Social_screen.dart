@@ -10,6 +10,7 @@ import 'perfil_screen.dart';
 import '../widgets/custom_navbar.dart';
 import '../services/league_service.dart';
 import '../services/ranking_service.dart';
+import '../screens/rutas_explorador_screen.dart';
 
 // =============================================================================
 //  PALETA — fija (accent + tiers) + adaptativa (bg / text / surface)
@@ -789,8 +790,21 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                 style: TextStyle(color: Color(0xFF30D158), fontSize: 9,
                     fontWeight: FontWeight.w800, letterSpacing: 2.5)),
               const Spacer(),
-              Text('${docs.length} corredores',
-                style: TextStyle(color: _p.subtext, fontSize: 10)),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => RutasExploradorScreen(accent: _accent))),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF30D158).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFF30D158).withValues(alpha: 0.4))),
+                  child: const Row(children: [
+                    Icon(Icons.explore_rounded, color: Color(0xFF30D158), size: 11),
+                    SizedBox(width: 4),
+                    Text('Explorar', style: TextStyle(color: Color(0xFF30D158),
+                      fontSize: 10, fontWeight: FontWeight.w700)),
+                  ]))),
             ])),
           Expanded(child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
