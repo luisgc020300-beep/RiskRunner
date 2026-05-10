@@ -5297,6 +5297,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _elegirTerritorioGlobal() async {
     HapticFeedback.mediumImpact();
+    _limpiarRutasPreview();
     setState(() { _seleccionandoGlobal = true; });
     if (_terrGlobales.isEmpty && !_cargandoGlobales) {
       await _cargarGlobales();
