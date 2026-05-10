@@ -522,17 +522,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _globalesLayerId     = 'globales-centros-layer';
   static const String _globalesSelSourceId = 'globales-sel-src';
   static const String _globalesSelLayerId  = 'globales-sel-layer';
-  static const String _puntosGloboSrcId   = 'puntosGlobo-src';
-  static const String _puntosGloboLayerId = 'puntosGlobo-layer';
+  static const String _puntosGloboSrcId     = 'puntosGlobo-src';
+  static const String _puntosGloboLayerId   = 'puntosGlobo-layer';
+  static const String _rutasPreviewSrcId    = 'rutas-preview-src';
+  static const String _rutasPreviewLayerId  = 'rutas-preview-layer';
   static const String _kTileUrl =
       'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
       '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
-  bool _routeLayerCreated       = false;
-  bool _buildings3dCreated      = false;
+  bool _routeLayerCreated        = false;
+  bool _buildings3dCreated       = false;
   bool _territoriosLayersCreated = false;
-  bool _centrosLayerCreated     = false;
-  bool _styleLoaded             = false;
+  bool _centrosLayerCreated      = false;
+  bool _styleLoaded              = false;
+  bool _rutasPreviewLayerCreated = false;
+  List<RouteData> _rutasPreview  = [];
 
   // Web fallback (flutter_map)
   MapController? _webMapCtrl;
@@ -1483,6 +1487,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _dibujarTerritoriosEnMapa(),
       if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
       if (_rutaGuiada != null) _dibujarGhostRuta(),
+      if (_modoRuta) _cargarYDibujarRutasPreview(),
     ]);
   }
 
@@ -2296,6 +2301,55 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } catch (e) {
       debugPrint('Ghost route layer: $e');
     }
+  }
+
+  Future<void> _cargarYDibujarRutasPreview() async {
+    if (_mapboxMap == null || !_styleLoaded) return;
+    try {
+      final rutas = await RouteService.cargarMisRutas();
+      if (!mounted) return;
+      setState(() => _rutasPreview = rutas);
+      final geojson = rutas.isEmpty
+          ? '{"type":"FeatureCollection","features":[]}'
+          : '{"type":"FeatureCollection","features":[${rutas.map((r) {
+              final coords = r.coords
+                  .map((p) => '[${p.longitude},${p.latitude}]')
+                  .join(',');
+              return '{"type":"Feature","properties":{"color":"${_colorToHex(r.color)}"},'
+                  '"geometry":{"type":"LineString","coordinates":[$coords]}}';
+            }).join(',')}]}';
+      if (_rutasPreviewLayerCreated) {
+        final src = await _mapboxMap!.style
+            .getSource(_rutasPreviewSrcId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+      } else {
+        try { await _mapboxMap!.style.removeStyleLayer(_rutasPreviewLayerId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleSource(_rutasPreviewSrcId); } catch (_) {}
+        await _mapboxMap!.style
+            .addSource(mapbox.GeoJsonSource(id: _rutasPreviewSrcId, data: geojson));
+        await _mapboxMap!.style
+            .addLayer(mapbox.LineLayer(id: _rutasPreviewLayerId, sourceId: _rutasPreviewSrcId));
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_rutasPreviewLayerId, 'line-color', ['get', 'color']);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_rutasPreviewLayerId, 'line-width', 3.5);
+        await _mapboxMap!.style
+            .setStyleLayerProperty(_rutasPreviewLayerId, 'line-opacity', 0.85);
+        _rutasPreviewLayerCreated = true;
+      }
+    } catch (e) {
+      debugPrint('_cargarYDibujarRutasPreview: $e');
+    }
+  }
+
+  Future<void> _limpiarRutasPreview() async {
+    if (!_rutasPreviewLayerCreated || _mapboxMap == null) return;
+    try {
+      final src = await _mapboxMap!.style
+          .getSource(_rutasPreviewSrcId) as mapbox.GeoJsonSource?;
+      await src?.updateGeoJSON('{"type":"FeatureCollection","features":[]}');
+    } catch (_) {}
+    if (mounted) setState(() => _rutasPreview = []);
   }
 
   // Evalúa checkpoint y desvío en cada actualización de posición.
@@ -4670,12 +4724,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                             'MEDIA', _kWaterLight,
                           ),
                         ]
-                      : [
-                          _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
-                          _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
-                          _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
-                          _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
-                        ],
+                      : _modoRuta
+                          ? [
+                              _globoStat('${_rutasPreview.length}', 'MIS RUTAS', _kGold),
+                              _globoStat(
+                                _rutasPreview.fold(0.0, (s, r) => s + r.distanciaKm).toStringAsFixed(1),
+                                'KM TOTAL', _kWaterLight,
+                              ),
+                              _globoStat(
+                                _rutasPreview.isNotEmpty
+                                    ? _rutasPreview.map((r) => r.distanciaKm).reduce((a, b) => a > b ? a : b).toStringAsFixed(1)
+                                    : '0.0',
+                                'MEJOR KM', _kGoldLight,
+                              ),
+                            ]
+                          : [
+                              _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
+                              _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
+                              _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
+                              _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
+                            ],
             ),
           ),
         ),
@@ -4737,6 +4805,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         const SizedBox(height: 6),
         _globoChip(CupertinoIcons.circle,
             '+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0} el lunes', _kGold),
+      ] else if (_modoRuta) ...[
+        _globoChip(Icons.route_rounded,
+            '${_rutasPreview.length} ${_rutasPreview.length == 1 ? 'ruta guardada' : 'rutas guardadas'}',
+            _kGold),
+        const SizedBox(height: 6),
+        if (_rutasPreview.isNotEmpty) ...[
+          _globoChip(Icons.straighten,
+              '${_rutasPreview.fold(0.0, (s, r) => s + r.distanciaKm).toStringAsFixed(1)} km totales',
+              _kWaterLight),
+        ] else
+          _globoChip(Icons.add_road, 'Corre tu primera ruta libre', Colors.white70),
       ] else ...[
         _globoChip(CupertinoIcons.shield,
             '${_territoriosNotificadosEnSesion.isNotEmpty ? _territoriosNotificadosEnSesion.length : "—"} invasiones',
@@ -5626,6 +5705,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
             setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; });
+            _limpiarRutasPreview();
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateSolitario();
             final centro = _currentPosition != null
@@ -5652,6 +5732,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
             setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; });
+            _limpiarRutasPreview();
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateCompetitive();
             final centro = _currentPosition != null
@@ -5682,6 +5763,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               setState(() => _territorios = []);
               _dibujarTerritoriosEnMapa();
             }
+            _cargarYDibujarRutasPreview();
           },
         ),
         const SizedBox(width: 8),
