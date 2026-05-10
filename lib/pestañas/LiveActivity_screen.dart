@@ -2037,10 +2037,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
 
   Future<void> _dibujarTerritoriosEnMapa() async {
-    if (_mapboxMap == null || !_styleLoaded || _territorios.isEmpty) return;
+    if (_mapboxMap == null || !_styleLoaded) return;
     // Evitar creación concurrente de capas (zoom rápido puede disparar esto varias veces)
     if (_dibujandoTerritorios && !_territoriosLayersCreated) return;
     _dibujandoTerritorios = true;
+
+    if (_territorios.isEmpty) {
+      if (_territoriosLayersCreated) {
+        try {
+          final src = await _mapboxMap!.style
+              .getSource(_sourceId) as mapbox.GeoJsonSource?;
+          await src?.updateGeoJSON('{"type":"FeatureCollection","features":[]}');
+        } catch (_) {}
+      }
+      _dibujandoTerritorios = false;
+      return;
+    }
 
     final features = _territorios.map((t) {
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
