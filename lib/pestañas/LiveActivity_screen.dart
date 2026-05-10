@@ -4139,32 +4139,36 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
     }
 
-    final routeId = await RouteService.guardarRuta(
-      userId:        user.uid,
-      ownerNickname: _miNickname,
-      color:         _colorTerritorio,
-      coords:        ruta,
-      distanciaKm:   distanciaKm,
-      tiempoSeg:     tiempo.inSeconds,
-      ritmoMinKm:    ritmoMinKm,
-      monedas:       recompensa.monedas,
-      puntosLiga:    recompensa.puntosLiga,
-      nombre:        nombreElegido,
-    );
-
-    if (routeId == null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        duration: const Duration(seconds: 6),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        content: _snackWrap(
-          color: const Color(0xFFCC2222),
-          child: const Text(
-            'Error al guardar la ruta. Revisa tu conexion e intentalo de nuevo.',
-            style: TextStyle(color: Colors.white, fontSize: 13),
+    String? routeId;
+    try {
+      routeId = await RouteService.guardarRuta(
+        userId:        user.uid,
+        ownerNickname: _miNickname,
+        color:         _colorTerritorio,
+        coords:        ruta,
+        distanciaKm:   distanciaKm,
+        tiempoSeg:     tiempo.inSeconds,
+        ritmoMinKm:    ritmoMinKm,
+        monedas:       recompensa.monedas,
+        puntosLiga:    recompensa.puntosLiga,
+        nombre:        nombreElegido,
+      );
+    } catch (e) {
+      if (mounted) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Error al guardar la ruta'),
+            content: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ),
-      ));
+        );
+      }
     }
 
     if (recompensa.puntosLiga > 0) {
