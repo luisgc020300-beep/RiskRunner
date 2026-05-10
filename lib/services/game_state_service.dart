@@ -4,6 +4,10 @@
 // LiveActivityScreen y FullscreenMapScreen para que ambas pantallas
 // muestren siempre la misma información (modo, territorios).
 //
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'territory_service.dart';
 
 class GameStateService {
@@ -12,10 +16,73 @@ class GameStateService {
 
   static const _kGlobalTtl    = Duration(minutes: 10);
   static const _kTerritoryTtl = Duration(minutes: 2);
+  static const _kModeKey      = 'gss_current_mode';
+  static const _kSessionKey   = 'gss_session';
 
-  // ── Modo activo ───────────────────────────────────────────────────────────
-  // 'competitivo' | 'solitario' | 'global'
-  String currentMode = 'competitivo';
+  // ── Modo activo con persistencia ──────────────────────────────────────────
+  // 'competitivo' | 'solitario' | 'global' | 'ruta'
+  String _currentMode = 'competitivo';
+  String get currentMode => _currentMode;
+  set currentMode(String v) {
+    _currentMode = v;
+    SharedPreferences.getInstance()
+        .then((p) => p.setString(_kModeKey, v))
+        .catchError((_) => false);
+  }
+
+  /// Carga el modo guardado desde SharedPreferences. Llamar en main() antes de runApp.
+  Future<void> initAsync() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _currentMode = p.getString(_kModeKey) ?? 'competitivo';
+    } catch (_) {}
+  }
+
+  // ── Session persistence ────────────────────────────────────────────────────
+  // Guarda el estado de una carrera en progreso para recuperarla si la app se cierra.
+
+  Future<void> saveSession({
+    required String mode,
+    required List<Map<String, double>> points,
+    required double distanciaKm,
+    required int elapsedSeconds,
+  }) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_kSessionKey, jsonEncode({
+        'mode':           mode,
+        'points':         points,
+        'distanciaKm':    distanciaKm,
+        'elapsedSeconds': elapsedSeconds,
+        'savedAt':        DateTime.now().millisecondsSinceEpoch,
+      }));
+    } catch (_) {}
+  }
+
+  /// Devuelve la sesión guardada si existe y tiene menos de 12 horas. Null si no hay o expiró.
+  Future<Map<String, dynamic>?> restoreSession() async {
+    try {
+      final p   = await SharedPreferences.getInstance();
+      final raw = p.getString(_kSessionKey);
+      if (raw == null) return null;
+      final data    = jsonDecode(raw) as Map<String, dynamic>;
+      final savedAt = (data['savedAt'] as num?)?.toInt() ?? 0;
+      if (DateTime.now().millisecondsSinceEpoch - savedAt > 12 * 3600 * 1000) {
+        await clearSession();
+        return null;
+      }
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearSession() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_kSessionKey);
+    } catch (_) {}
+  }
 
   // ── Territorios globales ──────────────────────────────────────────────────
   List<GlobalTerritory>? _globalTerritories;

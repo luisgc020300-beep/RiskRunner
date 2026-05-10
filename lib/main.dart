@@ -32,6 +32,7 @@ import 'package:latlong2/latlong.dart';
 import 'pestañas/clan_screen.dart';
 import 'pestañas/desafios_screen.dart';
 import 'services/desafios_service.dart';
+import 'services/game_state_service.dart';
 
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -60,6 +61,7 @@ void main() async {
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!Env.isDebug);
 
   await ThemeNotifier.instance.init();
+  await GameStateService.instance.initAsync();
   mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);

@@ -421,6 +421,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   List<LatLng> routePoints           = [];
   bool isTracking                    = false;
   bool isPaused                      = false;
+  Timer? _timerSesion;
   double _distanciaTotal             = 0.0;
   double _velocidadActualKmh         = 0.0;
   double _bearing                    = 0.0;
@@ -634,6 +635,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     else if (savedMode == 'solitario') { _modoSolitario = true; }
     _cargarDatosIniciales();
     _escucharJugadoresActivos();
+    _checkPendingSession();
 
     _narrador.onMensaje = (msg) {
       if (mounted) setState(() => _mensajeNarrador = msg);
@@ -693,8 +695,82 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     });
   }
 
+  // ── Session persistence ────────────────────────────────────────────────────
+
+  Future<void> _checkPendingSession() async {
+    final session = await GameStateService.instance.restoreSession();
+    if (session == null || !mounted) return;
+
+    final rawPoints = session['points'] as List<dynamic>? ?? [];
+    if (rawPoints.isEmpty) return;
+
+    final pts = rawPoints.map((p) {
+      final m = p as Map<String, dynamic>;
+      return LatLng(
+        (m['lat'] as num).toDouble(),
+        (m['lng'] as num).toDouble(),
+      );
+    }).toList();
+
+    final bool? restore = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Carrera en progreso'),
+        content: const Text(
+            'Tienes una carrera anterior sin terminar. ¿Quieres continuar?'),
+        actions: [
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Descartar'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (restore == true) {
+      final mode        = session['mode'] as String? ?? 'competitivo';
+      final distanciaKm = (session['distanciaKm'] as num?)?.toDouble() ?? 0;
+      setState(() {
+        routePoints.addAll(pts);
+        _distanciaTotal = distanciaKm;
+        isTracking      = true;
+        isPaused        = true;
+        _modoSolitario  = mode == 'solitario';
+        _modoRuta       = mode == 'ruta';
+      });
+      GameStateService.instance.currentMode = mode;
+    } else {
+      await GameStateService.instance.clearSession();
+    }
+  }
+
+  void _iniciarTimerSesion() {
+    _timerSesion?.cancel();
+    _timerSesion = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!isTracking || isPaused || _sesionInvalidadaPorCheat) return;
+      final pts = routePoints
+          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+          .toList();
+      GameStateService.instance.saveSession(
+        mode:           GameStateService.instance.currentMode,
+        points:         pts,
+        distanciaKm:    _distanciaTotal,
+        elapsedSeconds: _stopwatch.elapsed.inSeconds,
+      );
+    });
+  }
+
   @override
   void dispose() {
+    _timerSesion?.cancel();
     _timerController.dispose();
     _timerCuentaAtras?.cancel();
     _positionStream?.cancel();
@@ -2741,6 +2817,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (!acResultado.esValido) {
           if (_antiCheat.sesionCancelada && !_sesionInvalidadaPorCheat) {
             _sesionInvalidadaPorCheat = true;
+            _timerSesion?.cancel();
+            GameStateService.instance.clearSession();
             _positionStream?.cancel();
             _timerPublicarPosicion?.cancel();
             _stopwatch.stop();
@@ -2954,6 +3032,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _stopping = false;
     _stopwatch.reset();
     _stopwatch.start();
+    _iniciarTimerSesion();
     _timerController.start();
     if (!kIsWeb && _mapboxMap != null && _currentPosition != null) {
       _mapboxMap!.flyTo(
@@ -3103,6 +3182,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> stopTracking() async {
     if (_stopping) return;
     _stopping = true;
+    _timerSesion?.cancel();
+    GameStateService.instance.clearSession();
 
     _stopwatch.stop();
     _timerController.pause();
