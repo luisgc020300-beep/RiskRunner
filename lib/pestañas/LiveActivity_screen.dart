@@ -3281,6 +3281,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
     } catch (e) {
       debugPrint('Error log: $e');
+      if (mounted) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Error al guardar el registro'),
+            content: Text(e.toString()),
+            actions: [CupertinoDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            )],
+          ),
+        );
+      }
     }
 
     if (distanciaFinal > 0 && !_sesionInvalidadaPorCheat) {
@@ -3385,6 +3398,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       DesafiosService.verificarExpirados(user.uid);
+      if (puntosLigaGanados > 0) {
+        LeagueService.sumarPuntosLiga(user.uid, puntosLigaGanados)
+            .catchError((e) { debugPrint('LeagueService competitivo: $e'); return null; });
+      }
       // Puntos ranking semanal para modo Global (5 pts/km + 50 bonus si conquista)
       if (_objetivoGlobal != null && distanciaFinal > 0) {
         final pts = (distanciaFinal * 5).round() + (_globalConquistado ? 50 : 0);

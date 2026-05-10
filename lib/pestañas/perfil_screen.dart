@@ -925,7 +925,16 @@ class _PerfilScreenState extends State<PerfilScreen>
         _historialPaginaActual   = 1;
         _cargandoHistorial       = false;
       });
-    } catch (e) { debugPrint('Error stats: $e'); }
+    } catch (e) {
+      debugPrint('Error stats: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error cargando estadísticas: $e'),
+          duration: const Duration(seconds: 15),
+          backgroundColor: Colors.red[900],
+        ));
+      }
+    }
   }
 
   // Delegadas a _cargarEstadisticas — no necesitan hacer su propia query
