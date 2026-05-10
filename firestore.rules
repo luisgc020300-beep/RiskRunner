@@ -42,6 +42,22 @@ service cloud.firestore {
       allow write:  if isOwner(uid);
     }
 
+    // ── routes ────────────────────────────────────────────────────────────────
+    // Cualquier autenticado puede leer rutas públicas. Solo el dueño escribe.
+    // Cualquier autenticado puede incrementar runs_count/saves_count (correr/guardar ruta ajena).
+    match /routes/{routeId} {
+      allow read:   if isAuth() && (
+        resource.data.privacidad == 'publica' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        onlyFields(['runs_count', 'saves_count'])
+      );
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+    }
+
     // ── activity_logs ─────────────────────────────────────────────────────────
     // El cliente crea logs de actividad propios. Lectura solo al propietario.
     // Cloud Functions leen todos para validar conquistas.
