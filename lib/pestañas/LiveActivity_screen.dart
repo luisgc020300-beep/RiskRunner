@@ -635,7 +635,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     else if (savedMode == 'solitario') { _modoSolitario = true; }
     _cargarDatosIniciales();
     _escucharJugadoresActivos();
-    _checkPendingSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _checkPendingSession();
+    });
 
     _narrador.onMensaje = (msg) {
       if (mounted) setState(() => _mensajeNarrador = msg);
