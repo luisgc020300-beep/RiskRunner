@@ -223,7 +223,6 @@ class _ResumenScreenState extends State<ResumenScreen>
 
     if (widget.esDesdeCarrera) {
       if (!widget.modoRuta) {
-        await _guardarActivityLog();
         await _guardarYMostrarTerritorioActual();
       }
       await _actualizarRacha();
@@ -315,31 +314,6 @@ class _ResumenScreenState extends State<ResumenScreen>
         _carreraActual  = historial.first;
       });
     } catch (e) { debugPrint('Error stats: $e'); }
-  }
-
-  Future<void> _guardarActivityLog() async {
-    if (userId.isEmpty || widget.distancia <= 0) return;
-    try {
-      final horas = widget.tiempo.inSeconds / 3600;
-      final ahora = DateTime.now();
-      await FirebaseFirestore.instance.collection('activity_logs').add({
-        'userId':          userId,
-        'distancia':       widget.distancia,
-        'tiempo_segundos': widget.tiempo.inSeconds,
-        'velocidad_media': horas > 0 ? widget.distancia / horas : 0.0,
-        'timestamp':       FieldValue.serverTimestamp(),
-        'fecha_dia': '${ahora.year}-${ahora.month.toString().padLeft(2, '0')}-${ahora.day.toString().padLeft(2, '0')}',
-        // Metadatos de modo
-        'titulo': _esGuerraGlobal
-            ? 'Guerra Global · ${widget.objetivoGlobal!['territorioNombre'] ?? ''}'
-            : 'Carrera Libre',
-        'modo': _esGuerraGlobal ? 'guerra_global' : 'competitivo',
-        if (_esGuerraGlobal) ...{
-          'objetivo_global_id':          widget.objetivoGlobal!['territorioId'],
-          'objetivo_global_conquistado': widget.globalConquistado,
-        },
-      });
-    } catch (e) { debugPrint('Error log: $e'); }
   }
 
   Future<void> _actualizarRacha() async {
