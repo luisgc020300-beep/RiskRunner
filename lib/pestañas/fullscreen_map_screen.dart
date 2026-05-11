@@ -2469,6 +2469,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         initialCenter: _state.centro,
         initialZoom:   _kInitialZoom,
         minZoom: 3, maxZoom: 19,
+        cameraConstraint: CameraConstraint.containCenter(
+          bounds: LatLngBounds(
+            const LatLng(-85.0, -180.0),
+            const LatLng(85.0, 180.0),
+          ),
+        ),
         onTap: (_, __) => setState(() => _rutaSeleccionada = null),
       ),
       children: [

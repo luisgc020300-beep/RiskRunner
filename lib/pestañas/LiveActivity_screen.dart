@@ -457,6 +457,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   int    _checkpointActual     = 0;
   bool   _fueraDeRuta          = false;
   bool   _narratorRutaIniciado = false;
+  bool   _rutaCompletada       = false;
+  double _porcentajeRuta       = 0.0;
   Timer? _timerCheckRuta;
 
   // ── Jugador
@@ -2400,6 +2402,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (cpActual > _checkpointActual && cpActual <= totalCheckpoints) {
       _checkpointActual = cpActual;
       _narrador.eventoCheckpoint(_checkpointActual, totalCheckpoints);
+    }
+
+    // Actualizar porcentaje visible en HUD
+    final nuevoPct = pctIdx.clamp(0.0, 1.0);
+    if ((nuevoPct - _porcentajeRuta).abs() >= 0.005) {
+      setState(() => _porcentajeRuta = nuevoPct);
+    }
+
+    // Detección de ruta completada (último 5% del trazado)
+    if (!_rutaCompletada && pctIdx >= 0.95) {
+      setState(() => _rutaCompletada = true);
+      _narrador.eventoRutaCompletada(ruta.nombre ?? 'Ruta');
     }
   }
 
@@ -5031,6 +5045,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               _hudDivider(),
               _hudStat('META', '${(_progresoGlobal * 100).toInt()}%',
                   _globalConquistado ? _kVerde : _p.globalRed),
+            ] else if (_rutaGuiada != null) ...[
+              _hudDivider(),
+              _hudStat('RUTA', '${(_porcentajeRuta * 100).toInt()}%',
+                  _rutaCompletada ? _kVerde : _kWaterLight),
             ] else if (_modoSolitario) ...[
               _hudDivider(),
               _hudStat('MODO', 'SOLO', _kVerde),
@@ -5075,6 +5093,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   Text('${(_progresoGlobal * 100).toInt()}%',
                       style: GoogleFonts.orbitron(
                           color: _globalConquistado ? _kVerde : _p.globalRed,
+                          fontWeight: FontWeight.w900, fontSize: 14)),
+                ] else if (_rutaGuiada != null) ...[
+                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                  Text('${(_porcentajeRuta * 100).toInt()}%',
+                      style: GoogleFonts.orbitron(
+                          color: _rutaCompletada ? _kVerde : _kWaterLight,
                           fontWeight: FontWeight.w900, fontSize: 14)),
                 ] else if (_modoSolitario) ...[
                   Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),

@@ -451,6 +451,20 @@ class NarradorService {
       duracion: const Duration(seconds: 6),
     ));
   }
+
+  void eventoRutaCompletada(String nombre) {
+    final frases = [
+      'Ruta completada: $nombre. Lo has conseguido. Para cuando quieras.',
+      'Has completado $nombre. El recorrido es tuyo. Puedes parar cuando decidas.',
+      'Misión cumplida: $nombre. Ruta finalizada. Detente cuando estés listo.',
+    ];
+    _emitir(MensajeNarrador(
+      texto: frases[_rng.nextInt(frases.length)],
+      emoji: '',
+      tipo: NarradorTipo.conquista,
+      duracion: const Duration(seconds: 7),
+    ));
+  }
 }
 
 // Threshold para frases de "ruta legendaria" en el narrador

@@ -639,7 +639,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         ]),
         text: 'SOLICITUDES',
       ),
-      const Tab(icon: Icon(Icons.shield_rounded, size: 13), text: 'CLAN', iconMargin: EdgeInsets.only(bottom: 2)),
+      const Tab(icon: Icon(Icons.shield_rounded, size: 13), text: 'CLUB', iconMargin: EdgeInsets.only(bottom: 2)),
     ]);
   }
 
