@@ -607,6 +607,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
+  String? _errorBarrios;
   // Future que completa cuando _resolverCentro() termina de obtener el GPS real.
   // _activarModoSolitario() lo espera para no consultar Overpass con coords por defecto.
   Future<void>? _centroListo;
@@ -1860,6 +1861,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_cargandoBarrios) return;
     if (_barriosCargados && _barriosCercanos.isNotEmpty) return;
     _cargandoBarrios = true;
+    _errorBarrios = null;
     if (mounted) setState(() {});  // muestra spinner de carga
 
     try {
@@ -1881,7 +1883,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       );
 
       final response = await http.get(url).timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200) return;
+      if (response.statusCode != 200) {
+        if (mounted) setState(() {
+          _cargandoBarrios = false;
+          _errorBarrios = 'Error ${response.statusCode} · OpenStreetMap';
+        });
+        return;
+      }
 
       final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
       final elements = (jsonData['elements'] as List<dynamic>? ?? []);
@@ -1950,9 +1958,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _cargandoBarrios = false;
       });
     } catch (e) {
-      debugPrint('FullscreenMap barrios error: $e');
-      _cargandoBarrios = false;
-      if (mounted) setState(() {});
+      final msg = e.toString().contains('TimeoutException')
+          ? 'Tiempo agotado · Reintenta'
+          : 'Sin conexión · Reintenta';
+      if (mounted) setState(() {
+        _cargandoBarrios = false;
+        _errorBarrios = msg;
+      });
     }
   }
 
@@ -3897,6 +3909,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               ]),
             if (_cargandoBarrios)
               _shLoading('Cargando zonas', 'Consultando OpenStreetMap', _kSub)
+            else if (_errorBarrios != null)
+              GestureDetector(
+                onTap: () {
+                  setState(() { _errorBarrios = null; });
+                  _cargarBarriosSolitario(_state.centro);
+                },
+                child: _shEmptyState(Icons.refresh_rounded, 'No se pudieron cargar',
+                    '$_errorBarrios\nToca para reintentar'),
+              )
             else if (barriosOrdenados.isNotEmpty) ...[
               _shSectionTitle('Zonas cercanas'),
               ...barriosOrdenados.map(_shBarrioCell),
