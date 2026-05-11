@@ -607,6 +607,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
+  // Future que completa cuando _resolverCentro() termina de obtener el GPS real.
+  // _activarModoSolitario() lo espera para no consultar Overpass con coords por defecto.
+  Future<void>? _centroListo;
 
   // ── Filtro de mapa + actividad ────────────────────────────────────────────
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
@@ -757,7 +760,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Future<void> _initData() async {
-    await _resolverCentro();
+    _centroListo = _resolverCentro();
+    await _centroListo;
     // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
     _escucharJugadores();
     _escucharDesafio();
@@ -1837,6 +1841,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // MODO SOLITARIO — barrios OSM
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
+    await _centroListo; // garantiza GPS real antes de consultar Overpass
     _state.setModoSolitario(true);
     _mapController.move(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
