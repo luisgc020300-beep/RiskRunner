@@ -5714,11 +5714,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 : null;
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'competitivo');
-            if (mounted) {
-              setState(() => _territorios = lista);
-              GameStateService.instance.setCompetitiveTerritories(lista);
-              _dibujarTerritoriosEnMapa();
-            }
+            if (!mounted || GameStateService.instance.currentMode != 'competitivo') return;
+            setState(() => _territorios = lista);
+            GameStateService.instance.setCompetitiveTerritories(lista);
+            _dibujarTerritoriosEnMapa();
             _aplicarTerritoriosFantasma();
           },
         ),
@@ -5741,10 +5740,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 : null;
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'solitario');
-            if (mounted) {
-              setState(() => _territorios = lista);
-              GameStateService.instance.setSolitarioTerritories(lista);
-            }
+            if (!mounted || GameStateService.instance.currentMode != 'solitario') return;
+            setState(() => _territorios = lista);
+            GameStateService.instance.setSolitarioTerritories(lista);
             _dibujarTerritoriosEnMapa();
             if (centro != null) _cargarBarriosOSM(centro);
           },
