@@ -3268,6 +3268,41 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final rutaFinal      = List<LatLng>.from(routePoints);
     final distanciaFinal = _distanciaTotal;
 
+    if (distanciaFinal < 0.2) {
+      _stopping = false;
+      if (!mounted) return;
+      setState(() {
+        isTracking          = false;
+        isPaused            = false;
+        _velocidadActualKmh = 0;
+        _hudMinimizado      = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _p.parchMid,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _p.goldDim),
+          ),
+          child: Row(children: [
+            Icon(Icons.straighten_rounded, color: _kGoldLight, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(
+              'Distancia mínima no alcanzada.\nCorre al menos 200 m para guardar la sesión.',
+              style: GoogleFonts.inter(color: _kGoldLight,
+                  fontSize: 13, fontWeight: FontWeight.w600),
+            )),
+          ]),
+        ),
+      ));
+      Navigator.of(context).pop();
+      return;
+    }
+
     if (mounted) {
       setState(() {
         isTracking          = false;

@@ -2577,6 +2577,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               panBuffer: 2,
               maxNativeZoom: 8),
 
+          // Atmospheric deep-space overlay — tinta navy sobre dark-v11
+          const ColorFiltered(
+            colorFilter: ColorFilter.mode(Color(0x44000B28), BlendMode.srcOver),
+            child: SizedBox.expand(),
+          ),
+
           if (_state.loadingGlobal)
             const ColorFiltered(
               colorFilter:
@@ -2586,6 +2592,26 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
           if (!_state.loadingGlobal &&
               _state.territoriosGlobales.isNotEmpty) ...[
+
+            // Capa de glow exterior — bloom neon sobre los bordes
+            PolygonLayer(
+              polygons: _state.territoriosGlobales.map((t) {
+                final isMine = t.isMine;
+                final baseColor = isMine
+                    ? _kGold
+                    : t.isOwned
+                        ? t.displayColor
+                        : _dificultadColor(t.difficultyLevel);
+                return Polygon(
+                  points: t.points,
+                  color: Colors.transparent,
+                  borderColor: baseColor.withValues(
+                      alpha: isMine ? 0.30 : (t.isOwned ? 0.18 : 0.10)),
+                  borderStrokeWidth: isMine ? 12.0 : (t.isOwned ? 8.0 : 5.0),
+                );
+              }).toList(),
+            ),
+
             GestureDetector(
               onTapUp: (details) {
                 final tapLatLng = _mapController.camera
@@ -2603,8 +2629,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 polygons: _state.territoriosGlobales.map((t) {
                   final isSel  = sel?.id == t.id;
                   final isMine = t.isMine;
-                  // Owned zones: use owner's configured color.
-                  // Unowned zones: color by difficulty (green→orange→red).
                   final baseColor = isMine
                       ? _kGold
                       : t.isOwned
@@ -2614,22 +2638,22 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   return Polygon(
                     points: t.points,
                     color: isSel
-                        ? baseColor.withValues(alpha: 0.45)
+                        ? baseColor.withValues(alpha: 0.65)
                         : baseColor.withValues(alpha: isMine
-                            ? 0.35
-                            : (t.isOwned ? 0.22 : 0.14)),
+                            ? 0.55
+                            : (t.isOwned ? 0.38 : 0.28)),
                     borderColor: isSel
                         ? baseColor
                         : baseColor.withValues(alpha: isMine
                             ? 1.0
-                            : (t.isOwned ? 0.80 : 0.60)),
+                            : (t.isOwned ? 0.92 : 0.75)),
                     borderStrokeWidth: isSel
-                        ? 3.5
+                        ? 4.0
                         : isMine
-                            ? 2.5
+                            ? 3.0
                             : (t.tier == TerritoryTier.legendario
-                                ? 2.2
-                                : 1.8),
+                                ? 2.5
+                                : 2.0),
                   );
                 }).toList(),
               ),
@@ -2649,11 +2673,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   final bool isLegend = t.tier == TerritoryTier.legendario;
 
                   final double glowR = isMine
-                      ? 5.0 + 3.0 * _pulse.value
-                      : (t.isOwned ? 3.0 : 0.0);
+                      ? 9.0 + 5.0 * _pulse.value
+                      : (t.isOwned ? 5.0 : 0.0);
                   final double glowA = isMine
-                      ? 0.18 + 0.12 * _pulse.value
-                      : (t.isOwned ? 0.09 : 0.0);
+                      ? 0.30 + 0.18 * _pulse.value
+                      : (t.isOwned ? 0.18 : 0.0);
 
                   // ── Modo lejano (zoom < 4) — anillo compacto ───────────
                   if (_zoomGlobal < 4.0) {
@@ -2688,7 +2712,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 color: isSel
                                     ? baseColor
                                     : baseColor.withValues(alpha:
-                                        isMine ? 0.92 : (t.isOwned ? 0.68 : 0.35)),
+                                        isMine ? 0.92 : (t.isOwned ? 0.80 : 0.55)),
                                 width: isSel ? 2.0 : (isMine ? 1.8 : 1.2),
                               ),
                             ),
@@ -2698,7 +2722,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: baseColor.withValues(
-                                      alpha: t.isOwned ? 1.0 : 0.35),
+                                      alpha: t.isOwned ? 1.0 : 0.60),
                                 ),
                               ),
                             ),
@@ -2760,7 +2784,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                   color: isSel
                                       ? baseColor
                                       : baseColor.withValues(alpha:
-                                          isMine ? 0.92 : (t.isOwned ? 0.68 : 0.35)),
+                                          isMine ? 0.92 : (t.isOwned ? 0.80 : 0.55)),
                                   width: isSel ? 2.0 : (isMine ? 1.8 : (isLegend ? 1.5 : 1.2)),
                                 ),
                               ),
@@ -2770,7 +2794,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: baseColor.withValues(
-                                        alpha: t.isOwned ? 1.0 : 0.35),
+                                        alpha: t.isOwned ? 1.0 : 0.60),
                                   ),
                                 ),
                               ),
