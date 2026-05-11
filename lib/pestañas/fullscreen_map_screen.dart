@@ -1870,16 +1870,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       const delta = 0.045; // ~5 km
 
       final bbox = '${lat - delta},${lng - delta},${lat + delta},${lng + delta}';
-      final url = Uri.parse(
-        'https://overpass-api.de/api/interpreter?data='
-        '[out:json][timeout:25];'
-        '('
-        '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
-        '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
-        '  relation["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
-        '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
-        ');'
-        'out geom;',
+      final query = '[out:json][timeout:25];'
+          '('
+          '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
+          '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
+          '  relation["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
+          '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
+          ');'
+          'out geom;';
+      final url = Uri.https(
+        'overpass-api.de',
+        '/api/interpreter',
+        {'data': query},
       );
 
       final response = await http.get(url).timeout(const Duration(seconds: 12));
@@ -2570,18 +2572,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         ),
         children: [
           TileLayer(
-              urlTemplate: _kMapboxDarkUrl,
+              urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
               userAgentPackageName: 'com.runner_risk.app',
               tileDimension: 256,
               keepBuffer: 4,
               panBuffer: 2,
               maxNativeZoom: 8),
 
-          // Atmospheric deep-space overlay — tinta navy sobre dark-v11
-          const ColorFiltered(
-            colorFilter: ColorFilter.mode(Color(0x44000B28), BlendMode.srcOver),
-            child: SizedBox.expand(),
-          ),
+          // Atmospheric deep-space overlay — solo en modo oscuro
+          if (_mapaOscuro)
+            const ColorFiltered(
+              colorFilter: ColorFilter.mode(Color(0x44000B28), BlendMode.srcOver),
+              child: SizedBox.expand(),
+            ),
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -2601,13 +2604,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     ? _kGold
                     : t.isOwned
                         ? t.displayColor
-                        : _dificultadColor(t.difficultyLevel);
+                        : t.tierColor;
                 return Polygon(
                   points: t.points,
                   color: Colors.transparent,
                   borderColor: baseColor.withValues(
-                      alpha: isMine ? 0.30 : (t.isOwned ? 0.18 : 0.10)),
-                  borderStrokeWidth: isMine ? 12.0 : (t.isOwned ? 8.0 : 5.0),
+                      alpha: isMine ? 0.30 : (t.isOwned ? 0.18 : 0.22)),
+                  borderStrokeWidth: isMine ? 12.0 : (t.isOwned ? 8.0 : 6.0),
                 );
               }).toList(),
             ),
@@ -2633,7 +2636,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       ? _kGold
                       : t.isOwned
                           ? t.displayColor
-                          : _dificultadColor(t.difficultyLevel);
+                          : t.tierColor;
 
                   return Polygon(
                     points: t.points,
@@ -2641,12 +2644,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         ? baseColor.withValues(alpha: 0.65)
                         : baseColor.withValues(alpha: isMine
                             ? 0.55
-                            : (t.isOwned ? 0.38 : 0.28)),
+                            : (t.isOwned ? 0.38 : 0.45)),
                     borderColor: isSel
                         ? baseColor
                         : baseColor.withValues(alpha: isMine
                             ? 1.0
-                            : (t.isOwned ? 0.92 : 0.75)),
+                            : (t.isOwned ? 0.92 : 0.90)),
                     borderStrokeWidth: isSel
                         ? 4.0
                         : isMine
@@ -2669,15 +2672,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       ? _kGold
                       : t.isOwned
                           ? (t.ownerColor ?? t.tierColor)
-                          : _kDim;
+                          : t.tierColor;
                   final bool isLegend = t.tier == TerritoryTier.legendario;
 
                   final double glowR = isMine
                       ? 9.0 + 5.0 * _pulse.value
-                      : (t.isOwned ? 5.0 : 0.0);
+                      : (t.isOwned ? 5.0 : 3.0);
                   final double glowA = isMine
                       ? 0.30 + 0.18 * _pulse.value
-                      : (t.isOwned ? 0.18 : 0.0);
+                      : (t.isOwned ? 0.18 : 0.12);
 
                   // ── Modo lejano (zoom < 4) — anillo compacto ───────────
                   if (_zoomGlobal < 4.0) {
@@ -2690,18 +2693,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       child: GestureDetector(
                         onTap: () => _onGlobalTerritoryTap(t),
                         child: Stack(alignment: Alignment.center, children: [
-                          if (isMine || t.isOwned)
-                            Container(
-                              width: sz + glowR * 2,
-                              height: sz + glowR * 2,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(
-                                  color: baseColor.withValues(alpha: glowA),
-                                  blurRadius: glowR * 2,
-                                )],
-                              ),
+                          Container(
+                            width: sz + glowR * 2,
+                            height: sz + glowR * 2,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [BoxShadow(
+                                color: baseColor.withValues(alpha: glowA),
+                                blurRadius: glowR * 2,
+                              )],
                             ),
+                          ),
                           Container(
                             width: sz,
                             height: sz,
@@ -2712,7 +2714,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 color: isSel
                                     ? baseColor
                                     : baseColor.withValues(alpha:
-                                        isMine ? 0.92 : (t.isOwned ? 0.80 : 0.55)),
+                                        isMine ? 0.92 : (t.isOwned ? 0.80 : 0.78)),
                                 width: isSel ? 2.0 : (isMine ? 1.8 : 1.2),
                               ),
                             ),
@@ -2722,7 +2724,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: baseColor.withValues(
-                                      alpha: t.isOwned ? 1.0 : 0.60),
+                                      alpha: t.isOwned ? 1.0 : 0.82),
                                 ),
                               ),
                             ),
@@ -2762,18 +2764,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Stack(alignment: Alignment.center, children: [
-                            if (isMine || t.isOwned || isLegend)
-                              Container(
-                                width: sz + glowR * 2,
-                                height: sz + glowR * 2,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [BoxShadow(
-                                    color: baseColor.withValues(alpha: glowA),
-                                    blurRadius: glowR * 2,
-                                  )],
-                                ),
+                            Container(
+                              width: sz + glowR * 2,
+                              height: sz + glowR * 2,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(
+                                  color: baseColor.withValues(alpha: glowA),
+                                  blurRadius: glowR * 2,
+                                )],
                               ),
+                            ),
                             Container(
                               width: sz,
                               height: sz,
@@ -2784,7 +2785,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                   color: isSel
                                       ? baseColor
                                       : baseColor.withValues(alpha:
-                                          isMine ? 0.92 : (t.isOwned ? 0.80 : 0.55)),
+                                          isMine ? 0.92 : (t.isOwned ? 0.80 : 0.78)),
                                   width: isSel ? 2.0 : (isMine ? 1.8 : (isLegend ? 1.5 : 1.2)),
                                 ),
                               ),
@@ -2794,7 +2795,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: baseColor.withValues(
-                                        alpha: t.isOwned ? 1.0 : 0.60),
+                                        alpha: t.isOwned ? 1.0 : 0.82),
                                   ),
                                 ),
                               ),
