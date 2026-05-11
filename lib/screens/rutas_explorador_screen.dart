@@ -44,7 +44,7 @@ class _RP {
       Theme.of(ctx).brightness == Brightness.dark ? dark : light;
 }
 
-const Color _kGreen  = Color(0xFF30D158);
+const Color _kPurple = Color(0xFFAF52DE);
 const Color _kLegend = Color(0xFFFFD700);
 
 // =============================================================================
@@ -227,9 +227,9 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
         centerTitle: true,
         bottom: TabBar(
           controller: _tabs,
-          labelColor: _kGreen,
+          labelColor: _kPurple,
           unselectedLabelColor: _p.subtext,
-          indicatorColor: _kGreen,
+          indicatorColor: _kPurple,
           indicatorWeight: 2,
           labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, letterSpacing: 1.2),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
@@ -276,7 +276,7 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
     if (loading && list.isEmpty) return _buildSkels();
     if (list.isEmpty) return _buildEmpty(emptyIcon, emptyTitle, emptySubtitulo);
     return RefreshIndicator(
-      color: _kGreen,
+      color: _kPurple,
       backgroundColor: _p.surface2,
       onRefresh: onRefresh,
       child: ListView.builder(
@@ -357,7 +357,7 @@ class _RouteCard extends StatelessWidget {
             child: Container(
               width: 3,
               decoration: BoxDecoration(
-                color: ruta.esLegendaria ? _kLegend : _kGreen,
+                color: ruta.esLegendaria ? _kLegend : _kPurple,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
               ))),
@@ -374,7 +374,7 @@ class _RouteCard extends StatelessWidget {
                     ? CustomPaint(
                         painter: _RoutePainter(
                           coords: ruta.coords,
-                          color: ruta.esLegendaria ? _kLegend : _kGreen,
+                          color: ruta.esLegendaria ? _kLegend : _kPurple,
                           strokeWidth: 2.0))
                     : Icon(Icons.route_rounded, color: p.dim, size: 32),
                 )),
@@ -443,7 +443,7 @@ class _RouteCard extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   child: Icon(
                     guardada ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                    color: guardada ? _kGreen : p.dim,
+                    color: guardada ? _kPurple : p.dim,
                     size: 20))),
             ]),
           ),
@@ -622,7 +622,7 @@ class _RouteDetailSheetState extends State<_RouteDetailSheet> {
                     child: Icon(
                       _guardada ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
                       key: ValueKey(_guardada),
-                      color: _guardada ? _kGreen : _p.dim, size: 24))),
+                      color: _guardada ? _kPurple : _p.dim, size: 24))),
               ])),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
@@ -646,17 +646,17 @@ class _RouteDetailSheetState extends State<_RouteDetailSheet> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Row(children: [
                 _StatCard(label: 'DISTANCIA', value: ruta.distanciaStr,
-                  icon: Icons.straighten_rounded, p: _p, accent: _kGreen),
+                  icon: Icons.straighten_rounded, p: _p, accent: _kPurple),
                 const SizedBox(width: 10),
                 _StatCard(label: 'TIEMPO', value: ruta.tiempoStr,
-                  icon: Icons.timer_outlined, p: _p, accent: _kGreen),
+                  icon: Icons.timer_outlined, p: _p, accent: _kPurple),
                 const SizedBox(width: 10),
                 _StatCard(label: 'RITMO', value: ruta.ritmoStr,
-                  icon: Icons.speed_rounded, p: _p, accent: _kGreen),
+                  icon: Icons.speed_rounded, p: _p, accent: _kPurple),
                 const SizedBox(width: 10),
                 _StatCard(label: 'CORREDORES', value: '${ruta.runsCount}',
                   icon: Icons.directions_run_rounded, p: _p,
-                  accent: ruta.esLegendaria ? _kLegend : _kGreen),
+                  accent: ruta.esLegendaria ? _kLegend : _kPurple),
               ])),
             // Descripción
             if (ruta.descripcion != null && ruta.descripcion!.isNotEmpty)
@@ -684,19 +684,19 @@ class _RouteDetailSheetState extends State<_RouteDetailSheet> {
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
-                      color: _guardada ? _kGreen.withValues(alpha: 0.1) : _p.surface,
+                      color: _guardada ? _kPurple.withValues(alpha: 0.1) : _p.surface,
                       border: Border.all(
-                        color: _guardada ? _kGreen.withValues(alpha: 0.5) : _p.line2),
+                        color: _guardada ? _kPurple.withValues(alpha: 0.5) : _p.line2),
                       borderRadius: BorderRadius.circular(12)),
                     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(
                         _guardada ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                        color: _guardada ? _kGreen : _p.text3, size: 16),
+                        color: _guardada ? _kPurple : _p.text3, size: 16),
                       const SizedBox(width: 8),
                       Text(
                         _guardada ? 'Guardada' : 'Guardar ruta',
                         style: TextStyle(
-                          color: _guardada ? _kGreen : _p.text3,
+                          color: _guardada ? _kPurple : _p.text3,
                           fontWeight: FontWeight.w700, fontSize: 14)),
                     ]))),
                 GestureDetector(
@@ -705,10 +705,10 @@ class _RouteDetailSheetState extends State<_RouteDetailSheet> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
-                      color: _kGreen,
+                      color: _kPurple,
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [BoxShadow(
-                        color: _kGreen.withValues(alpha: 0.35),
+                        color: _kPurple.withValues(alpha: 0.35),
                         blurRadius: 12, offset: const Offset(0, 4))]),
                     child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
@@ -797,7 +797,7 @@ class _MapaRuta extends StatelessWidget {
         PolylineLayer(polylines: [
           Polyline(
             points: ruta.coords,
-            color: _kGreen,
+            color: _kPurple,
             strokeWidth: 4,
             strokeCap: StrokeCap.round),
         ]),
@@ -807,7 +807,7 @@ class _MapaRuta extends StatelessWidget {
             width: 14, height: 14,
             child: Container(
               decoration: const BoxDecoration(
-                color: _kGreen, shape: BoxShape.circle,
+                color: _kPurple, shape: BoxShape.circle,
                 boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]))),
           Marker(
             point: ruta.coords.last,

@@ -125,6 +125,13 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<Map<String, dynamic>> _carrerasRecientes = [];
   int _rachaActual = 0;
 
+  bool   _misionesExpandidas = false;
+  String _misionesQuery      = '';
+  final TextEditingController _misionesSearchCtrl = TextEditingController();
+  bool   _logrosExpandidos   = false;
+  String _logrosQuery        = '';
+  final TextEditingController _logrosSearchCtrl   = TextEditingController();
+
   List<Map<String, dynamic>> _historialCompleto     = [];
   List<Map<String, dynamic>> _historialFiltrado     = [];
   bool _cargandoHistorial       = false;
@@ -239,6 +246,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     _liveMapCtrl.dispose();
     _nicknameController.dispose();
     _historialSearchCtrl.dispose();
+    _misionesSearchCtrl.dispose();
+    _logrosSearchCtrl.dispose();
     _entradaAnim.dispose();
     _loopAnim.dispose();
     _scanAnim.dispose();
@@ -918,8 +927,8 @@ class _PerfilScreenState extends State<PerfilScreen>
         _totalCarreras           = carrerasConDist;   // solo carreras reales
         _tiempoTotalActividad    = Duration(seconds: totalSeg);
         _territoriosConquistados = conqSnap.docs.length;
-        _carrerasRecientes       = carreras.take(5).toList();
-        _logros                  = logrosData.take(10).toList();
+        _carrerasRecientes       = carreras.toList();
+        _logros                  = logrosData.toList();
         _historialCompleto       = historial;
         _historialFiltrado       = historial;
         _historialPaginaActual   = 1;
@@ -2878,57 +2887,150 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildMisionesRecientes() {
+    if (_carrerasRecientes.isEmpty) {
+      return _Panel(
+        accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
+        child: _emptyRow('Sin misiones registradas'));
+    }
+    final query     = _misionesQuery.trim().toLowerCase();
+    final filtradas = query.isEmpty
+        ? _carrerasRecientes
+        : _carrerasRecientes.where((d) {
+            final titulo = (d['titulo'] as String? ?? '').toLowerCase();
+            final dist   = (d['distancia'] as num?)?.toStringAsFixed(2) ?? '';
+            return titulo.contains(query) || dist.contains(query);
+          }).toList();
+    final mostradas = _misionesExpandidas ? filtradas : filtradas.take(5).toList();
+    final hayMas    = _carrerasRecientes.length > 5;
+
     return _Panel(
       accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
-      child: _carrerasRecientes.isEmpty ? _emptyRow('Sin misiones registradas')
-          : Column(children: _carrerasRecientes.asMap().entries.map((e) {
-              final i = e.key; final d = e.value;
-              final dist = (d['distancia'] as num?)?.toDouble() ?? 0;
-              final seg  = (d['tiempo_segundos'] as num?)?.toInt() ?? 0;
-              final vel  = (d['velocidad_media'] as num?)?.toDouble() ?? (dist > 0 && seg > 0 ? dist / (seg / 3600) : 0.0);
-              final fecha = _formatFechaCorta(d['timestamp']);
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: i == 0 ? _p.border2 : _p.border, width: 1))),
-                child: Row(children: [
-                  Text('${i + 1}', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 0)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
-                    Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
-                  ])),
-                  Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
-                ]),
-              );
-            }).toList()),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_misionesExpandidas) ...[
+          TextField(
+            controller: _misionesSearchCtrl,
+            onChanged: (v) => setState(() => _misionesQuery = v),
+            style: _rajdhani(13, FontWeight.w500, _p.title),
+            decoration: InputDecoration(
+              hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
+              prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16),
+              filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        ...mostradas.asMap().entries.map((e) {
+          final i = e.key; final d = e.value;
+          final dist  = (d['distancia'] as num?)?.toDouble() ?? 0;
+          final seg   = (d['tiempo_segundos'] as num?)?.toInt() ?? 0;
+          final vel   = (d['velocidad_media'] as num?)?.toDouble() ?? (dist > 0 && seg > 0 ? dist / (seg / 3600) : 0.0);
+          final fecha = _formatFechaCorta(d['timestamp']);
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: i == 0 ? _p.border2 : _p.border, width: 1))),
+            child: Row(children: [
+              Text('${i + 1}', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 0)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
+                Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
+              ])),
+              Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
+            ]),
+          );
+        }),
+        if (hayMas)
+          GestureDetector(
+            onTap: () => setState(() {
+              _misionesExpandidas = !_misionesExpandidas;
+              if (!_misionesExpandidas) { _misionesSearchCtrl.clear(); _misionesQuery = ''; }
+            }),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(_misionesExpandidas ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                const SizedBox(width: 4),
+                Icon(_misionesExpandidas ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
+              ]),
+            ),
+          ),
+      ]),
     );
   }
 
   Widget _buildLogrosPanel() {
+    if (_logros.isEmpty) {
+      return _Panel(
+        accent: _kAccent, label: 'LOGROS', icon: Icons.emoji_events_outlined,
+        child: _emptyRow('Sin logros todavía'));
+    }
+    final query     = _logrosQuery.trim().toLowerCase();
+    final filtrados = query.isEmpty
+        ? _logros
+        : _logros.where((l) => (l['titulo'] as String? ?? '').toLowerCase().contains(query)).toList();
+    final mostrados = _logrosExpandidos ? filtrados : filtrados.take(5).toList();
+    final hayMas    = _logros.length > 5;
+
     return _Panel(
       accent: _kAccent, label: 'LOGROS', icon: Icons.emoji_events_outlined,
-      child: _logros.isEmpty ? _emptyRow('Sin logros todavía')
-          : Column(children: _logros.asMap().entries.map((e) {
-              final i = e.key; final logro = e.value;
-              final titulo     = logro['titulo'] as String? ?? 'Logro';
-              final recompensa = (logro['recompensa'] as num? ?? 0).toInt();
-              final medalColors = [Colors.amber, const Color(0xFFC0C0C0), const Color(0xFFCD7F32)];
-              final color = i < 3 ? medalColors[i] : _p.text;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(7), border: Border(left: BorderSide(color: color.withValues(alpha: 0.5), width: 2))),
-                child: IntrinsicHeight(child: Row(children: [
-                  Container(width: 36, alignment: Alignment.center, child: Text(i < 3 ? ['', '', ''][i] : '${i + 1}', style: TextStyle(fontSize: i < 3 ? 14 : 10, color: color, fontWeight: FontWeight.w900))),
-                  Container(width: 1, color: _p.border),
-                  Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text(titulo, style: _rajdhani(13, FontWeight.w700, _p.title), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (recompensa > 0) ...[const SizedBox(height: 3), Text('+$recompensa monedas', style: _rajdhani(10, FontWeight.w600, color.withValues(alpha: 0.75)))],
-                  ]))),
-                  if (recompensa > 0) Padding(padding: const EdgeInsets.only(right: 12), child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(5), border: Border.all(color: color.withValues(alpha: 0.18))), child: Text('+$recompensa', style: _rajdhani(11, FontWeight.w900, color)))),
-                ])),
-              );
-            }).toList()),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_logrosExpandidos) ...[
+          TextField(
+            controller: _logrosSearchCtrl,
+            onChanged: (v) => setState(() => _logrosQuery = v),
+            style: _rajdhani(13, FontWeight.w500, _p.title),
+            decoration: InputDecoration(
+              hintText: 'Buscar logro...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
+              prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16),
+              filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5)),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        ...mostrados.asMap().entries.map((e) {
+          final i          = e.key;
+          final logro      = e.value;
+          final titulo     = logro['titulo'] as String? ?? 'Logro';
+          final recompensa = (logro['recompensa'] as num? ?? 0).toInt();
+          const medalColors = [Colors.amber, Color(0xFFC0C0C0), Color(0xFFCD7F32)];
+          final color = i < 3 ? medalColors[i] : _p.text;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(7), border: Border(left: BorderSide(color: color.withValues(alpha: 0.5), width: 2))),
+            child: IntrinsicHeight(child: Row(children: [
+              Container(width: 36, alignment: Alignment.center, child: Text(i < 3 ? ['', '', ''][i] : '${i + 1}', style: TextStyle(fontSize: i < 3 ? 14 : 10, color: color, fontWeight: FontWeight.w900))),
+              Container(width: 1, color: _p.border),
+              Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(titulo, style: _rajdhani(13, FontWeight.w700, _p.title), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (recompensa > 0) ...[const SizedBox(height: 3), Text('+$recompensa monedas', style: _rajdhani(10, FontWeight.w600, color.withValues(alpha: 0.75)))],
+              ]))),
+              if (recompensa > 0) Padding(padding: const EdgeInsets.only(right: 12), child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(5), border: Border.all(color: color.withValues(alpha: 0.18))), child: Text('+$recompensa', style: _rajdhani(11, FontWeight.w900, color)))),
+            ])),
+          );
+        }),
+        if (hayMas)
+          GestureDetector(
+            onTap: () => setState(() {
+              _logrosExpandidos = !_logrosExpandidos;
+              if (!_logrosExpandidos) { _logrosSearchCtrl.clear(); _logrosQuery = ''; }
+            }),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(_logrosExpandidos ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                const SizedBox(width: 4),
+                Icon(_logrosExpandidos ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
+              ]),
+            ),
+          ),
+      ]),
     );
   }
 

@@ -693,7 +693,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             Container(width: 1, height: 22, color: _p.line2),
             _ToggleBtn(
               label: 'RUTAS', icon: Icons.route_rounded,
-              active: _rankingModo == 'rutas', activeColor: const Color(0xFF30D158),
+              active: _rankingModo == 'rutas', activeColor: const Color(0xFFAF52DE),
               onTap: () => setState(() { _rankingModo = 'rutas'; _ligaSeleccionada = null; })),
           ]))),
       // ── Contenido según modo ─────────────────────────────────────────────────
@@ -716,7 +716,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           child: _buildSemanalRanking()))
       else
         Expanded(child: RefreshIndicator(
-          key: _rkRanking, color: const Color(0xFF30D158), backgroundColor: _p.surface2,
+          key: _rkRanking, color: const Color(0xFFAF52DE), backgroundColor: _p.surface2,
           onRefresh: () async { await _cargarDatosPropios(); setState(() {}); },
           child: _buildRutasRanking())),
     ]);
@@ -784,10 +784,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
             child: Row(children: [
-              const Icon(Icons.route_rounded, color: Color(0xFF30D158), size: 14),
+              const Icon(Icons.route_rounded, color: Color(0xFFAF52DE), size: 14),
               const SizedBox(width: 8),
               const Text('TOP EXPLORADORES · KM TOTALES',
-                style: TextStyle(color: Color(0xFF30D158), fontSize: 9,
+                style: TextStyle(color: Color(0xFFAF52DE), fontSize: 9,
                     fontWeight: FontWeight.w800, letterSpacing: 2.5)),
               const Spacer(),
               GestureDetector(
@@ -796,13 +796,13 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF30D158).withValues(alpha: 0.12),
+                    color: const Color(0xFFAF52DE).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF30D158).withValues(alpha: 0.4))),
+                    border: Border.all(color: const Color(0xFFAF52DE).withValues(alpha: 0.4))),
                   child: const Row(children: [
-                    Icon(Icons.explore_rounded, color: Color(0xFF30D158), size: 11),
+                    Icon(Icons.explore_rounded, color: Color(0xFFAF52DE), size: 11),
                     SizedBox(width: 4),
-                    Text('Explorar', style: TextStyle(color: Color(0xFF30D158),
+                    Text('Explorar', style: TextStyle(color: Color(0xFFAF52DE),
                       fontSize: 10, fontWeight: FontWeight.w700)),
                   ]))),
             ])),
@@ -822,7 +822,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   nivel: (data['nivel'] as num? ?? 1).toInt(),
                   fotoBase64: data['foto_base64'] as String?,
                   esYo: esYo, valor: km.toStringAsFixed(1), unidad: 'KM',
-                  color: const Color(0xFF30D158), accent: _accent, p: _p)));
+                  color: const Color(0xFFAF52DE), accent: _accent, p: _p)));
             })),
         ]);
       });
