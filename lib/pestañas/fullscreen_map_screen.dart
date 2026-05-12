@@ -593,7 +593,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   double _zoomGlobal = 2.5;
 
   // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
-  static const double _kInitialZoom = 14.0;
+  static const double _kInitialZoom = 13.0;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
@@ -2034,8 +2034,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
                 userAgentPackageName: 'com.runner_risk.app',
                 tileDimension: 256,
-                keepBuffer: 4,
-                panBuffer: 2,
+                keepBuffer: 8,
+                panBuffer: 4,
                 maxNativeZoom: 19,
               ),
 
@@ -2252,8 +2252,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
             userAgentPackageName: 'com.runner_risk.app',
             tileDimension: 256,
-            keepBuffer: 4,
-            panBuffer: 2,
+            keepBuffer: 8,
+            panBuffer: 4,
             maxNativeZoom: 19),
 
         // Halo táctico mínimo — solo territorios propios
@@ -2482,8 +2482,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           urlTemplate:          _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
           userAgentPackageName: 'com.runner_risk.app',
           tileDimension: 256,
-          keepBuffer: 4,
-          panBuffer:  2,
+          keepBuffer: 8,
+          panBuffer:  4,
           maxNativeZoom: 19,
         ),
         if (_misRutas.isNotEmpty)
@@ -2581,8 +2581,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
               userAgentPackageName: 'com.runner_risk.app',
               tileDimension: 256,
-              keepBuffer: 4,
-              panBuffer: 2,
+              keepBuffer: 8,
+              panBuffer: 4,
               maxNativeZoom: 8),
 
           // Atmospheric deep-space overlay — solo en modo oscuro
