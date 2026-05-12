@@ -3184,15 +3184,16 @@ class _Panel extends StatelessWidget {
   const _Panel({required this.accent, required this.label, required this.icon, required this.child});
   @override
   Widget build(BuildContext context) {
+    final p = _PP.of(context);
     return Container(
-      decoration: BoxDecoration(color: const Color(0xFF0C0C0C), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF161616))),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: p.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: accent.withValues(alpha: 0.08)))), child: Row(children: [
-          Container(width: 2, height: 13, decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(1))),
+        Container(padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), decoration: BoxDecoration(border: Border(bottom: BorderSide(color: accent.withValues(alpha: 0.12)))), child: Row(children: [
+          Container(width: 2, height: 13, decoration: BoxDecoration(color: p.border2, borderRadius: BorderRadius.circular(1))),
           const SizedBox(width: 9),
-          Icon(icon, color: const Color(0xFF3A3A3A), size: 11),
+          Icon(icon, color: p.muted, size: 11),
           const SizedBox(width: 6),
-          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF4A4A4A), letterSpacing: 2.5)),
+          Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: p.dim, letterSpacing: 2.5)),
         ])),
         Padding(padding: const EdgeInsets.all(18), child: child),
       ]),
@@ -3313,10 +3314,11 @@ class _BotonFoto extends StatelessWidget {
   const _BotonFoto({required this.icon, required this.label, required this.accent, required this.onTap});
   @override
   Widget build(BuildContext context) {
+    final p = _PP.of(context);
     return GestureDetector(onTap: onTap, child: Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(color: const Color(0xFF0D0D0D), borderRadius: BorderRadius.circular(8), border: Border.all(color: accent.withValues(alpha: 0.18))),
-      child: Column(children: [Icon(icon, color: accent, size: 22), const SizedBox(height: 8), Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF666666)))]),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: accent.withValues(alpha: 0.18))),
+      child: Column(children: [Icon(icon, color: accent, size: 22), const SizedBox(height: 8), Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: p.dim))]),
     ));
   }
 }
