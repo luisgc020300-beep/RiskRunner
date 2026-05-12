@@ -22,6 +22,7 @@ class CarreraStats {
   final ZonaRitmo zona;
   final List<String> calles;
   final List<LatLng> ruta;
+  final String modo;
 
   const CarreraStats({
     required this.id,
@@ -32,6 +33,7 @@ class CarreraStats {
     required this.zona,
     required this.calles,
     required this.ruta,
+    this.modo = 'competitivo',
   });
 
   String get tiempoStr {
@@ -261,6 +263,7 @@ class StatsService {
           zona:        zona,
           calles:      calles,
           ruta:        ruta,
+          modo:        (data['modo'] as String?) ?? 'competitivo',
         ));
       }
       return carreras;

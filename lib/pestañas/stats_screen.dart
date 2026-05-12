@@ -117,6 +117,8 @@ class _StatsScreenState extends State<StatsScreen>
                             const SizedBox(height: 24),
                             _buildResumenGlobal(),
                             const SizedBox(height: 24),
+                            _buildDesgloseModos(),
+                            const SizedBox(height: 24),
                             _buildGraficaTendencia(),
                             const SizedBox(height: 24),
                             _buildZonasRitmo(),
@@ -201,6 +203,63 @@ class _StatsScreenState extends State<StatsScreen>
         Expanded(child: _metricaGrande(ritmoStr,
             'Ritmo medio', Icons.speed_rounded, Colors.lightBlueAccent)),
       ]),
+    );
+  }
+
+  // ── Desglose por modo ───────────────────────────────────────────────────────
+  Widget _buildDesgloseModos() {
+    const modos = [
+      ('competitivo',  'COMPETITIVO',  Icons.shield_rounded,        Color(0xFFE02020)),
+      ('solitario',    'SOLITARIO',    Icons.explore_rounded,        Color(0xFF30D158)),
+      ('guerra_global','GLOBAL',       Icons.public_rounded,         Color(0xFFFFD60A)),
+      ('ruta',         'RUTAS',        Icons.route_rounded,          Color(0xFF64D2FF)),
+    ];
+
+    return _seccion(
+      titulo: 'DESGLOSE POR MODO',
+      child: Column(
+        children: modos.map((entry) {
+          final (key, label, icon, color) = entry;
+          final lista = _carreras.where((c) => c.modo == key).toList();
+          final km    = lista.fold(0.0, (s, c) => s + c.distanciaKm);
+          final seg   = lista.fold(0,   (s, c) => s + c.tiempoSeg);
+          final h     = seg ~/ 3600;
+          final m     = (seg % 3600) ~/ 60;
+          final tiempoStr = h > 0 ? '${h}h ${m}m' : '${m}m';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(label, style: const TextStyle(
+                    color: Colors.white70, fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+              ),
+              if (lista.isEmpty)
+                Text('Sin carreras', style: TextStyle(
+                    color: _kDim, fontSize: 11))
+              else ...[
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('${km.toStringAsFixed(1)} km',
+                      style: TextStyle(color: color,
+                          fontSize: 13, fontWeight: FontWeight.w900)),
+                  Text('$tiempoStr · ${lista.length} carrera${lista.length != 1 ? 's' : ''}',
+                      style: const TextStyle(color: _kDim, fontSize: 10)),
+                ]),
+              ],
+            ]),
+          );
+        }).toList(),
+      ),
     );
   }
 
