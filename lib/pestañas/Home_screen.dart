@@ -219,7 +219,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // ── Mapa
   bool _loadingTerritorios = true;
   StreamSubscription<QuerySnapshot>? _invasionListener;
-  StreamSubscription<QuerySnapshot>? _presenciaListener;
 
   // ── Territorios cercanos
   final Map<String, List<_TerritoryDetail>> _detallesPorUser = {};
@@ -283,22 +282,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
-      _initializeData();
-      _escucharNotificacionesInvasion();
-      _escucharConteoNotificaciones();
-      _escucharFeed();
+      _initListeners();
     } else {
       _authListener = FirebaseAuth.instance.authStateChanges().listen((user) {
         if (user != null && mounted) {
-          _initializeData();
-          _escucharNotificacionesInvasion();
-          _escucharConteoNotificaciones();
-          _escucharFeed();
+          _initListeners();
           _authListener?.cancel();
           _authListener = null;
         }
       });
     }
+  }
+
+  void _initListeners() {
+    _initializeData();
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _escucharNotificacionesInvasion();
+    });
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _escucharConteoNotificaciones();
+    });
+    Future.delayed(const Duration(milliseconds: 450), () {
+      if (mounted) _escucharFeed();
+    });
   }
 
   @override
@@ -309,7 +315,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _entradaCtrl.dispose();
     _loopCtrl.dispose();
     _scanCtrl.dispose();
-    _presenciaListener?.cancel();
     _invasionListener?.cancel();
     _notifCountListener?.cancel();
     _feedListener?.cancel();
@@ -651,23 +656,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // ── Invasión — ROJO se mantiene porque son alertas
   void _escucharNotificacionesInvasion() {
     if (userId == null) return;
-    _presenciaListener?.cancel();
-    _presenciaListener = FirebaseFirestore.instance
-        .collection('presencia_activa')
-        .snapshots()
-        .listen((snap) {
-      if (!mounted) return;
-      final nuevos = <String, Map<String, dynamic>>{};
-      for (final doc in snap.docs) {
-        final d = doc.data();
-        final ts = d['timestamp'] as Timestamp?;
-        if (ts != null && DateTime.now().difference(ts.toDate()).inMinutes < 5) {
-          nuevos[doc.id] = d;
-        }
-      }
-      // jugadores en vivo — tracking only, no UI refresh needed
-    });
-
     _invasionListener?.cancel();
     _invasionListener = FirebaseFirestore.instance
         .collection('notifications')

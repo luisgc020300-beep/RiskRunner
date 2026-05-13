@@ -36,6 +36,7 @@ const _kMapboxTileUrl =
 // Colores fijos
 const _kAccent = Color(0xFFE02020);
 const _kGold   = Color(0xFFFFD60A);
+const _KMorado = Color (0xFF6A4A9B);
 
 // Paleta adaptativa dark / light
 class _PP {
@@ -185,6 +186,10 @@ class _PerfilScreenState extends State<PerfilScreen>
   // ── Contadores de desafíos para badge ────────────────────
   int _desafiosActivosCount = 0;
 
+  // ── Rate limiting ─────────────────────────────────────────
+  DateTime? _ultimoReto;
+  static const _kCooldownReto = Duration(seconds: 60);
+
   // ── Clan ──────────────────────────────────────────────────────────────────
   String? _clanNombre;
   String? _clanTag;
@@ -264,13 +269,14 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (viewedUserId == null) return;
     setState(() { _loadingStatsPremium = true; _statsPremiumError = ''; });
     try {
-      // Sin orderBy para evitar índice compuesto Firestore; ordenamos en Dart.
       final uid = viewedUserId!;
       final snap = await FirebaseFirestore.instance
           .collection('activity_logs')
           .where('userId', isEqualTo: uid)
+          .orderBy('timestamp', descending: true)
           .limit(200)
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       final carreras = <CarreraStats>[];
       for (final doc in snap.docs) {
@@ -292,9 +298,6 @@ class _PerfilScreenState extends State<PerfilScreen>
           ritmoMinKm: ritmo, zona: zona, calles: [], ruta: [],
         ));
       }
-      // Ordenar por fecha desc (sustituye el orderBy eliminado)
-      carreras.sort((a, b) => b.fecha.compareTo(a.fecha));
-
       final tendencia    = StatsService.calcularTendencia8Semanas(carreras);
       final comparativa  = StatsService.calcularComparativaSemanal(carreras);
 
@@ -667,7 +670,20 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (mounted) setState(() => _liveCenter = LatLng(lat, lng));
       }
     }
-    _territoriesStream = FirebaseFirestore.instance.collection('territories').limit(200).snapshots().listen((snap) {
+    // Filtro geográfico centrado en los territorios del usuario visto.
+    // Si no hay centro conocido, carga los 200 más recientes sin filtro.
+    const double kRad = 0.12; // ~13 km
+    final center = _liveCenter;
+    final baseQuery = (center.latitude != 40.4168 || center.longitude != -3.7038)
+        ? FirebaseFirestore.instance
+            .collection('territories')
+            .where('centroLat', isGreaterThan: center.latitude - kRad)
+            .where('centroLat', isLessThan:    center.latitude + kRad)
+            .limit(200)
+        : FirebaseFirestore.instance
+            .collection('territories')
+            .limit(200);
+    _territoriesStream = baseQuery.snapshots().listen((snap) {
       if (!mounted) return;
       final lista = <Map<String, dynamic>>[];
       for (final doc in snap.docs) {
@@ -681,7 +697,12 @@ class _PerfilScreenState extends State<PerfilScreen>
       setState(() => _allTerritories = lista);
     });
     final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
-    _runnersStream = FirebaseFirestore.instance.collection('active_runners').where('timestamp', isGreaterThan: Timestamp.fromDate(cutoff)).snapshots().listen((snap) {
+    _runnersStream = FirebaseFirestore.instance
+        .collection('active_runners')
+        .where('timestamp', isGreaterThan: Timestamp.fromDate(cutoff))
+        .limit(50)
+        .snapshots()
+        .listen((snap) {
       if (!mounted) return;
       final runners = <Map<String, dynamic>>[];
       for (final doc in snap.docs) {
@@ -815,6 +836,12 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Future<void> _enviarReto(int apuesta, int horas) async {
     if (myUserId == null || viewedUserId == null) return;
+    final ahora = DateTime.now();
+    if (_ultimoReto != null && ahora.difference(_ultimoReto!) < _kCooldownReto) {
+      final restantes = _kCooldownReto.inSeconds - ahora.difference(_ultimoReto!).inSeconds;
+      _mostrarSnackbar('Espera ${restantes}s antes de enviar otro desafío', error: true);
+      return;
+    }
     try {
       final myDoc      = await FirebaseFirestore.instance.collection('players').doc(myUserId).get();
       final myNick     = myDoc.data()?['nickname'] as String? ?? 'Runner';
@@ -823,6 +850,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       await FirebaseFirestore.instance.collection('desafios').add({'retadorId': myUserId, 'retadorNick': myNick, 'retadoId': viewedUserId, 'retadoNick': nickname, 'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente', 'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0, 'timestamp': FieldValue.serverTimestamp()});
       await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'monedas': FieldValue.increment(-apuesta)});
+      _ultimoReto = DateTime.now();
       _mostrarSnackbar('¡Desafío enviado!');
     } catch (e) { _mostrarSnackbar('Error al enviar el desafío', error: true); }
   }
@@ -2728,10 +2756,10 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _buildDesglosePanel() {
     const modos = [
-      ('competitivo',  'COMPETITIVO',  Color(0xFFE53935), Icons.shield_rounded),
+      ('competitivo',  'COMPETITIVO',  Color(0xFF1E88E5), Icons.shield_rounded),
       ('solitario',    'SOLITARIO',    Color(0xFF43A047), Icons.person_rounded),
       ('guerra_global','GUERRA',       Color(0xFFFFB300), Icons.public_rounded),
-      ('ruta',         'RUTA',         Color(0xFF1E88E5), Icons.route_rounded),
+      ('ruta',         'RUTA',         Color (0xFF6A4A9B), Icons.route_rounded),
     ];
 
     return Column(

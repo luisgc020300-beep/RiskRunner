@@ -463,7 +463,8 @@ class TerritoryService {
         .where('centroLat', isGreaterThan: centro.latitude  - kRadGrados)
         .where('centroLat', isLessThan:    centro.latitude  + kRadGrados)
         .limit(kLimit)
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 10));
 
     // Filtrar por longitud (Firestore no soporta rango en dos campos)
     final docsEnRango = territoriosSnap.docs.where((doc) {
@@ -480,17 +481,24 @@ class TerritoryService {
       if (uid != null && uid != kGhostUserId) ownerIds.add(uid);
     }
 
-    // Cargar player data en chunks de 10
+    // Cargar player data en chunks de 30 (límite del SDK) en paralelo
     final Map<String, Map<String, dynamic>> playerDataMap = {};
     final uidList = ownerIds.toList();
-    for (int i = 0; i < uidList.length; i += 10) {
-      final chunk = uidList.sublist(i, math.min(i + 10, uidList.length));
-      final snap  = await _db
-          .collection('players')
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
-      for (final doc in snap.docs) {
-        playerDataMap[doc.id] = doc.data();
+    const int kChunk = 30;
+    if (uidList.isNotEmpty) {
+      final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
+      for (int i = 0; i < uidList.length; i += kChunk) {
+        final chunk = uidList.sublist(i, math.min(i + kChunk, uidList.length));
+        futures.add(_db
+            .collection('players')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get());
+      }
+      final results = await Future.wait(futures);
+      for (final snap in results) {
+        for (final doc in snap.docs) {
+          playerDataMap[doc.id] = doc.data();
+        }
       }
     }
 
@@ -531,7 +539,7 @@ class TerritoryService {
       final results2 = await Future.wait([
         _db.collection('territories').where('userId', isEqualTo: user.uid).get(),
         _db.collection('territories').limit(200).get(),
-      ]);
+      ]).timeout(const Duration(seconds: 10));
       final propiosSnap = results2[0];
       final otrosSnap   = results2[1];
 

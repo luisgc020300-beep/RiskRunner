@@ -110,12 +110,14 @@ class DesafiosService {
     final q1 = _db.collection('desafios')
         .where('retadorId', isEqualTo: uid)
         .where('estado', isEqualTo: 'activo')
+        .limit(10)
         .snapshots()
         .map((s) => s.docs.map(DesafioInfo.fromFirestore).toList());
 
     final q2 = _db.collection('desafios')
         .where('retadoId', isEqualTo: uid)
         .where('estado', isEqualTo: 'activo')
+        .limit(10)
         .snapshots()
         .map((s) => s.docs.map(DesafioInfo.fromFirestore).toList());
 
@@ -126,6 +128,7 @@ class DesafiosService {
     return _db.collection('desafios')
         .where('retadorId', isEqualTo: uid)
         .where('estado', isEqualTo: 'pendiente')
+        .limit(20)
         .snapshots()
         .map((s) => s.docs.map(DesafioInfo.fromFirestore).toList());
   }

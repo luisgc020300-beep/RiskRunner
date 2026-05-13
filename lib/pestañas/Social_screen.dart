@@ -403,34 +403,36 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     try {
       final data = doc.data() as Map<String, dynamic>;
       final int monedas = (data['monedas'] as num? ?? 0).toInt();
-      final rankSnap = await FirebaseFirestore.instance
-          .collection('players')
-          .where('monedas', isGreaterThan: monedas)
-          .count()
-          .get();
-      final int rango = ((rankSnap.count as num?)?.toInt() ?? 0) + 1;
+      final db = FirebaseFirestore.instance;
 
-      // Buscar relación: enviadas por mí hacia ese usuario
-      String relacion = 'ninguna';
-      final sentSnap = await FirebaseFirestore.instance
-          .collection('friendships')
-          .where('senderId', isEqualTo: currentUserId)
-          .where('receiverId', isEqualTo: doc.id)
-          .limit(1)
-          .get();
-      if (sentSnap.docs.isNotEmpty) {
-        relacion = sentSnap.docs.first.data()['status'] ?? 'ninguna';
-      } else {
-        // Buscar relación: enviadas por ese usuario hacia mí
-        final recvSnap = await FirebaseFirestore.instance
-            .collection('friendships')
+      // Las 3 queries en paralelo
+      final results = await Future.wait([
+        db.collection('players')
+            .where('monedas', isGreaterThan: monedas)
+            .count()
+            .get(),
+        db.collection('friendships')
+            .where('senderId', isEqualTo: currentUserId)
+            .where('receiverId', isEqualTo: doc.id)
+            .limit(1)
+            .get(),
+        db.collection('friendships')
             .where('senderId', isEqualTo: doc.id)
             .where('receiverId', isEqualTo: currentUserId)
             .limit(1)
-            .get();
-        if (recvSnap.docs.isNotEmpty) {
-          relacion = recvSnap.docs.first.data()['status'] ?? 'ninguna';
-        }
+            .get(),
+      ]);
+
+      final rankSnap = results[0] as AggregateQuerySnapshot;
+      final sentSnap = results[1] as QuerySnapshot;
+      final recvSnap = results[2] as QuerySnapshot;
+
+      final int rango = ((rankSnap.count as num?)?.toInt() ?? 0) + 1;
+      String relacion = 'ninguna';
+      if (sentSnap.docs.isNotEmpty) {
+        relacion = (sentSnap.docs.first.data() as Map<String, dynamic>)['status'] ?? 'ninguna';
+      } else if (recvSnap.docs.isNotEmpty) {
+        relacion = (recvSnap.docs.first.data() as Map<String, dynamic>)['status'] ?? 'ninguna';
       }
 
       return {...data, 'id': doc.id, 'rango': rango, 'relacion': relacion};

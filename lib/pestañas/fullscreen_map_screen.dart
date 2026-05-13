@@ -338,6 +338,8 @@ class _MapState extends ChangeNotifier {
     _globalStream?.cancel();
     _globalStream = FirebaseFirestore.instance
         .collection('global_territories')
+        .where('activo', isEqualTo: true)
+        .limit(500)
         .snapshots()
         .listen((snap) {
       if (territoriosGlobales.isEmpty) return;
@@ -860,16 +862,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     const double radioGrados = 0.09;
     final latMin = _state.centro.latitude  - radioGrados;
     final latMax = _state.centro.latitude  + radioGrados;
+    final lngMin = _state.centro.longitude - radioGrados;
+    final lngMax = _state.centro.longitude + radioGrados;
     _presenciaStream = FirebaseFirestore.instance
         .collection('presencia_activa')
         .where('lat', isGreaterThan: latMin)
         .where('lat', isLessThan: latMax)
+        .limit(100)
         .snapshots()
         .listen((snap) {
       final nuevos = <String, Map<String, dynamic>>{};
       for (final doc in snap.docs) {
         if (doc.id == _uid) continue;
         final d = doc.data();
+        final lng = (d['lng'] as num?)?.toDouble();
+        if (lng == null || lng < lngMin || lng > lngMax) continue;
         final ts = d['timestamp'] as Timestamp?;
         if (ts != null && DateTime.now().difference(ts.toDate()).inMinutes < 5) {
           nuevos[doc.id] = d;

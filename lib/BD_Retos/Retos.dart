@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class DatabaseService {
   final CollectionReference desafiosRef =
@@ -27,6 +28,6 @@ class DatabaseService {
       // Usamos 'add' para que Firebase cree un ID automático único para cada uno
       await desafiosRef.add(reto);
     }
-    print("--- ¡DESAFÍOS CARGADOS CON ÉXITO EN FIREBASE! ---");
+    debugPrint('Desafíos cargados en Firebase.');
   }
 }
