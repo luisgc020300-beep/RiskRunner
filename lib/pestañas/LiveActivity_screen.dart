@@ -524,8 +524,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _globalesLayerId     = 'globales-centros-layer';
   static const String _globalesSelSourceId = 'globales-sel-src';
   static const String _globalesSelLayerId  = 'globales-sel-layer';
-  static const String _puntosGloboSrcId     = 'puntosGlobo-src';
-  static const String _puntosGloboLayerId   = 'puntosGlobo-layer';
+  static const String _puntosGloboSrcId      = 'puntosGlobo-src';
+  static const String _puntosGloboLayerId    = 'puntosGlobo-layer';
+  static const String _puntosGloboGlowLayerId = 'puntosGlobo-glow-layer';
   static const String _rutasPreviewSrcId    = 'rutas-preview-src';
   static const String _rutasPreviewLayerId  = 'rutas-preview-layer';
   static const String _kTileUrl =
@@ -577,6 +578,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _puntosGloboLayerCreated                 = false;
   bool _actualizandoGloboLayer                  = false;
   bool _dibujandoTerritorios                    = false;
+
 
   // ── SELECCIÓN GLOBAL EN GLOBO
   bool _seleccionandoGlobal  = false;
@@ -1839,11 +1841,37 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final gj = '{"type":"FeatureCollection","features":[$feats]}';
 
       if (!_puntosGloboLayerCreated) {
+        try { await _mapboxMap!.style.removeStyleLayer(_puntosGloboGlowLayerId); } catch (_) {}
         try { await _mapboxMap!.style.removeStyleLayer(_puntosGloboLayerId); } catch (_) {}
         try { await _mapboxMap!.style.removeStyleSource(_puntosGloboSrcId); } catch (_) {}
 
         await _mapboxMap!.style.addSource(
             mapbox.GeoJsonSource(id: _puntosGloboSrcId, data: gj));
+
+        // Capa de glow — halo difuso detrás de los puntos propios
+        await _mapboxMap!.style.addLayer(
+            mapbox.CircleLayer(
+              id: _puntosGloboGlowLayerId,
+              sourceId: _puntosGloboSrcId,
+              maxZoom: 9.5,
+            ));
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboGlowLayerId, 'circle-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboGlowLayerId, 'circle-radius', [
+          'case', ['==', ['get', 'esMio'], true],
+          ['interpolate', ['linear'], ['zoom'], 1, 9.0, 4, 13.0, 8, 11.0],
+          0.0,
+        ]);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboGlowLayerId, 'circle-blur', 1.6);
+        await _mapboxMap!.style.setStyleLayerProperty(
+            _puntosGloboGlowLayerId, 'circle-opacity', [
+          'interpolate', ['linear'], ['zoom'],
+          8.0, ['case', ['==', ['get', 'esMio'], true], 0.45, 0.0],
+          9.5, 0.0,
+        ]);
+
         // maxZoom: 9.5 — Mapbox oculta los puntos automáticamente al hacer zoom in
         await _mapboxMap!.style.addLayer(
             mapbox.CircleLayer(
@@ -4686,6 +4714,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Widget _buildGloboOverlay() {
     return Stack(children: [
+      // Estrellas — solo en modo noche
+      if (_modoNoche)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _StarfieldWidget(nightMode: true, globeAnim: _globoAnim),
+          ),
+        ),
+
       // Viñeta espacial en los bordes — ahora más azulada
       Positioned.fill(
         child: IgnorePointer(

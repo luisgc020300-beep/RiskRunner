@@ -599,6 +599,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   StreamSubscription<MapEvent>? _cameraStream;
   LatLng? _lastLoadedCenter;
 
+  // ── Campo de estrellas para el mapa global oscuro ─────────────────────────
+  late final List<_Star> _starfield;
+
   // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
   static const double _kInitialZoom = 13.0;
 
@@ -659,6 +662,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _globalEntryAnim = CurvedAnimation(
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
+    _starfield = _StarfieldPainter.generate();
     _initData();
     _escucharCamara();
     _feedFuture = ActivityService.obtenerFeedReciente();
@@ -2669,12 +2673,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               panBuffer: 4,
               maxNativeZoom: 8),
 
-          // Atmospheric deep-space overlay — solo en modo oscuro
-          if (_mapaOscuro)
+          // Campo de estrellas + overlay atmosférico — solo en modo oscuro
+          if (_mapaOscuro) ...[
+            SizedBox.expand(
+              child: CustomPaint(painter: _StarfieldPainter(_starfield)),
+            ),
             const ColorFiltered(
-              colorFilter: ColorFilter.mode(Color(0x44000B28), BlendMode.srcOver),
+              colorFilter: ColorFilter.mode(Color(0x33000B28), BlendMode.srcOver),
               child: SizedBox.expand(),
             ),
+          ],
 
           if (_state.loadingGlobal)
             const ColorFiltered(
@@ -5552,4 +5560,45 @@ class _DialogoConquistando extends StatelessWidget {
       ),
     );
   }
+}
+
+// =============================================================================
+// STARFIELD — campo de estrellas para el mapa global en modo oscuro
+// =============================================================================
+class _Star {
+  final double x, y, r, opacity;
+  const _Star(this.x, this.y, this.r, this.opacity);
+}
+
+class _StarfieldPainter extends CustomPainter {
+  final List<_Star> stars;
+  const _StarfieldPainter(this.stars);
+
+  static List<_Star> generate({int count = 220}) {
+    final rng = math.Random(0xCAFE);
+    return List.generate(count, (_) {
+      final large = rng.nextDouble() < 0.07;
+      final r = large
+          ? (rng.nextDouble() * 0.7 + 1.3)
+          : (rng.nextDouble() * 0.55 + 0.25);
+      final opacity = rng.nextDouble() * 0.45 + 0.50;
+      return _Star(rng.nextDouble(), rng.nextDouble(), r, opacity);
+    });
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final s in stars) {
+      paint.color = Color.fromRGBO(210, 220, 255, s.opacity);
+      canvas.drawCircle(
+        Offset(s.x * size.width, s.y * size.height),
+        s.r,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StarfieldPainter old) => false;
 }
