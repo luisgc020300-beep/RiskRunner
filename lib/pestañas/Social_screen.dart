@@ -28,6 +28,7 @@ const Color _kSilver     = Color(0xFFA8C0D4);
 const Color _kGoldTier   = Color(0xFFF0CC40);
 const Color _kPlatinum   = Color(0xFF6CA8E0);
 const Color _kDiamond    = Color(0xFF70E0F8);
+const Color _Kblue       = Color(0xFF0A84FF);
 
 // Paleta adaptativa dark / light
 class _SP {
@@ -683,12 +684,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           child: Row(children: [
             _ToggleBtn(
               label: 'COMPETITIVO', icon: Icons.emoji_events_rounded,
-              active: _rankingModo == 'competitivo', activeColor: _kAccent,
+              active: _rankingModo == 'competitivo', activeColor: const Color(0xFF0A84FF),
               onTap: () => setState(() { _rankingModo = 'competitivo'; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),
             _ToggleBtn(
               label: 'SEMANAL', icon: Icons.public_rounded,
-              active: _rankingModo == 'semanal', activeColor: const Color(0xFF30A0FF),
+              active: _rankingModo == 'semanal', activeColor:const Color(0xFFFFD700),
               onTap: () => setState(() { _rankingModo = 'semanal'; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),
             _ToggleBtn(
@@ -1108,7 +1109,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         if (!snapshot.hasData) return _genSkels();
         if (snapshot.hasError) return _ErrorState(onRetry: () => setState(() {}));
         final solicitudes = snapshot.data!.docs;
-        if (solicitudes.isEmpty) return const _EmptyState(icon: Icons.inbox_outlined, titulo: 'Sin solicitudes', subtitulo: 'Las invitaciones de alianza\naparecerán aquí');
+        if (solicitudes.isEmpty) return const _EmptyState(icon: Icons.inbox_outlined, titulo: 'Sin solicitudes', subtitulo: 'Cuando alguien empiece a seguirte\naparecerá aquí');
         return RefreshIndicator(
           key: _rkSolici, color: _kAccent, backgroundColor: _p.surface2,
           onRefresh: () async { setState(() {}); },
@@ -1126,7 +1127,8 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
                   onAceptar: () async {
                     await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
-                    _snack('¡${data['nickname']} ahora es tu aliado!');
+                    await FirebaseFirestore.instance.collection('follows').add({'followerId': currentUserId, 'followingId': senderId, 'timestamp': FieldValue.serverTimestamp()});
+                    _snack('¡${data['nickname']} ahora es tu operativo!');
                   },
                   onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));
               }

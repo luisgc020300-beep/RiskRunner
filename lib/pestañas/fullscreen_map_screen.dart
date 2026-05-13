@@ -1404,15 +1404,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             builder: (_, __) {
               final isGlobal = _state.modoGlobal;
               return DraggableScrollableSheet(
-                key: ValueKey(isGlobal),
+                key: ValueKey('${_state.modoGlobal}_${_state.modoSolitario}_${_state.modoRutas}'),
                 controller: _sheetCtrl,
-                initialChildSize: 0.4,
+                initialChildSize: 0.13,
                 minChildSize: 0.08,
-                maxChildSize: 0.75,
+                maxChildSize: 0.70,
                 snap: true,
-                snapSizes: isGlobal
-                    ? const [0.08, 0.35, 0.75]
-                    : const [0.08, 0.13, 0.4, 0.75],
+                snapSizes: const [0.08, 0.13, 0.70],
                 builder: (ctx, scrollCtrl) {
                   final mios = _state.territorios
                       .where((t) => t.esMio).length;
@@ -3846,7 +3844,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _shHeader(
             icon: Icons.shield_rounded,
             modeLabel: 'MI CIUDAD',
-            modeColor: _kSub,
+            modeColor: _kBlue ,
             heroValue: '$mios',
             heroLabel: 'zonas conquistadas',
             trailing: _shStatusBadge(det, pel),
@@ -3922,7 +3920,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _shHeader(
               icon: Icons.explore_rounded,
               modeLabel: 'EXPLORADOR',
-              modeColor: _kSub,
+              modeColor: _kSafe,
               heroValue: _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
               heroLabel: 'zonas cercanas',
               trailing: (!_cargandoBarrios && !_barriosCargados && barriosOrdenados.isEmpty)
@@ -3991,7 +3989,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _shHeader(
             icon: Icons.public_rounded,
             modeLabel: 'GUERRA GLOBAL',
-            modeColor: _kSub,
+            modeColor: _kGold,
             heroValue: '${mios.length}',
             heroSuffix: '/ $max',
             heroLabel: 'dominios',

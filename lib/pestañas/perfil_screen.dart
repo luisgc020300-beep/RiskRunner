@@ -117,6 +117,10 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   double   _kmTotales               = 0;
   double   _velocidadMediaHistorica = 0;
+  Map<String, double> _kmPorModo       = {};
+  Map<String, int>    _segPorModo      = {};
+  Map<String, int>    _carrerasPorModo = {};
+  bool _desgloseExpandido = false;
   int      _totalCarreras           = 0;
   int      _territoriosConquistados = 0;
   Duration _tiempoTotalActividad    = Duration.zero;
@@ -558,7 +562,36 @@ class _PerfilScreenState extends State<PerfilScreen>
         'read':         false,
         'timestamp':    FieldValue.serverTimestamp(),
       });
-      if (mounted) setState(() { _esSiguiendo = true; _seguidores += 1; });
+      // Gestión automática de amistad
+      String newStatus = _friendshipStatus;
+      String? newDocId = _friendshipDocId;
+      if (_friendshipStatus == 'pending_received' && _friendshipDocId != null) {
+        // Ellos nos siguieron primero → aceptamos la amistad
+        await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
+        newStatus = 'accepted';
+      } else if (_friendshipStatus == 'none') {
+        // Ver si ya nos siguen (follow mutuo sin doc de amistad aún)
+        final theyFollowMe = await FirebaseFirestore.instance
+            .collection('follows')
+            .where('followerId', isEqualTo: viewedUserId)
+            .where('followingId', isEqualTo: myUserId)
+            .limit(1).get();
+        final accepted = theyFollowMe.docs.isNotEmpty;
+        final ref = await FirebaseFirestore.instance.collection('friendships').add({
+          'senderId':   myUserId,
+          'receiverId': viewedUserId,
+          'status':     accepted ? 'accepted' : 'pending',
+          'timestamp':  FieldValue.serverTimestamp(),
+        });
+        newStatus = accepted ? 'accepted' : 'pending_sent';
+        newDocId  = ref.id;
+      }
+      if (mounted) setState(() {
+        _esSiguiendo      = true;
+        _seguidores      += 1;
+        _friendshipStatus = newStatus;
+        _friendshipDocId  = newDocId;
+      });
     } catch (e) {
       debugPrint('Error seguir: $e');
       if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexión', error: true);
@@ -575,46 +608,21 @@ class _PerfilScreenState extends State<PerfilScreen>
           .where('followingId', isEqualTo: viewedUserId)
           .limit(1).get();
       for (final doc in snap.docs) await doc.reference.delete();
+      // Borrar amistad al dejar de seguir
+      if (_friendshipDocId != null) {
+        await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).delete();
+      }
       if (mounted) setState(() {
-        _esSiguiendo = false;
-        _seguidores  = (_seguidores - 1).clamp(0, 999999);
+        _esSiguiendo      = false;
+        _seguidores       = (_seguidores - 1).clamp(0, 999999);
+        _friendshipStatus = 'none';
+        _friendshipDocId  = null;
       });
     } catch (e) {
       debugPrint('Error dejar de seguir: $e');
       if (mounted) _mostrarSnackbar('No se pudo dejar de seguir', error: true);
     }
     finally { if (mounted) setState(() => _loadingFollow = false); }
-  }
-
-  Future<void> _enviarSolicitudAmistad() async {
-    if (myUserId == null || viewedUserId == null) return;
-    setState(() => _loadingFriendship = true);
-    try {
-      final ref = await FirebaseFirestore.instance.collection('friendships').add({'senderId': myUserId, 'receiverId': viewedUserId, 'status': 'pending', 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'friend_request', 'fromUserId': myUserId, 'fromNickname': await _getMyNickname(), 'message': 'Te ha enviado una solicitud de amistad', 'read': false, 'timestamp': FieldValue.serverTimestamp()});
-      setState(() { _friendshipStatus = 'pending_sent'; _friendshipDocId = ref.id; });
-    } catch (e) { debugPrint('Error solicitud: $e'); }
-    finally { if (mounted) setState(() => _loadingFriendship = false); }
-  }
-
-  Future<void> _aceptarSolicitud() async {
-    if (_friendshipDocId == null) return;
-    setState(() => _loadingFriendship = true);
-    try {
-      await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
-      setState(() => _friendshipStatus = 'accepted');
-    } catch (e) { debugPrint('Error aceptando: $e'); }
-    finally { if (mounted) setState(() => _loadingFriendship = false); }
-  }
-
-  Future<void> _eliminarAmistad() async {
-    if (_friendshipDocId == null) return;
-    setState(() => _loadingFriendship = true);
-    try {
-      await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).delete();
-      setState(() { _friendshipStatus = 'none'; _friendshipDocId = null; });
-    } catch (e) { debugPrint('Error eliminando amistad: $e'); }
-    finally { if (mounted) setState(() => _loadingFriendship = false); }
   }
 
   Future<String> _getMyNickname() async {
@@ -874,6 +882,9 @@ class _PerfilScreenState extends State<PerfilScreen>
       final List<Map<String, dynamic>> carreras = [];
       final List<Map<String, dynamic>> logrosData = [];
       final Set<String> idsVistos = {};
+      final Map<String, double> kmModo  = {};
+      final Map<String, int>    segModo = {};
+      final Map<String, int>    cntModo = {};
 
       final List<Map<String, dynamic>> historial = [];
       int carrerasConDist = 0;
@@ -885,6 +896,12 @@ class _PerfilScreenState extends State<PerfilScreen>
         kmTotal += dist;
         totalSeg += seg;
         if (dist > 0 && seg > 0) { sumVel += dist / (seg / 3600); countVel++; }
+        if (dist > 0) {
+          final modo = (d['modo'] as String?) ?? 'competitivo';
+          kmModo[modo]  = (kmModo[modo]  ?? 0) + dist;
+          segModo[modo] = (segModo[modo] ?? 0) + seg;
+          cntModo[modo] = (cntModo[modo] ?? 0) + 1;
+        }
 
         // carreras recientes (solo con distancia real)
         if (dist > 0) {
@@ -924,7 +941,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       if (mounted) setState(() {
         _kmTotales               = kmTotal;
         _velocidadMediaHistorica = countVel > 0 ? sumVel / countVel : 0;
-        _totalCarreras           = carrerasConDist;   // solo carreras reales
+        _totalCarreras           = carrerasConDist;
         _tiempoTotalActividad    = Duration(seconds: totalSeg);
         _territoriosConquistados = conqSnap.docs.length;
         _carrerasRecientes       = carreras.toList();
@@ -933,6 +950,9 @@ class _PerfilScreenState extends State<PerfilScreen>
         _historialFiltrado       = historial;
         _historialPaginaActual   = 1;
         _cargandoHistorial       = false;
+        _kmPorModo               = kmModo;
+        _segPorModo              = segModo;
+        _carrerasPorModo         = cntModo;
       });
     } catch (e) {
       debugPrint('Error stats: $e');
@@ -1155,14 +1175,10 @@ class _PerfilScreenState extends State<PerfilScreen>
                 Row(children: [
                   Expanded(child: _buildFollowButton()),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildFriendshipButton()),
+                  Expanded(child: _buildBotonRetar()),
                 ]),
                 const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(child: _buildBotonRetar()),
-                  const SizedBox(width: 8),
-                  Expanded(child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat)),
-                ]),
+                _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat),
               ]),
             ),
           ),
@@ -2635,63 +2651,121 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildKmSangre() {
     final progreso = (_kmTotales % 100) / 100;
     final hito     = ((_kmTotales ~/ 100) + 1) * 100;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-      decoration: BoxDecoration(
-        color: _p.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _p.border2),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 8),
-          Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
-        ]),
-        const SizedBox(height: 4),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Expanded(child: _AnimatedCounter(
-            value: _kmTotales,
-            decimals: 1,
-            duration: const Duration(milliseconds: 1400),
-            style: GoogleFonts.inter(fontSize: 72, fontWeight: FontWeight.w700, color: _p.title, height: 0.9),
-          )),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              _velocidadMediaHistorica > 0
-                ? _AnimatedCounter(
-                    value: _velocidadMediaHistorica,
-                    decimals: 1,
-                    style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
-                    duration: const Duration(milliseconds: 900),
-                  )
-                : Text('--', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
-              Text('KM/H', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
-            ]),
-            const SizedBox(height: 8),
-            _miniKpi(_formatTiempo(_tiempoTotalActividad), 'TIEMPO'),
-            const SizedBox(height: 8),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              _AnimatedCounter(
-                value: _totalCarreras.toDouble(),
-                style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
-                duration: const Duration(milliseconds: 1000),
-              ),
-              Text('MISIONES', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
+    return GestureDetector(
+      onTap: () => setState(() => _desgloseExpandido = !_desgloseExpandido),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+        decoration: BoxDecoration(
+          color: _p.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _p.border2),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 8),
+            Text('DISTANCIA TOTAL', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+            const Spacer(),
+            AnimatedRotation(
+              turns: _desgloseExpandido ? 0.5 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 16),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Expanded(child: _AnimatedCounter(
+              value: _kmTotales,
+              decimals: 1,
+              duration: const Duration(milliseconds: 1400),
+              style: GoogleFonts.inter(fontSize: 72, fontWeight: FontWeight.w700, color: _p.title, height: 0.9),
+            )),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                _velocidadMediaHistorica > 0
+                  ? _AnimatedCounter(
+                      value: _velocidadMediaHistorica,
+                      decimals: 1,
+                      style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
+                      duration: const Duration(milliseconds: 900),
+                    )
+                  : Text('--', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
+                Text('KM/H', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
+              ]),
+              const SizedBox(height: 8),
+              _miniKpi(_formatTiempo(_tiempoTotalActividad), 'TIEMPO'),
+              const SizedBox(height: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                _AnimatedCounter(
+                  value: _totalCarreras.toDouble(),
+                  style: _rajdhani(16, FontWeight.w700, _p.title, height: 1),
+                  duration: const Duration(milliseconds: 1000),
+                ),
+                Text('MISIONES', style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.5)),
+              ]),
             ]),
           ]),
+          const SizedBox(height: 2),
+          Text('KM', style: _rajdhani(13, FontWeight.w700, _p.muted, spacing: 4)),
+          const SizedBox(height: 14),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('HITO $hito KM', style: _rajdhani(9, FontWeight.w600, _p.dim, spacing: 1.5)),
+            Text('${(progreso * 100).toStringAsFixed(0)}%', style: _rajdhani(9, FontWeight.w700, _p.sub)),
+          ]),
+          const SizedBox(height: 5),
+          _glowBar(progreso),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: _desgloseExpandido ? _buildDesglosePanel() : const SizedBox.shrink(),
+          ),
         ]),
-        const SizedBox(height: 2),
-        Text('KM', style: _rajdhani(13, FontWeight.w700, _p.muted, spacing: 4)),
-        const SizedBox(height: 14),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('HITO $hito KM', style: _rajdhani(9, FontWeight.w600, _p.dim, spacing: 1.5)),
-          Text('${(progreso * 100).toStringAsFixed(0)}%', style: _rajdhani(9, FontWeight.w700, _p.sub)),
-        ]),
-        const SizedBox(height: 5),
-        _glowBar(progreso),
-      ]),
+      ),
+    );
+  }
+
+  Widget _buildDesglosePanel() {
+    const modos = [
+      ('competitivo',  'COMPETITIVO',  Color(0xFFE53935), Icons.shield_rounded),
+      ('solitario',    'SOLITARIO',    Color(0xFF43A047), Icons.person_rounded),
+      ('guerra_global','GUERRA',       Color(0xFFFFB300), Icons.public_rounded),
+      ('ruta',         'RUTA',         Color(0xFF1E88E5), Icons.route_rounded),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Container(height: 1, color: _p.border2),
+        const SizedBox(height: 12),
+        ...modos.map((m) {
+          final key   = m.$1;
+          final label = m.$2;
+          final color = m.$3;
+          final icon  = m.$4;
+          final km    = _kmPorModo[key] ?? 0.0;
+          final seg   = _segPorModo[key] ?? 0;
+          final cnt   = _carrerasPorModo[key] ?? 0;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(children: [
+              Icon(icon, color: color, size: 13),
+              const SizedBox(width: 7),
+              Text(label, style: _rajdhani(9, FontWeight.w700, color, spacing: 1.2)),
+              const Spacer(),
+              Text('${km.toStringAsFixed(1)} KM', style: _rajdhani(11, FontWeight.w700, _p.title)),
+              const SizedBox(width: 10),
+              Text(_formatTiempo(Duration(seconds: seg)), style: _rajdhani(11, FontWeight.w600, _p.sub)),
+              const SizedBox(width: 10),
+              Text('$cnt', style: _rajdhani(11, FontWeight.w600, _p.muted)),
+              const SizedBox(width: 2),
+              Icon(Icons.flag_rounded, color: _p.muted, size: 9),
+            ]),
+          );
+        }),
+      ],
     );
   }
 
@@ -3051,24 +3125,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     return _socialBtn('Seguir', Icons.person_add_rounded, _kAccent, _seguir);
   }
 
-  Widget _buildFriendshipButton() {
-    if (_loadingFriendship) return Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)));
-    switch (_friendshipStatus) {
-      case 'accepted':
-        return _socialBtn('Amigos', Icons.people_rounded, Colors.greenAccent, () => _confirmarEliminarAmistad(), outlined: true);
-      case 'pending_sent':
-        return _socialBtn('Solicitud enviada', Icons.hourglass_top_rounded, _p.muted, () => _confirmarEliminarAmistad(), outlined: true);
-      case 'pending_received':
-        return Row(children: [
-          Expanded(child: _socialBtn('Aceptar', Icons.check_rounded, Colors.greenAccent, _aceptarSolicitud)),
-          const SizedBox(width: 8),
-          Expanded(child: _socialBtn('Rechazar', Icons.close_rounded, Colors.redAccent, _eliminarAmistad, outlined: true)),
-        ]);
-      default:
-        return _socialBtn('Añadir operativo', Icons.person_add_outlined, Colors.white, _enviarSolicitudAmistad);
-    }
-  }
-
   Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {
     return GestureDetector(
       onTap: onTap,
@@ -3086,19 +3142,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         ]),
       ),
     );
-  }
-
-  void _confirmarEliminarAmistad() {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      backgroundColor: _p.surface2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _p.border2)),
-      title: Text('Eliminar amistad', style: _rajdhani(16, FontWeight.w700, _p.title)),
-      content: Text(_friendshipStatus == 'pending_sent' ? 'Se cancelará la solicitud enviada.' : 'Dejarás de ser aliado con $nickname.', style: _rajdhani(13, FontWeight.w500, _p.sub)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: _rajdhani(12, FontWeight.w600, _p.dim))),
-        TextButton(onPressed: () { Navigator.pop(ctx); _eliminarAmistad(); }, child: Text('Eliminar', style: _rajdhani(12, FontWeight.w700, Colors.redAccent))),
-      ],
-    ));
   }
 
   Widget _glowBar(double val, {double height = 3, Color? color}) {
