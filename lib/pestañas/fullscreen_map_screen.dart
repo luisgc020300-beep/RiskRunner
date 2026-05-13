@@ -594,6 +594,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _refreshing = false;
   double _zoomGlobal = 2.5;
 
+  // ── Recarga automática al desplazar el mapa ───────────────────────────────
+  Timer? _cameraDebounce;
+  StreamSubscription<MapEvent>? _cameraStream;
+  LatLng? _lastLoadedCenter;
+
   // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
   static const double _kInitialZoom = 13.0;
 
@@ -655,6 +660,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
     _initData();
+    _escucharCamara();
     _feedFuture = ActivityService.obtenerFeedReciente();
 
     if (widget.selectionMode) {
@@ -720,6 +726,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _presenciaStream?.cancel();
     _desafioStreamRetador?.cancel();
     _desafioStreamRetado?.cancel();
+    _cameraDebounce?.cancel();
+    _cameraStream?.cancel();
     _sheetCtrl.dispose();
     super.dispose();
   }
@@ -794,29 +802,43 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _cargarTerritorios() async {
     if (widget.territorios.isNotEmpty) {
       _state.setTerritorios(widget.territorios);
+      _lastLoadedCenter = _state.centro;
       return;
     }
+    // Pre-leer el modo guardado evita la race condition entre _initData()
+    // (que corre sin await) y _activarModoSolitario() (postFrameCallback).
+    final savedMode = GameStateService.instance.currentMode;
+    final modo = (_state.modoSolitario || savedMode == 'solitario') ? 'solitario' : 'competitivo';
+
+    // 1. Caché válida → mostrar al instante
+    final cached = modo == 'solitario'
+        ? GameStateService.instance.getSolitarioTerritories()
+        : GameStateService.instance.getCompetitiveTerritories();
+    if (cached != null) {
+      _state.setTerritorios(List<TerritoryData>.from(cached));
+      _lastLoadedCenter = _state.centro;
+      return;
+    }
+
+    // 2. Caché expirada pero con datos → mostrar inmediatamente y refrescar en background
+    final stale = modo == 'solitario'
+        ? GameStateService.instance.getStaleSolitarioTerritories()
+        : GameStateService.instance.getStaleCompetitiveTerritories();
+    if (stale != null) {
+      _state.setTerritorios(List<TerritoryData>.from(stale));
+      _lastLoadedCenter = _state.centro;
+      _recargarSilencioso(modo);
+      return;
+    }
+
+    // 3. Sin datos — mostrar spinner y esperar Firestore
     _state.setLoadingTerritorios(true);
     try {
-      // Pre-leer el modo guardado evita la race condition entre _initData()
-      // (que corre sin await) y _activarModoSolitario() (postFrameCallback):
-      // sin esto, _initData cargaría competitivo aunque el modo sea solitario.
-      final savedMode = GameStateService.instance.currentMode;
-      final modo = (_state.modoSolitario || savedMode == 'solitario') ? 'solitario' : 'competitivo';
-
-      // Usar cache compartido si sigue siendo válido
-      final cached = modo == 'solitario'
-          ? GameStateService.instance.getSolitarioTerritories()
-          : GameStateService.instance.getCompetitiveTerritories();
-      if (cached != null) {
-        _state.setTerritorios(List<TerritoryData>.from(cached));
-        return;
-      }
-
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
+      if (!mounted) return;
       _state.setTerritorios(lista);
-
+      _lastLoadedCenter = _state.centro;
       if (modo == 'solitario') {
         GameStateService.instance.setSolitarioTerritories(lista);
       } else {
@@ -825,6 +847,24 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (e) {
       debugPrint('FullscreenMap cargarTerritorios error: $e');
       _state.setError('No se pudieron cargar los territorios');
+    }
+  }
+
+  Future<void> _recargarSilencioso(String modo) async {
+    try {
+      TerritoryService.invalidarCache();
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: _state.centro, modo: modo);
+      if (!mounted) return;
+      _state.setTerritorios(lista);
+      _lastLoadedCenter = _state.centro;
+      if (modo == 'solitario') {
+        GameStateService.instance.setSolitarioTerritories(lista);
+      } else {
+        GameStateService.instance.setCompetitiveTerritories(lista);
+      }
+    } catch (e) {
+      debugPrint('FullscreenMap recargarSilencioso: $e');
     }
   }
 
@@ -837,6 +877,45 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _cargarTerritorios();
     await _rellenarConFantasmas();
     if (mounted) setState(() => _refreshing = false);
+  }
+
+  // ── Escucha movimientos de cámara y recarga si el usuario se desplaza >3 km ─
+  void _escucharCamara() {
+    _cameraStream = _mapController.mapEventStream.listen((event) {
+      if (event is MapEventMoveEnd) {
+        _cameraDebounce?.cancel();
+        _cameraDebounce = Timer(
+          const Duration(milliseconds: 700),
+          _onCameraIdle,
+        );
+      }
+    });
+  }
+
+  Future<void> _onCameraIdle() async {
+    if (_state.modoGlobal) return;
+    final newCenter = _mapController.camera.center;
+    if (_lastLoadedCenter != null) {
+      final distM = Geolocator.distanceBetween(
+        _lastLoadedCenter!.latitude, _lastLoadedCenter!.longitude,
+        newCenter.latitude, newCenter.longitude,
+      );
+      if (distM < 3000) return;
+    }
+    _lastLoadedCenter = newCenter;
+    _state.setCentro(newCenter);
+    final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
+    TerritoryService.invalidarCache();
+    final lista = await TerritoryService.cargarTodosLosTerritorios(
+        centro: newCenter, modo: modo);
+    if (!mounted) return;
+    _state.setTerritorios(lista);
+    if (modo == 'solitario') {
+      GameStateService.instance.setSolitarioTerritories(lista);
+    } else {
+      GameStateService.instance.setCompetitiveTerritories(lista);
+      await _rellenarConFantasmas();
+    }
   }
 
   Future<void> _rellenarConFantasmas() async {

@@ -244,6 +244,8 @@ class TerritoryService {
     return DateTime.now().difference(_cacheTimestamp!) < _cacheTTL;
   }
 
+  static bool get cacheValido => _cacheValido;
+
   // ── Calcular área ─────────────────────────────────────────────────────────
   static double calcularAreaM2(List<LatLng> puntos) {
     if (puntos.length < 3) return 0;

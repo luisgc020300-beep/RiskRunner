@@ -118,6 +118,10 @@ class GameStateService {
   List<TerritoryData>? getCompetitiveTerritories() =>
       _competitiveValid ? List.unmodifiable(_competitiveTerritories!) : null;
 
+  /// Devuelve los datos aunque hayan expirado — útil para mostrar mientras se refresca.
+  List<TerritoryData>? getStaleCompetitiveTerritories() =>
+      _competitiveTerritories != null ? List.unmodifiable(_competitiveTerritories!) : null;
+
   void setCompetitiveTerritories(List<TerritoryData> list) {
     _competitiveTerritories = List.of(list);
     _competitiveAt          = DateTime.now();
@@ -139,6 +143,10 @@ class GameStateService {
 
   List<TerritoryData>? getSolitarioTerritories() =>
       _solitarioValid ? List.unmodifiable(_solitarioTerritories!) : null;
+
+  /// Devuelve los datos aunque hayan expirado — útil para mostrar mientras se refresca.
+  List<TerritoryData>? getStaleSolitarioTerritories() =>
+      _solitarioTerritories != null ? List.unmodifiable(_solitarioTerritories!) : null;
 
   void setSolitarioTerritories(List<TerritoryData> list) {
     _solitarioTerritories = List.of(list);
