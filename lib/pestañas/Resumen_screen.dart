@@ -218,17 +218,24 @@ class _ResumenScreenState extends State<ResumenScreen>
       }
     });
 
-    await _cargarUbicacionInicial();
-    await _cargarColorUsuario();
+    try {
+      await _cargarUbicacionInicial();
+      await _cargarColorUsuario();
 
-    if (widget.esDesdeCarrera) {
-      if (!widget.modoRuta) {
-        await _guardarYMostrarTerritorioActual();
+      if (widget.esDesdeCarrera) {
+        if (!widget.modoRuta) {
+          await _guardarYMostrarTerritorioActual();
+        }
+        await _actualizarRacha();
+        OnboardingService.registrarRunCompletado();
+      } else {
+        await _cargarTodosLosTerritorios();
       }
-      await _actualizarRacha();
-      OnboardingService.registrarRunCompletado();
-    } else {
-      await _cargarTodosLosTerritorios();
+    } catch (e) {
+      debugPrint('Resumen _inicializarPantalla error: $e');
+    } finally {
+      // Garantiza que isLoading siempre se desbloquea aunque algo falle arriba
+      if (mounted && isLoading) setState(() => isLoading = false);
     }
 
     await Future.delayed(const Duration(milliseconds: 200));

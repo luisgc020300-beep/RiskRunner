@@ -38,6 +38,10 @@ class AntiCheatConfig {
   /// Aceleración máxima posible entre dos puntos (km/h por segundo).
   /// Un humano puede acelerar ~3 km/h/s como máximo.
   static const double aceleracionMaxKmhS = 5.0;
+
+  /// Puntos GPS iniciales ignorados para dar tiempo al chip a estabilizarse.
+  /// A ~1 Hz son ~8 segundos de warmup.
+  static const int kWarmupPuntos = 8;
 }
 
 // =============================================================================
@@ -83,6 +87,7 @@ class AntiCheatService {
   Position? _ultimaPosicion;
   DateTime? _ultimoTimestamp;
   double _ultimaVelocidadKmh = 0;
+  int _puntosProcesados = 0; // contador de warmup
 
   bool get sesionCancelada =>
       _infraccionesConsecutivas >= AntiCheatConfig.infraccionesParaCancelar ||
@@ -95,6 +100,7 @@ class AntiCheatService {
     _ultimaPosicion           = null;
     _ultimoTimestamp          = null;
     _ultimaVelocidadKmh       = 0;
+    _puntosProcesados         = 0;
   }
 
   // ==========================================================================
@@ -128,11 +134,21 @@ class AntiCheatService {
 
     // Si no hay posición previa, este es el primer punto → siempre válido
     if (_ultimaPosicion == null || _ultimoTimestamp == null) {
+      _puntosProcesados++;
       _actualizarEstado(pos);
       return AntiCheatResultado.valido;
     }
 
-    // ── 4. Calcular delta tiempo y distancia ────────────────────────────────
+    // ── 4. Warmup — los primeros puntos se descartan sin penalizar ──────────
+    // El GPS tarda unos segundos en estabilizarse al arrancar o al recuperar
+    // señal, lo que puede producir saltos posicionales falsos.
+    _puntosProcesados++;
+    if (_puntosProcesados <= AntiCheatConfig.kWarmupPuntos) {
+      _actualizarEstado(pos);
+      return AntiCheatResultado.valido;
+    }
+
+    // ── 5. Calcular delta tiempo y distancia ────────────────────────────────
     final dtMs = pos.timestamp
         .difference(_ultimoTimestamp!)
         .inMilliseconds
@@ -144,21 +160,25 @@ class AntiCheatService {
       pos.latitude,               pos.longitude,
     );
 
-    // ── 5. Teletransporte ───────────────────────────────────────────────────
-    final teleResult = _checkTeletransporte(distM, dtSeg);
+    // Velocidad real del chip GPS (Doppler) — más fiable que el delta posicional.
+    // pos.speed es en m/s; -1 si no disponible (iOS sin movimiento).
+    final gpsChipKmh = pos.speed > 0 ? pos.speed * 3.6 : null;
+
+    // ── 6. Teletransporte ───────────────────────────────────────────────────
+    final teleResult = _checkTeletransporte(distM, dtSeg, gpsChipKmh);
     if (!teleResult.esValido) {
       return _registrarInfraccion(teleResult, pos);
     }
 
-    // ── 6. Velocidad imposible ──────────────────────────────────────────────
+    // ── 7. Velocidad imposible ──────────────────────────────────────────────
     if (dtSeg > 0) {
       final velKmh = (distM / dtSeg) * 3.6;
-      final velResult = _checkVelocidad(velKmh);
+      final velResult = _checkVelocidad(velKmh, gpsChipKmh);
       if (!velResult.esValido) {
         return _registrarInfraccion(velResult, pos);
       }
 
-      // ── 7. Aceleración imposible ──────────────────────────────────────────
+      // ── 8. Aceleración imposible ──────────────────────────────────────────
       final accelResult = _checkAceleracion(velKmh, dtSeg);
       if (!accelResult.esValido) {
         return _registrarInfraccion(accelResult, pos);
@@ -203,9 +223,12 @@ class AntiCheatService {
     return AntiCheatResultado.valido;
   }
 
-  AntiCheatResultado _checkTeletransporte(double distM, double dtSeg) {
-    // Si el delta tiempo es muy pequeño (<0.5s) y la distancia es grande → teletransporte
+  AntiCheatResultado _checkTeletransporte(double distM, double dtSeg, double? gpsChipKmh) {
     if (distM > AntiCheatConfig.distanciaMaxEntreEventosM) {
+      // Si el chip GPS reporta velocidad baja, es un salto posicional (error GPS), no teletransporte.
+      if (gpsChipKmh != null && gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
+        return AntiCheatResultado.valido;
+      }
       return AntiCheatResultado(
         veredicto: AntiCheatVeredicto.teletransporte,
         esValido: false,
@@ -216,8 +239,13 @@ class AntiCheatService {
     return AntiCheatResultado.valido;
   }
 
-  AntiCheatResultado _checkVelocidad(double velKmh) {
+  AntiCheatResultado _checkVelocidad(double velKmh, double? gpsChipKmh) {
     if (velKmh > AntiCheatConfig.velocidadMaxKmh) {
+      // El chip GPS (Doppler) es más fiable que el delta posicional.
+      // Si dice velocidad baja, fue un spike de posición, no velocidad real.
+      if (gpsChipKmh != null && gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
+        return AntiCheatResultado.valido;
+      }
       return AntiCheatResultado(
         veredicto: AntiCheatVeredicto.velocidad,
         esValido: false,

@@ -907,7 +907,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (distM < 3000) return;
     }
     _lastLoadedCenter = newCenter;
-    _state.setCentro(newCenter);
     final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
     TerritoryService.invalidarCache();
     final lista = await TerritoryService.cargarTodosLosTerritorios(
