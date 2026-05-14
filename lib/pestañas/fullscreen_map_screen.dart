@@ -621,6 +621,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // Future que completa cuando _resolverCentro() termina de obtener el GPS real.
   // _activarModoSolitario() lo espera para no consultar Overpass con coords por defecto.
   Future<void>? _centroListo;
+  bool _gpsResuelto = false;
 
   // ── Filtro de mapa + actividad ────────────────────────────────────────────
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
@@ -797,6 +798,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         final pos = await Geolocator.getCurrentPosition(
             locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
         _state.setCentro(LatLng(pos.latitude, pos.longitude));
+        _gpsResuelto = true;
       }
     } catch (e) {
       debugPrint('FullscreenMap resolverCentro error: $e');
@@ -841,6 +843,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
+      // Si el modo cambió mientras esperábamos, guardamos en caché pero no
+      // actualizamos la UI (ya habrá otra carga en curso para el modo actual).
+      final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
+      if (modoActual != modo) {
+        if (modo == 'solitario') {
+          GameStateService.instance.setSolitarioTerritories(lista);
+        } else {
+          GameStateService.instance.setCompetitiveTerritories(lista);
+        }
+        return;
+      }
       _state.setTerritorios(lista);
       _lastLoadedCenter = _state.centro;
       if (modo == 'solitario') {
@@ -856,10 +869,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Future<void> _recargarSilencioso(String modo) async {
     try {
-      TerritoryService.invalidarCache();
+      // No invalidamos caché aquí: el TTL ya expiró (por eso estamos en el path stale),
+      // así que cargarTodosLosTerritorios irá a Firestore igualmente.
+      // Invalidar antes de tener éxito dejaría la caché vacía si la red falla.
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
+      // Verificar que el modo no cambió mientras esperábamos
+      final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
+      if (modoActual != modo) return;
       _state.setTerritorios(lista);
       _lastLoadedCenter = _state.centro;
       if (modo == 'solitario') {
@@ -886,7 +904,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Escucha movimientos de cámara y recarga si el usuario se desplaza >3 km ─
   void _escucharCamara() {
     _cameraStream = _mapController.mapEventStream.listen((event) {
-      if (event is MapEventMoveEnd) {
+      if (event is MapEventMoveEnd &&
+          event.source != MapEventSource.mapController) {
         _cameraDebounce?.cancel();
         _cameraDebounce = Timer(
           const Duration(milliseconds: 700),
@@ -912,6 +931,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final lista = await TerritoryService.cargarTodosLosTerritorios(
         centro: newCenter, modo: modo);
     if (!mounted) return;
+    final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
+    if (modoActual != modo) return;
     _state.setTerritorios(lista);
     if (modo == 'solitario') {
       GameStateService.instance.setSolitarioTerritories(lista);
@@ -924,8 +945,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _rellenarConFantasmas() async {
     if (_state.modoSolitario) return;
     if (widget.territorios.isNotEmpty) return;
+    if (!_gpsResuelto) return;
     final centro = _state.centro;
-    if (centro.latitude == 0 && centro.longitude == 0) return;
     final actuales = List<TerritoryData>.from(_state.territorios);
     await TerritoryService.crearTerritoriosFantasmaEnZona(
       centro: centro,
