@@ -23,6 +23,9 @@ import '../services/activity_service.dart';
 import '../services/route_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../config/env.dart';
+import '../widgets/map/map_theme.dart';
+import '../widgets/map/map_dialogs.dart';
+import '../widgets/map/map_starfield.dart';
 
 // =============================================================================
 // MAPBOX
@@ -37,38 +40,40 @@ const String _kMapboxDarkUrl =
     '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
-// PALETA
+// PALETA — aliases privados sobre las constantes públicas de map_theme.dart
 // =============================================================================
-const _kBg       = Color(0xFFE8E8ED);
-const _kSurface  = Color(0xFFFFFFFF);
-const _kSurface2 = Color(0xFFE5E5EA);
-const _kBorder   = Color(0xFFC6C6C8);
-const _kBorder2  = Color(0xFFD1D1D6);
-const _kDim      = Color(0xFFAEAEB2);
-const _kSub      = Color(0xFF8E8E93);
-const _kText     = Color(0xFF3C3C43);
-const _kWhite    = Color(0xFF1C1C1E);
-const _kRed      = Color(0xFFE02020);
-const _kSafe     = Color(0xFF30D158);
-const _kWarn     = Color(0xFFFF9500);
-const _kGold     = Color(0xFFFFD60A);
-const _kGoldDim  = Color(0xFFAEAEB2);
-const _kGoldLight = Color(0xFFFFD60A);
-const _kCyan     = Color(0xFF636366);
-const _kBlue     = Color.fromARGB(255, 16, 154, 235);
-
+const _kBg        = kMapBg;
+const _kSurface   = kMapSurface;
+const _kSurface2  = kMapSurface2;
+const _kBorder    = kMapBorder;
+const _kBorder2   = kMapBorder2;
+const _kDim       = kMapDim;
+const _kSub       = kMapSub;
+const _kText      = kMapText;
+const _kWhite     = kMapWhite;
+const _kRed       = kMapRed;
+const _kSafe      = kMapSafe;
+const _kWarn      = kMapWarn;
+const _kGold      = kMapGold;
+const _kGoldDim   = kMapGoldDim;
+const _kGoldLight = kMapGold;
+const _kCyan      = kMapCyan;
+const _kBlue      = kMapBlue;
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.inter(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing, height: height);
+    mapRaj(size, weight, color, spacing: spacing, height: height);
 
 TextStyle _cinzel(double size, FontWeight weight, Color color,
     {double spacing = 0}) =>
-    GoogleFonts.cinzel(
-        fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing);
+    mapCinzel(size, weight, color, spacing: spacing);
+
+// aliases para los call sites existentes
+typedef _DialogoRenombrar            = MapDialogoRenombrar;
+typedef _DialogoConfirmarConquista   = MapDialogoConfirmarConquista;
+typedef _DialogoConquistando         = MapDialogoConquistando;
+typedef _StarfieldPainter            = MapStarfieldPainter;
+typedef _Star                        = MapStar;
 
 
 
@@ -5314,311 +5319,4 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       ]),
     );
   }
-}
-
-// =============================================================================
-// DIÁLOGO RENOMBRAR
-// =============================================================================
-class _DialogoRenombrar extends StatefulWidget {
-  final String nombreActual;
-  final Future<void> Function(String) onGuardar;
-  const _DialogoRenombrar(
-      {required this.nombreActual, required this.onGuardar});
-
-  @override
-  State<_DialogoRenombrar> createState() => _DialogoRenombrarState();
-}
-
-class _DialogoRenombrarState extends State<_DialogoRenombrar> {
-  late final TextEditingController _ctrl;
-  bool _guardando = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.nombreActual);
-  }
-
-  @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
-
-  Future<void> _guardar() async {
-    final nombre = _ctrl.text.trim();
-    if (nombre.isEmpty) {
-      setState(() => _error = 'El nombre no puede estar vacío');
-      return;
-    }
-    if (nombre.length > 30) {
-      setState(() => _error = 'Máximo 30 caracteres');
-      return;
-    }
-    setState(() { _guardando = true; _error = null; });
-    try {
-      await widget.onGuardar(nombre);
-      if (mounted) Navigator.of(context).pop();
-    } catch (_) {
-      if (mounted) Navigator.of(context).pop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kGold.withValues(alpha: 0.35)),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: _kGold.withValues(alpha: 0.08), blurRadius: 30),
-            const BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-                color: _kGold.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: _kGold.withValues(alpha: 0.4))),
-            child: const Icon(Icons.edit_rounded,
-                color: _kGold, size: 22)),
-          const SizedBox(height: 16),
-          Text('NOMBRE DEL TERRITORIO',
-              style: _raj(15, FontWeight.w900, _kWhite, spacing: 1.5)),
-          const SizedBox(height: 6),
-          Text(
-            'Este nombre será visible para todos en el mapa.',
-            textAlign: TextAlign.center,
-            style: _raj(11, FontWeight.w500, _kSub, height: 1.5)),
-          const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              color: _kBg,
-              border: Border.all(
-                  color: _error != null
-                      ? _kRed.withValues(alpha: 0.6)
-                      : _kGold.withValues(alpha: 0.3)),
-              borderRadius: BorderRadius.circular(6)),
-            child: TextField(
-              controller: _ctrl, maxLength: 30, autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              style: _raj(14, FontWeight.w700, _kWhite),
-              cursorColor: _kGold,
-              decoration: InputDecoration(
-                hintText: 'Ej: La Cuesta del Infierno',
-                hintStyle: _raj(13, FontWeight.w500, _kDim),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
-                border: InputBorder.none,
-                counterStyle: _raj(10, FontWeight.w500, _kSub)),
-              onChanged: (_) {
-                if (_error != null) setState(() => _error = null);
-              },
-              onSubmitted: (_) => _guardar(),
-            ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(children: [
-                const Icon(Icons.warning_amber_rounded,
-                    color: _kRed, size: 12),
-                const SizedBox(width: 4),
-                Text(_error!, style: _raj(10, FontWeight.w600, _kRed)),
-              ]),
-            ),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(color: _kBorder,
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CANCELAR',
-                    style: _raj(12, FontWeight.w800, _kText,
-                        spacing: 1)))),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: GestureDetector(
-              onTap: _guardando ? null : _guardar,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.15),
-                    border:
-                        Border.all(color: _kGold.withValues(alpha: 0.5)),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: _guardando
-                    ? const SizedBox(
-                        width: 16, height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 1.5, color: _kGold))
-                    : Text('GUARDAR',
-                        style: _raj(12, FontWeight.w900, _kGold,
-                            spacing: 1)))),
-            )),
-          ]),
-        ]),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// DIÁLOGOS CONQUISTA
-// =============================================================================
-class _DialogoConfirmarConquista extends StatelessWidget {
-  final String ownerNick;
-  final int diasSinVisitar;
-  const _DialogoConfirmarConquista(
-      {required this.ownerNick, required this.diasSinVisitar});
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kRed.withValues(alpha: 0.4)),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: _kRed.withValues(alpha: 0.1), blurRadius: 30),
-            const BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-                color: _kRed.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: _kRed.withValues(alpha: 0.4))),
-            child: const Icon(Icons.sports_kabaddi_rounded,
-                color: _kRed, size: 24)),
-          const SizedBox(height: 16),
-          Text('¿CONQUISTAR?',
-              style: _raj(18, FontWeight.w900, _kWhite, spacing: 2)),
-          const SizedBox(height: 8),
-          Text(
-            'Territorio de ${ownerNick.toUpperCase()}\n'
-            '$diasSinVisitar días sin visitar',
-            textAlign: TextAlign.center,
-            style: _raj(12, FontWeight.w600, _kSub, height: 1.5)),
-          const SizedBox(height: 6),
-          Text(
-            'Debes estar físicamente a menos\nde 200 m del territorio.',
-            textAlign: TextAlign.center,
-            style: _raj(11, FontWeight.w500, _kDim, height: 1.5)),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(false),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(color: _kBorder,
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CANCELAR',
-                    style: _raj(12, FontWeight.w800, _kText,
-                        spacing: 1)))),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(true),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                decoration: BoxDecoration(
-                    color: _kRed.withValues(alpha: 0.15),
-                    border: Border.all(color: _kRed.withValues(alpha: 0.6)),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Center(child: Text('CONQUISTAR',
-                    style: _raj(12, FontWeight.w900, _kRed,
-                        spacing: 1)))),
-            )),
-          ]),
-        ]),
-      ),
-    );
-  }
-}
-
-class _DialogoConquistando extends StatelessWidget {
-  const _DialogoConquistando();
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          border: Border.all(color: _kBorder2),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [
-            BoxShadow(color: Colors.black87, blurRadius: 20),
-          ],
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(
-            width: 36, height: 36,
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: _kRed)),
-          const SizedBox(height: 16),
-          Text('CONQUISTANDO...',
-              style: _raj(14, FontWeight.w900, _kWhite, spacing: 2)),
-          const SizedBox(height: 6),
-          Text('Verificando posición y condiciones',
-              style: _raj(10, FontWeight.w500, _kSub)),
-        ]),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// STARFIELD — campo de estrellas para el mapa global en modo oscuro
-// =============================================================================
-class _Star {
-  final double x, y, r, opacity;
-  const _Star(this.x, this.y, this.r, this.opacity);
-}
-
-class _StarfieldPainter extends CustomPainter {
-  final List<_Star> stars;
-  const _StarfieldPainter(this.stars);
-
-  static List<_Star> generate({int count = 220}) {
-    final rng = math.Random(0xCAFE);
-    return List.generate(count, (_) {
-      final large = rng.nextDouble() < 0.07;
-      final r = large
-          ? (rng.nextDouble() * 0.7 + 1.3)
-          : (rng.nextDouble() * 0.55 + 0.25);
-      final opacity = rng.nextDouble() * 0.45 + 0.50;
-      return _Star(rng.nextDouble(), rng.nextDouble(), r, opacity);
-    });
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (final s in stars) {
-      paint.color = Color.fromRGBO(210, 220, 255, s.opacity);
-      canvas.drawCircle(
-        Offset(s.x * size.width, s.y * size.height),
-        s.r,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StarfieldPainter old) => false;
 }

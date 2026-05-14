@@ -1,10 +1,9 @@
-// lib/screens/perfil_screen.dart
+﻿// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
-import 'package:RiskRunner/pesta%C3%B1as/Social_screen.dart' as social;
+import 'chat_screen.dart';
 import 'package:RiskRunner/widgets/rey_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,60 +28,21 @@ import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
 import '../services/route_service.dart';
 import 'coin_shop_screen.dart';
+import '../widgets/perfil/perfil_theme.dart';
+import '../widgets/perfil/perfil_posts_tab.dart';
+import '../widgets/perfil/perfil_duelos_tab.dart';
 
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
-// Colores fijos
-const _kAccent = Color(0xFFE02020);
-const _kGold   = Color(0xFFFFD60A);
-const _KMorado = Color (0xFF6A4A9B);
-
-// Paleta adaptativa dark / light
-class _PP {
-  final Color bg, surface, surface2;
-  final Color border, border2, muted, dim, sub, text, title;
-  const _PP._({
-    required this.bg,      required this.surface,  required this.surface2,
-    required this.border,  required this.border2,
-    required this.muted,   required this.dim,      required this.sub,
-    required this.text,    required this.title,
-  });
-  static const light = _PP._(
-    bg:       Color(0xFFE8E8ED),
-    surface:  Color(0xFFFFFFFF),
-    surface2: Color(0xFFE5E5EA),
-    border:   Color(0xFFC6C6C8),
-    border2:  Color(0xFFD1D1D6),
-    muted:    Color(0xFFAEAEB2),
-    dim:      Color(0xFF8E8E93),
-    sub:      Color(0xFF636366),
-    text:     Color(0xFF3C3C43),
-    title:    Color(0xFF1C1C1E),
-  );
-  static const dark = _PP._(
-    bg:       Color(0xFF090807),
-    surface:  Color(0xFF1C1C1E),
-    surface2: Color(0xFF2C2C2E),
-    border:   Color(0xFF38383A),
-    border2:  Color(0xFF2C2C2E),
-    muted:    Color(0xFF48484A),
-    dim:      Color(0xFF8E8E93),
-    sub:      Color(0xFF8E8E93),
-    text:     Color(0xFFD1D1D6),
-    title:    Color(0xFFEEEEEE),
-  );
-  static _PP of(BuildContext ctx) =>
-      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
-}
-
-TextStyle _rajdhani(double size, FontWeight weight, Color color,
-    {double spacing = 0, double? height, List<Shadow>? shadows}) {
-  return GoogleFonts.inter(
-    fontSize: size, fontWeight: weight, color: color,
-    letterSpacing: spacing, height: height, shadows: shadows,
-  );
-}
+// Aliases â€” la paleta y constantes viven en perfil_theme.dart
+typedef _PP = PerfilPalette;
+const _kAccent = kPerfilAccent;
+const _kGold   = kPerfilGold;
+const _KMorado = kPerfilMorado;
+TextStyle _rajdhani(double size, FontWeight w, Color c,
+    {double spacing = 0, double? height, List<Shadow>? shadows}) =>
+  perfilStyle(size, w, c, spacing: spacing, height: height, shadows: shadows);
 
 class PerfilScreen extends StatefulWidget {
   final String? targetUserId;
@@ -179,26 +139,26 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   AvatarConfig _avatarConfig = const AvatarConfig();
 
-  // ── Sistema de Reyes ─────────────────────────────────────
+  // â”€â”€ Sistema de Reyes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<TituloRey> _titulosActivos  = [];
   List<TituloRey> _todosLosTitulos = [];
 
-  // ── Contadores de desafíos para badge ────────────────────
+  // â”€â”€ Contadores de desafÃ­os para badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int _desafiosActivosCount = 0;
 
-  // ── Rate limiting ─────────────────────────────────────────
+  // â”€â”€ Rate limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   DateTime? _ultimoReto;
   static const _kCooldownReto = Duration(seconds: 60);
 
-  // ── Clan ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Clan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _clanNombre;
   String? _clanTag;
   String? _clanRol;
 
-  // ── Estado premium ────────────────────────────────────────────────────────
+  // â”€â”€ Estado premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _isPremium = false;
 
-  // ── Rutas libres ──────────────────────────────────────────────────────────
+  // â”€â”€ Rutas libres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int    _rutasTotal      = 0;
   double _rutasKmTotal    = 0.0;
   int    _rutasSegTotal   = 0;
@@ -206,10 +166,10 @@ class _PerfilScreenState extends State<PerfilScreen>
   double _rutasMayorDist  = 0.0;
   bool   _rutasLoaded     = false;
 
-  // ── Stats premium ─────────────────────────────────────────────────────────
+  // â”€â”€ Stats premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<PuntoTendencia> _tendencia8Semanas = [];
   ComparativaSemanal?  _comparativaSemanal;
-  Map<int, String>     _nombresZonas     = {};  // índice territorio → nombre
+  Map<int, String>     _nombresZonas     = {};  // Ã­ndice territorio â†’ nombre
   bool   _loadingStatsPremium  = false;
   bool   _statsPremiumCargadas = false;
   String _statsPremiumError    = '';
@@ -263,7 +223,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     super.dispose();
   }
 
-  // ── Cargar stats premium (lazy — solo cuando se abre el tab STATS) ─────────
+  // â”€â”€ Cargar stats premium (lazy â€” solo cuando se abre el tab STATS) â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _cargarStatsPremium() async {
     if (!_isPremium || _statsPremiumCargadas || _loadingStatsPremium) return;
     if (viewedUserId == null) return;
@@ -301,7 +261,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       final tendencia    = StatsService.calcularTendencia8Semanas(carreras);
       final comparativa  = StatsService.calcularComparativaSemanal(carreras);
 
-      // Geocoding de territorios — centroide de cada territorio
+      // Geocoding de territorios â€” centroide de cada territorio
       final Map<int, String> nombres = {};
       if (_territoriosDelUsuario.isNotEmpty) {
         final centroides = _territoriosDelUsuario.map((t) {
@@ -327,12 +287,12 @@ class _PerfilScreenState extends State<PerfilScreen>
       debugPrint('Error cargando stats premium: $e');
       if (mounted) setState(() {
         _loadingStatsPremium = false;
-        _statsPremiumError   = 'No se pudo cargar el análisis. Comprueba tu conexión.';
+        _statsPremiumError   = 'No se pudo cargar el anÃ¡lisis. Comprueba tu conexiÃ³n.';
       });
     }
   }
 
-  // ── Escuchar conteo de desafíos activos para el badge (dos streams O(1)) ──
+  // â”€â”€ Escuchar conteo de desafÃ­os activos para el badge (dos streams O(1)) â”€â”€
   int _desafiosComoRetador = 0;
   int _desafiosComoRetado  = 0;
 
@@ -402,7 +362,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (viewedUserId == null) return;
     setState(() => isLoading = true);
     try {
-      // _cargarPerfil primero para que _puntosLiga esté disponible en _cargarRangoEnLiga
+      // _cargarPerfil primero para que _puntosLiga estÃ© disponible en _cargarRangoEnLiga
       await _cargarPerfil();
       await Future.wait([
         _cargarEstadisticas(), _cargarLogros(),
@@ -436,11 +396,11 @@ class _PerfilScreenState extends State<PerfilScreen>
         _titulosActivos  = resultados[1];
       });
     } catch (e) {
-      debugPrint('Error títulos: $e');
+      debugPrint('Error tÃ­tulos: $e');
     }
   }
 
-  // Delegada a _cargarEstadisticas — historial se construye desde el mismo snapshot
+  // Delegada a _cargarEstadisticas â€” historial se construye desde el mismo snapshot
   Future<void> _cargarHistorialCompleto() async {}
 
   void _filtrarHistorial(String q) => setState(() {
@@ -565,15 +525,15 @@ class _PerfilScreenState extends State<PerfilScreen>
         'read':         false,
         'timestamp':    FieldValue.serverTimestamp(),
       });
-      // Gestión automática de amistad
+      // GestiÃ³n automÃ¡tica de amistad
       String newStatus = _friendshipStatus;
       String? newDocId = _friendshipDocId;
       if (_friendshipStatus == 'pending_received' && _friendshipDocId != null) {
-        // Ellos nos siguieron primero → aceptamos la amistad
+        // Ellos nos siguieron primero â†’ aceptamos la amistad
         await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
         newStatus = 'accepted';
       } else if (_friendshipStatus == 'none') {
-        // Ver si ya nos siguen (follow mutuo sin doc de amistad aún)
+        // Ver si ya nos siguen (follow mutuo sin doc de amistad aÃºn)
         final theyFollowMe = await FirebaseFirestore.instance
             .collection('follows')
             .where('followerId', isEqualTo: viewedUserId)
@@ -597,7 +557,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       });
     } catch (e) {
       debugPrint('Error seguir: $e');
-      if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexión', error: true);
+      if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexiÃ³n', error: true);
     }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
@@ -670,8 +630,8 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (mounted) setState(() => _liveCenter = LatLng(lat, lng));
       }
     }
-    // Filtro geográfico centrado en los territorios del usuario visto.
-    // Si no hay centro conocido, carga los 200 más recientes sin filtro.
+    // Filtro geogrÃ¡fico centrado en los territorios del usuario visto.
+    // Si no hay centro conocido, carga los 200 mÃ¡s recientes sin filtro.
     const double kRad = 0.12; // ~13 km
     final center = _liveCenter;
     final baseQuery = (center.latitude != 40.4168 || center.longitude != -3.7038)
@@ -723,9 +683,9 @@ class _PerfilScreenState extends State<PerfilScreen>
     _runnersStream?.cancel();
   }
 
-  // ═══════════════════════════════════════════════════════════
-  //  DESAFÍO — botón retar (perfil ajeno)
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  DESAFÃO â€” botÃ³n retar (perfil ajeno)
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildBotonRetar() {
     return GestureDetector(
@@ -775,10 +735,10 @@ class _PerfilScreenState extends State<PerfilScreen>
             Row(children: [
               Container(width: 2, height: 16, color: _kAccent),
               const SizedBox(width: 10),
-              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÍO DIRECTO', style: _rajdhani(13, FontWeight.w900, _p.title, spacing: 2)),
+              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÃO DIRECTO', style: _rajdhani(13, FontWeight.w900, _p.title, spacing: 2)),
             ]),
             const SizedBox(height: 6),
-            Text(esContrapropuesta ? 'Propón tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista más', style: _rajdhani(12, FontWeight.w500, _p.sub)),
+            Text(esContrapropuesta ? 'PropÃ³n tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista mÃ¡s', style: _rajdhani(12, FontWeight.w500, _p.sub)),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
@@ -800,7 +760,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: _p.surface2, border: Border.all(color: _p.border2)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('DURACIÓN (HORAS)', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
+                Text('DURACIÃ“N (HORAS)', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 12),
                 Row(children: [
                   GestureDetector(onTap: () { setModal(() => horas = (horas - 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
@@ -808,7 +768,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   GestureDetector(onTap: () { setModal(() => horas = (horas + 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 4),
-                Center(child: Text('Mínimo 1h · Máximo 168h (7 días)', style: _rajdhani(9, FontWeight.w500, _p.sub))),
+                Center(child: Text('MÃ­nimo 1h Â· MÃ¡ximo 168h (7 dÃ­as)', style: _rajdhani(9, FontWeight.w500, _p.sub))),
               ]),
             ),
             const SizedBox(height: 12),
@@ -816,16 +776,16 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _p.border2), right: BorderSide(color: _p.border2), bottom: BorderSide(color: _p.border2))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
+                Text('PUNTUACIÃ“N', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 6),
-                Text('Territorios conquistados × 10', style: _rajdhani(11, FontWeight.w500, _p.sub)),
-                Text('Kilómetros corridos × 5', style: _rajdhani(11, FontWeight.w500, _p.sub)),
+                Text('Territorios conquistados Ã— 10', style: _rajdhani(11, FontWeight.w500, _p.sub)),
+                Text('KilÃ³metros corridos Ã— 5', style: _rajdhani(11, FontWeight.w500, _p.sub)),
               ]),
             ),
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () { Navigator.pop(ctx); if (esContrapropuesta && desafioId != null) { _enviarContrapropuesta(desafioId, apuesta, horas); } else { _enviarReto(apuesta, horas); } },
-              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '  ENVIAR CONTRAPROPUESTA' : '  ENVIAR DESAFÍO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
+              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '  ENVIAR CONTRAPROPUESTA' : '  ENVIAR DESAFÃO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
             ),
           ]),
         ),
@@ -839,7 +799,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final ahora = DateTime.now();
     if (_ultimoReto != null && ahora.difference(_ultimoReto!) < _kCooldownReto) {
       final restantes = _kCooldownReto.inSeconds - ahora.difference(_ultimoReto!).inSeconds;
-      _mostrarSnackbar('Espera ${restantes}s antes de enviar otro desafío', error: true);
+      _mostrarSnackbar('Espera ${restantes}s antes de enviar otro desafÃ­o', error: true);
       return;
     }
     try {
@@ -848,11 +808,11 @@ class _PerfilScreenState extends State<PerfilScreen>
       final misMonedas = (myDoc.data()?['monedas'] as num?)?.toInt() ?? 0;
       if (misMonedas < apuesta) { _mostrarSnackbar('No tienes suficientes monedas', error: true); return; }
       await FirebaseFirestore.instance.collection('desafios').add({'retadorId': myUserId, 'retadorNick': myNick, 'retadoId': viewedUserId, 'retadoNick': nickname, 'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente', 'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0, 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h Â· $apuesta . Â¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'monedas': FieldValue.increment(-apuesta)});
       _ultimoReto = DateTime.now();
-      _mostrarSnackbar('¡Desafío enviado!');
-    } catch (e) { _mostrarSnackbar('Error al enviar el desafío', error: true); }
+      _mostrarSnackbar('Â¡DesafÃ­o enviado!');
+    } catch (e) { _mostrarSnackbar('Error al enviar el desafÃ­o', error: true); }
   }
 
   Future<void> _enviarContrapropuesta(String desafioId, int apuesta, int horas) async {
@@ -867,13 +827,13 @@ class _PerfilScreenState extends State<PerfilScreen>
       final data       = desafioDoc.data()!;
       final retadorId  = data['retadorId'] as String;
       final toUserId   = myUserId == retadorId ? data['retadoId'] : retadorId;
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': ' $myNick contrapropone: ${horas}h · $apuesta ', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': ' $myNick contrapropone: ${horas}h Â· $apuesta ', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       _mostrarSnackbar('Contrapropuesta enviada');
     } catch (e) { _mostrarSnackbar('Error al enviar contrapropuesta', error: true); }
   }
 
   void _abrirChat() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => social.ChatScreen(currentUserId: myUserId!, friendId: widget.targetUserId!, friendNickname: nickname, friendFoto: fotoBase64)));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(currentUserId: myUserId!, friendId: widget.targetUserId!, friendNickname: nickname, friendFoto: fotoBase64)));
   }
 
   Future<void> _cargarRacha() async {
@@ -895,7 +855,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     } catch (e) { debugPrint('Error racha: $e'); }
   }
 
-  // Una sola query a activity_logs — stats + logros + carreras recientes de golpe
+  // Una sola query a activity_logs â€” stats + logros + carreras recientes de golpe
   Future<void> _cargarEstadisticas() async {
     try {
       final logsSnap = await FirebaseFirestore.instance
@@ -937,7 +897,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           carrerasConDist++;
         }
 
-        // historial completo (solo carreras con distancia — filtra reto-only)
+        // historial completo (solo carreras con distancia â€” filtra reto-only)
         if (dist > 0) {
           historial.add({
             'titulo'         : d['titulo'] ?? 'Carrera completada',
@@ -986,7 +946,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       debugPrint('Error stats: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error cargando estadísticas: $e'),
+          content: Text('Error cargando estadÃ­sticas: $e'),
           duration: const Duration(seconds: 15),
           backgroundColor: Colors.red[900],
         ));
@@ -994,7 +954,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     }
   }
 
-  // Delegadas a _cargarEstadisticas — no necesitan hacer su propia query
+  // Delegadas a _cargarEstadisticas â€” no necesitan hacer su propia query
   Future<void> _cargarLogros() async {}
   Future<void> _cargarCarrerasRecientes() async {}
 
@@ -1027,9 +987,9 @@ class _PerfilScreenState extends State<PerfilScreen>
           Text('FOTO DE PERFIL', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 3)),
           const SizedBox(height: 20),
           Row(children: [
-            Expanded(child: _BotonFoto(icon: Icons.camera_alt_outlined, label: 'Cámara', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.camera); })),
+            Expanded(child: _BotonFoto(icon: Icons.camera_alt_outlined, label: 'CÃ¡mara', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.camera); })),
             const SizedBox(width: 12),
-            Expanded(child: _BotonFoto(icon: Icons.photo_library_outlined, label: 'Galería', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.gallery); })),
+            Expanded(child: _BotonFoto(icon: Icons.photo_library_outlined, label: 'GalerÃ­a', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.gallery); })),
           ]),
           if (fotoBase64 != null) ...[const SizedBox(height: 12), SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () { Navigator.pop(ctx); _eliminarFoto(); }, icon: const Icon(Icons.delete_outline, color: Colors.redAccent), label: Text('Eliminar foto', style: _rajdhani(13, FontWeight.w600, Colors.redAccent))))],
           const SizedBox(height: 8),
@@ -1065,9 +1025,9 @@ class _PerfilScreenState extends State<PerfilScreen>
   Future<void> _guardarNickname() async {
     if (!isOwnProfile) return;
     final nn = _nicknameController.text.trim();
-    if (nn.isEmpty)  { _mostrarSnackbar('El nickname no puede estar vacío', error: true); return; }
+    if (nn.isEmpty)  { _mostrarSnackbar('El nickname no puede estar vacÃ­o', error: true); return; }
     if (nn == nickname) { _mostrarSnackbar('El nickname no ha cambiado'); return; }
-    if (nn.length < 3) { _mostrarSnackbar('Mínimo 3 caracteres', error: true); return; }
+    if (nn.length < 3) { _mostrarSnackbar('MÃ­nimo 3 caracteres', error: true); return; }
     setState(() => isSaving = true);
     try {
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'nickname': nn});
@@ -1099,7 +1059,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(height: 24),
           Text('EDITAR CALLSIGN', style: _rajdhani(11, FontWeight.w700, _p.text, spacing: 3)),
           const SizedBox(height: 4),
-          Text('Se actualizará en toda la app', style: _rajdhani(12, FontWeight.w400, _p.sub)),
+          Text('Se actualizarÃ¡ en toda la app', style: _rajdhani(12, FontWeight.w400, _p.sub)),
           const SizedBox(height: 20),
           TextField(
             controller: _nicknameController, autofocus: true, maxLength: 20,
@@ -1124,7 +1084,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
   String _nivelTitulo(int n) {
     if (n >= 50) return 'LEYENDA';
-    if (n >= 30) return 'ÉLITE';
+    if (n >= 30) return 'Ã‰LITE';
     if (n >= 20) return 'VETERANO';
     if (n >= 10) return 'EXPLORADOR';
     return 'ROOKIE';
@@ -1141,9 +1101,9 @@ class _PerfilScreenState extends State<PerfilScreen>
     return '${dt.day}/${dt.month}';
   }
 
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  BUILD
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   @override
   Widget build(BuildContext context) {
@@ -1226,9 +1186,9 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════
-  //  TAB BAR — con 4 tabs incluyendo DUELOS
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  TAB BAR â€” con 4 tabs incluyendo DUELOS
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildTabBar() {
     final tabs = [
       (Icons.bar_chart_rounded,    'STATS',     false),
@@ -1309,8 +1269,10 @@ class _PerfilScreenState extends State<PerfilScreen>
         }
         return _buildTabStats();
       case 1: return _buildTabHistorial();
-      case 2: return _buildTabPublicaciones();
-      case 3: return _buildTabDuelos();
+      case 2: return PerfilPostsTab(viewedUserId: viewedUserId, isOwnProfile: isOwnProfile, colorTerritorio: _colorTerritorio);
+      case 3:
+        if (viewedUserId == null) return const SizedBox.shrink();
+        return PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3);
       default: return const SizedBox.shrink();
     }
   }
@@ -1375,7 +1337,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   ? Row(children: [
                       Icon(Icons.route_rounded, size: 18, color: _p.muted),
                       const SizedBox(width: 8),
-                      Text('Sin rutas libres aún',
+                      Text('Sin rutas libres aÃºn',
                           style: _rajdhani(12, FontWeight.w500, _p.sub)),
                     ])
                   : Wrap(
@@ -1386,7 +1348,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                         _statChip(Icons.straighten_rounded,   '${_rutasKmTotal.toStringAsFixed(1)} km', 'total'),
                         _statChip(Icons.timer_outlined,       durStr(_rutasSegTotal),                  'tiempo'),
                         _statChip(Icons.speed_rounded,        ritmoStr(_rutasMejorRitmo),              'mejor ritmo'),
-                        _statChip(Icons.trending_up_rounded,  '${_rutasMayorDist.toStringAsFixed(2)} km', 'más larga'),
+                        _statChip(Icons.trending_up_rounded,  '${_rutasMayorDist.toStringAsFixed(2)} km', 'mÃ¡s larga'),
                       ],
                     ),
         ),
@@ -1420,7 +1382,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(height: 16),
           _buildRutasStats(), const SizedBox(height: 16),
 
-          // ── Panel de estadísticas avanzadas (Premium) ────────────────────
+          // â”€â”€ Panel de estadÃ­sticas avanzadas (Premium) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_isPremium)
             _buildPanelStatsPremium()
           else
@@ -1447,559 +1409,13 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _buildTabPublicaciones() {
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: viewedUserId)
-          .orderBy('timestamp', descending: true)
-          .limit(60)
-          .get(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 48),
-            child: Center(child: SizedBox(width: 20, height: 20,
-              child: CircularProgressIndicator(color: _p.dim, strokeWidth: 1.5))),
-          );
-        }
-        final posts = snap.data?.docs ?? [];
-        if (posts.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.directions_run_rounded, color: _p.muted, size: 36),
-              const SizedBox(height: 12),
-              Text(
-                isOwnProfile ? 'Comparte tus carreras' : 'Sin publicaciones aún',
-                style: _rajdhani(14, FontWeight.w600, _p.sub),
-              ),
-              if (isOwnProfile) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Al terminar una carrera puedes publicarla en el feed',
-                  style: _rajdhani(11, FontWeight.w400, _p.dim),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ]),
-          );
-        }
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
-          ),
-          itemCount: posts.length,
-          itemBuilder: (ctx, i) {
-            final data = (posts[i].data() ?? {}) as Map<String, dynamic>;
-            return _buildPostCell(data);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPostCell(Map<String, dynamic> data) {
-    final dist = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
-    final ts   = data['timestamp'] as Timestamp?;
-    final date = ts != null
-        ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year % 100}'
-        : '';
-    final rawRoute = data['ruta'] as List<dynamic>?;
-    final route = rawRoute?.map((p) {
-      final m = p as Map;
-      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
-    }).toList() ?? <Offset>[];
-
-    return GestureDetector(
-      onTap: () => _mostrarDetallePost(data),
-      child: Container(
-        color: _p.surface,
-        child: Stack(fit: StackFit.expand, children: [
-          if (route.length > 1)
-            CustomPaint(painter: _RouteMiniPainter(route, _colorTerritorio)),
-          Positioned.fill(
-            child: DecoratedBox(decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, _p.bg.withValues(alpha: 0.85)],
-                stops: const [0.4, 1.0],
-              ),
-            )),
-          ),
-          Positioned(bottom: 6, left: 7,
-            child: Text('${dist.toStringAsFixed(1)} km',
-                style: _rajdhani(11, FontWeight.w800, _p.title))),
-          Positioned(top: 6, right: 6,
-            child: Text(date, style: _rajdhani(8, FontWeight.w500, _p.dim))),
-        ]),
-      ),
-    );
-  }
-
-  void _mostrarDetallePost(Map<String, dynamic> data) {
-    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
-    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
-    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
-    final desc   = (data['descripcion'] as String? ?? '').trim();
-    final ts     = data['timestamp'] as Timestamp?;
-    final rawRoute = data['ruta'] as List<dynamic>?;
-    final route  = rawRoute?.map((p) {
-      final m = p as Map;
-      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
-    }).toList() ?? <Offset>[];
-    final mins = tiempo ~/ 60;
-    final secs = tiempo % 60;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _p.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 32, height: 3,
-              decoration: BoxDecoration(
-                  color: _p.border2, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 20),
-          if (route.length > 1) ...[
-            Container(
-              height: 160,
-              decoration: BoxDecoration(
-                color: _p.surface2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _p.border2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: CustomPaint(
-                    painter: _RouteMiniPainter(route, _colorTerritorio,
-                        strokeWidth: 2.5)),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Row(children: [
-            _postStat('${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
-            _postDivider(),
-            _postStat(
-                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
-                'TIEMPO'),
-            _postDivider(),
-            _postStat('${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
-          ]),
-          if (desc.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(height: 1, color: _p.border2),
-            const SizedBox(height: 12),
-            Text(desc, style: _rajdhani(13, FontWeight.w400, _p.text)),
-          ],
-          if (ts != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
-              style: _rajdhani(10, FontWeight.w400, _p.dim),
-            ),
-          ],
-        ]),
-      ),
-    );
-  }
-
-  Widget _postStat(String val, String label) =>
-      Expanded(child: Column(children: [
-        Text(val, style: _rajdhani(13, FontWeight.w800, _p.title)),
-        const SizedBox(height: 2),
-        Text(label, style: _rajdhani(7, FontWeight.w700, _p.dim, spacing: 1)),
-      ]));
-
-  Widget _postDivider() => Container(
-      width: 1, height: 32, color: _p.border2,
-      margin: const EdgeInsets.symmetric(horizontal: 4));
-
-  // ═══════════════════════════════════════════════════════════
-  //  TAB DUELOS — nuevo
-  // ═══════════════════════════════════════════════════════════
-  Widget _buildTabDuelos() {
-    final uid = viewedUserId;
-    if (uid == null) return const SizedBox.shrink();
-
-    return FadeTransition(
-      opacity: _fadeZona3,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        child: StreamBuilder<List<DesafioInfo>>(
-          stream: DesafiosService.streamActivos(uid),
-          builder: (ctx, snapActivos) {
-            return StreamBuilder<List<DesafioInfo>>(
-              stream: DesafiosService.streamHistorial(uid),
-              builder: (ctx, snapHistorial) {
-                final activos   = snapActivos.data ?? [];
-                final historial = snapHistorial.data ?? [];
-
-                final ganados  = historial.where((d) => d.ganadorId == uid).length;
-                final perdidos = historial.length - ganados;
-                final winPct   = historial.isEmpty ? 0.0 : ganados / historial.length;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-
-                    // ── Resumen estadístico ──────────────────────────────────
-                    if (historial.isNotEmpty) ...[
-                      _buildDuelosResumen(ganados, perdidos, winPct),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ── Duelos activos ───────────────────────────────────────
-                    _panelLabel('DUELOS EN CURSO', Icons.sports_mma_rounded),
-                    const SizedBox(height: 12),
-
-                    if (!snapActivos.hasData)
-                      _dueloLoader()
-                    else if (activos.isEmpty)
-                      _dueloEmpty(isOwnProfile
-                          ? 'Sin duelos activos\nReta a alguien desde su perfil'
-                          : 'Sin duelos activos')
-                    else
-                      ...activos.map((d) => _buildDueloCard(d, uid)),
-
-                    const SizedBox(height: 28),
-
-                    // ── Historial ────────────────────────────────────────────
-                    if (historial.isNotEmpty) ...[
-                      _panelLabel('HISTORIAL DE DUELOS', Icons.history_rounded),
-                      const SizedBox(height: 12),
-                      ...historial.take(5).map((d) => _buildDueloHistorialCard(d, uid)),
-                      if (historial.length > 5)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: GestureDetector(
-                            onTap: () => Navigator.pushNamed(
-                                context, '/desafios',
-                                arguments: {'desafioId': null}),
-                            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Text('Ver todos los duelos', style: _rajdhani(11, FontWeight.w600, _p.text)),
-                              const SizedBox(width: 4),
-                              Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
-                            ]),
-                          ),
-                        ),
-                    ],
-
-                    const SizedBox(height: 100),
-                  ],
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // ── Resumen estadístico de duelos ────────────────────────────────────────
-  Widget _buildDuelosResumen(int ganados, int perdidos, double winPct) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _p.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _p.border2),
-      ),
-      child: Row(children: [
-        Expanded(child: _dueloStat('$ganados', 'VICTORIAS', _kGold)),
-        Container(width: 1, height: 44, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 8)),
-        Expanded(child: _dueloStat('$perdidos', 'DERROTAS', _kAccent)),
-        Container(width: 1, height: 44, color: _p.border2, margin: const EdgeInsets.symmetric(horizontal: 8)),
-        Expanded(child: _dueloStat(
-            '${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _p.text)),
-      ]),
-    );
-  }
-
-  Widget _dueloStat(String val, String label, Color color) =>
-      Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(val, style: GoogleFonts.inter(
-            fontSize: 28, fontWeight: FontWeight.w900,
-            color: color, height: 1)),
-        Text(label, style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1.5)),
-      ]);
-
-  // ── Card de duelo activo en el perfil ────────────────────────────────────
-  Widget _buildDueloCard(DesafioInfo info, String uid) {
-    final misPuntos   = info.puntosDeUsuario(uid);
-    final rivalPuntos = info.puntosDeRival(uid);
-    final rivalNick   = info.nickRival(uid);
-    final voy         = misPuntos >= rivalPuntos;
-    final total       = misPuntos + rivalPuntos;
-    final miPct       = total > 0 ? misPuntos / total : 0.5;
-
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/desafios',
-          arguments: {'desafioId': info.id}),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: _p.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: voy
-                  ? _kGold.withValues(alpha: 0.25)
-                  : _kAccent.withValues(alpha: 0.20)),
-          boxShadow: [
-            BoxShadow(
-                color: (voy ? _kGold : _kAccent).withValues(alpha: 0.06),
-                blurRadius: 16),
-          ],
-        ),
-        child: Column(children: [
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Row(children: [
-              Container(width: 2, height: 14,
-                  color: voy ? _kGold : _kAccent),
-              const SizedBox(width: 10),
-              Icon(Icons.bolt_rounded, color: voy ? _kGold : _kAccent, size: 13),
-              const SizedBox(width: 6),
-              Text('DUELO ACTIVO',
-                  style: _rajdhani(9, FontWeight.w900,
-                      voy ? _kGold : _kAccent, spacing: 2)),
-              const Spacer(),
-              // Tiempo restante
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _p.border2.withValues(alpha: 0.5),
-                  border: Border.all(color: _p.border2),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.timer_outlined, color: _p.sub, size: 10),
-                  const SizedBox(width: 4),
-                  Text(info.tiempoRestante,
-                      style: _rajdhani(10, FontWeight.w700, _p.text)),
-                ]),
-              ),
-              const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
-            ]),
-          ),
-
-          // Marcador
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-            child: Row(children: [
-              // Yo
-              Expanded(child: Column(children: [
-                Text('TÚ', style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 2)),
-                const SizedBox(height: 4),
-                _AnimatedCounter(
-                  value: misPuntos.toDouble(),
-                  style: GoogleFonts.inter(
-                      fontSize: 40, fontWeight: FontWeight.w900,
-                      color: voy ? _p.title : _p.sub, height: 1,
-                      shadows: voy
-                          ? [Shadow(color: _kGold.withValues(alpha: 0.4), blurRadius: 12)]
-                          : []),
-                  duration: const Duration(milliseconds: 900),
-                ),
-                Text('PTS', style: _rajdhani(8, FontWeight.w700,
-                    voy ? _kGold : _p.dim, spacing: 2)),
-              ])),
-
-              // VS + apuesta
-              Column(children: [
-                Text('VS', style: _rajdhani(11, FontWeight.w900, _p.muted, spacing: 3)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.06),
-                    border: Border.all(color: _kGold.withValues(alpha: 0.25)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('${info.apuesta}', style: _rajdhani(10, FontWeight.w900, _kGold)),
-                    const SizedBox(width: 3),
-                    const Icon(Icons.monetization_on_rounded, color: _kGold, size: 10),
-                  ]),
-                ),
-              ]),
-
-              // Rival
-              Expanded(child: Column(children: [
-                Text(rivalNick.toUpperCase(),
-                    style: _rajdhani(8, FontWeight.w700, _p.sub, spacing: 1),
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                _AnimatedCounter(
-                  value: rivalPuntos.toDouble(),
-                  style: GoogleFonts.inter(
-                      fontSize: 40, fontWeight: FontWeight.w900,
-                      color: !voy ? _p.title : _p.sub, height: 1,
-                      shadows: !voy
-                          ? [Shadow(color: _kAccent.withValues(alpha: 0.4), blurRadius: 12)]
-                          : []),
-                  duration: const Duration(milliseconds: 900),
-                ),
-                Text('PTS', style: _rajdhani(8, FontWeight.w700,
-                    !voy ? _kAccent : _p.dim, spacing: 2)),
-              ])),
-            ]),
-          ),
-
-          // Barra progreso
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-            child: Column(children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: SizedBox(
-                  height: 5,
-                  child: Row(children: [
-                    Flexible(
-                      flex: (miPct * 100).round().clamp(1, 99),
-                      child: Container(
-                          color: voy ? _kGold : _kAccent),
-                    ),
-                    const SizedBox(width: 2),
-                    Flexible(
-                      flex: ((1 - miPct) * 100).round().clamp(1, 99),
-                      child: Container(color: _p.muted),
-                    ),
-                  ]),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: (voy ? _kGold : _kAccent).withValues(alpha: 0.08),
-                    border: Border.all(
-                        color: (voy ? _kGold : _kAccent).withValues(alpha: 0.3)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(voy ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                        color: voy ? _kGold : _kAccent, size: 9),
-                    const SizedBox(width: 3),
-                    Text(voy ? 'Ganando' : 'Perdiendo',
-                        style: _rajdhani(9, FontWeight.w800, voy ? _kGold : _kAccent)),
-                  ]),
-                ),
-                const Spacer(),
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Premio: ${info.apuesta * 2}', style: _rajdhani(9, FontWeight.w600, _p.sub)),
-                  const SizedBox(width: 3),
-                  const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 9),
-                ]),
-              ]),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  // ── Card historial de duelos en el perfil ────────────────────────────────
-  Widget _buildDueloHistorialCard(DesafioInfo info, String uid) {
-    final gane       = info.ganadorId == uid;
-    final rival      = info.nickRival(uid);
-    final misPuntos  = info.puntosDeUsuario(uid);
-    final rivalPts   = info.puntosDeRival(uid);
-    final color      = gane ? _kGold : _kAccent;
-    final premio     = gane ? '+${info.apuesta * 2}' : '-${info.apuesta}';
-
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/desafios',
-          arguments: {'desafioId': info.id}),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: _p.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border(
-            left: BorderSide(color: color.withValues(alpha: 0.6), width: 2),
-            top: BorderSide(color: _p.border2),
-            right: BorderSide(color: _p.border2),
-            bottom: BorderSide(color: _p.border2),
-          ),
-        ),
-        child: Row(children: [
-          Text(gane ? '' : '', style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              gane
-                  ? 'Victoria vs ${rival.toUpperCase()}'
-                  : 'Derrota vs ${rival.toUpperCase()}',
-              style: _rajdhani(13, FontWeight.w800, _p.title),
-            ),
-            const SizedBox(height: 3),
-            Text('$misPuntos pts vs $rivalPts pts',
-                style: _rajdhani(10, FontWeight.w500, _p.sub)),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.07),
-              border: Border.all(color: color.withValues(alpha: 0.28)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('$premio', style: _rajdhani(12, FontWeight.w900, color)),
-              const SizedBox(width: 3),
-              Icon(Icons.monetization_on_rounded, color: color, size: 11),
-            ]),
-          ),
-          const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded, color: _p.dim, size: 14),
-        ]),
-      ),
-    );
-  }
-
-  // ── Helpers del tab Duelos ───────────────────────────────────────────────
-  Widget _panelLabel(String label, IconData icon) => Row(children: [
-    Container(width: 2, height: 13, decoration: BoxDecoration(
-        color: _p.border2, borderRadius: BorderRadius.circular(1))),
-    const SizedBox(width: 9),
-    Icon(icon, color: _p.dim, size: 11),
-    const SizedBox(width: 6),
-    Text(label, style: _rajdhani(10, FontWeight.w700, _p.dim, spacing: 2.5)),
-  ]);
-
-  Widget _dueloLoader() => const Padding(
-    padding: EdgeInsets.symmetric(vertical: 16),
-    child: Center(child: SizedBox(width: 16, height: 16,
-        child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5))),
-  );
-
-  Widget _dueloEmpty(String msg) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 20),
-    child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.sports_mma_rounded, color: _p.muted, size: 36),
-      const SizedBox(height: 12),
-      Text(msg, textAlign: TextAlign.center,
-          style: _rajdhani(12, FontWeight.w500, _p.sub, height: 1.5)),
-    ])),
-  );
-
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //  resto de widgets (sin cambios)
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-  // ═══════════════════════════════════════════════════════════
-  //  PANEL ESTADÍSTICAS AVANZADAS — PREMIUM
-  // ═══════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  //  PANEL ESTADÃSTICAS AVANZADAS â€” PREMIUM
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildPanelStatsPremium() {
     if (_loadingStatsPremium) {
@@ -2016,7 +1432,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               child: CircularProgressIndicator(
                   color: _kGold, strokeWidth: 1.5)),
           const SizedBox(height: 12),
-          Text('Cargando análisis avanzado...',
+          Text('Cargando anÃ¡lisis avanzado...',
               style: _rajdhani(11, FontWeight.w600, _p.sub)),
           const SizedBox(height: 8),
         ]),
@@ -2055,7 +1471,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     }
 
     return Column(children: [
-      // ── Header premium ─────────────────────────────────────────────────────
+      // â”€â”€ Header premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
@@ -2073,7 +1489,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               color: _kGold, margin: const EdgeInsets.only(right: 8)),
           const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFD60A), size: 11),
           const SizedBox(width: 6),
-          Text('ANÁLISIS AVANZADO',
+          Text('ANÃLISIS AVANZADO',
               style: _rajdhani(10, FontWeight.w900, _kGold, spacing: 2)),
           const Spacer(),
           Container(
@@ -2088,14 +1504,14 @@ class _PerfilScreenState extends State<PerfilScreen>
         ]),
       ),
 
-      // ── Comparativa semanal ────────────────────────────────────────────────
+      // â”€â”€ Comparativa semanal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (_comparativaSemanal != null)
         _buildComparativaSemanalWidget(_comparativaSemanal!),
 
-      // ── Tendencia 8 semanas ────────────────────────────────────────────────
+      // â”€â”€ Tendencia 8 semanas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       _buildTendencia8SemanasWidget(),
 
-      // ── Territorios conquistados con nombre ────────────────────────────────
+      // â”€â”€ Territorios conquistados con nombre â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       _buildTerritoriosConNombre(),
     ]);
   }
@@ -2163,7 +1579,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           ])),
         ]),
         const SizedBox(height: 12),
-        // Próximo hito
+        // PrÃ³ximo hito
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2204,7 +1620,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(child: Text(
-                'Necesitas más carreras para ver la tendencia',
+                'Necesitas mÃ¡s carreras para ver la tendencia',
                 style: _rajdhani(11, FontWeight.w500, _p.sub))),
           )
         else
@@ -2283,7 +1699,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (!tieneDatos)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('Sin territorios conquistados aún',
+            child: Text('Sin territorios conquistados aÃºn',
                 style: _rajdhani(11, FontWeight.w500, _p.sub)),
           )
         else if (_nombresZonas.isEmpty && !_loadingStatsPremium)
@@ -2335,7 +1751,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (_territoriosDelUsuario.length > 20) ...[
           const SizedBox(height: 4),
           Center(child: Text(
-              '+${_territoriosDelUsuario.length - 20} zonas más',
+              '+${_territoriosDelUsuario.length - 20} zonas mÃ¡s',
               style: _rajdhani(10, FontWeight.w600, _p.sub))),
         ],
       ]),
@@ -2370,7 +1786,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(width: 14),
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Análisis avanzado',
+            Text('AnÃ¡lisis avanzado',
                 style: _rajdhani(14, FontWeight.w800, _p.title)),
             const SizedBox(height: 3),
             Text(
@@ -2405,7 +1821,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       accent: _kAccent, label: 'TODAS LAS MISIONES', icon: Icons.history_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('$total misión${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
+          Expanded(child: Text('$total misiÃ³n${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
           if (_historialCompleto.length > 5)
             GestureDetector(
               onTap: () => setState(() {
@@ -2420,7 +1836,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           TextField(
             controller: _historialSearchCtrl, onChanged: _filtrarHistorial,
             style: _rajdhani(13, FontWeight.w500, _p.title),
-            decoration: InputDecoration(hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim), prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16), filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
+            decoration: InputDecoration(hintText: 'Buscar misiÃ³n...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim), prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16), filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
           ),
         ],
         const SizedBox(height: 12),
@@ -2467,7 +1883,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               GestureDetector(
                 onTap: () => setState(() => _historialPaginaActual++),
                 child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('Ver más misiones', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                  Text('Ver mÃ¡s misiones', style: _rajdhani(11, FontWeight.w600, _p.text)),
                   const SizedBox(width: 4),
                   Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
                 ])),
@@ -2549,7 +1965,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   ]),
                 ),
               ),
-              // ── Badge Premium ──────────────────────────────────────────────
+              // â”€â”€ Badge Premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               if (_isPremium) ...[
                 const SizedBox(width: 8),
                 _buildPremiumBadge(),
@@ -2626,7 +2042,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  // ── Badge Premium dorado animado ─────────────────────────────────────────
+  // â”€â”€ Badge Premium dorado animado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildPremiumBadge() {
     return AnimatedBuilder(
       animation: _loopAnim,
@@ -2812,7 +2228,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       Expanded(flex: 4, child: Column(children: [
         _buildStatPequena('$_territoriosConquistados', 'CONQUISTAS', Icons.military_tech_rounded, Colors.amber),
         const SizedBox(height: 8),
-        _buildStatPequena(_rangoEnLiga > 0 ? '#$_rangoEnLiga' : '—', 'RANKING LIGA', Icons.leaderboard_rounded, ligaColor),
+        _buildStatPequena(_rangoEnLiga > 0 ? '#$_rangoEnLiga' : 'â€”', 'RANKING LIGA', Icons.leaderboard_rounded, ligaColor),
       ])),
     ]);
   }
@@ -2886,8 +2302,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     String msg;
     if (!activa)                msg = 'Sin actividad reciente';
     else if (_rachaActual == 1) msg = 'Buen comienzo. No pares.';
-    else if (_rachaActual < 7)  msg = '${7 - _rachaActual} días para una semana';
-    else if (_rachaActual < 30) msg = 'Más de una semana consecutiva';
+    else if (_rachaActual < 7)  msg = '${7 - _rachaActual} dÃ­as para una semana';
+    else if (_rachaActual < 30) msg = 'MÃ¡s de una semana consecutiva';
     else                        msg = 'Un mes sin parar. Leyenda.';
     return Container(
       padding: const EdgeInsets.all(22),
@@ -2907,7 +2323,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             const SizedBox(width: 6),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text(_rachaActual == 1 ? 'DÍA' : 'DÍAS',
+              child: Text(_rachaActual == 1 ? 'DÃA' : 'DÃAS',
                   style: _rajdhani(14, FontWeight.w600, _p.dim, spacing: 1)),
             ),
           ]),
@@ -2917,7 +2333,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('META', style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 2)),
           Text('$hito', style: _rajdhani(28, FontWeight.w700, _p.text, height: 1)),
-          Text('días', style: _rajdhani(9, FontWeight.w500, _p.dim)),
+          Text('dÃ­as', style: _rajdhani(9, FontWeight.w500, _p.dim)),
         ]),
       ]),
     );
@@ -2950,7 +2366,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 0), child: Row(children: [
             _guerraKpi('${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _p.text), _guerraDivider(),
             _guerraKpi('$total', 'TOTAL', _p.text), _guerraDivider(),
-            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÍCTIMA TOP', _p.text),
+            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÃCTIMA TOP', _p.text),
           ])),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -2961,7 +2377,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   : Column(children: [
                       ...lista.take(3).map((item) => _guerraRow(item, colTab)),
                       if (lista.length > 3 && isOwnProfile)
-                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} más', style: _rajdhani(11, FontWeight.w600, _p.text)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _p.dim, size: 12)]))),
+                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _p.dim, size: 12)]))),
                     ]),
         ),
       ]),
@@ -2991,7 +2407,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildMisionesRecientes() {
     if (_carrerasRecientes.isEmpty) {
       return _Panel(
-        accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
+        accent: _kAccent, label: 'ÃšLTIMAS MISIONES', icon: Icons.directions_run_rounded,
         child: _emptyRow('Sin misiones registradas'));
     }
     final query     = _misionesQuery.trim().toLowerCase();
@@ -3006,7 +2422,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final hayMas    = _carrerasRecientes.length > 5;
 
     return _Panel(
-      accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
+      accent: _kAccent, label: 'ÃšLTIMAS MISIONES', icon: Icons.directions_run_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (_misionesExpandidas) ...[
           TextField(
@@ -3014,7 +2430,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             onChanged: (v) => setState(() => _misionesQuery = v),
             style: _rajdhani(13, FontWeight.w500, _p.title),
             decoration: InputDecoration(
-              hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
+              hintText: 'Buscar misiÃ³n...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
               prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16),
               filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
@@ -3039,7 +2455,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
-                Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
+                Text('${_formatTiempo(Duration(seconds: seg))}  Â·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
               ])),
               Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
             ]),
@@ -3054,7 +2470,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_misionesExpandidas ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                Text(_misionesExpandidas ? 'Ver menos' : 'Ver mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)),
                 const SizedBox(width: 4),
                 Icon(_misionesExpandidas ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
               ]),
@@ -3068,7 +2484,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (_logros.isEmpty) {
       return _Panel(
         accent: _kAccent, label: 'LOGROS', icon: Icons.emoji_events_outlined,
-        child: _emptyRow('Sin logros todavía'));
+        child: _emptyRow('Sin logros todavÃ­a'));
     }
     final query     = _logrosQuery.trim().toLowerCase();
     final filtrados = query.isEmpty
@@ -3126,7 +2542,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_logrosExpandidos ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                Text(_logrosExpandidos ? 'Ver menos' : 'Ver mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)),
                 const SizedBox(width: 4),
                 Icon(_logrosExpandidos ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
               ]),
@@ -3182,11 +2598,11 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _emptyRow(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(text, style: _rajdhani(12, FontWeight.w500, _p.dim)));
 }
 
-// ═══════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  WIDGETS AUXILIARES
-// ═══════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-/// Widget que anima un número desde 0 hasta [value].
+/// Widget que anima un nÃºmero desde 0 hasta [value].
 /// Se reinicia cada vez que [value] cambia.
 class _AnimatedCounter extends StatefulWidget {
   final double value;
@@ -3326,58 +2742,6 @@ class _LoaderPainter extends CustomPainter {
   }
   @override
   bool shouldRepaint(_LoaderPainter o) => o.progress != progress || o.pulse != pulse;
-}
-
-class _RouteMiniPainter extends CustomPainter {
-  final List<Offset> points; // raw (lng, lat) pairs
-  final Color color;
-  final double strokeWidth;
-  const _RouteMiniPainter(this.points, this.color, {this.strokeWidth = 1.5});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.length < 2) return;
-    double minX = points.map((p) => p.dx).reduce(math.min);
-    double maxX = points.map((p) => p.dx).reduce(math.max);
-    double minY = points.map((p) => p.dy).reduce(math.min);
-    double maxY = points.map((p) => p.dy).reduce(math.max);
-    final rangeX = maxX - minX;
-    final rangeY = maxY - minY;
-    if (rangeX == 0 || rangeY == 0) return;
-    final pad = size.width * 0.12;
-    final scale = math.min(
-      (size.width - pad * 2) / rangeX,
-      (size.height - pad * 2) / rangeY,
-    );
-    final offX = pad + (size.width  - pad * 2 - rangeX * scale) / 2;
-    final offY = pad + (size.height - pad * 2 - rangeY * scale) / 2;
-
-    Offset norm(Offset p) => Offset(
-      offX + (p.dx - minX) * scale,
-      size.height - (offY + (p.dy - minY) * scale), // flip lat
-    );
-
-    final path = Path()..moveTo(norm(points[0]).dx, norm(points[0]).dy);
-    for (int i = 1; i < points.length; i++) {
-      final n = norm(points[i]);
-      path.lineTo(n.dx, n.dy);
-    }
-    canvas.drawPath(path, Paint()
-      ..color = color.withValues(alpha: 0.25)
-      ..strokeWidth = strokeWidth + 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
-    canvas.drawPath(path, Paint()
-      ..color = color.withValues(alpha: 0.75)
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round);
-  }
-
-  @override
-  bool shouldRepaint(_RouteMiniPainter old) => false;
 }
 
 class _BotonFoto extends StatelessWidget {

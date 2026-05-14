@@ -26,6 +26,8 @@ import 'perfil_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
 import '../widgets/conquista_overlay.dart';
 import '../config/env.dart';
+import '../widgets/home/home_theme.dart';
+import '../widgets/home/home_retos_tab.dart';
 
 // =============================================================================
 // MAPBOX
@@ -34,63 +36,11 @@ const _kMapboxToken = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
-// =============================================================================
-// DESIGN TOKENS — Paleta dorada/pergamino
-// Rojo SOLO para alertas e invasiones
-// =============================================================================
-// Paleta dinámica: se actualiza en cada build() según brightness
-class _TColors {
-  final Color bg0, bg1, bg2, bg3, bg4;
-  final Color parch, gold, bronze, terra;
-  final Color white, text, sub, dim, muted;
-  final Color border, border2;
-  final Color safe, warn, red, redD, redGlow;
-
-  const _TColors._({
-    required this.bg0, required this.bg1, required this.bg2,
-    required this.bg3, required this.bg4,
-    required this.parch, required this.gold, required this.bronze, required this.terra,
-    required this.white, required this.text, required this.sub,
-    required this.dim, required this.muted,
-    required this.border, required this.border2,
-    required this.safe, required this.warn,
-    required this.red, required this.redD, required this.redGlow,
-  });
-
-  static const light = _TColors._(
-    bg0: Color(0xFFE8E8ED), bg1: Color(0xFFFFFFFF), bg2: Color(0xFFE5E5EA),
-    bg3: Color(0xFFE8E8ED), bg4: Color(0xFFFFFFFF),
-    parch: Color(0xFF1C1C1E), gold: Color(0xFFFFD60A),
-    bronze: Color(0xFF636366), terra: Color(0xFFAEAEB2),
-    white: Color(0xFF1C1C1E), text: Color(0xFF3C3C43),
-    sub: Color(0xFF636366), dim: Color(0xFF8E8E93), muted: Color(0xFFAEAEB2),
-    border: Color(0xFFC6C6C8), border2: Color(0xFFD1D1D6),
-    safe: Color(0xFF30D158), warn: Color(0xFFFF9800),
-    red: Color(0xFFE02020), redD: Color(0xFFFF6B6B), redGlow: Color(0x22E02020),
-  );
-
-  static const dark = _TColors._(
-    bg0: Color(0xFF090807), bg1: Color(0xFF1C1C1E), bg2: Color(0xFF2C2C2E),
-    bg3: Color(0xFF090807), bg4: Color(0xFF1C1C1E),
-    parch: Color(0xFFEAD9AA), gold: Color(0xFFFFD60A),
-    bronze: Color(0xFF8E8E93), terra: Color(0xFF636366),
-    white: Color(0xFFEEEEEE), text: Color(0xFFD1D1D6),
-    sub: Color(0xFF8E8E93), dim: Color(0xFF636366), muted: Color(0xFF48484A),
-    border: Color(0xFF38383A), border2: Color(0xFF2C2C2E),
-    safe: Color(0xFF30D158), warn: Color(0xFFFF9800),
-    red: Color(0xFFE02020), redD: Color(0xFFFF6B6B), redGlow: Color(0x22E02020),
-  );
-
-  static _TColors of(BuildContext ctx) =>
-      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
-}
+typedef _TColors = HomePalette;
 
 TextStyle _raj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>
-    GoogleFonts.inter(
-      fontSize: size, fontWeight: weight, color: color,
-      letterSpacing: spacing, height: height,
-    );
+    homeStyle(size, weight, color, spacing: spacing, height: height);
 
 // =============================================================================
 // MODELO FEED POST
@@ -212,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<QueryDocumentSnapshot> _dailyChallenges = [];
   bool _loadingChallenges = true;
   List<Map<String, dynamic>> _completedChallengesCache = [];
-  bool _mostrarTodosLosLogros = false;
   Timer? _dailyResetTimer;
   final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
@@ -1292,7 +1241,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       },
                       children: [
                         _buildFeedTab(),
-                        _buildRetosTab(),
+                        HomeRetosTab(
+                          completedChallenges: _completedChallengesCache,
+                          loadingChallenges: _loadingChallenges,
+                          dailyChallenges: _dailyChallenges,
+                          timeUntilReset: _timeUntilReset,
+                          onConfirmarReto: _confirmarInicioReto,
+                        ),
                       ],
                     ),
                   ),
@@ -2039,230 +1994,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // =============================================================================
-  // TAB: RETOS
-  // =============================================================================
-  Widget _buildRetosTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _buildSectionHeader('LOGROS DE HOY', Icons.emoji_events_outlined,
-            _completedChallengesCache.length > 3
-                ? (_mostrarTodosLosLogros
-                    ? 'VER MENOS' : 'VER TODOS (${_completedChallengesCache.length})')
-                : '',
-            () => setState(() => _mostrarTodosLosLogros = !_mostrarTodosLosLogros)),
-        const SizedBox(height: 14),
-        _buildCompletedChallengesList(),
-        const SizedBox(height: 28),
-        _buildSectionHeader('MISIONES DEL DÍA', Icons.bolt_outlined, '', null),
-        const SizedBox(height: 8),
-        _buildDailyResetTimer(),
-        const SizedBox(height: 14),
-        _buildDailyChallengesList(),
-      ]),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon, String action, VoidCallback? onAction) {
-    return Row(children: [
-      Container(width: 2, height: 14, color: _T.bronze),
-      const SizedBox(width: 9),
-      Icon(icon, color: _T.dim, size: 11),
-      const SizedBox(width: 7),
-      Text(title, style: _raj(10, FontWeight.w700, _T.dim, spacing: 2.5)),
-      const Spacer(),
-      if (action.isNotEmpty)
-        GestureDetector(
-          onTap: onAction,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-                color: _T.bg2, border: Border.all(color: _T.border2)),
-            child: Text(action,
-                style: _raj(9, FontWeight.w800, _T.sub, spacing: 1.2)),
-          ),
-        ),
-    ]);
-  }
-
-  Widget _buildDailyResetTimer() {
-    return ValueListenableBuilder<Duration>(
-      valueListenable: _timeUntilReset,
-      builder: (_, remaining, __) {
-        final h = remaining.inHours.toString().padLeft(2, '0');
-        final m = remaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final s = remaining.inSeconds.remainder(60).toString().padLeft(2, '0');
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: _T.bg1, border: Border.all(color: _T.border2)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.timer_outlined, color: _T.muted, size: 12),
-            const SizedBox(width: 6),
-            Text('RESET EN $h:$m:$s',
-                style: _raj(11, FontWeight.w700, _T.text, spacing: 1.5)),
-          ]),
-        );
-      },
-    );
-  }
-
-  Widget _buildCompletedChallengesList() {
-    if (_completedChallengesCache.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: _T.bg1, border: Border.all(color: _T.border2)),
-        child: Row(children: [
-          Icon(Icons.hourglass_empty_rounded, color: _T.muted, size: 14),
-          const SizedBox(width: 10),
-          Text('Ningún reto completado hoy todavía',
-              style: _raj(13, FontWeight.w500, _T.muted)),
-        ]),
-      );
-    }
-    final lista = _mostrarTodosLosLogros
-        ? _completedChallengesCache : _completedChallengesCache.take(3).toList();
-    return Column(children: lista.map((data) => Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-          color: _T.bg1,
-          border: Border(
-              left: BorderSide(color: _T.safe, width: 2),
-              top: BorderSide(color: _T.border2),
-              right: BorderSide(color: _T.border2),
-              bottom: BorderSide(color: _T.border2))),
-      child: Row(children: [
-        Icon(Icons.check_circle_outline_rounded, color: _T.safe, size: 17),
-        const SizedBox(width: 12),
-        Expanded(child: Text(data['titulo'] ?? 'Reto completado',
-            style: _raj(13, FontWeight.w600, _T.white))),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: _T.bg2, border: Border.all(color: _T.border2)),
-          child: Text('+${data['recompensa']}',
-              style: _raj(12, FontWeight.w900, _T.gold)),
-        ),
-      ]),
-    )).toList());
-  }
-
-  Widget _buildDailyChallengesList() {
-    if (_loadingChallenges) {
-      return Center(child: CircularProgressIndicator(color: _T.bronze, strokeWidth: 1.5));
-    }
-    if (_dailyChallenges.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: _T.bg1,
-            border: Border(
-                left: BorderSide(color: _T.safe, width: 2),
-                top: BorderSide(color: _T.border2),
-                right: BorderSide(color: _T.border2),
-                bottom: BorderSide(color: _T.border2))),
-        child: Row(children: [
-          Icon(Icons.check_circle_outline_rounded, color: _T.safe, size: 14),
-          const SizedBox(width: 10),
-          Text('¡Todos los desafíos completados!',
-              style: _raj(13, FontWeight.w600, _T.safe)),
-        ]),
-      );
-    }
-    return Column(children: _dailyChallenges.map((doc) {
-      final data       = (doc.data() ?? {}) as Map<String, dynamic>;
-      final esPremium  = data['es_premium'] as bool? ?? false;
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _confirmarInicioReto(
-            id:             doc.id,
-            titulo:         data['titulo'] as String? ?? 'Misión',
-            desc:           data['descripcion'] as String? ?? '',
-            premio:         (data['recompensas_monedas'] as num?)?.toInt() ?? 0,
-            objetivoMetros: (data['objetivo_valor'] as num?)?.toInt() ?? 0,
-          ),
-          splashColor: _T.bronze.withValues(alpha: 0.08),
-          highlightColor: _T.bronze.withValues(alpha: 0.04),
-          child: _buildMissionCard(
-              data['titulo'] ?? 'Misión',
-              data['descripcion'] ?? '',
-              '${data['recompensas_monedas'] ?? 0}',
-              esPremium: esPremium),
-        ),
-      );
-    }).toList());
-  }
-
-  Widget _buildMissionCard(String title, String desc, String reward,
-      {bool esPremium = false}) {
-    const goldColor = Color(0xFFDECA46);
-    final borderColor = esPremium ? goldColor : _T.bronze;
-    final iconBg      = esPremium
-        ? goldColor.withValues(alpha: 0.08)
-        : _T.bronze.withValues(alpha: 0.07);
-    final iconBorder  = esPremium
-        ? goldColor.withValues(alpha: 0.3)
-        : _T.bronze.withValues(alpha: 0.20);
-    final icon = esPremium ? Icons.workspace_premium_rounded : Icons.bolt_rounded;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: esPremium ? goldColor.withValues(alpha: 0.04) : _T.bg1,
-        border: Border(
-          left: BorderSide(color: borderColor, width: 2),
-          top: BorderSide(color: _T.border2),
-          right: BorderSide(color: _T.border2),
-          bottom: BorderSide(color: _T.border2),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBg,
-              border: Border.all(color: iconBorder),
-            ),
-            child: Icon(icon, color: borderColor, size: 17),
-          ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              if (esPremium) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: goldColor.withValues(alpha: 0.12),
-                    border: Border.all(color: goldColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(' PREMIUM',
-                      style: _raj(7, FontWeight.w900, goldColor, spacing: 0.8)),
-                ),
-              ],
-              Expanded(child: Text(title,
-                  style: _raj(13, FontWeight.w800, _T.white),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-            ]),
-            const SizedBox(height: 4),
-            Text(desc, style: _raj(11, FontWeight.w500, _T.sub, height: 1.3)),
-          ])),
-          const SizedBox(width: 10),
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('+$reward', style: GoogleFonts.inter(
-                fontSize: 22, fontWeight: FontWeight.w700,
-                color: esPremium ? goldColor : _T.gold, height: 1)),
-            Text('PTS', style: _raj(8, FontWeight.w800, _T.muted, spacing: 2)),
-          ]),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded, color: _T.muted, size: 15),
-        ]),
-      ),
-    );
-  }
 
   String _formatFecha(DateTime fecha) =>
       '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';

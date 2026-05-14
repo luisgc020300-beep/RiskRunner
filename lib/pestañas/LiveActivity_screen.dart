@@ -37,6 +37,8 @@ import '../services/ranking_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
 import '../config/env.dart';
+import '../widgets/live_activity/live_starfield.dart';
+import '../widgets/live_activity/live_painters.dart';
 
 // =============================================================================
 // PALETA
@@ -82,6 +84,10 @@ class _LP {
   static _LP of(BuildContext ctx) =>
       Theme.of(ctx).brightness == Brightness.dark ? dark : light;
 }
+
+// aliases para los call sites existentes
+typedef _StarfieldWidget   = LiveStarfieldWidget;
+typedef _SpeedLinesPainter = LiveSpeedLinesPainter;
 
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
@@ -129,256 +135,6 @@ class _BarrioData {
   }
 }
 
-// =============================================================================
-// MODELO ESTRELLA — ahora con tipo (normal, grande, gigante)
-// =============================================================================
-class _StarData {
-  final double x;
-  final double y;
-  final double r;
-  final double speed;
-  final double phase;
-  final int    type;   // 0=normal, 1=grande con halo, 2=gigante con destello
-  const _StarData({
-    required this.x,
-    required this.y,
-    required this.r,
-    required this.speed,
-    required this.phase,
-    required this.type,
-  });
-}
-
-// =============================================================================
-// PAINTER DE ESTRELLAS — más realistas
-// =============================================================================
-class _StarfieldPainter extends CustomPainter {
-  final List<_StarData> stars;
-  final double animValue;
-  final bool nightMode;
-  final double globeRotation;
-
-  const _StarfieldPainter({
-    required this.stars,
-    required this.animValue,
-    required this.nightMode,
-    this.globeRotation = 0.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    for (final s in stars) {
-      final twinkle = (math.sin((animValue * math.pi * 2 * s.speed) + s.phase) + 1) / 2;
-
-      // Opacidad base más alta en modo noche para mayor realismo
-      final double baseOpacity = nightMode
-          ? (s.type == 2 ? 0.75 : s.type == 1 ? 0.65 : 0.45)
-          : (s.type == 2 ? 0.30 : s.type == 1 ? 0.22 : 0.14);
-      final double twinkleAmp  = nightMode ? 0.25 : 0.12;
-      final double opacity = (baseOpacity + twinkle * twinkleAmp).clamp(0.0, 1.0);
-
-      final cx = ((s.x + globeRotation) % 1.0) * size.width;
-      final cy = s.y * size.height;
-
-      // Color: blanco azulado frío en noche, ligeramente cálido en día
-      // Variamos el tinte según la fase para dar diversidad de color
-      final int r, g, b;
-      final tintSeed = (s.phase * 3).floor() % 4;
-      if (nightMode) {
-        switch (tintSeed) {
-          case 0:  r = 210; g = 230; b = 255; break; // azul frío
-          case 1:  r = 255; g = 248; b = 235; break; // ligeramente cálido
-          case 2:  r = 200; g = 220; b = 255; break; // azul puro
-          default: r = 240; g = 240; b = 255; break; // blanco azulado
-        }
-      } else {
-        r = 255; g = 245; b = 200;
-      }
-
-      final Color starColor = Color.fromRGBO(r, g, b, opacity);
-
-      // ── Tipo 2: GIGANTE con destello en cruz ────────────────────────────
-      if (s.type == 2) {
-        // Halo exterior difuso grande
-        final haloPaint = Paint()
-          ..shader = RadialGradient(colors: [
-            Color.fromRGBO(r, g, b, opacity * 0.35),
-            Color.fromRGBO(r, g, b, 0),
-          ]).createShader(Rect.fromCircle(
-              center: Offset(cx, cy), radius: s.r * 5.5));
-        canvas.drawCircle(Offset(cx, cy), s.r * 5.5, haloPaint);
-
-        // Halo interior
-        final haloIn = Paint()
-          ..shader = RadialGradient(colors: [
-            Color.fromRGBO(r, g, b, opacity * 0.55),
-            Color.fromRGBO(r, g, b, 0),
-          ]).createShader(Rect.fromCircle(
-              center: Offset(cx, cy), radius: s.r * 2.8));
-        canvas.drawCircle(Offset(cx, cy), s.r * 2.8, haloIn);
-
-        // Destello en cruz (difracción) — sutil
-        final crossLen = s.r * (1.8 + twinkle * 1.2);
-        final crossPaint = Paint()
-          ..strokeWidth = 0.9 + twinkle * 0.4
-          ..style       = PaintingStyle.stroke;
-
-        // Brazo horizontal
-        crossPaint.shader = LinearGradient(colors: [
-          Color.fromRGBO(r, g, b, 0),
-          Color.fromRGBO(r, g, b, opacity * 0.85),
-          Color.fromRGBO(r, g, b, 0),
-        ]).createShader(Rect.fromPoints(
-            Offset(cx - crossLen, cy), Offset(cx + crossLen, cy)));
-        canvas.drawLine(Offset(cx - crossLen, cy), Offset(cx + crossLen, cy), crossPaint);
-
-        // Brazo vertical
-        crossPaint.shader = LinearGradient(
-          colors: [
-            Color.fromRGBO(r, g, b, 0),
-            Color.fromRGBO(r, g, b, opacity * 0.85),
-            Color.fromRGBO(r, g, b, 0),
-          ],
-          begin: Alignment.topCenter,
-          end:   Alignment.bottomCenter,
-        ).createShader(Rect.fromPoints(
-            Offset(cx, cy - crossLen), Offset(cx, cy + crossLen)));
-        canvas.drawLine(Offset(cx, cy - crossLen), Offset(cx, cy + crossLen), crossPaint);
-
-        // Brazos diagonales más tenues
-        final diagLen = crossLen * 0.55;
-        final diagPaint = Paint()
-          ..color       = Color.fromRGBO(r, g, b, opacity * 0.35)
-          ..strokeWidth = 0.6
-          ..style       = PaintingStyle.stroke;
-        canvas.drawLine(Offset(cx - diagLen, cy - diagLen),
-            Offset(cx + diagLen, cy + diagLen), diagPaint);
-        canvas.drawLine(Offset(cx + diagLen, cy - diagLen),
-            Offset(cx - diagLen, cy + diagLen), diagPaint);
-
-        // Núcleo brillante
-        paint.color = Color.fromRGBO(r, g, b, (opacity * 1.0).clamp(0, 1));
-        canvas.drawCircle(Offset(cx, cy), s.r * (0.8 + twinkle * 0.4), paint);
-
-        // Punto central blanco puro
-        paint.color = Color.fromRGBO(255, 255, 255, (opacity * 0.9).clamp(0, 1));
-        canvas.drawCircle(Offset(cx, cy), s.r * 0.4, paint);
-      }
-
-      // ── Tipo 1: GRANDE con halo suave ───────────────────────────────────
-      else if (s.type == 1) {
-        // Halo exterior
-        final haloPaint = Paint()
-          ..shader = RadialGradient(colors: [
-            Color.fromRGBO(r, g, b, opacity * 0.30),
-            Color.fromRGBO(r, g, b, 0),
-          ]).createShader(Rect.fromCircle(
-              center: Offset(cx, cy), radius: s.r * 3.2));
-        canvas.drawCircle(Offset(cx, cy), s.r * 3.2, haloPaint);
-
-        // Núcleo
-        paint.color = starColor;
-        canvas.drawCircle(Offset(cx, cy), s.r * (0.75 + twinkle * 0.5), paint);
-
-        // Centro más brillante
-        paint.color = Color.fromRGBO(255, 255, 255, (opacity * 0.7).clamp(0, 1));
-        canvas.drawCircle(Offset(cx, cy), s.r * 0.35, paint);
-      }
-
-      // ── Tipo 0: NORMAL — punto simple con leve halo ─────────────────────
-      else {
-        if (s.r > 1.2) {
-          paint.color = Color.fromRGBO(r, g, b, opacity * 0.20);
-          canvas.drawCircle(Offset(cx, cy), s.r * 2.0, paint);
-        }
-        paint.color = starColor;
-        canvas.drawCircle(Offset(cx, cy), s.r * (0.65 + twinkle * 0.55), paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StarfieldPainter old) =>
-      old.animValue != animValue || old.nightMode != nightMode || old.globeRotation != globeRotation;
-}
-
-// =============================================================================
-// WIDGET STARFIELD
-// =============================================================================
-class _StarfieldWidget extends StatefulWidget {
-  final bool nightMode;
-  final Animation<double>? globeAnim;
-  const _StarfieldWidget({required this.nightMode, this.globeAnim});
-
-  @override
-  State<_StarfieldWidget> createState() => _StarfieldWidgetState();
-}
-
-class _StarfieldWidgetState extends State<_StarfieldWidget>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final List<_StarData> _stars;
-
-  @override
-  void initState() {
-    super.initState();
-    final rnd = math.Random(12345);
-
-    // 120 estrellas — más escasas y pequeñas, aspecto más natural
-    _stars = List.generate(120, (i) {
-      final x     = rnd.nextDouble();
-      final y     = rnd.nextDouble();
-      final speed = 0.2 + rnd.nextDouble() * 0.8;
-      final phase = rnd.nextDouble() * math.pi * 2;
-
-      // Distribución: 92% normales, 6% grandes, 2% gigantes
-      final int type;
-      final double r;
-      final roll = rnd.nextDouble();
-      if (roll > 0.98) {
-        type = 2; r = 1.0 + rnd.nextDouble() * 0.6; // gigante (más pequeña)
-      } else if (roll > 0.92) {
-        type = 1; r = 0.6 + rnd.nextDouble() * 0.5; // grande
-      } else {
-        type = 0; r = 0.2 + rnd.nextDouble() * 0.6; // normal
-      }
-
-      return _StarData(x: x, y: y, r: r, speed: speed, phase: phase, type: type);
-    });
-
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final listenable = widget.globeAnim != null
-        ? Listenable.merge([_ctrl, widget.globeAnim!])
-        : _ctrl as Listenable;
-    return AnimatedBuilder(
-      animation: listenable,
-      builder: (_, __) => CustomPaint(
-        painter: _StarfieldPainter(
-          stars:         _stars,
-          animValue:     _ctrl.value,
-          nightMode:     widget.nightMode,
-          globeRotation: widget.globeAnim?.value ?? 0.0,
-        ),
-        size: Size.infinite,
-      ),
-    );
-  }
-}
 
 // =============================================================================
 // WIDGET PRINCIPAL
@@ -6078,30 +5834,4 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ),
       ]);
-}
-
-// =============================================================================
-// SPEED LINES PAINTER
-// =============================================================================
-class _SpeedLinesPainter extends CustomPainter {
-  final Color color;
-  const _SpeedLinesPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color       = color.withValues(alpha: 0.32)
-      ..strokeWidth = 1.5
-      ..style       = PaintingStyle.stroke;
-    final rnd = math.Random(42);
-    for (int i = 0; i < 10; i++) {
-      final x   = rnd.nextDouble() * size.width;
-      final y   = rnd.nextDouble() * size.height;
-      final len = 12.0 + rnd.nextDouble() * 22;
-      canvas.drawLine(Offset(x, y), Offset(x - len, y + 3), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SpeedLinesPainter old) => old.color != color;
 }

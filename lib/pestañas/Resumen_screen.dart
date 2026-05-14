@@ -11,8 +11,12 @@ import '../services/stats_service.dart';
 import '../services/onboarding_service.dart';
 import '../widgets/onboarding_overlay.dart';
 import '../widgets/stats_resumen_widget.dart';
-import 'fullscreen_map_screen.dart';
-import '../config/env.dart';
+import '../widgets/reveal.dart';
+import '../widgets/operative_bg.dart';
+import '../widgets/resumen/guerra_global_banner.dart';
+import '../widgets/resumen/resumen_map_section.dart';
+import '../widgets/resumen/resumen_context_cards.dart';
+import '../widgets/resumen/resumen_historial.dart';
 
 // =============================================================================
 // PALETA — OPERATIVE DARK · ROJO ACENTO
@@ -20,7 +24,6 @@ import '../config/env.dart';
 const _kBg       = Color(0xFFE8E8ED);
 const _kSurface  = Color(0xFFFFFFFF);
 const _kSurface2 = Color(0xFFE5E5EA);
-const _kBorder   = Color(0xFFC6C6C8);
 const _kBorder2  = Color(0xFFD1D1D6);
 const _kRed      = Color(0xFFE02020);
 const _kBright   = Color(0xFF1C1C1E);
@@ -28,22 +31,6 @@ const _kWhite    = Color(0xFF1C1C1E);
 const _kGrey     = Color(0xFF636366);
 const _kGreyDim  = Color(0xFF8E8E93);
 const _kGold     = Color(0xFFFFD60A);
-const _kGoldDim  = Color(0xFFAEAEB2);
-
-// Guerra Global accent
-const _kGlobalRed     = Color(0xFFCC2222);
-const _kGlobalRedDim  = Color(0xFF7A1414);
-
-// =============================================================================
-// MAPBOX
-// =============================================================================
-const _kMapboxToken    = Env.mapboxPublicToken;
-const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
-    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
-const _kMapboxDarkUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PANTALLA
@@ -58,18 +45,15 @@ class ResumenScreen extends StatefulWidget {
   final int?     timestamp;
   final bool     esDesdeCarrera;
 
-  // ── Nuevos: conquistas de la sesión
   final int  territoriosConquistados;
   final int  puntosLigaGanados;
 
-  // ── Nuevos: Guerra Global
   final Map<String, dynamic>? objetivoGlobal;
-  final bool globalConquistado;
+  final bool   globalConquistado;
   final double? nuevaClausula;
 
-  // ── Modo Ruta Libre
-  final bool   modoRuta;
-  final int    monedasRuta;
+  final bool modoRuta;
+  final int  monedasRuta;
 
   const ResumenScreen({
     super.key,
@@ -78,16 +62,16 @@ class ResumenScreen extends StatefulWidget {
     required this.distancia,
     required this.tiempo,
     required this.ruta,
-    this.logrosCompletados          = const [],
+    this.logrosCompletados       = const [],
     this.timestamp,
-    this.esDesdeCarrera             = false,
-    this.territoriosConquistados    = 0,
-    this.puntosLigaGanados          = 0,
+    this.esDesdeCarrera          = false,
+    this.territoriosConquistados = 0,
+    this.puntosLigaGanados       = 0,
     this.objetivoGlobal,
-    this.globalConquistado          = false,
+    this.globalConquistado       = false,
     this.nuevaClausula,
-    this.modoRuta                   = false,
-    this.monedasRuta                = 0,
+    this.modoRuta                = false,
+    this.monedasRuta             = 0,
   });
 
   @override
@@ -97,7 +81,7 @@ class ResumenScreen extends StatefulWidget {
 class _ResumenScreenState extends State<ResumenScreen>
     with TickerProviderStateMixin {
 
-  // ── Animaciones
+  // ── Animaciones ───────────────────────────────────────────────────────────
   late AnimationController _masterCtrl;
   late AnimationController _odometroCtrl;
   late AnimationController _pulseCtrl;
@@ -111,7 +95,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   late Animation<double> _pulse;
   late Animation<double> _rutaProgress;
 
-  // ── Mapa
+  // ── Mapa ──────────────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   String  userId    = '';
   bool    isLoading = true;
@@ -125,7 +109,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   List<Map<String, dynamic>> _logrosFiltrados = [];
 
   static const int _paginaTamanio = 20;
-  int  _paginaActual  = 1;
+  int _paginaActual = 1;
 
   List<TerritoryData> _territoriosEnMapa = [];
   Color _acento = _kRed;
@@ -136,12 +120,11 @@ class _ResumenScreenState extends State<ResumenScreen>
   int    _totalPuntosLiga         = 0;
   double _distMostrada            = 0;
 
-  CarreraStats?       _carreraActual;
-  List<CarreraStats>  _historialStats = [];
+  CarreraStats?      _carreraActual;
+  List<CarreraStats> _historialStats = [];
 
   Map<String, dynamic>? _retoCompletadoEnSesion;
 
-  // ── Guerra Global (resolución desde widget directamente)
   bool get _esGuerraGlobal => widget.objetivoGlobal != null;
 
   // ==========================================================================
@@ -185,7 +168,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     userId = widget.targetUserId ??
         FirebaseAuth.instance.currentUser?.uid ?? '';
 
-    // Pasar conquistas de sesión al estado
     _territoriosConquistados = widget.territoriosConquistados;
     _puntosLigaSesion        = widget.puntosLigaGanados;
 
@@ -206,7 +188,6 @@ class _ResumenScreenState extends State<ResumenScreen>
   // LÓGICA
   // ==========================================================================
   Future<void> _inicializarPantalla() async {
-    // Reto completado (llega desde LiveActivity vía arguments)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final args =
@@ -223,9 +204,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       await _cargarColorUsuario();
 
       if (widget.esDesdeCarrera) {
-        if (!widget.modoRuta) {
-          await _guardarYMostrarTerritorioActual();
-        }
+        if (!widget.modoRuta) await _guardarYMostrarTerritorioActual();
         await _actualizarRacha();
         OnboardingService.registrarRunCompletado();
       } else {
@@ -234,7 +213,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     } catch (e) {
       debugPrint('Resumen _inicializarPantalla error: $e');
     } finally {
-      // Garantiza que isLoading siempre se desbloquea aunque algo falle arriba
       if (mounted && isLoading) setState(() => isLoading = false);
     }
 
@@ -246,10 +224,6 @@ class _ResumenScreenState extends State<ResumenScreen>
       if (_territoriosConquistados > 0) {
         _mostrarBannerConquista(_territoriosConquistados);
       }
-      if (_puntosLigaSesion > 0 && !_esGuerraGlobal) {
-        // El banner de liga se muestra en la card, no como snack adicional
-      }
-      // Banner especial si conquistó territorio global
       if (_esGuerraGlobal && widget.globalConquistado) {
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
@@ -346,8 +320,8 @@ class _ResumenScreenState extends State<ResumenScreen>
         else             nueva = 1;
       }
       await ref.update({
-        'racha_actual':            nueva,
-        'ultima_fecha_actividad':  Timestamp.now(),
+        'racha_actual':           nueva,
+        'ultima_fecha_actividad': Timestamp.now(),
       });
       if (mounted) setState(() => _rachaActual = nueva);
       if (mounted && nueva > 1) _mostrarBannerRacha(nueva);
@@ -358,9 +332,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       Future.delayed(const Duration(milliseconds: 900), () {
         if (!mounted) return;
         _snack('', '¡Racha de $r días!',
-            r >= 7
-                ? ' Una semana seguida conquistando'
-                : 'Sigue así, conquistador',
+            r >= 7 ? ' Una semana seguida conquistando' : 'Sigue así, conquistador',
             _kGrey);
       });
 
@@ -368,9 +340,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
         _snack('', '¡Territorio conquistado!',
-            n == 1
-                ? '1 rival eliminado del mapa'
-                : '$n rivales eliminados',
+            n == 1 ? '1 rival eliminado del mapa' : '$n rivales eliminados',
             _kGrey);
       });
 
@@ -396,14 +366,12 @@ class _ResumenScreenState extends State<ResumenScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title,
-                  style: const TextStyle(color: _kWhite,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13, letterSpacing: 0.5)),
+              Text(title, style: const TextStyle(
+                  color: _kWhite, fontWeight: FontWeight.w800,
+                  fontSize: 13, letterSpacing: 0.5)),
               const SizedBox(height: 2),
-              Text(sub,
-                  style: TextStyle(
-                      color: color.withValues(alpha: 0.8), fontSize: 11)),
+              Text(sub, style: TextStyle(
+                  color: color.withValues(alpha: 0.8), fontSize: 11)),
             ],
           )),
         ]),
@@ -418,8 +386,8 @@ class _ResumenScreenState extends State<ResumenScreen>
           .collection('players').doc(userId).get();
       if (doc.exists && mounted) {
         final data = doc.data()!;
-        final c = (data['territorio_color'] as num?)?.toInt();
-        final pts = (data['puntos_liga'] as num?)?.toInt() ?? 0;
+        final c   = (data['territorio_color'] as num?)?.toInt();
+        final pts = (data['puntos_liga']      as num?)?.toInt() ?? 0;
         setState(() {
           if (c != null) _acento = Color(c);
           _totalPuntosLiga = pts;
@@ -439,8 +407,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     if (widget.ruta.length < 2) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    // La CF (conquistarTerritorio) ya guardó el territorio en Firestore.
-    // Solo construimos el objeto local para mostrarlo en el mapa del resumen.
     final latC = widget.ruta.map((p) => p.latitude).reduce((a, b) => a + b) /
         widget.ruta.length;
     final lngC = widget.ruta.map((p) => p.longitude).reduce((a, b) => a + b) /
@@ -517,8 +483,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       final lista   = <Map<String, dynamic>>[];
       int   monedas = 0;
       for (final doc in snap.docs) {
-        final d = doc.data();
-        // Solo incluir carreras reales (tienen distancia > 0 y no son solo retos)
+        final d    = doc.data();
         final dist = (d['distancia'] as num? ?? 0).toDouble();
         if (dist <= 0 || d['id_reto_completado'] != null) continue;
         lista.add({
@@ -559,16 +524,16 @@ class _ResumenScreenState extends State<ResumenScreen>
     final ctrl = TextEditingController();
     HapticFeedback.lightImpact();
     await showModalBottomSheet(
-      context:          ctx,
+      context:            ctx,
       isScrollControlled: true,
-      backgroundColor:  _kSurface2,
+      backgroundColor:    _kSurface2,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (bCtx) {
         bool pub = false;
         return StatefulBuilder(builder: (bCtx, setM) => Padding(
           padding: EdgeInsets.only(
-            left:   24, right: 24, top: 20,
+            left: 24, right: 24, top: 20,
             bottom: MediaQuery.of(bCtx).viewInsets.bottom + 36,
           ),
           child: Column(
@@ -585,9 +550,9 @@ class _ResumenScreenState extends State<ResumenScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                    color: _kBg,
+                    color:        _kBg,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _kBorder2)),
+                    border:       Border.all(color: _kBorder2)),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -610,14 +575,14 @@ class _ResumenScreenState extends State<ResumenScreen>
               const SizedBox(height: 16),
               TextField(
                 controller: ctrl,
-                style: const TextStyle(color: _kWhite, fontSize: 13),
+                style:      const TextStyle(color: _kWhite, fontSize: 13),
                 maxLines: 3, maxLength: 300,
                 decoration: InputDecoration(
-                  hintText:        '¿Qué tal fue la carrera?',
-                  hintStyle:       const TextStyle(color: _kGreyDim, fontSize: 13),
-                  filled:          true,
-                  fillColor:       _kBg,
-                  counterStyle:    const TextStyle(color: _kGreyDim, fontSize: 10),
+                  hintText:     '¿Qué tal fue la carrera?',
+                  hintStyle:    const TextStyle(color: _kGreyDim, fontSize: 13),
+                  filled:       true,
+                  fillColor:    _kBg,
+                  counterStyle: const TextStyle(color: _kGreyDim, fontSize: 10),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: _kBorder2)),
@@ -626,8 +591,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       borderSide: const BorderSide(color: _kBorder2)),
                   focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide:
-                          const BorderSide(color: _kGrey, width: 1.5)),
+                      borderSide: const BorderSide(color: _kGrey, width: 1.5)),
                 ),
               ),
               const SizedBox(height: 14),
@@ -641,8 +605,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                           .collection('players').doc(userId).get();
                       final pd = playerDoc.data() ?? {};
                       final velMedia = widget.tiempo.inSeconds > 0
-                          ? widget.distancia /
-                              (widget.tiempo.inSeconds / 3600)
+                          ? widget.distancia / (widget.tiempo.inSeconds / 3600)
                           : 0.0;
                       await FirebaseFirestore.instance
                           .collection('posts')
@@ -691,11 +654,9 @@ class _ResumenScreenState extends State<ResumenScreen>
                       ? const SizedBox(width: 16, height: 16,
                           child: CircularProgressIndicator(
                               color: _kWhite, strokeWidth: 2))
-                      : const Text('PUBLICAR',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 3)),
+                      : const Text('PUBLICAR', style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12, letterSpacing: 3)),
                 ),
               ),
             ],
@@ -726,10 +687,10 @@ class _ResumenScreenState extends State<ResumenScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
         onRefresh: _cargarHistorialTotal,
-        color: _kGrey,
+        color:           _kGrey,
         backgroundColor: _kSurface2,
         child: Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: _OperativeBg())),
+          Positioned.fill(child: CustomPaint(painter: const OperativeBgPainter())),
           SafeArea(
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(
@@ -738,31 +699,52 @@ class _ResumenScreenState extends State<ResumenScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Reveal(anim: _headerReveal, child: _buildHeader()),
+                  Reveal(anim: _headerReveal, child: _buildHeader()),
                   const SizedBox(height: 24),
 
-                  // ── Banner de Guerra Global (si aplica)
                   if (_esGuerraGlobal)
-                    _Reveal(
+                    Reveal(
                       anim: _heroReveal,
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildBannerGuerraGlobal(),
+                        child: GuerraGlobalBanner(
+                          objetivoGlobal:    widget.objetivoGlobal!,
+                          globalConquistado: widget.globalConquistado,
+                          distancia:         widget.distancia,
+                          nuevaClausula:     widget.nuevaClausula,
+                        ),
                       ),
                     ),
 
-                  _Reveal(anim: _heroReveal, child: _buildHeroOdometro()),
+                  Reveal(anim: _heroReveal, child: _buildHeroOdometro()),
                   const SizedBox(height: 10),
 
-                  _Reveal(
-                      anim: _heroReveal, child: _buildSecondaryMetrics()),
+                  Reveal(anim: _heroReveal, child: _buildSecondaryMetrics()),
                   const SizedBox(height: 20),
 
-                  _Reveal(anim: _mapReveal, child: _buildMapSection()),
+                  Reveal(
+                    anim: _mapReveal,
+                    child: ResumenMapSection(
+                      ruta:                    widget.ruta,
+                      modoRuta:                widget.modoRuta,
+                      esDesdeCarrera:          widget.esDesdeCarrera,
+                      territoriosEnMapa:       _territoriosEnMapa,
+                      acento:                  _acento,
+                      centroMapa:              _centroMapa!,
+                      mapController:           _mapController,
+                      rutaProgress:            _rutaProgress,
+                      territoriosConquistados: _territoriosConquistados,
+                      sectionLabel:            widget.modoRuta
+                          ? 'TU RUTA'
+                          : _territoriosConquistados > 0
+                              ? 'TERRITORIO CONQUISTADO'
+                              : 'RUTA DE CARRERA',
+                    ),
+                  ),
                   const SizedBox(height: 18),
 
                   if (widget.esDesdeCarrera && _carreraActual != null)
-                    _Reveal(
+                    Reveal(
                       anim: _statsReveal,
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 20),
@@ -773,16 +755,47 @@ class _ResumenScreenState extends State<ResumenScreen>
                       ),
                     ),
 
-                  _Reveal(anim: _statsReveal, child: _buildTotalesRow()),
+                  Reveal(anim: _statsReveal, child: _buildTotalesRow()),
                   const SizedBox(height: 10),
 
-                  _Reveal(anim: _cardsReveal, child: _buildContextCards()),
+                  Reveal(
+                    anim: _cardsReveal,
+                    child: ResumenContextCards(
+                      esDesdeCarrera:          widget.esDesdeCarrera,
+                      modoRuta:                widget.modoRuta,
+                      esGuerraGlobal:          _esGuerraGlobal,
+                      rachaActual:             _rachaActual,
+                      monedasRuta:             widget.monedasRuta,
+                      puntosLigaSesion:        _puntosLigaSesion,
+                      totalPuntosLiga:         _totalPuntosLiga,
+                      territoriosConquistados: _territoriosConquistados,
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
-                  _Reveal(anim: _cardsReveal, child: _buildHistorial()),
+                  Reveal(
+                    anim: _cardsReveal,
+                    child: ResumenHistorial(
+                      logrosFiltrados:        _logrosFiltrados,
+                      todosLosLogros:         todosLosLogros,
+                      verTodos:               _verTodosLosLogros,
+                      searchCtrl:             _searchCtrl,
+                      paginaActual:           _paginaActual,
+                      paginaTamanio:          _paginaTamanio,
+                      retoCompletadoEnSesion: _retoCompletadoEnSesion,
+                      onSearch:               _filtrarBusqueda,
+                      onToggleVerTodos: () => setState(() {
+                        _verTodosLosLogros = !_verTodosLosLogros;
+                        if (!_verTodosLosLogros) {
+                          _searchCtrl.clear();
+                          _logrosFiltrados = todosLosLogros;
+                        }
+                      }),
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
-                  _Reveal(anim: _cardsReveal, child: _buildAcciones()),
+                  Reveal(anim: _cardsReveal, child: _buildAcciones()),
                 ],
               ),
             ),
@@ -793,247 +806,9 @@ class _ResumenScreenState extends State<ResumenScreen>
   }
 
   // ==========================================================================
-  // BANNER GUERRA GLOBAL
+  // WIDGETS LOCALES
   // ==========================================================================
-  Widget _buildBannerGuerraGlobal() {
-    final nombre     = widget.objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
-    final kmReq      = (widget.objetivoGlobal!['kmRequeridos']    as num?)?.toDouble() ?? 0;
-    final recompensa = (widget.objetivoGlobal!['recompensa']      as num?)?.toInt()    ?? 0;
-    final conquistado = widget.globalConquistado;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: conquistado
-              ? [const Color(0xFF1A1000), const Color(0xFF3A2800)]
-              : [const Color(0xFF1A0000), const Color(0xFF2A0808)],
-          begin: Alignment.topLeft,
-          end:   Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: conquistado
-              ? _kGold.withValues(alpha: 0.5)
-              : _kGlobalRed.withValues(alpha: 0.4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (conquistado ? _kGold : _kGlobalRed).withValues(alpha: 0.15),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Cabecera
-            Row(children: [
-              Text(conquistado ? '' : '',
-                  style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 12),
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'GUERRA GLOBAL',
-                    style: TextStyle(
-                      color:         conquistado ? _kGold : _kGlobalRed,
-                      fontSize:      9,
-                      fontWeight:    FontWeight.w900,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    nombre,
-                    style: const TextStyle(
-                        color:      _kBright,
-                        fontSize:   16,
-                        fontWeight: FontWeight.w900),
-                  ),
-                ],
-              )),
-              // Estado
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: (conquistado ? _kGold : _kGlobalRed)
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: (conquistado ? _kGold : _kGlobalRed)
-                        .withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Text(
-                  conquistado ? ' CONQUISTADO' : ' NO COMPLETADO',
-                  style: TextStyle(
-                    color:         conquistado ? _kGold : _kGlobalRed,
-                    fontSize:      9,
-                    fontWeight:    FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ]),
-
-            const SizedBox(height: 16),
-            Container(height: 1, color: _kBorder2),
-            const SizedBox(height: 16),
-
-            // ── Stats
-            Row(children: [
-              _ggStat('KM RECORRIDOS',
-                  widget.distancia.toStringAsFixed(2), _kWhite),
-              _ggDivider(),
-              _ggStat('KM REQUERIDOS',
-                  kmReq.toStringAsFixed(1), _kGrey),
-              _ggDivider(),
-              _ggStat(
-                'PROGRESO',
-                kmReq > 0
-                    ? '${((widget.distancia / kmReq).clamp(0, 1) * 100).toInt()}%'
-                    : '--',
-                conquistado ? _kGold : _kGlobalRed,
-              ),
-            ]),
-
-            // ── Barra de progreso
-            const SizedBox(height: 12),
-            Stack(children: [
-              Container(
-                height: 5,
-                decoration: BoxDecoration(
-                    color:        _kBorder2,
-                    borderRadius: BorderRadius.circular(3)),
-              ),
-              FractionallySizedBox(
-                widthFactor: kmReq > 0
-                    ? (widget.distancia / kmReq).clamp(0.0, 1.0)
-                    : 0,
-                child: Container(
-                  height: 5,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    gradient: LinearGradient(
-                      colors: conquistado
-                          ? [_kGoldDim, _kGold]
-                          : [_kGlobalRedDim, _kGlobalRed],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (conquistado ? _kGold : _kGlobalRed)
-                            .withValues(alpha: 0.4),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ]),
-
-            // ── Nueva cláusula establecida tras conquista
-            if (conquistado && widget.nuevaClausula != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0D0D0D),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: _kGoldDim.withValues(alpha: 0.6)),
-                ),
-                child: Row(children: [
-                  const Text('', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: TextStyle(
-                            color: _kGrey, fontSize: 11),
-                        children: [
-                          const TextSpan(
-                              text: 'Próxima cláusula: '),
-                          TextSpan(
-                            text:
-                                '${widget.nuevaClausula!.toStringAsFixed(1)} km',
-                            style: const TextStyle(
-                                color: _kGold,
-                                fontWeight: FontWeight.w900),
-                          ),
-                          const TextSpan(
-                              text:
-                                  ' — el siguiente en conquistarlo necesitará recorrer esta distancia.'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ]),
-              ),
-            ],
-
-            // ── Recompensa (nota: se paga al final de la semana)
-            if (conquistado) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _kGold.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
-                ),
-                child: Row(children: [
-                  const Text('', style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('+$recompensa monedas reservadas',
-                          style: const TextStyle(
-                              color:      _kGold,
-                              fontSize:   13,
-                              fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Las recompensas se entregan al final de la semana si sigues siendo el dueño.',
-                        style: TextStyle(
-                            color:    _kGoldDim.withValues(alpha: 0.85),
-                            fontSize: 10),
-                      ),
-                    ],
-                  )),
-                ]),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _ggStat(String label, String value, Color color) =>
-      Expanded(child: Column(children: [
-        Text(value, style: TextStyle(
-            color: color, fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 3),
-        Text(label, style: const TextStyle(
-            color:         _kGrey,
-            fontSize:      7,
-            fontWeight:    FontWeight.w700,
-            letterSpacing: 1.5),
-            textAlign: TextAlign.center),
-      ]));
-
-  Widget _ggDivider() =>
-      Container(width: 1, height: 36, color: _kBorder2,
-          margin: const EdgeInsets.symmetric(horizontal: 8));
-
-  // ── Loading
   Widget _buildLoading() => Scaffold(
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1052,14 +827,11 @@ class _ResumenScreenState extends State<ResumenScreen>
       ),
       const SizedBox(height: 18),
       const Text('PROCESANDO MISIÓN', style: TextStyle(
-          color:         _kGrey,
-          fontSize:      9,
-          fontWeight:    FontWeight.w900,
-          letterSpacing: 4)),
+          color: _kGrey, fontSize: 9,
+          fontWeight: FontWeight.w900, letterSpacing: 4)),
     ])),
   );
 
-  // ── Header
   Widget _buildHeader() {
     final titulo = widget.targetNickname != null
         ? widget.targetNickname!.toUpperCase()
@@ -1137,64 +909,60 @@ class _ResumenScreenState extends State<ResumenScreen>
     ]);
   }
 
-  // ── Hero odómetro
-  Widget _buildHeroOdometro() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-      decoration: BoxDecoration(
-        color:        _kSurface,
-        borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: _kBorder2),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionLabel('DISTANCIA TOTAL'),
-        const SizedBox(height: 14),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(_distMostrada.toStringAsFixed(2),
-            style: const TextStyle(
-              color:         _kWhite,
-              fontSize:      76,
-              fontWeight:    FontWeight.w900,
-              height:        0.95,
-              letterSpacing: -2,
-            ),
+  Widget _buildHeroOdometro() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+    decoration: BoxDecoration(
+      color:        _kSurface,
+      borderRadius: BorderRadius.circular(12),
+      border:       Border.all(color: _kBorder2),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('DISTANCIA TOTAL'),
+      const SizedBox(height: 14),
+      Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Text(_distMostrada.toStringAsFixed(2),
+          style: const TextStyle(
+            color:         _kWhite,
+            fontSize:      76,
+            fontWeight:    FontWeight.w900,
+            height:        0.95,
+            letterSpacing: -2,
           ),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 10, left: 10),
-            child: Text('KM', style: TextStyle(
-                color:         _kGreyDim,
-                fontSize:      20,
-                fontWeight:    FontWeight.w700,
-                letterSpacing: 2)),
-          ),
-        ]),
-        const SizedBox(height: 10),
-        AnimatedBuilder(animation: _odometroCtrl, builder: (_, __) =>
-          Stack(children: [
-            Container(height: 2, width: double.infinity,
-                decoration: BoxDecoration(
-                    color:        _kBorder2,
-                    borderRadius: BorderRadius.circular(1))),
-            FractionallySizedBox(
-              widthFactor: _odometroCtrl.value,
-              child: Container(height: 2,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(1),
-                  color: _kGrey,
-                ),
+        ),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 10, left: 10),
+          child: Text('KM', style: TextStyle(
+              color:         _kGreyDim,
+              fontSize:      20,
+              fontWeight:    FontWeight.w700,
+              letterSpacing: 2)),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      AnimatedBuilder(animation: _odometroCtrl, builder: (_, __) =>
+        Stack(children: [
+          Container(height: 2, width: double.infinity,
+              decoration: BoxDecoration(
+                  color: _kBorder2, borderRadius: BorderRadius.circular(1))),
+          FractionallySizedBox(
+            widthFactor: _odometroCtrl.value,
+            child: Container(height: 2,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(1),
+                color: _kGrey,
               ),
             ),
-          ])),
-      ]),
-    );
-  }
+          ),
+        ])),
+    ]),
+  );
 
   Widget _buildSecondaryMetrics() {
-    final horas  = widget.tiempo.inSeconds / 3600;
-    final vel    = horas > 0 && widget.distancia > 0
+    final horas = widget.tiempo.inSeconds / 3600;
+    final vel   = horas > 0 && widget.distancia > 0
         ? widget.distancia / horas : 0.0;
-    final ritmo  = vel > 0.5 ? () {
+    final ritmo = vel > 0.5 ? () {
       final mpk = 60.0 / vel;
       final min = mpk.floor();
       final seg = ((mpk - min) * 60).round();
@@ -1216,17 +984,13 @@ class _ResumenScreenState extends State<ResumenScreen>
             const Text('', style: TextStyle(fontSize: 11)),
             const SizedBox(width: 6),
             const Text('TIEMPO', style: TextStyle(
-                color:         _kGrey,
-                fontSize:      7,
-                fontWeight:    FontWeight.w900,
-                letterSpacing: 2)),
+                color: _kGrey, fontSize: 7,
+                fontWeight: FontWeight.w900, letterSpacing: 2)),
           ]),
           const SizedBox(height: 8),
           Text(tiempo, style: const TextStyle(
-              color:        _kBright,
-              fontSize:     28,
-              fontWeight:   FontWeight.w900,
-              letterSpacing: 1)),
+              color: _kBright, fontSize: 28,
+              fontWeight: FontWeight.w900, letterSpacing: 1)),
         ]),
       )),
       const SizedBox(width: 8),
@@ -1236,7 +1000,8 @@ class _ResumenScreenState extends State<ResumenScreen>
         _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', '', accent: true),
         const SizedBox(height: 8),
         _metricTileSmall(
-            (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0)).round().toString(),
+            (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0))
+                .round().toString(),
             'KCAL', '', accent: false),
       ])),
     ]);
@@ -1264,171 +1029,12 @@ class _ResumenScreenState extends State<ResumenScreen>
                   height:     1)),
               const SizedBox(height: 2),
               Text(l, style: const TextStyle(
-                  color:         _kGreyDim,
-                  fontSize:      7,
-                  fontWeight:    FontWeight.w700,
-                  letterSpacing: 1.5)),
+                  color: _kGreyDim, fontSize: 7,
+                  fontWeight: FontWeight.w700, letterSpacing: 1.5)),
             ],
           )),
         ]),
       );
-
-  // ── Mapa
-  Widget _buildMapSection() {
-    final tieneRuta = widget.ruta.length > 1;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel(widget.modoRuta
-          ? 'TU RUTA'
-          : _territoriosConquistados > 0
-              ? 'TERRITORIO CONQUISTADO'
-              : 'RUTA DE CARRERA'),
-      const SizedBox(height: 10),
-      GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          Navigator.push(context, MaterialPageRoute(builder: (_) =>
-              FullscreenMapScreen(
-                territorios:     _territoriosEnMapa,
-                colorTerritorio: _acento,
-                centroInicial:   _centroMapa!,
-                ruta:            widget.ruta,
-                mostrarRuta:     widget.esDesdeCarrera,
-              )));
-        },
-        child: Container(
-          height: 240,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _acento.withValues(alpha: 0.6), width: 1.5),
-            boxShadow: [
-              BoxShadow(color: _acento.withValues(alpha: 0.15), blurRadius: 28, spreadRadius: 1),
-              BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(15),
-            child: Stack(children: [
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _centroMapa!,
-                  initialZoom:   15,
-                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                  onMapReady: () {
-                    if (tieneRuta) {
-                      _mapController.fitCamera(CameraFit.bounds(
-                          bounds:  LatLngBounds.fromPoints(widget.ruta),
-                          padding: const EdgeInsets.all(48)));
-                    }
-                  },
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: MediaQuery.platformBrightnessOf(context) == Brightness.dark
-                        ? _kMapboxDarkUrl
-                        : _kMapboxTileUrl,
-                    userAgentPackageName: 'com.runner_risk.app',
-                    tileDimension: 256,
-                    keepBuffer:    4,
-                    panBuffer:     1,
-                  ),
-                  if (_territoriosEnMapa.isNotEmpty)
-                    PolygonLayer(polygons: _territoriosEnMapa.map((t) =>
-                        Polygon(
-                          points:            t.puntos,
-                          color:             t.color.withValues(alpha: 0.40),
-                          borderColor:       t.color,
-                          borderStrokeWidth: 2.5,
-                        )).toList()),
-                  if (tieneRuta && widget.esDesdeCarrera)
-                    AnimatedBuilder(
-                      animation: _rutaProgress,
-                      builder: (_, __) {
-                        final n = (widget.ruta.length * _rutaProgress.value)
-                            .round()
-                            .clamp(2, widget.ruta.length);
-                        return PolylineLayer(polylines: [
-                          Polyline(
-                              points:      widget.ruta.sublist(0, n),
-                              strokeWidth: 9.0,
-                              color:       _acento.withValues(alpha: 0.20)),
-                          Polyline(
-                              points:      widget.ruta.sublist(0, n),
-                              strokeWidth: 3.5,
-                              color:       _acento),
-                        ]);
-                      },
-                    ),
-                  if (!tieneRuta)
-                    MarkerLayer(markers: [
-                      Marker(
-                        point: _centroMapa!,
-                        child: Icon(Icons.location_on,
-                            color: _acento, size: 28),
-                      ),
-                    ]),
-                ],
-              ),
-              // viñeta oscura en bordes
-              Positioned.fill(child: IgnorePointer(
-                  child: DecoratedBox(decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    gradient: RadialGradient(
-                        center: Alignment.center, radius: 1.2,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.45),
-                        ]),
-                  )))),
-              // badge zonas
-              Positioned(top: 10, left: 10,
-                  child: _mapBadge(
-                      '${_territoriosEnMapa.length} zona${_territoriosEnMapa.length == 1 ? '' : 's'}',
-                      '')),
-              // icono expandir
-              Positioned(top: 10, right: 10,
-                child: Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color:        Colors.black.withValues(alpha: 0.70),
-                    borderRadius: BorderRadius.circular(8),
-                    border:       Border.all(color: _acento.withValues(alpha: 0.4), width: 1),
-                  ),
-                  child: Icon(Icons.open_in_full_rounded,
-                      color: _acento.withValues(alpha: 0.85), size: 13),
-                )),
-              // barra de progreso animada de la ruta
-              if (tieneRuta && widget.esDesdeCarrera)
-                Positioned(bottom: 0, left: 0, right: 0,
-                  child: AnimatedBuilder(
-                    animation: _rutaProgress,
-                    builder: (_, __) => LinearProgressIndicator(
-                      value:           _rutaProgress.value,
-                      backgroundColor: Colors.black.withValues(alpha: 0.3),
-                      valueColor:      AlwaysStoppedAnimation(_acento.withValues(alpha: 0.8)),
-                      minHeight: 2.5,
-                    ),
-                  )),
-            ]),
-          ),
-        ),
-      ),
-    ]);
-  }
-
-  Widget _mapBadge(String text, String emoji) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(
-        color:        Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(6),
-        border:       Border.all(color: _kBorder2)),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(emoji, style: const TextStyle(fontSize: 9)),
-      const SizedBox(width: 5),
-      Text(text, style: const TextStyle(
-          color: _kWhite, fontSize: 9, fontWeight: FontWeight.w800)),
-    ]),
-  );
 
   Widget _buildTotalesRow() => Row(children: [
     Expanded(child: _totalCell(
@@ -1456,443 +1062,13 @@ class _ResumenScreenState extends State<ResumenScreen>
                 fontSize:   18,
                 fontWeight: FontWeight.w900)),
             Text(l, style: const TextStyle(
-                color:         _kGrey,
-                fontSize:      7,
-                fontWeight:    FontWeight.w700,
-                letterSpacing: 1.2)),
+                color: _kGrey, fontSize: 7,
+                fontWeight: FontWeight.w700, letterSpacing: 1.2)),
           ]),
         ]),
       );
 
-  Widget _buildContextCards() {
-    final cards = <Widget>[];
-    if (widget.esDesdeCarrera && _rachaActual > 0) cards.add(_buildRachaCard());
-    if (widget.modoRuta && widget.monedasRuta > 0)
-      cards.add(_buildRutaCard());
-    if (widget.esDesdeCarrera && _puntosLigaSesion > 0)
-      cards.add(_buildLigaCard());
-    if (widget.esDesdeCarrera && !widget.modoRuta && _territoriosConquistados > 0)
-      cards.add(_buildConquistaCard());
-    if (cards.isEmpty) return const SizedBox.shrink();
-    return Column(children: [
-      const SizedBox(height: 18),
-      ...cards.map((c) =>
-          Padding(padding: const EdgeInsets.only(bottom: 8), child: c)),
-    ]);
-  }
-
-  Widget _buildRachaCard() {
-    final hitos = [3, 7, 14, 30];
-    final hito  = hitos.firstWhere((h) => _rachaActual < h, orElse: () => 30);
-    final pct   = (_rachaActual / hito).clamp(0.0, 1.0);
-    return _contextCard(
-      icon:     Icons.local_fire_department_rounded,
-      tag:      'RACHA',
-      headline: '$_rachaActual ${_rachaActual == 1 ? 'día' : 'días'} consecutivos',
-      sub:      _rachaActual < 7
-          ? 'Faltan ${7 - _rachaActual} días para la semana'
-          : '¡Más de una semana sin parar!',
-      color:    _kGrey,
-      trailing: _ring(pct, '$_rachaActual/$hito', _kGrey),
-    );
-  }
-
-  Widget _buildRutaCard() => _contextCard(
-    icon:     Icons.route_rounded,
-    tag:      'RUTA LIBRE',
-    headline: '+${widget.monedasRuta} monedas ganadas',
-    sub:      'Basado en distancia y ritmo',
-    color:    const Color(0xFF6A4A9B),
-    trailing: _ring(1.0, '+${widget.monedasRuta}', const Color(0xFF6A4A9B)),
-  );
-
-  Widget _buildLigaCard() => _contextCard(
-    icon:     Icons.emoji_events_rounded,
-    tag:      'LIGA',
-    headline: '+$_puntosLigaSesion pts esta sesión',
-    sub:      '$_totalPuntosLiga pts totales acumulados',
-    color:    _kGold,
-    trailing: _ring(
-      (_totalPuntosLiga % 100) / 100.0,
-      '+$_puntosLigaSesion',
-      _kGold,
-    ),
-  );
-
-  Widget _buildConquistaCard() => _contextCard(
-    icon:     Icons.shield_rounded,
-    tag:      'CONQUISTA',
-    headline: '$_territoriosConquistados territorio${_territoriosConquistados == 1 ? '' : 's'} arrebatado${_territoriosConquistados == 1 ? '' : 's'}',
-    sub:      'El rival ya ha sido notificado',
-    color:    _kGrey,
-  );
-
-  Widget _contextCard({
-    required IconData icon,
-    required String tag,
-    required String headline,
-    required String sub,
-    required Color  color,
-    Widget? trailing,
-  }) =>
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color:        _kSurface,
-          borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: color.withValues(alpha: 0.25)),
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha: 0.05), blurRadius: 16),
-            BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
-          ],
-        ),
-        child: Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color:        color.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(10),
-              border:       Border.all(color: color.withValues(alpha: 0.2)),
-            ),
-            child: Center(child: Icon(icon, color: color, size: 22)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(tag, style: TextStyle(
-                  color:         color,
-                  fontSize:      8,
-                  fontWeight:    FontWeight.w900,
-                  letterSpacing: 2.5)),
-              const SizedBox(height: 3),
-              Text(headline, style: const TextStyle(
-                  color: _kBright, fontSize: 14, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(sub,
-                  style: const TextStyle(color: _kGrey, fontSize: 11)),
-            ],
-          )),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            trailing,
-          ],
-        ]),
-      );
-
-  Widget _ring(double value, String label, Color color) => SizedBox(
-    width: 48, height: 48,
-    child: Stack(alignment: Alignment.center, children: [
-      CircularProgressIndicator(
-        value:           value,
-        strokeWidth:     2.5,
-        backgroundColor: _kBorder2,
-        valueColor:      AlwaysStoppedAnimation(color),
-      ),
-      Text(label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-              color:      color,
-              fontSize:   7,
-              fontWeight: FontWeight.w900)),
-    ]),
-  );
-
-  // ── Historial
-  Widget _buildHistorial() {
-    final lista    = (_verTodosLosLogros || _searchCtrl.text.isNotEmpty)
-        ? _logrosFiltrados
-        : _logrosFiltrados.take(_paginaTamanio * _paginaActual).toList();
-    final mostrados = _verTodosLosLogros ? _logrosFiltrados : lista;
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(child: _sectionLabel('HISTORIAL DE MISIONES')),
-        if (todosLosLogros.length > 5)
-          GestureDetector(
-            onTap: () => setState(() {
-              _verTodosLosLogros = !_verTodosLosLogros;
-              if (!_verTodosLosLogros) {
-                _searchCtrl.clear();
-                _logrosFiltrados = todosLosLogros;
-              }
-            }),
-            child: Text(
-              _verTodosLosLogros ? 'MENOS' : 'TODO',
-              style: const TextStyle(
-                  color:         _kGrey,
-                  fontSize:      8,
-                  fontWeight:    FontWeight.w900,
-                  letterSpacing: 2),
-            ),
-          ),
-      ]),
-      const SizedBox(height: 12),
-
-      // Banner de reto completado
-      if (_retoCompletadoEnSesion != null) ...[
-        _buildBannerRetoCompletado(_retoCompletadoEnSesion!),
-        const SizedBox(height: 16),
-      ],
-
-      if (_verTodosLosLogros) ...[
-        TextField(
-          controller: _searchCtrl,
-          onChanged:  _filtrarBusqueda,
-          style:      const TextStyle(color: _kWhite, fontSize: 13),
-          decoration: InputDecoration(
-            hintText:    'Buscar carrera...',
-            hintStyle:   const TextStyle(color: _kGreyDim, fontSize: 13),
-            prefixIcon:  const Icon(Icons.search_rounded,
-                color: _kGrey, size: 16),
-            filled:      true,
-            fillColor:   _kSurface,
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kBorder2)),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kBorder2)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kGrey, width: 1.5)),
-            contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          ),
-        ),
-        const SizedBox(height: 10),
-      ],
-
-      if (mostrados.isEmpty)
-        const Center(child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Sin carreras registradas',
-              style: TextStyle(color: _kGreyDim, fontSize: 12)),
-        ))
-      else
-        ...mostrados.asMap().entries.map((e) =>
-            TweenAnimationBuilder<double>(
-              tween:    Tween(begin: 0, end: 1),
-              duration: Duration(milliseconds: 280 + e.key * 35),
-              curve:    Curves.easeOut,
-              builder: (_, v, child) => Opacity(
-                opacity: v,
-                child:   Transform.translate(
-                    offset: Offset(16 * (1 - v), 0), child: child),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child:   _historialRow(e.key, e.value),
-              ),
-            )),
-    ]);
-  }
-
-  Widget _buildBannerRetoCompletado(Map<String, dynamic> reto) {
-    final premio = (reto['premio'] as num?)?.toInt() ?? 0;
-    final titulo = reto['titulo'] as String? ?? 'Misión completada';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _kBg,
-        border: Border(
-          left:   const BorderSide(color: _kGold, width: 3),
-          top:    BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
-          right:  BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
-          bottom: BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
-        ),
-        boxShadow: [
-          BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 20),
-          BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8),
-        ],
-      ),
-      child: Row(children: [
-        TweenAnimationBuilder<double>(
-          tween:    Tween(begin: 0.7, end: 1.0),
-          duration: const Duration(milliseconds: 600),
-          curve:    Curves.elasticOut,
-          builder:  (_, v, child) =>
-              Transform.scale(scale: v, child: child),
-          child: const Text('', style: TextStyle(fontSize: 32)),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            const Text('MISIÓN COMPLETADA', style: TextStyle(
-                color:         _kGold,
-                fontSize:      9,
-                fontWeight:    FontWeight.w900,
-                letterSpacing: 3)),
-            const SizedBox(height: 3),
-            Text(titulo, style: const TextStyle(
-                color: _kBright, fontSize: 15, fontWeight: FontWeight.w800),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Text(
-              'Has completado este reto y se ha sumado a tus logros',
-              style: TextStyle(
-                  color:    _kGoldDim.withValues(alpha: 0.8),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500),
-            ),
-          ]),
-        ),
-        if (premio > 0) ...[
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color:  _kGoldDim.withValues(alpha: 0.15),
-              border: Border.all(color: _kGoldDim.withValues(alpha: 0.5)),
-            ),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('+$premio', style: const TextStyle(
-                  color:      _kGold,
-                  fontSize:   16,
-                  fontWeight: FontWeight.w900,
-                  height:     1)),
-              const Text('PTS', style: TextStyle(
-                  color:         _kGoldDim,
-                  fontSize:      7,
-                  fontWeight:    FontWeight.w700,
-                  letterSpacing: 1.5)),
-            ]),
-          ),
-        ],
-      ]),
-    );
-  }
-
-  Widget _historialRow(int idx, Map<String, dynamic> d) {
-    final dist       = (d['distancia'] as double? ?? 0);
-    final recompensa = (d['recompensa'] as int? ?? 0);
-    final isFirst    = idx == 0;
-    final modo       = d['modo'] as String? ?? 'competitivo';
-    final esGlobal   = modo == 'guerra_global';
-
-    return Container(
-      decoration: BoxDecoration(
-        color:        _kSurface,
-        borderRadius: BorderRadius.circular(10),
-        border:       Border.all(color: _kBorder2),
-      ),
-      child: IntrinsicHeight(
-        child: Row(children: [
-          Container(
-            width: 3,
-            decoration: BoxDecoration(
-              color: esGlobal
-                  ? _kGold
-                  : (isFirst ? _kGrey : _kGreyDim),
-              borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(10)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            child: Text(
-              '${idx + 1}'.padLeft(2, '0'),
-              style: TextStyle(
-                  color: esGlobal
-                      ? _kGold
-                      : (isFirst ? _kGrey : _kGreyDim),
-                  fontSize:   10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5),
-            ),
-          ),
-          Container(width: 1, color: _kBorder),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 11),
-              child: Row(children: [
-                Expanded(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      if (esGlobal) ...[
-                        const Text('',
-                            style: TextStyle(fontSize: 10)),
-                        const SizedBox(width: 4),
-                      ],
-                      Expanded(
-                        child: Text(
-                          d['titulo'] ?? 'Carrera completada',
-                          style: TextStyle(
-                              color: esGlobal
-                                  ? _kGold
-                                  : (isFirst ? _kBright
-                                      : _kWhite.withValues(alpha: 0.75)),
-                              fontSize:   12,
-                              fontWeight: FontWeight.w700),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ]),
-                    const SizedBox(height: 4),
-                    Row(children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color:        _kBorder2.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(4),
-                          border:       Border.all(color: _kBorder2),
-                        ),
-                        child: Text('${dist.toStringAsFixed(1)} km',
-                            style: const TextStyle(
-                                color:      _kBright,
-                                fontSize:   10,
-                                fontWeight: FontWeight.w800)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(d['fecha'] ?? '--',
-                          style: const TextStyle(
-                              color: _kGrey, fontSize: 9)),
-                    ]),
-                  ],
-                )),
-                const SizedBox(width: 10),
-                if (recompensa > 0)
-                  Column(
-                    mainAxisAlignment:  MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 4),
-                        decoration: BoxDecoration(
-                          color:        _kBorder2.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(6),
-                          border:       Border.all(color: _kBorder2),
-                        ),
-                        child: Text('+$recompensa', style: const TextStyle(
-                            color:      _kBright,
-                            fontSize:   11,
-                            fontWeight: FontWeight.w900)),
-                      ),
-                      const SizedBox(height: 2),
-                      const Text('PTS', style: TextStyle(
-                          color:         _kGreyDim,
-                          fontSize:      7,
-                          fontWeight:    FontWeight.w700,
-                          letterSpacing: 1)),
-                    ],
-                  ),
-              ]),
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  // ── Acciones + botón de vuelta
   Widget _buildAcciones() => Column(children: [
-
     GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -1916,83 +1092,26 @@ class _ResumenScreenState extends State<ResumenScreen>
         ]),
       ),
     ),
-
     const SizedBox(height: 20),
-
     Row(children: [
       Expanded(child: Container(height: 1, color: _kBorder2)),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 16),
-        child:   Text('·',
-            style: TextStyle(color: _kGreyDim, fontSize: 10)),
+        child:   Text('·', style: TextStyle(color: _kGreyDim, fontSize: 10)),
       ),
       Expanded(child: Container(height: 1, color: _kBorder2)),
     ]),
-
   ]);
 
   Widget _sectionLabel(String t) => Row(children: [
     Container(
       width: 3, height: 11,
       decoration: BoxDecoration(
-          color:        _kGrey,
-          borderRadius: BorderRadius.circular(2)),
+          color: _kGrey, borderRadius: BorderRadius.circular(2)),
     ),
     const SizedBox(width: 8),
     Text(t, style: const TextStyle(
-        color:         _kGrey,
-        fontSize:      8,
-        fontWeight:    FontWeight.w900,
-        letterSpacing: 3)),
+        color: _kGrey, fontSize: 8,
+        fontWeight: FontWeight.w900, letterSpacing: 3)),
   ]);
 }
-
-// =============================================================================
-// WIDGET HELPER: Reveal
-// =============================================================================
-class _Reveal extends StatelessWidget {
-  final Animation<double> anim;
-  final Widget child;
-  const _Reveal({required this.anim, required this.child});
-
-  @override
-  Widget build(BuildContext ctx) => AnimatedBuilder(
-    animation: anim,
-    builder: (_, __) => Opacity(
-      opacity: anim.value.clamp(0.0, 1.0),
-      child: Transform.translate(
-          offset: Offset(0, 20 * (1 - anim.value)), child: child),
-    ),
-  );
-}
-
-// =============================================================================
-// PAINTERS
-// =============================================================================
-class _OperativeBg extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final dot = Paint()
-      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.03);
-    const spacing = 32.0;
-    for (double x = spacing / 2; x < size.width; x += spacing)
-      for (double y = spacing / 2; y < size.height; y += spacing)
-        canvas.drawCircle(Offset(x, y), 0.8, dot);
-
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(0.9, -0.8), radius: 0.9,
-          colors: [
-            const Color(0xFFFFFFFF).withValues(alpha: 0.025),
-            Colors.transparent,
-          ],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_OperativeBg old) => false;
-}
-
