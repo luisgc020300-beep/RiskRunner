@@ -1039,17 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
         return;
       }
-      Navigator.push(context, PageRouteBuilder(
-        pageBuilder: (_, __, ___) => StoryViewerScreen(
-          groups: [UserStoriesGroup(
-            userId: userId!, nickname: nickname, avatarBase64: fotoBase64,
-            color: _T.bronze, stories: _misHistorias)],
-          initialGroupIndex: 0,
-        ),
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-      )).then((_) {
-        if (mounted) _recargarHistorias();
-      });
+      _mostrarOpcionesStory();
       return;
     }
 
@@ -1079,6 +1069,84 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       pageBuilder: (_, __, ___) => StoryViewerScreen(groups: groups, initialGroupIndex: initialIdx),
       transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
     ));
+  }
+
+  void _mostrarOpcionesStory() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: _T.bg2,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+                color: _T.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          // Ver historia
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.push(context, PageRouteBuilder(
+                pageBuilder: (_, __, ___) => StoryViewerScreen(
+                  groups: [UserStoriesGroup(
+                    userId: userId!, nickname: nickname,
+                    avatarBase64: fotoBase64,
+                    color: _T.bronze, stories: _misHistorias)],
+                  initialGroupIndex: 0,
+                ),
+                transitionsBuilder: (_, anim, __, child) =>
+                    FadeTransition(opacity: anim, child: child),
+              )).then((_) { if (mounted) _recargarHistorias(); });
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: _T.bg3,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: _T.border2),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.play_circle_outline_rounded, color: _T.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Ver mi historia', style: _raj(15, FontWeight.w600, _T.white)),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Añadir historia
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.push(context,
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => const CreatePostScreen(),
+                ),
+              ).then((_) { if (mounted) _recargarHistorias(); });
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: _T.bronze,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Añadir historia', style: _raj(15, FontWeight.w600, Colors.white)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   void _mostrarResumenCarrera(FeedPost post) {

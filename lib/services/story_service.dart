@@ -60,7 +60,7 @@ class StoryService {
   }) async {
     if (userIds.isEmpty) return {};
 
-    final now = Timestamp.fromDate(DateTime.now());
+    final now = DateTime.now();
     final Map<String, List<StoryModel>> result = {};
 
     // Dividir en chunks de 10 (límite de whereIn en Firestore)
@@ -69,16 +69,21 @@ class StoryService {
       final chunk = userIds.sublist(i, end);
 
       try {
+        // Solo filtramos por userId en Firestore — expiresAt se filtra en cliente
+        // para evitar necesitar un índice compuesto
         final snap = await _db
             .collection('stories')
             .where('userId', whereIn: chunk)
-            .where('expiresAt', isGreaterThan: now)
             .get();
 
         for (final doc in snap.docs) {
           final d        = doc.data();
           final uid      = d['userId'] as String? ?? '';
           if (uid.isEmpty) continue;
+
+          // Filtrar expiradas en cliente
+          final expiresAt = (d['expiresAt'] as Timestamp?)?.toDate();
+          if (expiresAt == null || expiresAt.isBefore(now)) continue;
 
           final colorInt = (d['userColorInt'] as num?)?.toInt();
           final color    = colorInt != null ? Color(colorInt) : defaultColor;
@@ -107,23 +112,25 @@ class StoryService {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return [];
 
-    final now = Timestamp.fromDate(DateTime.now());
+    final now = DateTime.now();
 
     try {
+      // Solo filtramos por userId — expiresAt en cliente para evitar índice compuesto
       final snap = await _db
           .collection('stories')
           .where('userId', isEqualTo: uid)
-          .where('expiresAt', isGreaterThan: now)
           .get();
 
-      final stories = snap.docs.map((doc) {
+      final stories = snap.docs.where((doc) {
+        final expiresAt = (doc.data()['expiresAt'] as Timestamp?)?.toDate();
+        return expiresAt != null && expiresAt.isAfter(now);
+      }).map((doc) {
         final d        = doc.data();
         final colorInt = (d['userColorInt'] as num?)?.toInt();
         final color    = colorInt != null ? Color(colorInt) : defaultColor;
         return StoryModel.fromFirestore(doc, color);
       }).toList();
 
-      // Ordenar por createdAt descendente en cliente
       stories.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return stories;
     } catch (e) {
