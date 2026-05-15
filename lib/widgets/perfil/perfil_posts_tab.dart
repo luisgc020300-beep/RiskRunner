@@ -1,10 +1,11 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'perfil_theme.dart';
 
-class PerfilPostsTab extends StatelessWidget {
+class PerfilPostsTab extends StatefulWidget {
   final String? viewedUserId;
   final bool isOwnProfile;
   final Color colorTerritorio;
@@ -17,21 +18,190 @@ class PerfilPostsTab extends StatelessWidget {
   });
 
   @override
+  State<PerfilPostsTab> createState() => _PerfilPostsTabState();
+}
+
+class _PerfilPostsTabState extends State<PerfilPostsTab> {
+  PerfilPalette get _p => PerfilPalette.of(context);
+
+  // ── Borrar un post ──────────────────────────────────────────────────────────
+  Future<void> _borrarPost(BuildContext ctx, String postId) async {
+    Navigator.pop(ctx); // cierra el detail sheet
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sCtx) => _ConfirmDeleteSheet(
+        p: _p,
+        onConfirm: () async {
+          Navigator.pop(sCtx);
+          await FirebaseFirestore.instance
+              .collection('posts')
+              .doc(postId)
+              .delete();
+        },
+        onCancel: () => Navigator.pop(sCtx),
+      ),
+    );
+  }
+
+  // ── Detail sheet ────────────────────────────────────────────────────────────
+  void _mostrarDetallePost(
+      BuildContext context, String postId, Map<String, dynamic> data) {
+    final p     = _p;
+    final dist  = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
+    final vel   = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
+    final desc  = (data['descripcion'] as String? ?? '').trim();
+    final titulo = (data['titulo'] as String? ?? '').trim();
+    final ts    = data['timestamp'] as Timestamp?;
+    final rawRoute = data['ruta'] as List<dynamic>?;
+    final route = rawRoute?.map((pt) {
+      final m = pt as Map;
+      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
+    }).toList() ?? <Offset>[];
+    final mins = tiempo ~/ 60;
+    final secs = tiempo % 60;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Drag handle
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(
+                color: p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+
+          // Header: título + opciones (solo propio)
+          Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (titulo.isNotEmpty)
+                  Text(titulo, style: GoogleFonts.inter(
+                      color: p.title, fontSize: 16, fontWeight: FontWeight.w700)),
+                if (ts != null)
+                  Text(
+                    '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
+                    style: GoogleFonts.inter(
+                        color: p.dim, fontSize: 11, fontWeight: FontWeight.w400),
+                  ),
+              ]),
+            ),
+            if (widget.isOwnProfile)
+              GestureDetector(
+                onTap: () => _borrarPost(ctx, postId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF3B30).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: const Color(0xFFFF3B30).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.delete_outline_rounded,
+                        color: Color(0xFFFF3B30), size: 14),
+                    const SizedBox(width: 5),
+                    Text('Eliminar',
+                        style: GoogleFonts.inter(
+                            color: const Color(0xFFFF3B30),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 20),
+
+          // Mini mapa
+          if (route.length > 1) ...[
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                color: p.surface2,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.border2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CustomPaint(
+                    painter: _RouteMiniPainter(
+                        route, widget.colorTerritorio, strokeWidth: 2.5)),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Stats
+          Row(children: [
+            _postStat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
+            _postDivider(p),
+            _postStat(p,
+                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                'TIEMPO'),
+            _postDivider(p),
+            _postStat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
+          ]),
+
+          // Descripción
+          if (desc.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(height: 0.5, color: p.border2),
+            const SizedBox(height: 12),
+            Text(desc, style: GoogleFonts.inter(
+                color: p.text, fontSize: 13, height: 1.5)),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _postStat(PerfilPalette p, String val, String label) =>
+      Expanded(child: Column(children: [
+        Text(val,
+            style: GoogleFonts.inter(
+                color: p.title, fontSize: 13, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: GoogleFonts.inter(
+                color: p.dim, fontSize: 7,
+                fontWeight: FontWeight.w700, letterSpacing: 1)),
+      ]));
+
+  Widget _postDivider(PerfilPalette p) => Container(
+      width: 0.5, height: 32, color: p.border2,
+      margin: const EdgeInsets.symmetric(horizontal: 4));
+
+  // ── Build ───────────────────────────────────────────────────────────────────
+  @override
   Widget build(BuildContext context) {
-    final p = PerfilPalette.of(context);
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
+    final p = _p;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
           .collection('posts')
-          .where('userId', isEqualTo: viewedUserId)
+          .where('userId', isEqualTo: widget.viewedUserId)
           .orderBy('timestamp', descending: true)
           .limit(60)
-          .get(),
+          .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.connectionState == ConnectionState.waiting &&
+            !snap.hasData) {
           return Padding(
             padding: const EdgeInsets.only(top: 48),
-            child: Center(child: SizedBox(width: 20, height: 20,
-              child: CircularProgressIndicator(color: p.dim, strokeWidth: 1.5))),
+            child: Center(
+              child: SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(
+                    color: p.dim, strokeWidth: 1.5)),
+            ),
           );
         }
         final posts = snap.data?.docs ?? [];
@@ -42,10 +212,12 @@ class PerfilPostsTab extends StatelessWidget {
               Icon(Icons.directions_run_rounded, color: p.muted, size: 36),
               const SizedBox(height: 12),
               Text(
-                isOwnProfile ? 'Comparte tus carreras' : 'Sin publicaciones aún',
+                widget.isOwnProfile
+                    ? 'Comparte tus carreras'
+                    : 'Sin publicaciones aún',
                 style: perfilStyle(14, FontWeight.w600, p.sub),
               ),
-              if (isOwnProfile) ...[
+              if (widget.isOwnProfile) ...[
                 const SizedBox(height: 6),
                 Text(
                   'Al terminar una carrera puedes publicarla en el feed',
@@ -65,15 +237,17 @@ class PerfilPostsTab extends StatelessWidget {
           ),
           itemCount: posts.length,
           itemBuilder: (ctx, i) {
-            final data = (posts[i].data() ?? {}) as Map<String, dynamic>;
-            return _buildPostCell(context, data, p);
+            final doc  = posts[i];
+            final data = (doc.data() ?? {}) as Map<String, dynamic>;
+            return _buildPostCell(context, doc.id, data, p);
           },
         );
       },
     );
   }
 
-  Widget _buildPostCell(BuildContext context, Map<String, dynamic> data, PerfilPalette p) {
+  Widget _buildPostCell(BuildContext context, String postId,
+      Map<String, dynamic> data, PerfilPalette p) {
     final dist = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
     final ts   = data['timestamp'] as Timestamp?;
     final date = ts != null
@@ -86,115 +260,126 @@ class PerfilPostsTab extends StatelessWidget {
     }).toList() ?? <Offset>[];
 
     return GestureDetector(
-      onTap: () => _mostrarDetallePost(context, data, p),
+      onTap: () => _mostrarDetallePost(context, postId, data),
       child: Container(
         color: p.surface,
         child: Stack(fit: StackFit.expand, children: [
           if (route.length > 1)
-            CustomPaint(painter: _RouteMiniPainter(route, colorTerritorio)),
+            CustomPaint(
+                painter: _RouteMiniPainter(route, widget.colorTerritorio)),
           Positioned.fill(
-            child: DecoratedBox(decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, p.bg.withValues(alpha: 0.85)],
-                stops: const [0.4, 1.0],
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, p.bg.withValues(alpha: 0.85)],
+                  stops: const [0.4, 1.0],
+                ),
               ),
-            )),
+            ),
           ),
-          Positioned(bottom: 6, left: 7,
+          Positioned(
+            bottom: 6, left: 7,
             child: Text('${dist.toStringAsFixed(1)} km',
                 style: perfilStyle(11, FontWeight.w800, p.title))),
-          Positioned(top: 6, right: 6,
-            child: Text(date, style: perfilStyle(8, FontWeight.w500, p.dim))),
+          Positioned(
+            top: 6, right: 6,
+            child: Text(date,
+                style: perfilStyle(8, FontWeight.w500, p.dim))),
         ]),
       ),
     );
   }
-
-  void _mostrarDetallePost(BuildContext context, Map<String, dynamic> data, PerfilPalette p) {
-    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
-    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
-    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
-    final desc   = (data['descripcion'] as String? ?? '').trim();
-    final ts     = data['timestamp'] as Timestamp?;
-    final rawRoute = data['ruta'] as List<dynamic>?;
-    final route  = rawRoute?.map((pt) {
-      final m = pt as Map;
-      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
-    }).toList() ?? <Offset>[];
-    final mins = tiempo ~/ 60;
-    final secs = tiempo % 60;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: p.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 32, height: 3,
-              decoration: BoxDecoration(
-                  color: p.border2, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 20),
-          if (route.length > 1) ...[
-            Container(
-              height: 160,
-              decoration: BoxDecoration(
-                color: p.surface2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: p.border2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: CustomPaint(
-                    painter: _RouteMiniPainter(route, colorTerritorio,
-                        strokeWidth: 2.5)),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Row(children: [
-            _postStat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
-            _postDivider(p),
-            _postStat(p,
-                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
-                'TIEMPO'),
-            _postDivider(p),
-            _postStat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
-          ]),
-          if (desc.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(height: 1, color: p.border2),
-            const SizedBox(height: 12),
-            Text(desc, style: perfilStyle(13, FontWeight.w400, p.text)),
-          ],
-          if (ts != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
-              style: perfilStyle(10, FontWeight.w400, p.dim),
-            ),
-          ],
-        ]),
-      ),
-    );
-  }
-
-  Widget _postStat(PerfilPalette p, String val, String label) =>
-      Expanded(child: Column(children: [
-        Text(val, style: perfilStyle(13, FontWeight.w800, p.title)),
-        const SizedBox(height: 2),
-        Text(label, style: perfilStyle(7, FontWeight.w700, p.dim, spacing: 1)),
-      ]));
-
-  Widget _postDivider(PerfilPalette p) => Container(
-      width: 1, height: 32, color: p.border2,
-      margin: const EdgeInsets.symmetric(horizontal: 4));
 }
 
-// ── Painter privado — solo usado en este tab ──────────────────────────────────
+// ── Confirmación de borrado ─────────────────────────────────────────────────
+class _ConfirmDeleteSheet extends StatelessWidget {
+  final PerfilPalette p;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  const _ConfirmDeleteSheet({
+    required this.p,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 36, height: 4,
+          decoration: BoxDecoration(
+              color: p.border2, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF3B30).withValues(alpha: 0.06),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.delete_outline_rounded,
+              color: Color(0xFFFF3B30), size: 28),
+        ),
+        const SizedBox(height: 16),
+        Text('Eliminar publicación',
+            style: GoogleFonts.inter(
+                color: p.title, fontSize: 17, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text('Esta acción no se puede deshacer.\n¿Seguro que quieres eliminarla?',
+            style: GoogleFonts.inter(
+                color: p.sub, fontSize: 13, height: 1.4),
+            textAlign: TextAlign.center),
+        const SizedBox(height: 28),
+        // Eliminar
+        GestureDetector(
+          onTap: onConfirm,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF3B30),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Text('Eliminar',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Cancelar
+        GestureDetector(
+          onTap: onCancel,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: p.surface2,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: p.border2),
+            ),
+            child: Text('Cancelar',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    color: p.text, fontSize: 15, fontWeight: FontWeight.w500)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Painter privado ─────────────────────────────────────────────────────────
 class _RouteMiniPainter extends CustomPainter {
   final List<Offset> points;
   final Color color;
@@ -246,3 +431,4 @@ class _RouteMiniPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RouteMiniPainter old) => false;
 }
+

@@ -148,6 +148,10 @@ class _PerfilScreenState extends State<PerfilScreen>
   DateTime? _ultimoReto;
   static const _kCooldownReto = Duration(seconds: 60);
 
+  // ── Header colapsable
+  final ScrollController _scrollCtrl = ScrollController();
+  bool _showNickInAppBar = false;
+
   // â”€â”€ Clan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _clanNombre;
   String? _clanTag;
@@ -202,6 +206,12 @@ class _PerfilScreenState extends State<PerfilScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized && isOwnProfile) _recargarDatosDinamicos();
+    _scrollCtrl.addListener(() {
+      final shouldShow = _scrollCtrl.offset > 160;
+      if (shouldShow != _showNickInAppBar) {
+        setState(() => _showNickInAppBar = shouldShow);
+      }
+    });
     _initialized = true;
   }
 
@@ -218,6 +228,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     _entradaAnim.dispose();
     _loopAnim.dispose();
     _scanAnim.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -1125,6 +1136,16 @@ class _PerfilScreenState extends State<PerfilScreen>
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
               onPressed: () => Navigator.pop(context))
           : null,
+      title: AnimatedOpacity(
+        opacity: _showNickInAppBar ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          nickname,
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w600, color: iconColor),
+        ),
+      ),
+      centerTitle: true,
       actions: isOwnProfile ? [
         IconButton(
           icon: Icon(Icons.settings_outlined, color: iconColor, size: 20),
@@ -1150,6 +1171,7 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _buildContent() {
     return SingleChildScrollView(
+      controller: _scrollCtrl,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
         if (!isOwnProfile)

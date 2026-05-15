@@ -58,6 +58,15 @@ class RouteData {
 
   bool get esLegendaria => runsCount >= kLegendaryThreshold;
 
+  RouteData conNombre(String? nuevoNombre) => RouteData(
+    id: id, userId: userId, nombre: nuevoNombre, descripcion: descripcion,
+    privacidad: privacidad, coords: coords, distanciaKm: distanciaKm,
+    tiempoSeg: tiempoSeg, ritmoMinKm: ritmoMinKm, fecha: fecha,
+    monedasGanadas: monedasGanadas, puntosLigaGanados: puntosLigaGanados,
+    color: color, ownerNickname: ownerNickname,
+    savesCount: savesCount, runsCount: runsCount,
+  );
+
   factory RouteData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     final rawCoords = (d['coords'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -196,6 +205,15 @@ class RouteService {
       await _db.collection('routes').doc(routeId).update({'nombre': nombre});
     } catch (e) {
       debugPrint('RouteService.nombrarRuta: $e');
+    }
+  }
+
+  // ── Eliminar una ruta propia ──────────────────────────────────────────────
+  static Future<void> eliminarRuta(String routeId) async {
+    try {
+      await _db.collection('routes').doc(routeId).delete();
+    } catch (e) {
+      debugPrint('RouteService.eliminarRuta: $e');
     }
   }
 

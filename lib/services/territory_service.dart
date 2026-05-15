@@ -514,7 +514,7 @@ class TerritoryService {
   /// Carga puntos de todos los territorios para mostrar en el globo terráqueo.
   /// Devuelve mapas con {lat, lng, color (int), esMio (bool)}.
   /// Primero carga todos los propios, luego una muestra de los demás.
-  static Future<List<Map<String, dynamic>>> cargarPuntosGlobo() async {
+  static Future<List<Map<String, dynamic>>> cargarPuntosGlobo({String? modo}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
@@ -523,7 +523,15 @@ class TerritoryService {
 
     void addPunto(QueryDocumentSnapshot<Map<String, dynamic>> doc, bool esMio) {
       if (!seenIds.add(doc.id)) return;
-      final d   = doc.data();
+      final d = doc.data();
+      // Filtrar por modo: solitario solo ve solitario; competitivo ve null+competitivo
+      if (modo != null) {
+        final docModo = d['modo'] as String?;
+        final pasa = modo == 'solitario'
+            ? docModo == 'solitario'
+            : (docModo == null || docModo == 'competitivo');
+        if (!pasa) return;
+      }
       final lat = (d['centroLat'] as num?)?.toDouble();
       final lng = (d['centroLng'] as num?)?.toDouble();
       if (lat == null || lng == null) return;

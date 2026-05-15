@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import '../services/route_service.dart';
@@ -239,6 +240,29 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
     }
   }
 
+  Future<void> _eliminarRuta(RouteData ruta) async {
+    await RouteService.eliminarRuta(ruta.id);
+    if (!mounted) return;
+    setState(() {
+      for (final lista in [_populares, _nuevas, _amigos, _guardadas]) {
+        lista.removeWhere((r) => r.id == ruta.id);
+      }
+      _savedIds.remove(ruta.id);
+    });
+  }
+
+  void _renombrarRuta(RouteData ruta, String nuevoNombre) {
+    RouteService.nombrarRuta(ruta.id, nuevoNombre);
+    if (!mounted) return;
+    final actualizado = ruta.conNombre(nuevoNombre.trim().isEmpty ? null : nuevoNombre.trim());
+    setState(() {
+      for (final lista in [_populares, _nuevas, _amigos, _guardadas]) {
+        final idx = lista.indexWhere((r) => r.id == ruta.id);
+        if (idx >= 0) lista[idx] = actualizado;
+      }
+    });
+  }
+
   void _abrirDetalle(RouteData ruta) {
     showModalBottomSheet(
       context: context,
@@ -248,6 +272,7 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
         ruta: ruta,
         guardada: _savedIds.contains(ruta.id),
         accent: widget.accent,
+        esPropia: ruta.userId == _uid,
         onToggleGuardar: () => _toggleGuardar(ruta),
         onCorrer: () {
           Navigator.pop(context);
@@ -255,6 +280,11 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
             builder: (_) => LiveActivityScreen(rutaGuiada: ruta),
           ));
         },
+        onEliminar: () {
+          Navigator.pop(context);
+          _eliminarRuta(ruta);
+        },
+        onRenombrar: (nuevoNombre) => _renombrarRuta(ruta, nuevoNombre),
       ),
     );
   }
@@ -617,15 +647,24 @@ class _RoutePainter extends CustomPainter {
 //  ROUTE DETAIL SHEET
 // =============================================================================
 class _RouteDetailSheet extends StatefulWidget {
-  final RouteData    ruta;
-  final bool         guardada;
-  final Color        accent;
-  final VoidCallback onToggleGuardar;
-  final VoidCallback onCorrer;
+  final RouteData             ruta;
+  final bool                  guardada;
+  final Color                 accent;
+  final bool                  esPropia;
+  final VoidCallback          onToggleGuardar;
+  final VoidCallback          onCorrer;
+  final VoidCallback?         onEliminar;
+  final void Function(String)? onRenombrar;
 
   const _RouteDetailSheet({
-    required this.ruta, required this.guardada, required this.accent,
-    required this.onToggleGuardar, required this.onCorrer,
+    required this.ruta,
+    required this.guardada,
+    required this.accent,
+    required this.esPropia,
+    required this.onToggleGuardar,
+    required this.onCorrer,
+    this.onEliminar,
+    this.onRenombrar,
   });
 
   @override
@@ -635,6 +674,236 @@ class _RouteDetailSheet extends StatefulWidget {
 class _RouteDetailSheetState extends State<_RouteDetailSheet> {
   late bool _guardada = widget.guardada;
   _RP get _p => _RP.of(context);
+
+  void _mostrarOpciones() {
+    final p = _p;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: p.dim.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2))),
+          _opcionBtn(
+            ctx: ctx,
+            icon: Icons.edit_rounded,
+            label: 'Editar nombre',
+            color: p.text1,
+            onTap: () {
+              Navigator.pop(ctx);
+              _mostrarEditarNombre();
+            },
+          ),
+          const SizedBox(height: 8),
+          _opcionBtn(
+            ctx: ctx,
+            icon: Icons.delete_outline_rounded,
+            label: 'Eliminar ruta',
+            color: const Color(0xFFFF3B30),
+            onTap: () {
+              Navigator.pop(ctx);
+              _confirmarEliminar();
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _mostrarEditarNombre() {
+    final ctrl = TextEditingController(text: widget.ruta.nombre ?? '');
+    final p = _p;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                  color: p.dim.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2))),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Editar nombre',
+                  style: GoogleFonts.inter(
+                      color: p.text1, fontSize: 16,
+                      fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 60,
+              style: GoogleFonts.inter(color: p.text1, fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'Nombre de la ruta...',
+                hintStyle: GoogleFonts.inter(color: p.dim, fontSize: 15),
+                filled: true,
+                fillColor: p.surface2,
+                counterStyle: GoogleFonts.inter(color: p.dim, fontSize: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                        color: _kPurple.withValues(alpha: 0.5), width: 1.2)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onRenombrar?.call(ctrl.text);
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                    color: _kPurple,
+                    borderRadius: BorderRadius.circular(13)),
+                child: Text('Guardar',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                        color: Colors.white, fontSize: 15,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+    ctrl.dispose();
+  }
+
+  void _confirmarEliminar() {
+    final p = _p;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+                color: p.dim.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2))),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
+              color: Color(0x0FFF3B30), shape: BoxShape.circle),
+            child: const Icon(Icons.delete_outline_rounded,
+                color: Color(0xFFFF3B30), size: 28)),
+          const SizedBox(height: 16),
+          Text('Eliminar ruta',
+              style: GoogleFonts.inter(
+                  color: p.text1, fontSize: 17,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          Text('Esta acción no se puede deshacer.',
+              style: GoogleFonts.inter(
+                  color: p.subtext, fontSize: 13),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 28),
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(ctx);
+              widget.onEliminar?.call();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFFF3B30),
+                  borderRadius: BorderRadius.circular(13)),
+              child: Text('Eliminar',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                      color: Colors.white, fontSize: 15,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => Navigator.pop(ctx),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                  color: p.surface2,
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: p.line2)),
+              child: Text('Cancelar',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                      color: p.text2, fontSize: 15,
+                      fontWeight: FontWeight.w500)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _opcionBtn({
+    required BuildContext ctx,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: color == const Color(0xFFFF3B30)
+              ? const Color(0xFFFF3B30).withValues(alpha: 0.06)
+              : _p.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: color == const Color(0xFFFF3B30)
+                  ? const Color(0xFFFF3B30).withValues(alpha: 0.25)
+                  : _p.line2),
+        ),
+        child: Row(children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 12),
+          Text(label,
+              style: GoogleFonts.inter(
+                  color: color, fontSize: 15,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext ctx) {
@@ -673,17 +942,26 @@ class _RouteDetailSheetState extends State<_RouteDetailSheet> {
                     ruta.nombre ?? 'Ruta sin nombre',
                     style: TextStyle(color: _p.text1, fontWeight: FontWeight.w800,
                       fontSize: 20))),
-                GestureDetector(
-                  onTap: () {
-                    setState(() => _guardada = !_guardada);
-                    widget.onToggleGuardar();
-                  },
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      _guardada ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                      key: ValueKey(_guardada),
-                      color: _guardada ? _kPurple : _p.dim, size: 24))),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() => _guardada = !_guardada);
+                      widget.onToggleGuardar();
+                    },
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        _guardada ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                        key: ValueKey(_guardada),
+                        color: _guardada ? _kPurple : _p.dim, size: 24))),
+                  if (widget.esPropia) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _mostrarOpciones,
+                      child: Icon(Icons.more_horiz_rounded,
+                          color: _p.dim, size: 22)),
+                  ],
+                ]),
               ])),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),

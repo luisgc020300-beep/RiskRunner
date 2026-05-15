@@ -1559,7 +1559,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _cargarYMostrarPuntosGlobo() async {
     if (!_puntosGloboCargados) {
       try {
-        final puntos = await TerritoryService.cargarPuntosGlobo();
+        final puntos = await TerritoryService.cargarPuntosGlobo(
+            modo: _modoSolitario ? 'solitario' : 'competitivo');
         if (!mounted) return;
         _puntosGlobo = puntos;
         _puntosGloboCargados = true;
@@ -1569,7 +1570,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await Future.delayed(const Duration(seconds: 2));
         if (!mounted) return;
         try {
-          final puntos = await TerritoryService.cargarPuntosGlobo();
+          final puntos = await TerritoryService.cargarPuntosGlobo(
+              modo: _modoSolitario ? 'solitario' : 'competitivo');
           if (!mounted) return;
           _puntosGlobo = puntos;
           _puntosGloboCargados = true;

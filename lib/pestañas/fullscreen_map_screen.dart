@@ -33,11 +33,11 @@ import '../widgets/map/map_starfield.dart';
 const String _kMapboxToken = Env.mapboxPublicToken;
 const String _kMapboxUrl =
     'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
-    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 const String _kMapboxDarkUrl =
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PALETA — aliases privados sobre las constantes públicas de map_theme.dart
@@ -300,6 +300,7 @@ class _MapState extends ChangeNotifier {
   void setModoSolitario(bool v) {
     GameStateService.instance.currentMode = v ? 'solitario' : 'competitivo';
     modoSolitario = v;
+    territorios   = [];
     if (v) {
       modoGlobal = false;
       modoRutas  = false;
@@ -313,6 +314,7 @@ class _MapState extends ChangeNotifier {
     modoRutas     = v;
     modoSolitario = false;
     modoGlobal    = false;
+    territorios   = [];
     if (v) {
       _globalStream?.cancel();
       GameStateService.instance.currentMode = 'ruta';
@@ -1991,13 +1993,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
           ');'
           'out geom;';
-      final url = Uri.https(
-        'overpass-api.de',
-        '/api/interpreter',
-        {'data': query},
-      );
-
-      final response = await http.get(url).timeout(const Duration(seconds: 12));
+      final response = await http.post(
+        Uri.https('overpass-api.de', '/api/interpreter'),
+        body: {'data': query},
+        headers: {
+          'User-Agent': 'RiskRunner/1.0 (contact@riskrunner.app)',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 20));
       if (response.statusCode != 200) {
         if (mounted) setState(() {
           _cargandoBarrios = false;
@@ -2201,7 +2204,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 PolygonLayer(
                   polygons: territorios.where((t) => t.esMio).map((t) {
                     final decay = _decayFactor(t);
-                    final frio  = t.ultimaVisita != null &&
+                    final frio  = !_state.modoSolitario &&
+                        t.ultimaVisita != null &&
                         DateTime.now().difference(t.ultimaVisita!).inDays >= 7;
                     return Polygon(
                       points: t.puntos,
@@ -2216,8 +2220,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   }).toList(),
                 ),
 
-              // Marcadores de alerta en territorios fríos (7+ días sin visitar)
-              if (territorios.any((t) => t.esMio && t.ultimaVisita != null &&
+              // Marcadores de alerta en territorios fríos — solo modo competitivo
+              if (!_state.modoSolitario &&
+                  territorios.any((t) => t.esMio && t.ultimaVisita != null &&
                   DateTime.now().difference(t.ultimaVisita!).inDays >= 7))
                 MarkerLayer(
                   markers: territorios.where((t) => t.esMio &&

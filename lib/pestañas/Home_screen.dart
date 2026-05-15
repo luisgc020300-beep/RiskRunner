@@ -184,6 +184,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _tabIndex = 0;
   late PageController _pageController;
 
+  // ── Header colapsable
+  bool _headerCollapsed = false;
+
   StreamSubscription<User?>? _authListener;
 
   // ── Animaciones
@@ -1221,37 +1224,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       appBar: _buildAppBar(),
       body: isLoading
           ? _buildLoadingState()
-          : Column(children: [
-              FadeTransition(opacity: _fadeA, child: _buildLargeTitle()),
-              FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
-              FadeTransition(opacity: _fadeA, child: _buildTabBar()),
-              Expanded(
-                child: SlideTransition(
-                  position: _slideB,
-                  child: FadeTransition(
-                    opacity: _fadeB,
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const BouncingScrollPhysics(),
-                      onPageChanged: (index) {
-                        setState(() => _tabIndex = index);
-                        if (index == 1) _mostrarTooltipRetosIntro();
-                      },
-                      children: [
-                        _buildFeedTab(),
-                        HomeRetosTab(
-                          completedChallenges: _completedChallengesCache,
-                          loadingChallenges: _loadingChallenges,
-                          dailyChallenges: _dailyChallenges,
-                          timeUntilReset: _timeUntilReset,
-                          onConfirmarReto: _confirmarInicioReto,
-                        ),
-                      ],
+          : NotificationListener<ScrollUpdateNotification>(
+              onNotification: (notif) {
+                if (notif.metrics.axis == Axis.vertical) {
+                  final collapsed = notif.metrics.pixels > 60;
+                  if (collapsed != _headerCollapsed) {
+                    setState(() => _headerCollapsed = collapsed);
+                  }
+                }
+                return false;
+              },
+              child: Column(children: [
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: _headerCollapsed
+                      ? const SizedBox.shrink()
+                      : FadeTransition(opacity: _fadeA, child: _buildLargeTitle()),
+                ),
+                FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
+                FadeTransition(opacity: _fadeA, child: _buildTabBar()),
+                Expanded(
+                  child: SlideTransition(
+                    position: _slideB,
+                    child: FadeTransition(
+                      opacity: _fadeB,
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const BouncingScrollPhysics(),
+                        onPageChanged: (index) {
+                          setState(() => _tabIndex = index);
+                          if (index == 1) _mostrarTooltipRetosIntro();
+                        },
+                        children: [
+                          _buildFeedTab(),
+                          HomeRetosTab(
+                            completedChallenges: _completedChallengesCache,
+                            loadingChallenges: _loadingChallenges,
+                            dailyChallenges: _dailyChallenges,
+                            timeUntilReset: _timeUntilReset,
+                            onConfirmarReto: _confirmarInicioReto,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ]),
+              ]),
+            ),
       bottomNavigationBar: const CustomBottomNavbar(currentIndex: 0),
     );
   }
@@ -1284,20 +1304,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xF0F2F2F7),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      leadingWidth: 52,
-      leading: GestureDetector(
-        onTap: () => SettingsScreen.mostrar(context),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Icon(Icons.settings_outlined, color: _T.dim, size: 20),
-        ),
-      ),
       actions: [
         GestureDetector(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const NotificationsScreen())),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Stack(alignment: Alignment.center, children: [
               Icon(Icons.notifications_outlined, color: _T.dim, size: 22),
               if (_notifNoLeidas > 0)
@@ -1309,7 +1321,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ]),
           ),
         ),
-        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: () => SettingsScreen.mostrar(context),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, right: 16),
+            child: Icon(Icons.settings_outlined, color: _T.dim, size: 20),
+          ),
+        ),
       ],
     );
   }
