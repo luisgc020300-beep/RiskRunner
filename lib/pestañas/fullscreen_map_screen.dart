@@ -1982,15 +1982,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.045; // ~5 km
+      const delta = 0.12; // ~13 km — cubre toda el área metropolitana
 
+      // Overpass bbox format: sur,oeste,norte,este
       final bbox = '${lat - delta},${lng - delta},${lat + delta},${lng + delta}';
-      final query = '[out:json][timeout:25];'
+      final query = '[out:json][timeout:40];'
           '('
-          '  way["place"~"suburb|neighbourhood|quarter|city_block"]($bbox);'
+          // Municipios (admin_level=8 en España) — los pueblos que componen la ciudad
+          '  relation["boundary"="administrative"]["admin_level"="8"]($bbox);'
+          // Distritos y barrios administrativos
+          '  relation["boundary"="administrative"]["admin_level"~"^(9|10)\$"]($bbox);'
+          // Barrios por etiqueta place
           '  relation["place"~"suburb|neighbourhood|quarter"]($bbox);'
-          '  relation["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
-          '  way["boundary"="administrative"]["admin_level"~"^(9|10|11)\$"]($bbox);'
+          '  way["place"~"suburb|neighbourhood|quarter"]($bbox);'
           ');'
           'out geom;';
       final response = await http.post(
@@ -2044,8 +2048,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         if (puntos.length < 4) continue;
         final area = TerritoryService.calcularAreaM2(puntos);
-        if (area < 10000) continue;   // muy pequeño (< 0.01 km²)
-        if (area > 8000000) continue; // demasiado grande (> 8 km²) = municipio/provincia
+        if (area < 10000) continue;       // < 0.01 km² — artefacto
+        if (area > 300000000) continue;   // > 300 km² — provincia/región
 
         // Calcular % cubierto con territorios propios
         final misTers = _state.territorios.where((t) => t.esMio).toList();
