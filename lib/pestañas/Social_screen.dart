@@ -399,33 +399,51 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       });
   }
 
+  Widget _rankingPill(String label, IconData icon, String modo, Color color) {
+    final isActive = _rankingModo == modo;
+    return GestureDetector(
+      onTap: isActive ? null : () => setState(() { _rankingModo = modo; _ligaSeleccionada = null; }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? color.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isActive ? color.withValues(alpha: 0.55) : _p.line2,
+            width: 1,
+          ),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 12, color: isActive ? color : _p.dim),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(
+            fontFamily: 'Rajdhani', fontSize: 12,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? color : _p.dim,
+            letterSpacing: 0.8,
+          )),
+        ]),
+      ),
+    );
+  }
+
   // ═══════════════════════════ RANKING TAB ══════════════════════════════════════
   Widget _buildRankingTab() {
     final ligaInfo = LeagueHelper.getLeague(_misPuntosLiga);
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: _p.surface, border: Border.all(color: _p.line2),
-            borderRadius: BorderRadius.circular(10)),
-          child: Row(children: [
-            SocialToggleBtn(
-              label: 'COMPETITIVO', icon: Icons.leaderboard_rounded,
-              active: _rankingModo == 'competitivo', activeColor: const Color(0xFF0A84FF),
-              onTap: () => setState(() { _rankingModo = 'competitivo'; _ligaSeleccionada = null; })),
-            Container(width: 1, height: 22, color: _p.line2),
-            SocialToggleBtn(
-              label: 'SEMANAL', icon: Icons.public_rounded,
-              active: _rankingModo == 'semanal', activeColor: const Color(0xFFFFD700),
-              onTap: () => setState(() { _rankingModo = 'semanal'; _ligaSeleccionada = null; })),
-            Container(width: 1, height: 22, color: _p.line2),
-            SocialToggleBtn(
-              label: 'RUTAS', icon: Icons.route_rounded,
-              active: _rankingModo == 'rutas', activeColor: const Color(0xFFAF52DE),
-              onTap: () => setState(() { _rankingModo = 'rutas'; _ligaSeleccionada = null; })),
-          ]))),
+        child: Row(children: [
+          _rankingPill('COMPETITIVO', Icons.leaderboard_rounded,
+              'competitivo', const Color(0xFF0A84FF)),
+          const SizedBox(width: 8),
+          _rankingPill('SEMANAL', Icons.public_rounded,
+              'semanal', const Color(0xFFFFD700)),
+          const SizedBox(width: 8),
+          _rankingPill('RUTAS', Icons.route_rounded,
+              'rutas', const Color(0xFFAF52DE)),
+        ])),
       if (_rankingModo == 'competitivo') ...[
         if (_ligaSeleccionada != null) _buildBotonVolver(),
         Expanded(child: RefreshIndicator(

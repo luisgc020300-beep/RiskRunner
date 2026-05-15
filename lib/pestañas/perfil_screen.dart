@@ -1210,22 +1210,23 @@ class _PerfilScreenState extends State<PerfilScreen>
   //  TAB BAR â€” con 4 tabs incluyendo DUELOS
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildTabBar() {
+    const tabColors = [
+      Color(0xFF0A84FF),  // STATS     — azul
+      Color(0xFFCC7C3A),  // HISTORIAL — bronce
+      Color(0xFF34C759),  // POSTS     — verde
+      _kAccent,           // DUELOS    — rojo
+    ];
     final tabs = [
-      (Icons.bar_chart_rounded,    'STATS',     false),
-      (Icons.shield_outlined,      'HISTORIAL', false),
-      (Icons.grid_on_rounded,      'POSTS',     false),
-      (Icons.sports_mma_rounded,   'DUELOS',    _desafiosActivosCount > 0),
+      (Icons.bar_chart_rounded,  'STATS',     false),
+      (Icons.shield_outlined,    'HISTORIAL', false),
+      (Icons.grid_on_rounded,    'POSTS',     false),
+      (Icons.sports_mma_rounded, 'DUELOS',    _desafiosActivosCount > 0),
     ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        height: 42,
-        decoration: BoxDecoration(
-          color: _p.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _p.border2),
-        ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
         child: Row(
           children: tabs.asMap().entries.map((e) {
             final i      = e.key;
@@ -1233,45 +1234,42 @@ class _PerfilScreenState extends State<PerfilScreen>
             final label  = e.value.$2;
             final badge  = e.value.$3;
             final active = _tabPrincipal == i;
+            final color  = tabColors[i];
 
-            return Expanded(
+            return Padding(
+              padding: EdgeInsets.only(right: i < tabs.length - 1 ? 8 : 0),
               child: GestureDetector(
                 onTap: () => setState(() => _tabPrincipal = i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.all(3),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: active ? _p.surface2 : Colors.transparent,
-                    borderRadius: BorderRadius.circular(7),
-                    border: active ? Border.all(color: _p.border2) : null,
+                    color: active ? color.withValues(alpha: 0.12) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: active ? color.withValues(alpha: 0.55) : _p.border2,
+                      width: 1,
+                    ),
                   ),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Center(
-                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Icon(icon, size: 12,
-                              color: active ? _kAccent : _p.dim),
-                          const SizedBox(width: 4),
-                          Text(label,
-                              style: _rajdhani(9,
-                                  active ? FontWeight.w700 : FontWeight.w500,
-                                  active ? _p.title : _p.dim,
-                                  spacing: 1)),
-                        ]),
-                      ),
-                      // Badge de duelos activos
-                      if (badge)
-                        Positioned(
-                          top: -2, right: 2,
-                          child: Container(
-                            width: 7, height: 7,
-                            decoration: const BoxDecoration(
-                                color: _kAccent, shape: BoxShape.circle),
-                          ),
+                  child: Stack(clipBehavior: Clip.none, children: [
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(icon, size: 12, color: active ? color : _p.dim),
+                      const SizedBox(width: 4),
+                      Text(label, style: _rajdhani(11,
+                          active ? FontWeight.w700 : FontWeight.w500,
+                          active ? color : _p.dim,
+                          spacing: 0.8)),
+                    ]),
+                    if (badge)
+                      Positioned(
+                        top: -4, right: -6,
+                        child: Container(
+                          width: 7, height: 7,
+                          decoration: const BoxDecoration(
+                              color: _kAccent, shape: BoxShape.circle),
                         ),
-                    ],
-                  ),
+                      ),
+                  ]),
                 ),
               ),
             );

@@ -1795,162 +1795,113 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final isGlobal    = _state.modoGlobal;
     final isRutas     = _state.modoRutas;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
+    Widget pill({
+      required String label,
+      required IconData icon,
+      required bool isActive,
+      required Color color,
+      required VoidCallback? onTap,
+      Widget? extra,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            color: _kBg.withValues(alpha: 0.82),
-            border: Border.all(color: _kBorder2),
-            borderRadius: BorderRadius.circular(8),
+            color: isActive ? color.withValues(alpha: 0.18) : _kBg.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isActive ? color.withValues(alpha: 0.6) : _kBorder2,
+              width: 1,
+            ),
           ),
-          child: Row(children: [
-
-            // ── MI CIUDAD ─────────────────────────────────────────────────
-            Expanded(child: GestureDetector(
-              onTap: isCiudad ? null : () async {
-                if (isGlobal) _toggleModo();           // global → ciudad
-                if (isSolitario) {
-                  _state.setModoSolitario(false);
-                  await _cargarTerritorios();
-                }
-                // FIX: volver al zoom inicial de ciudad
-                _mapController.move(_state.centro, _kInitialZoom);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isCiudad
-                      ? _kRed.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(7)),
-                  border: isCiudad
-                      ? Border.all(color: _kRed.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.location_on_rounded,
-                      color: isCiudad ? _kBlue : _kSub, size: 13),
-                  const SizedBox(width: 5),
-                  Text('COMPETITIVO',
-                      style: _raj(9, FontWeight.w900,
-                          isCiudad ? _kWhite : _kSub, spacing: 1.0)),
-                ]),
-              ),
-            )),
-
-            Container(width: 1, height: 30, color: _kBorder2),
-
-            // ── SOLITARIO ─────────────────────────────────────────────────
-            Expanded(child: GestureDetector(
-              onTap: isSolitario ? null : () async {
-                if (isGlobal) _toggleModo();           // global → ciudad primero
-                await _activarModoSolitario();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isSolitario
-                      ? _kSafe.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  border: isSolitario
-                      ? Border.all(color: _kSafe.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.explore_rounded,
-                      size: 12, color: isSolitario ? _kSafe : _kSub),
-                  const SizedBox(width: 5),
-                  Text('SOLITARIO',
-                      style: _raj(9, FontWeight.w900,
-                          isSolitario ? _kSafe : _kSub, spacing: 1.0)),
-                ]),
-              ),
-            )),
-
-            Container(width: 1, height: 30, color: _kBorder2),
-
-            // ── GUERRA GLOBAL ─────────────────────────────────────────────
-            Expanded(child: GestureDetector(
-              onTap: isGlobal ? null : () {
-                if (isSolitario) _state.setModoSolitario(false);
-                if (isRutas)    _state.setModoRutas(false);
-                _toggleModo();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isGlobal
-                      ? _kGold.withValues(alpha: 0.12)
-                      : Colors.transparent,
-                  border: isGlobal
-                      ? Border.all(color: _kGold.withValues(alpha: 0.4))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.public_rounded,
-                      size: 12, color: isGlobal ? _kGoldLight : _kSub),
-                  const SizedBox(width: 5),
-                  Text('GLOBAL',
-                      style: _raj(9, FontWeight.w900,
-                          isGlobal ? _kGoldLight : _kSub, spacing: 1.0)),
-                  if (isGlobal && _state.territoriosMios > 0) ...[
-                    const SizedBox(width: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: _kGold.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text('${_state.territoriosMios}/5',
-                          style: _raj(8, FontWeight.w900, _kGold)),
-                    ),
-                  ],
-                ]),
-              ),
-            )),
-
-            Container(width: 1, height: 30, color: _kBorder2),
-
-            // ── RUTAS ─────────────────────────────────────────────────────
-            Expanded(child: GestureDetector(
-              onTap: isRutas ? null : () async {
-                if (isGlobal)    _toggleModo();
-                if (isSolitario) _state.setModoSolitario(false);
-                await _activarModoRutas();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: isRutas
-                      ? const Color(0xFF6A4A9B).withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(7)),
-                  border: isRutas
-                      ? Border.all(color: const Color(0xFF6A4A9B).withValues(alpha: 0.5))
-                      : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.route_rounded,
-                      size: 12,
-                      color: isRutas ? const Color(0xFF9B72CF) : _kSub),
-                  const SizedBox(width: 5),
-                  Text('RUTAS',
-                      style: _raj(9, FontWeight.w900,
-                          isRutas ? const Color(0xFF9B72CF) : _kSub,
-                          spacing: 1.0)),
-                ]),
-              ),
-            )),
-
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 11, color: isActive ? color : _kSub),
+            const SizedBox(width: 4),
+            Text(label, style: _raj(9, FontWeight.w900,
+                isActive ? color : _kSub, spacing: 0.8)),
+            if (extra != null) ...[const SizedBox(width: 4), extra],
           ]),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: _kBg.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              pill(
+                label: 'COMPETITIVO',
+                icon: Icons.location_on_rounded,
+                isActive: isCiudad,
+                color: _kBlue,
+                onTap: isCiudad ? null : () async {
+                  if (isGlobal) _toggleModo();
+                  if (isSolitario) {
+                    _state.setModoSolitario(false);
+                    await _cargarTerritorios();
+                  }
+                  _mapController.move(_state.centro, _kInitialZoom);
+                },
+              ),
+              const SizedBox(width: 5),
+              pill(
+                label: 'SOLITARIO',
+                icon: Icons.explore_rounded,
+                isActive: isSolitario,
+                color: _kSafe,
+                onTap: isSolitario ? null : () async {
+                  if (isGlobal) _toggleModo();
+                  await _activarModoSolitario();
+                },
+              ),
+              const SizedBox(width: 5),
+              pill(
+                label: 'GLOBAL',
+                icon: Icons.public_rounded,
+                isActive: isGlobal,
+                color: _kGoldLight,
+                onTap: isGlobal ? null : () {
+                  if (isSolitario) _state.setModoSolitario(false);
+                  if (isRutas) _state.setModoRutas(false);
+                  _toggleModo();
+                },
+                extra: isGlobal && _state.territoriosMios > 0
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: _kGold.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('${_state.territoriosMios}/5',
+                            style: _raj(8, FontWeight.w900, _kGold)),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 5),
+              pill(
+                label: 'RUTAS',
+                icon: Icons.route_rounded,
+                isActive: isRutas,
+                color: const Color(0xFF9B72CF),
+                onTap: isRutas ? null : () async {
+                  if (isGlobal) _toggleModo();
+                  if (isSolitario) _state.setModoSolitario(false);
+                  await _activarModoRutas();
+                },
+              ),
+            ]),
+          ),
         ),
       ),
     );
