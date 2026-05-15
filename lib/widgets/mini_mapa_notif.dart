@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -34,7 +34,7 @@ class MiniMapaNotif extends StatelessWidget {
             Polygon(
               points: puntos,
               // El relleno se aplica automáticamente al poner un color aquí
-              color: color.withOpacity(0.3), 
+              color: color.withValues(alpha: 0.3), 
               borderStrokeWidth: 3,
               borderColor: color,
               // isFilled: true, <-- ESTA LÍNEA SOBRA Y DA ERROR

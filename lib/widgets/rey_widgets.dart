@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/zona_service.dart';
 
-const _kBg      = Color(0xFF030303);
 const _kSurface = Color(0xFF0C0C0C);
 const _kSurface2= Color(0xFF101010);
 const _kBorder  = Color(0xFF161616);
@@ -12,8 +11,6 @@ const _kMuted   = Color(0xFF333333);
 const _kDim     = Color(0xFF4A4A4A);
 const _kSubtext = Color(0xFF666666);
 const _kText    = Color(0xFFB0B0B0);
-const _kWhite   = Color(0xFFEEEEEE);
-const _kAccent  = Color(0xFFCC2222);
 const _kGold    = Color(0xFFD4A017);
 const _kGoldDim = Color(0xFF8B6914);
 
@@ -258,10 +255,6 @@ class _TituloCard extends StatelessWidget {
     final bgColor = activo
         ? _kGold.withValues(alpha: 0.06)
         : _kSurface2;
-    final borderColor = activo
-        ? _kGold.withValues(alpha: 0.30)
-        : _kBorder2;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

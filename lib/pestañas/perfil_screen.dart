@@ -23,7 +23,6 @@ import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
 import '../config/env.dart';
 import '../services/zona_service.dart';
-import '../services/desafios_service.dart';
 import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
 import '../services/route_service.dart';
@@ -39,7 +38,6 @@ const _kMapboxTileUrl =
 typedef _PP = PerfilPalette;
 const _kAccent = kPerfilAccent;
 const _kGold   = kPerfilGold;
-const _KMorado = kPerfilMorado;
 TextStyle _rajdhani(double size, FontWeight w, Color c,
     {double spacing = 0, double? height, List<Shadow>? shadows}) =>
   perfilStyle(size, w, c, spacing: spacing, height: height, shadows: shadows);
@@ -1920,7 +1918,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           ),
         ),
         Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.15), Colors.black.withValues(alpha: 0.60)]))),
-        AnimatedBuilder(animation: Listenable.merge([_loopAnim, _scanAnim]), builder: (_, __) => CustomPaint(painter: _DossierBgPainter(accent: _kAccent, pulse: _pulse.value, scan: _scan.value))),
+        CustomPaint(painter: _DossierBgPainter(accent: _kAccent)),
         Align(alignment: Alignment.bottomCenter, child: Container(height: h * 0.22, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, _p.bg])))),
         Positioned(bottom: 0, left: 0, right: 0,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -2004,41 +2002,59 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildAvatar() {
-    return AnimatedBuilder(
-      animation: _loopAnim,
-      builder: (_, __) => Stack(alignment: Alignment.center, children: [
-        Container(width: 96, height: 96, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _p.border2, width: 1))),
-        GestureDetector(
-          onTap: isOwnProfile ? _seleccionarFoto : null,
-          child: Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: _p.surface2, border: Border.all(color: _kAccent, width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.0), blurRadius: 0), BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 0, spreadRadius: 2)]),
-            child: isUploadingPhoto
-                ? Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
-                : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 80, height: 80, gaplessPlayback: false) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
-          ),
-        ),
-        if (isOwnProfile)
-          Positioned(
-            bottom: 4, right: 4,
-            child: GestureDetector(
-              onTap: _abrirCustomizador,
-              child: Container(
-                width: 24, height: 24,
-                decoration: BoxDecoration(
-                  color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _p.bg, width: 2),
-                ),
-                child: Center(
-                  child: _titulosActivos.isNotEmpty
-                      ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 11)
-                      : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
-                ),
-              ),
+    // El radar se dibuja en un área 360×360 centrada en la foto,
+    // OverflowBox mantiene el layout en 96×96 para no alterar la columna.
+    return SizedBox(
+      width: 96, height: 96,
+      child: OverflowBox(
+        minWidth: 0, maxWidth: 360, minHeight: 0, maxHeight: 360,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_loopAnim, _scanAnim]),
+          builder: (_, __) => Stack(alignment: Alignment.center, children: [
+            CustomPaint(
+              size: const Size(360, 360),
+              painter: _AvatarRadarPainter(
+                accent: _kAccent, pulse: _pulse.value, scan: _scan.value),
             ),
-          ),
-      ]),
+            SizedBox(
+              width: 96, height: 96,
+              child: Stack(alignment: Alignment.center, children: [
+                Container(width: 96, height: 96, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _p.border2, width: 1))),
+                GestureDetector(
+                  onTap: isOwnProfile ? _seleccionarFoto : null,
+                  child: Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: _p.surface2, border: Border.all(color: _kAccent, width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.0), blurRadius: 0), BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 0, spreadRadius: 2)]),
+                    child: isUploadingPhoto
+                        ? Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
+                        : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 80, height: 80, gaplessPlayback: false) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
+                  ),
+                ),
+                if (isOwnProfile)
+                  Positioned(
+                    bottom: 4, right: 4,
+                    child: GestureDetector(
+                      onTap: _abrirCustomizador,
+                      child: Container(
+                        width: 24, height: 24,
+                        decoration: BoxDecoration(
+                          color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: _p.bg, width: 2),
+                        ),
+                        child: Center(
+                          child: _titulosActivos.isNotEmpty
+                              ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 11)
+                              : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
+                        ),
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -2689,19 +2705,10 @@ class _Panel extends StatelessWidget {
 }
 
 class _DossierBgPainter extends CustomPainter {
-  final Color accent; final double pulse, scan;
-  _DossierBgPainter({required this.accent, required this.pulse, required this.scan});
+  final Color accent;
+  const _DossierBgPainter({required this.accent});
   @override
   void paint(Canvas canvas, Size size) {
-    final cx = size.width * 0.5, cy = size.height * 0.45;
-    for (int i = 1; i <= 5; i++) { canvas.drawCircle(Offset(cx, cy), i * 36.0, Paint()..color = accent.withValues(alpha: 0.012)..strokeWidth = 0.6..style = PaintingStyle.stroke); }
-    canvas.drawLine(Offset(cx - 180, cy), Offset(cx + 180, cy), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
-    canvas.drawLine(Offset(cx, cy - 180), Offset(cx, cy + 180), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
-    final sweepAngle = scan * 2 * math.pi;
-    final sweepRect  = Rect.fromCircle(center: Offset(cx, cy), radius: 180);
-    canvas.drawArc(sweepRect, sweepAngle - 0.7, 0.7, true, Paint()..shader = RadialGradient(colors: [accent.withValues(alpha: 0.05), Colors.transparent]).createShader(sweepRect)..style = PaintingStyle.fill);
-    canvas.drawLine(Offset(cx, cy), Offset(cx + 178 * math.cos(sweepAngle), cy + 178 * math.sin(sweepAngle)), Paint()..color = accent.withValues(alpha: 0.09)..strokeWidth = 0.8);
-    canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = accent.withValues(alpha: 0.28));
     canvas.drawLine(Offset(0, size.height * 0.62), Offset(size.width, size.height * 0.62), Paint()..color = accent.withValues(alpha: 0.04)..strokeWidth = 0.8);
     for (int i = 0; i < 6; i++) {
       final y = 60.0 + i * 24;
@@ -2710,7 +2717,29 @@ class _DossierBgPainter extends CustomPainter {
     }
   }
   @override
-  bool shouldRepaint(_DossierBgPainter o) => o.pulse != pulse || o.scan != scan || o.accent != accent;
+  bool shouldRepaint(_DossierBgPainter o) => o.accent != accent;
+}
+
+class _AvatarRadarPainter extends CustomPainter {
+  final Color accent;
+  final double pulse, scan;
+  const _AvatarRadarPainter({required this.accent, required this.pulse, required this.scan});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2, cy = size.height / 2;
+    for (int i = 1; i <= 5; i++) {
+      canvas.drawCircle(Offset(cx, cy), i * 36.0, Paint()..color = accent.withValues(alpha: 0.012)..strokeWidth = 0.6..style = PaintingStyle.stroke);
+    }
+    canvas.drawLine(Offset(cx - 180, cy), Offset(cx + 180, cy), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
+    canvas.drawLine(Offset(cx, cy - 180), Offset(cx, cy + 180), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
+    final sweepAngle = scan * 2 * math.pi;
+    final sweepRect  = Rect.fromCircle(center: Offset(cx, cy), radius: 180);
+    canvas.drawArc(sweepRect, sweepAngle - 0.7, 0.7, true, Paint()..shader = RadialGradient(colors: [accent.withValues(alpha: 0.05), Colors.transparent]).createShader(sweepRect)..style = PaintingStyle.fill);
+    canvas.drawLine(Offset(cx, cy), Offset(cx + 178 * math.cos(sweepAngle), cy + 178 * math.sin(sweepAngle)), Paint()..color = accent.withValues(alpha: 0.09)..strokeWidth = 0.8);
+    canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = accent.withValues(alpha: 0.28));
+  }
+  @override
+  bool shouldRepaint(_AvatarRadarPainter o) => o.pulse != pulse || o.scan != scan || o.accent != accent;
 }
 
 class _RachaGaugePainter extends CustomPainter {

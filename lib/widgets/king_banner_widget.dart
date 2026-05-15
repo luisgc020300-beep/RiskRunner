@@ -18,9 +18,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/territory_service.dart';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
-const _kBg        = Color(0xFF090807);
-const _kSurface   = Color(0xFF0F0D0A);
-const _kBorder    = Color(0xFF2A2218);
 const _kGold      = Color(0xFFD4A84C);
 const _kGoldLight = Color(0xFFEDD98A);
 const _kGoldDim   = Color(0xFF7A5E28);

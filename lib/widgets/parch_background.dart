@@ -1,4 +1,4 @@
-// lib/Widgets/parch_background.dart
+﻿// lib/Widgets/parch_background.dart
 //
 // Uso:
 //   import '../Widgets/parch_background.dart';
@@ -53,7 +53,7 @@ class ParchBackground extends StatelessWidget {
                 center: const Alignment(0.2, -0.5),
                 radius: 1.2,
                 colors: [
-                  accentColor.withOpacity(0.04),
+                  accentColor.withValues(alpha: 0.04),
                   Colors.transparent,
                 ],
               ),
@@ -204,7 +204,7 @@ class _HexPainter extends CustomPainter {
 
     // Solo borde, sin relleno — muy tenue
     final paint = Paint()
-      ..color = color.withOpacity(0.06)
+      ..color = color.withValues(alpha: 0.06)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -225,7 +225,7 @@ class _HexPainter extends CustomPainter {
     }
     path2.close();
 
-    paint.color = color.withOpacity(0.04);
+    paint.color = color.withValues(alpha: 0.04);
     canvas.drawPath(path2, paint);
   }
 

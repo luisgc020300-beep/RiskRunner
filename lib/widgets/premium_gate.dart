@@ -1,4 +1,4 @@
-// lib/widgets/premium_gate.dart
+﻿// lib/widgets/premium_gate.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — PremiumGate
@@ -104,10 +104,10 @@ class _LockedOverlay extends StatelessWidget {
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF090807).withOpacity(0.7),
+              color: const Color(0xFF090807).withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: const Color(0xFFCAAA6C).withOpacity(0.3),
+                color: const Color(0xFFCAAA6C).withValues(alpha: 0.3),
               ),
             ),
             child: Column(
@@ -116,10 +116,10 @@ class _LockedOverlay extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCC7C3A).withOpacity(0.15),
+                    color: const Color(0xFFCC7C3A).withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFCC7C3A).withOpacity(0.4),
+                      color: const Color(0xFFCC7C3A).withValues(alpha: 0.4),
                     ),
                   ),
                   child: const Icon(Icons.lock_rounded,
@@ -138,7 +138,7 @@ class _LockedOverlay extends StatelessWidget {
                 Text(
                   'Toca para desbloquear',
                   style: TextStyle(
-                    color: const Color(0xFFCAAA6C).withOpacity(0.7),
+                    color: const Color(0xFFCAAA6C).withValues(alpha: 0.7),
                     fontSize: 11,
                   ),
                 ),
@@ -217,7 +217,7 @@ class PremiumBanner extends StatelessWidget {
             end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFCC7C3A).withOpacity(0.4)),
+          border: Border.all(color: const Color(0xFFCC7C3A).withValues(alpha: 0.4)),
         ),
         child: Row(children: [
           const Text('', style: TextStyle(fontSize: 18)),

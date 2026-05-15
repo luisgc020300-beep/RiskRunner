@@ -352,12 +352,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 9, letterSpacing: 1.5),
     dividerColor: Colors.transparent,
     tabs: [
-      const Tab(icon: Icon(Icons.emoji_events_rounded, size: 13), text: 'LIGAS', iconMargin: EdgeInsets.only(bottom: 2)),
-      const Tab(icon: Icon(Icons.person_2_rounded, size: 13), text: 'AMIGOS', iconMargin: EdgeInsets.only(bottom: 2)),
+      const Tab(icon: Icon(Icons.emoji_events_outlined, size: 13), text: 'LIGAS', iconMargin: EdgeInsets.only(bottom: 2)),
+      const Tab(icon: Icon(Icons.people_outline, size: 13), text: 'AMIGOS', iconMargin: EdgeInsets.only(bottom: 2)),
       Tab(
         iconMargin: const EdgeInsets.only(bottom: 2),
         icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.chat_bubble_rounded, size: 13),
+          const Icon(Icons.chat_bubble_outline_rounded, size: 13),
           if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 3), SocialPulseBadge(count: _mensajesNoLeidos, color: kSocAccent)],
         ]),
         text: 'CHAT',
@@ -365,12 +365,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       Tab(
         iconMargin: const EdgeInsets.only(bottom: 2),
         icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.person_add_rounded, size: 13),
+          const Icon(Icons.person_add_outlined, size: 13),
           if (_solicitudesPendientes > 0) ...[const SizedBox(width: 3), SocialPulseBadge(count: _solicitudesPendientes, color: kSocAccent)],
         ]),
         text: 'SOLICITUDES',
       ),
-      const Tab(icon: Icon(Icons.shield_rounded, size: 13), text: 'CLUB', iconMargin: EdgeInsets.only(bottom: 2)),
+      const Tab(icon: Icon(Icons.groups_outlined, size: 13), text: 'CLUB', iconMargin: EdgeInsets.only(bottom: 2)),
     ]);
   }
 
@@ -412,7 +412,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             borderRadius: BorderRadius.circular(10)),
           child: Row(children: [
             SocialToggleBtn(
-              label: 'COMPETITIVO', icon: Icons.emoji_events_rounded,
+              label: 'COMPETITIVO', icon: Icons.leaderboard_rounded,
               active: _rankingModo == 'competitivo', activeColor: const Color(0xFF0A84FF),
               onTap: () => setState(() { _rankingModo = 'competitivo'; _ligaSeleccionada = null; })),
             Container(width: 1, height: 22, color: _p.line2),

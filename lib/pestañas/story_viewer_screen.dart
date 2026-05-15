@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -354,7 +354,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           child: _group.avatarBase64 != null
               ? Image.memory(base64Decode(_group.avatarBase64!), fit: BoxFit.cover)
               : Container(
-                  color: _group.color.withOpacity(0.2),
+                  color: _group.color.withValues(alpha: 0.2),
                   child: Center(
                     child: Text(
                       _group.nickname[0].toUpperCase(),
@@ -431,7 +431,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       gradient: RadialGradient(
         center: Alignment.center,
         radius: 1.2,
-        colors: [color.withOpacity(0.25), Colors.black],
+        colors: [color.withValues(alpha: 0.25), Colors.black],
       ),
     ),
   );
@@ -454,7 +454,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           end: Alignment.bottomRight,
           colors: [
             Colors.black,
-            story.userColor.withOpacity(0.15),
+            story.userColor.withValues(alpha: 0.15),
             Colors.black,
           ],
         ),
@@ -471,7 +471,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: story.userColor, width: 2),
-                  color: story.userColor.withOpacity(0.08),
+                  color: story.userColor.withValues(alpha: 0.08),
                 ),
                 child: Icon(Icons.directions_run_rounded,
                     color: story.userColor, size: 34),
@@ -533,8 +533,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: story.userColor.withOpacity(0.10),
-                    border: Border.all(color: story.userColor.withOpacity(0.4)),
+                    color: story.userColor.withValues(alpha: 0.10),
+                    border: Border.all(color: story.userColor.withValues(alpha: 0.4)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -574,8 +574,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.06),
-          border: Border.all(color: color.withOpacity(0.25)),
+          color: color.withValues(alpha: 0.06),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(
@@ -585,7 +585,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               fontSize: big ? 32 : 24,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
-              shadows: [Shadow(color: color.withOpacity(0.4), blurRadius: 12)],
+              shadows: [Shadow(color: color.withValues(alpha: 0.4), blurRadius: 12)],
             ),
           ),
           const SizedBox(height: 4),

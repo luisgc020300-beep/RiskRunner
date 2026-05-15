@@ -3318,6 +3318,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     );
 
     _stopping = false;
+    if (!mounted) return;
 
     Navigator.pushReplacementNamed(context, '/resumen', arguments: {
       'distancia':               distanciaFinal,

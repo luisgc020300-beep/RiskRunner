@@ -1,4 +1,4 @@
-// lib/Pestañas/paywall_screen.dart
+﻿// lib/Pestañas/paywall_screen.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Paywall Premium v2
@@ -398,7 +398,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [BoxShadow(
-                  color: _C.gold.withOpacity(_glow.value * 0.5),
+                  color: _C.gold.withValues(alpha: _glow.value * 0.5),
                   blurRadius: 40, spreadRadius: 10,
                 )],
               ),
@@ -434,9 +434,9 @@ class _PaywallScreenState extends State<PaywallScreen>
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _C.bronze.withOpacity(0.1),
+        color: _C.bronze.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _C.bronze.withOpacity(0.35)),
+        border: Border.all(color: _C.bronze.withValues(alpha: 0.35)),
       ),
       child: Row(children: [
         const Text('', style: TextStyle(fontSize: 18)),
@@ -478,10 +478,10 @@ class _PaywallScreenState extends State<PaywallScreen>
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: sel ? _C.bronze.withOpacity(0.15) : Colors.transparent,
+            color: sel ? _C.bronze.withValues(alpha: 0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             border: sel
-                ? Border.all(color: _C.bronze.withOpacity(0.5))
+                ? Border.all(color: _C.bronze.withValues(alpha: 0.5))
                 : null,
           ),
           child: Text(label,
@@ -559,7 +559,7 @@ class _PaywallScreenState extends State<PaywallScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.15),
+                color: Colors.green.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text('GRATIS',
@@ -768,7 +768,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: sel
-              ? plan.accentColor.withOpacity(0.10)
+              ? plan.accentColor.withValues(alpha: 0.10)
               : _C.bg2,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -777,7 +777,7 @@ class _PaywallScreenState extends State<PaywallScreen>
           ),
           boxShadow: sel
               ? [BoxShadow(
-                  color: plan.accentColor.withOpacity(0.15),
+                  color: plan.accentColor.withValues(alpha: 0.15),
                   blurRadius: 16)]
               : null,
         ),
@@ -815,7 +815,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: sel
-              ? plan.accentColor.withOpacity(0.10)
+              ? plan.accentColor.withValues(alpha: 0.10)
               : _C.bg2,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -824,7 +824,7 @@ class _PaywallScreenState extends State<PaywallScreen>
           ),
           boxShadow: sel
               ? [BoxShadow(
-                  color: plan.accentColor.withOpacity(0.2),
+                  color: plan.accentColor.withValues(alpha: 0.2),
                   blurRadius: 20)]
               : null,
         ),
@@ -876,10 +876,10 @@ class _PaywallScreenState extends State<PaywallScreen>
               padding: const EdgeInsets.symmetric(
                   horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
-                color: plan.accentColor.withOpacity(0.15),
+                color: plan.accentColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: plan.accentColor.withOpacity(0.4)),
+                    color: plan.accentColor.withValues(alpha: 0.4)),
               ),
               child: Text(plan.ahorro!,
                 textAlign: TextAlign.center,
@@ -918,14 +918,14 @@ class _PaywallScreenState extends State<PaywallScreen>
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: sel ? accentColor.withOpacity(0.09) : _C.bg2,
+          color: sel ? accentColor.withValues(alpha: 0.09) : _C.bg2,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
               color: sel ? accentColor : _C.border,
               width: sel ? 2 : 1),
           boxShadow: sel
               ? [BoxShadow(
-                  color: accentColor.withOpacity(0.15), blurRadius: 16)]
+                  color: accentColor.withValues(alpha: 0.15), blurRadius: 16)]
               : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -969,7 +969,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               padding: const EdgeInsets.symmetric(
                   horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.2),
+                color: accentColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(savingText,
@@ -993,9 +993,9 @@ class _PaywallScreenState extends State<PaywallScreen>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
+        color: Colors.red.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
       ),
       child: Row(children: [
         const Icon(Icons.error_outline_rounded,
@@ -1032,7 +1032,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(
-            color: _C.bronze.withOpacity(_glow.value * 0.4),
+            color: _C.bronze.withValues(alpha: _glow.value * 0.4),
             blurRadius: 20, offset: const Offset(0, 6),
           )],
         ),
@@ -1085,7 +1085,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         'La suscripción se renueva automáticamente salvo que la canceles '
         'al menos 24h antes del fin del período actual.',
         style: TextStyle(
-            color: _C.t3.withOpacity(0.6), fontSize: 9, height: 1.4),
+            color: _C.t3.withValues(alpha: 0.6), fontSize: 9, height: 1.4),
         textAlign: TextAlign.center,
       ),
     ]);

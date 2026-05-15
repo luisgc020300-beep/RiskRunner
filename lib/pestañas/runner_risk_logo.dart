@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════════════════
+﻿// ══════════════════════════════════════════════════════════════
 //  runner_risk_logo.dart
 //  Widget reutilizable — reemplaza el Icon(Icons.bolt_rounded)
 //  en login_screen.dart y donde quieras en la app
@@ -19,12 +19,12 @@ class RunnerRiskLogo extends StatelessWidget {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.7),
+            color: Colors.orange.withValues(alpha: 0.7),
             blurRadius: 30,
             spreadRadius: 5,
           ),
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: Colors.orange.withValues(alpha: 0.3),
             blurRadius: 60,
             spreadRadius: 10,
           ),
@@ -70,7 +70,7 @@ class _HexSwordsPainter extends CustomPainter {
 
     // ── 2. BORDE DEL HEXÁGONO ──────────────────────────────────
     final hexBorder = Paint()
-      ..color = Colors.white.withOpacity(0.25)
+      ..color = Colors.white.withValues(alpha: 0.25)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.025;
     canvas.drawPath(hexPath, hexBorder);
@@ -110,7 +110,7 @@ class _HexSwordsPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withValues(alpha: 0.35)
       ..style = PaintingStyle.fill;
 
     final bladeWidth = sw * 0.055;
@@ -136,7 +136,7 @@ class _HexSwordsPainter extends CustomPainter {
     canvas.drawPath(bladePath, bladePaint);
 
     final filoPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..strokeWidth = sw * 0.012
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -161,7 +161,7 @@ class _HexSwordsPainter extends CustomPainter {
     canvas.drawLine(g1, g2, guardPaint);
 
     final guardShadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
+      ..color = Colors.black.withValues(alpha: 0.3)
       ..strokeWidth = guardWidth * 0.4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -178,7 +178,7 @@ class _HexSwordsPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final gripShadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.4)
+      ..color = Colors.black.withValues(alpha: 0.4)
       ..strokeWidth = sw * 0.07
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -198,7 +198,7 @@ class _HexSwordsPainter extends CustomPainter {
     canvas.drawCircle(
       from + Offset(sw * 0.01, sw * 0.01),
       sw * 0.025,
-      Paint()..color = Colors.black.withOpacity(0.25),
+      Paint()..color = Colors.black.withValues(alpha: 0.25),
     );
   }
 

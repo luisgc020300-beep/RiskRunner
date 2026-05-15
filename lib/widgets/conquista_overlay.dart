@@ -1,4 +1,4 @@
-// ══════════════════════════════════════════════════════════════
+﻿// ══════════════════════════════════════════════════════════════
 //  conquista_overlay.dart
 //  Coloca este archivo en: lib/widgets/conquista_overlay.dart
 //
@@ -194,7 +194,7 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
     return FadeTransition(
       opacity: _exitOpacity,
       child: Material(
-        color: Colors.black.withOpacity(0.85),
+        color: Colors.black.withValues(alpha: 0.85),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -209,7 +209,7 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                   height: size.width,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _colorPrimario.withOpacity(_ondaOpacity.value),
+                    color: _colorPrimario.withValues(alpha: _ondaOpacity.value),
                   ),
                 ),
               ),
@@ -229,7 +229,7 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: _colorSecundario
-                            .withOpacity((1.0 - p).clamp(0.0, 0.45)),
+                            .withValues(alpha: (1.0 - p).clamp(0.0, 0.45)),
                         width: 3,
                       ),
                     ),
@@ -245,7 +245,7 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                 child: Container(
                   width: double.infinity,
                   height: double.infinity,
-                  color: Colors.white.withOpacity(_flashOpacity.value),
+                  color: Colors.white.withValues(alpha: _flashOpacity.value),
                 ),
               ),
             ),
@@ -280,13 +280,13 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                         height: 90,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _colorPrimario.withOpacity(0.15),
+                          color: _colorPrimario.withValues(alpha: 0.15),
                           border: Border.all(
-                              color: _colorPrimario.withOpacity(0.6),
+                              color: _colorPrimario.withValues(alpha: 0.6),
                               width: 2.5),
                           boxShadow: [
                             BoxShadow(
-                              color: _colorPrimario.withOpacity(0.5),
+                              color: _colorPrimario.withValues(alpha: 0.5),
                               blurRadius: 40,
                               spreadRadius: 8,
                             ),
@@ -316,10 +316,10 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                           height: 1.1,
                           shadows: [
                             Shadow(
-                                color: _colorPrimario.withOpacity(0.8),
+                                color: _colorPrimario.withValues(alpha: 0.8),
                                 blurRadius: 24),
                             Shadow(
-                                color: _colorPrimario.withOpacity(0.4),
+                                color: _colorPrimario.withValues(alpha: 0.4),
                                 blurRadius: 48),
                           ],
                         ),
@@ -334,10 +334,10 @@ class _ConquistaWidgetState extends State<_ConquistaWidget>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 20, vertical: 8),
                           decoration: BoxDecoration(
-                            color: _colorPrimario.withOpacity(0.12),
+                            color: _colorPrimario.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(
-                                color: _colorPrimario.withOpacity(0.4),
+                                color: _colorPrimario.withValues(alpha: 0.4),
                                 width: 1),
                           ),
                           child: Text(
@@ -447,7 +447,7 @@ class _ParticlePainter extends CustomPainter {
           : (1.0 - ((t - 0.3) / 0.7)).clamp(0.0, 1.0);
 
       final paint = Paint()
-        ..color = p.color.withOpacity(opacity.clamp(0.0, 1.0))
+        ..color = p.color.withValues(alpha: opacity.clamp(0.0, 1.0))
         ..style = PaintingStyle.fill;
 
       final currentSize = p.size * (1.0 - eased * 0.5);

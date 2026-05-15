@@ -1,16 +1,12 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // =============================================================================
 // PALETA (coherente con el resto de la app)
 // =============================================================================
-const _kBg      = Color(0xFF060608);
 const _kSurface = Color(0xFF0D0D10);
 const _kBorder  = Color(0xFF1E1E24);
 const _kRed     = Color(0xFFEF4444);
-const _kRedDim  = Color(0xFF7F1D1D);
 
 // =============================================================================
 // OVERLAY DE AVISO
@@ -24,10 +20,11 @@ class AntiCheatWarningOverlay {
     required String motivo,
   }) async {
     HapticFeedback.heavyImpact();
+    final nav = Navigator.of(context);
     await Future.delayed(const Duration(milliseconds: 150));
     HapticFeedback.heavyImpact();
 
-    final resultado = await Navigator.of(context).push<bool>(
+    final resultado = await nav.push<bool>(
       PageRouteBuilder(
         opaque: false,
         barrierDismissible: false,

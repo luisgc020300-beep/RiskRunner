@@ -612,11 +612,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final nav = Navigator.of(context);
               await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/login', (r) => false);
-              }
+              if (mounted) nav.pushNamedAndRemoveUntil('/login', (r) => false);
             },
             child: Text('Cerrar sesión',
                 style: GoogleFonts.inter(

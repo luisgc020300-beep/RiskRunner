@@ -4,8 +4,6 @@ import 'dart:math' as math;
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/paywall_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/settings_screen.dart';
-import 'package:RiskRunner/services/league_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,7 +22,6 @@ import '../widgets/onboarding_overlay.dart';
 import 'notifications_screen.dart';
 import 'perfil_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
-import '../widgets/conquista_overlay.dart';
 import '../config/env.dart';
 import '../widgets/home/home_theme.dart';
 import '../widgets/home/home_retos_tab.dart';
@@ -571,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _cargarTerritorios() async {
     if (mounted) setState(() => _loadingTerritorios = true);
     try {
-      final lista = await TerritoryService.cargarTodosLosTerritorios();
+      await TerritoryService.cargarTodosLosTerritorios();
       if (mounted) {
         setState(() { _loadingTerritorios = false; });
       }

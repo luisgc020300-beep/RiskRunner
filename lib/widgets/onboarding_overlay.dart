@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kBg      = Color(0xFF060608);
 const _kSurface = Color(0xFF0D0D11);
 const _kBorder  = Color(0xFF1E1E26);
 const _kDim     = Color(0xFF666680);
