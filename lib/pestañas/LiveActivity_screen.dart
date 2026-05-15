@@ -33,6 +33,7 @@ import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
 import '../services/health_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/ranking_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
@@ -556,6 +557,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _pulsoAnim.dispose();
     _globoAnim.dispose();
     _limpiarPresenciaFirestore();
+    WakelockPlus.disable();
     super.dispose();
   }
 
@@ -2696,6 +2698,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               motivo: acResultado.detalle ?? 'Actividad sospechosa detectada',
             );
             if (mounted) {
+              WakelockPlus.disable();
               setState(() {
                 isTracking     = false;
                 isPaused       = false;
@@ -2900,6 +2903,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _stopping = false;
     _stopwatch.reset();
     _stopwatch.start();
+    WakelockPlus.enable();
     _iniciarTimerSesion();
     _timerController.start();
     if (!kIsWeb && _mapboxMap != null && _currentPosition != null) {
@@ -3035,6 +3039,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } else {
       _timerController.start();
       _stopwatch.start();
+      WakelockPlus.enable();
       _bounceAnim.repeat(reverse: true);
       _positionStream?.cancel();
       _positionStream = _crearStreamGPS();
@@ -3070,6 +3075,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (distanciaFinal < 0.2) {
       _stopping = false;
+      WakelockPlus.disable();
       if (!mounted) return;
       setState(() {
         isTracking          = false;
