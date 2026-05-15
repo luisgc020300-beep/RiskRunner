@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
@@ -31,7 +31,7 @@ import '../widgets/home/home_retos_tab.dart';
 // =============================================================================
 const _kMapboxToken = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 typedef _TColors = HomePalette;
 
@@ -135,10 +135,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
-  // Paleta dinámica — se actualiza al inicio de cada build()
+  // Paleta dinÃ¡mica â€” se actualiza al inicio de cada build()
   _TColors _T = _TColors.light;
 
-  // ── Perfil
+  // â”€â”€ Perfil
   Position? _currentPosition;
   String nickname = "Cargando...";
   int monedas = 0;
@@ -148,48 +148,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Color _accentColor = _TColors.light.bronze;
 
-  // ── Amigos / Stories
+  // â”€â”€ Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
   bool _amigosLoaded = false;
   bool _storiesLoaded = false;
   Map<String, List<StoryModel>> _storiesPorAmigo = {};
   List<StoryModel> _misHistorias = [];
 
-  // ── Retos
+  // â”€â”€ Retos
   List<QueryDocumentSnapshot> _dailyChallenges = [];
   bool _loadingChallenges = true;
   List<Map<String, dynamic>> _completedChallengesCache = [];
   Timer? _dailyResetTimer;
   final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
-  // ── Mapa
+  // â”€â”€ Mapa
   bool _loadingTerritorios = true;
   StreamSubscription<QuerySnapshot>? _invasionListener;
 
-  // ── Territorios cercanos
+  // â”€â”€ Territorios cercanos
   final Map<String, List<_TerritoryDetail>> _detallesPorUser = {};
 
-  // ── Notificaciones
+  // â”€â”€ Notificaciones
   int _notifNoLeidas = 0;
   StreamSubscription<QuerySnapshot>? _notifCountListener;
 
-  // ── Feed
+  // â”€â”€ Feed
   List<FeedPost> _feedPosts = [];
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
   // Cache de avatares actuales por userId (evita mostrar fotos desactualizadas)
   final Map<String, String?> _avatarCache = {};
 
-  // ── Tab activa
+  // â”€â”€ Tab activa
   int _tabIndex = 0;
   late PageController _pageController;
 
-  // ── Header colapsable
+  // â”€â”€ Header colapsable
   bool _headerCollapsed = false;
 
   StreamSubscription<User?>? _authListener;
 
-  // ── Animaciones
+  // â”€â”€ Animaciones
   late AnimationController _entradaCtrl;
   late AnimationController _loopCtrl;
   late AnimationController _scanCtrl;
@@ -271,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // ── Notificaciones
+  // â”€â”€ Notificaciones
   void _escucharConteoNotificaciones() {
     if (userId == null) return;
     _notifCountListener?.cancel();
@@ -285,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  // ── Feed
+  // â”€â”€ Feed
   void _escucharFeed() {
     if (userId == null) return;
     if (mounted) setState(() => _loadingFeed = true);
@@ -332,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             .get();
         if (!mounted) return;
         final fetched = {for (final d in snap.docs) d.id: d.data()['foto_base64'] as String?};
-        // Marcar como null los ids que no devolvió Firestore
+        // Marcar como null los ids que no devolviÃ³ Firestore
         final missing = {for (final id in chunk) id: null as String?};
         setState(() => _avatarCache.addAll({...missing, ...fetched}));
       } catch (e) {
@@ -374,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ── TEMPORAL: seed de posts de prueba ──────────────────────────────────────
+  // â”€â”€ TEMPORAL: seed de posts de prueba â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _seedTestPosts() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -383,8 +383,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final posts = [
       {
         'userId': uid, 'userNickname': 'Carlos R.', 'userNivel': 8,
-        'tipo': 'run', 'titulo': 'Mañana por el Genil',
-        'descripcion': 'Gran carrera hoy, mucho calor pero mereció la pena. Nuevo récord personal en los 8k.',
+        'tipo': 'run', 'titulo': 'MaÃ±ana por el Genil',
+        'descripcion': 'Gran carrera hoy, mucho calor pero mereciÃ³ la pena. Nuevo rÃ©cord personal en los 8k.',
         'distanciaKm': 8.4, 'tiempoSegundos': 2580, 'velocidadMedia': 11.7,
         'likes': <String>[], 'saved': <String>[], 'comentariosCount': 2,
         'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 2))),
@@ -404,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       {
         'userId': uid, 'userNickname': 'Ana M.', 'userNivel': 12,
         'tipo': 'run', 'titulo': 'Subida al Sacromonte',
-        'descripcion': 'Rutas de montaña épicas. Las vistas desde arriba son increíbles.',
+        'descripcion': 'Rutas de montaÃ±a Ã©picas. Las vistas desde arriba son increÃ­bles.',
         'distanciaKm': 5.1, 'tiempoSegundos': 1980, 'velocidadMedia': 9.2,
         'likes': <String>[], 'saved': <String>[], 'comentariosCount': 5,
         'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 5))),
@@ -458,8 +458,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       },
       {
         'userId': uid, 'userNickname': 'Laura G.', 'userNivel': 19,
-        'tipo': 'run', 'titulo': 'Vuelta al Parque García Lorca',
-        'descripcion': 'Sesión de tempo run. 5 repeticiones de 1k al 85%. Me quedo satisfecha.',
+        'tipo': 'run', 'titulo': 'Vuelta al Parque GarcÃ­a Lorca',
+        'descripcion': 'SesiÃ³n de tempo run. 5 repeticiones de 1k al 85%. Me quedo satisfecha.',
         'distanciaKm': 7.8, 'tiempoSegundos': 2340, 'velocidadMedia': 12.0,
         'likes': <String>[], 'saved': <String>[], 'comentariosCount': 3,
         'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2))),
@@ -491,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ));
     }
   }
-  // ── FIN TEMPORAL ───────────────────────────────────────────────────────────
+  // â”€â”€ FIN TEMPORAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _snackError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -539,9 +539,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        Text('LÍMITE ALCANZADO (5/5)', style: _raj(11, FontWeight.w800, _T.white, spacing: 1)),
+                        Text('LÃMITE ALCANZADO (5/5)', style: _raj(11, FontWeight.w800, _T.white, spacing: 1)),
                         const SizedBox(height: 2),
-                        Text('Premium → rutas ilimitadas. Toca para activar.', style: _raj(10, FontWeight.w500, _T.sub)),
+                        Text('Premium â†’ rutas ilimitadas. Toca para activar.', style: _raj(10, FontWeight.w500, _T.sub)),
                       ]),
                     ),
                     Icon(Icons.chevron_right_rounded, color: _T.bronze),
@@ -603,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ── Ubicación
+  // â”€â”€ UbicaciÃ³n
   Future<void> _getUserLocation() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -616,11 +616,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (mounted) setState(() => _currentPosition = position);
       }
     } catch (e) {
-      debugPrint("Error ubicación: $e");
+      debugPrint("Error ubicaciÃ³n: $e");
     }
   }
 
-  // ── Init
+  // â”€â”€ Init
   Future<void> _initializeData() async {
     if (userId == null) return;
     if (mounted) setState(() => isLoading = true);
@@ -632,7 +632,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _loadRandomDailyChallenges();
       await _cargarTerritorios();
     } catch (e) {
-      debugPrint("Error en inicialización: $e");
+      debugPrint("Error en inicializaciÃ³n: $e");
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -721,7 +721,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ── Invasión — ROJO se mantiene porque son alertas
+  // â”€â”€ InvasiÃ³n â€” ROJO se mantiene porque son alertas
   void _escucharNotificacionesInvasion() {
     if (userId == null) return;
     _invasionListener?.cancel();
@@ -737,14 +737,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final data = change.doc.data();
           if (data == null) continue;
           _mostrarBannerInvasion(
-              data['message'] ?? ' Alguien está invadiendo tu territorio',
+              data['message'] ?? ' Alguien estÃ¡ invadiendo tu territorio',
               change.doc.id);
         }
       }
     });
   }
 
-  // Banner de invasión — ROJO se mantiene (es una alerta crítica)
+  // Banner de invasiÃ³n â€” ROJO se mantiene (es una alerta crÃ­tica)
   void _mostrarBannerInvasion(String mensaje, String notifId) {
     if (!mounted) return;
     FirebaseFirestore.instance.collection('notifications').doc(notifId).update({'read': true});
@@ -772,7 +772,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ));
   }
 
-  // ── Datos usuario
+  // â”€â”€ Datos usuario
   Future<void> _loadUserData() async {
     final userDoc = await FirebaseFirestore.instance.collection('players').doc(userId).get();
     if (userDoc.exists && mounted) {
@@ -929,6 +929,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: _T.bg1,
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: _T.bronze.withValues(alpha: 0.35)),
             boxShadow: [
               BoxShadow(color: _T.bronze.withValues(alpha: 0.08), blurRadius: 32),
@@ -940,16 +941,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               width: 56, height: 56,
               decoration: BoxDecoration(
                 color: _T.bronze.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _T.bronze.withValues(alpha: 0.30)),
               ),
               child: const Center(child: Text('', style: TextStyle(fontSize: 26))),
             ),
             const SizedBox(height: 16),
-            Text('INICIAR MISIÓN',
+            Text('INICIAR MISIÃ“N',
                 style: _raj(9, FontWeight.w900, _T.bronze, spacing: 3)),
             const SizedBox(height: 8),
             Text(
-              '¿Vas a iniciar el reto de\n"$titulo"?\n¿Estás seguro?',
+              'Â¿Vas a iniciar el reto de\n"$titulo"?\nÂ¿EstÃ¡s seguro?',
               textAlign: TextAlign.center,
               style: _raj(15, FontWeight.w700, _T.white, height: 1.4),
             ),
@@ -1074,10 +1076,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (tsVisita != null) {
           final diasSinVisitar = DateTime.now().difference(tsVisita.toDate()).inDays;
           if (diasSinVisitar < 5) {
-            return 'Este territorio está protegido.\nEl dueño lo visitó hace $diasSinVisitar día${diasSinVisitar == 1 ? '' : 's'}. Necesitas 5+ días sin visitar.';
+            return 'Este territorio estÃ¡ protegido.\nEl dueÃ±o lo visitÃ³ hace $diasSinVisitar dÃ­a${diasSinVisitar == 1 ? '' : 's'}. Necesitas 5+ dÃ­as sin visitar.';
           }
         } else {
-          return 'Este territorio está activo y protegido.\nVuelve cuando lleve 5+ días sin ser visitado.';
+          return 'Este territorio estÃ¡ activo y protegido.\nVuelve cuando lleve 5+ dÃ­as sin ser visitado.';
         }
       }
     } catch (e) { // intentional
@@ -1104,7 +1106,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final horas = duracion.inHours;
           final minutos = duracion.inMinutes.remainder(60);
           final tiempoRestante = horas > 0 ? '${horas}h ${minutos}m' : '${minutos}m';
-          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
+          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante mÃ¡s.';
         }
       }
     } catch (e) { // intentional
@@ -1238,7 +1240,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 10),
-          // Añadir historia
+          // AÃ±adir historia
           GestureDetector(
             onTap: () {
               Navigator.pop(ctx);
@@ -1259,7 +1261,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const Icon(Icons.add_rounded, color: Colors.white, size: 18),
                 const SizedBox(width: 8),
-                Text('Añadir historia', style: _raj(15, FontWeight.w600, Colors.white)),
+                Text('AÃ±adir historia', style: _raj(15, FontWeight.w600, Colors.white)),
               ]),
             ),
           ),
@@ -1267,139 +1269,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-
-  void _mostrarResumenCarrera(FeedPost post) {
-    String? tiempoStr;
-    if (post.tiempo != null) {
-      final h = post.tiempo!.inHours;
-      final m = post.tiempo!.inMinutes.remainder(60);
-      final s = post.tiempo!.inSeconds.remainder(60);
-      tiempoStr = h > 0
-          ? '${h}h ${m.toString().padLeft(2, '0')}m'
-          : '${m}m ${s.toString().padLeft(2, '0')}s';
-    }
-    final ruta = post.ruta;
-    LatLng? centro;
-    if (ruta != null && ruta.isNotEmpty) {
-      final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
-      final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
-      centro = LatLng(latC, lngC);
-    }
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.90),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 28),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _T.bg1,
-            border: Border.all(color: _T.border2),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 36)],
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
-              child: Row(children: [
-                GestureDetector(
-                  onTap: () { Navigator.pop(ctx); _navegarAlPerfil(post); },
-                  child: _buildAvatar(post, radius: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(post.userNickname.toUpperCase(),
-                      style: _raj(13, FontWeight.w900, _T.white, spacing: 1.5)),
-                  if (post.titulo != null)
-                    Text(post.titulo!, style: _raj(12, FontWeight.w500, _T.sub)),
-                  Text(_timeAgo(post.fecha), style: _raj(11, FontWeight.w500, _T.muted)),
-                ])),
-                IconButton(onPressed: () => Navigator.pop(ctx),
-                    icon: Icon(Icons.close_rounded, color: _T.sub, size: 20)),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: _T.bg0,
-                  border: Border.all(color: _T.border2),
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                  if (post.distanciaKm != null)
-                    _popupStat(value: post.distanciaKm!.toStringAsFixed(2),
-                        unit: 'KM', big: true),
-                  if (tiempoStr != null)
-                    _popupStat(value: tiempoStr, unit: 'TIEMPO'),
-                  if (post.velocidadMedia != null)
-                    _popupStat(value: post.velocidadMedia!.toStringAsFixed(1), unit: 'KM/H'),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (centro != null && ruta != null && ruta.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  height: 200,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter: centro, initialZoom: 14,
-                      interactionOptions: const InteractionOptions(
-                          flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag),
-                    ),
-                    children: [
-                      TileLayer(urlTemplate: _kMapboxTileUrl,
-                          userAgentPackageName: 'com.runner_risk.app',
-                          tileDimension: 256,
-                          additionalOptions: const {'accessToken': _kMapboxToken}),
-                      PolylineLayer(polylines: [
-                        Polyline(points: ruta, color: _T.bronze, strokeWidth: 3.5)]),
-                      MarkerLayer(markers: [
-                        Marker(point: ruta.first, width: 18, height: 18,
-                            child: Container(decoration: BoxDecoration(
-                                color: _T.safe, shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2)))),
-                        Marker(point: ruta.last, width: 18, height: 18,
-                            child: Container(decoration: BoxDecoration(
-                                color: _T.bronze, shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2)))),
-                      ]),
-                    ],
-                  ),
-                ),
-              ),
-            if (post.descripcion != null && post.descripcion!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Container(
-                  width: double.infinity, padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: _T.bg0, border: Border.all(color: _T.border)),
-                  child: Text(post.descripcion!,
-                      style: _raj(13, FontWeight.w500, _T.sub, height: 1.5)),
-                ),
-              ),
-            const SizedBox(height: 16),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _popupStat({required String value, required String unit, bool big = false}) {
-    return Expanded(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(value, style: GoogleFonts.inter(
-            fontSize: big ? 36 : 26, fontWeight: FontWeight.w700,
-            color: _T.white, height: 1,
-            letterSpacing: -0.5)),
-        const SizedBox(height: 3),
-        Text(unit, style: _raj(9, FontWeight.w700, _T.muted, spacing: 2)),
-      ]),
-    );
-  }
-
   // =============================================================================
   // BUILD
   // =============================================================================
@@ -1429,7 +1298,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ? const SizedBox.shrink()
                       : FadeTransition(opacity: _fadeA, child: _buildLargeTitle()),
                 ),
-                FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: _headerCollapsed
+                      ? const SizedBox.shrink()
+                      : FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
+                ),
                 FadeTransition(opacity: _fadeA, child: _buildTabBar()),
                 Expanded(
                   child: SlideTransition(
@@ -1492,7 +1367,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       actions: [
-        // TEMPORAL — borrar tras seed
+        // TEMPORAL â€” borrar tras seed
         GestureDetector(
           onTap: _seedTestPosts,
           child: Padding(
@@ -1599,7 +1474,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 itemBuilder: (context, i) {
                   final item = items[i];
                   final bool isMe = item['isMe'] == true;
-                  final String label = isMe ? 'Tú' : (item['nickname'] as String? ?? '?');
+                  final String label = isMe ? 'TÃº' : (item['nickname'] as String? ?? '?');
                   final String? foto = isMe ? fotoBase64 : (item['foto_base64'] as String?);
                   final bool hasStories = isMe
                       ? _misHistorias.isNotEmpty
@@ -1674,8 +1549,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       const SizedBox(height: 5),
                       Text(
                         isMe
-                            ? (_misHistorias.isNotEmpty ? 'Mi historia' : 'Tú')
-                            : (label.length > 7 ? '${label.substring(0, 6)}…' : label),
+                            ? (_misHistorias.isNotEmpty ? 'Mi historia' : 'TÃº')
+                            : (label.length > 7 ? '${label.substring(0, 6)}â€¦' : label),
                         style: _raj(9, hasStories && !allViewed ? FontWeight.w700 : FontWeight.w500,
                             hasStories && !allViewed ? _T.white : _T.sub),
                       ),
@@ -1706,83 +1581,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // TAB BAR
   // =============================================================================
   Widget _buildTabBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-          borderRadius: BorderRadius.circular(12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Row(children: [
+        _tabPill(label: 'Feed', pageIdx: 0),
+        const SizedBox(width: 8),
+        _tabPill(
+          label: 'Retos',
+          pageIdx: 1,
+          badge: _dailyChallenges.isNotEmpty ? '${_dailyChallenges.length}' : null,
         ),
-        child: Row(children: [
-          _segmentTab(label: 'Feed', icon: Icons.dynamic_feed_outlined, pageIdx: 0),
-          _segmentTab(
-            label: 'Retos', icon: Icons.bolt_outlined, pageIdx: 1,
-            badge: _dailyChallenges.isNotEmpty ? '${_dailyChallenges.length}' : null,
-          ),
-        ]),
-      ),
+      ]),
     );
   }
 
-  Widget _segmentTab({
-    required String label,
-    required IconData icon,
-    required int pageIdx,
-    String? badge,
-  }) {
+  Widget _tabPill({required String label, required int pageIdx, String? badge}) {
     final isActive = _tabIndex == pageIdx;
-    final isDark   = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _tabIndex = pageIdx);
-          _pageController.animateToPage(
-            pageIdx,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
-          );
-          if (pageIdx == 1) _mostrarTooltipRetosIntro();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: isActive
-                ? (isDark ? const Color(0xFF3A3A3C) : Colors.white)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            boxShadow: isActive
-                ? [BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.10),
-                    blurRadius: 8, offset: const Offset(0, 2))]
-                : null,
+    return GestureDetector(
+      onTap: () {
+        setState(() => _tabIndex = pageIdx);
+        _pageController.animateToPage(
+          pageIdx,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+        if (pageIdx == 1) _mostrarTooltipRetosIntro();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? _T.bronze.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isActive ? _T.bronze.withValues(alpha: 0.55) : _T.border2,
+            width: 1,
           ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 13, color: isActive ? _T.bronze : _T.dim),
-            const SizedBox(width: 5),
-            Stack(clipBehavior: Clip.none, children: [
-              Text(label,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                  color: isActive ? _T.white : _T.dim,
-                  height: 1,
-                )),
-              if (badge != null)
-                Positioned(
-                  right: -10, top: -3,
-                  child: Container(
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(color: _T.bronze, shape: BoxShape.circle),
-                    child: Center(child: Text(badge,
-                        style: _raj(7, FontWeight.w900, _T.bg0))),
-                  ),
-                ),
-            ]),
-          ]),
         ),
+        child: Stack(clipBehavior: Clip.none, children: [
+          Text(label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+              color: isActive ? _T.bronze : _T.dim,
+              height: 1,
+            )),
+          if (badge != null)
+            Positioned(
+              right: -10, top: -4,
+              child: Container(
+                width: 14, height: 14,
+                decoration: BoxDecoration(color: _T.bronze, shape: BoxShape.circle),
+                child: Center(child: Text(badge,
+                    style: _raj(7, FontWeight.w900, _T.bg0))),
+              ),
+            ),
+        ]),
       ),
     );
   }
@@ -1834,7 +1688,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         Text('SIN ACTIVIDAD', style: _raj(14, FontWeight.w900, _T.white, spacing: 4)),
         const SizedBox(height: 8),
-        Text('Sé el primero en compartir\ntu carrera con la comunidad',
+        Text('SÃ© el primero en compartir\ntu carrera con la comunidad',
             textAlign: TextAlign.center,
             style: _raj(13, FontWeight.w500, _T.sub, height: 1.5)),
         const SizedBox(height: 28),
@@ -1874,7 +1728,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Header
+        // â”€â”€ Header
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
           child: Row(children: [
@@ -1912,7 +1766,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Icon(Icons.more_horiz, color: _T.dim, size: 20),
           ]),
         ),
-        // ── Título + descripción
+        // â”€â”€ TÃ­tulo + descripciÃ³n
         if (post.titulo != null || post.descripcion != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -1927,15 +1781,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
             ]),
           ),
-        // ── Stats carrera
+        // â”€â”€ Stats carrera
         if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
           _buildRunStatsBar(post),
-        // ── Media / mapa
+        // â”€â”€ Media / mapa
         if (post.mediaBase64 != null)
           _buildMediaImage(post)
         else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
           _buildRouteMap(post),
-        // ── Acciones
+        // â”€â”€ Acciones
         _buildPostActions(post),
       ]),
     );
@@ -2063,28 +1917,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ]),
           ],
         ),
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: () => _mostrarResumenCarrera(post),
-            child: Container(
-              color: Colors.transparent,
-              child: Align(
-                alignment: Alignment.bottomRight,
-                child: Container(
-                  margin: const EdgeInsets.all(8),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  color: _T.bg0.withValues(alpha: 0.88),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bar_chart_rounded, color: _T.sub, size: 10),
-                    const SizedBox(width: 4),
-                    Text('VER STATS',
-                        style: _raj(9, FontWeight.w900, _T.sub, spacing: 1)),
-                  ]),
-                ),
-              ),
-            ),
-          ),
-        ),
       ]),
     );
   }
@@ -2139,7 +1971,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     showModalBottomSheet(
       context: context,
       backgroundColor: _T.bg1,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       isScrollControlled: true,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false, initialChildSize: 0.65, minChildSize: 0.4, maxChildSize: 0.95,
@@ -2166,7 +1999,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 }
                 final docs = snap.data?.docs ?? [];
                 if (docs.isEmpty) {
-                  return Center(child: Text('Sin comentarios todavía',
+                  return Center(child: Text('Sin comentarios todavÃ­a',
                       style: _raj(13, FontWeight.w500, _T.muted)));
                 }
                 return ListView.builder(
@@ -2320,7 +2153,7 @@ class _TerritoryDetail {
 }
 
 // =============================================================================
-// COMMENT INPUT — StatefulWidget para ciclo de vida correcto del controller
+// COMMENT INPUT â€” StatefulWidget para ciclo de vida correcto del controller
 // =============================================================================
 class _CommentInput extends StatefulWidget {
   final String? fotoBase64;
@@ -2382,7 +2215,7 @@ class _CommentInputState extends State<_CommentInput> {
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => _handleSend(),
             decoration: InputDecoration(
-              hintText: 'Añadir comentario...',
+              hintText: 'AÃ±adir comentario...',
               hintStyle: _raj(13, FontWeight.w400, _T.muted),
               filled: true, fillColor: _T.bg1,
               border: OutlineInputBorder(borderRadius: BorderRadius.zero,
