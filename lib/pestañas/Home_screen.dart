@@ -1222,6 +1222,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       body: isLoading
           ? _buildLoadingState()
           : Column(children: [
+              FadeTransition(opacity: _fadeA, child: _buildLargeTitle()),
               FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
               FadeTransition(opacity: _fadeA, child: _buildTabBar()),
               Expanded(
@@ -1282,81 +1283,81 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return AppBar(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xF0F2F2F7),
       elevation: 0,
-      titleSpacing: 16,
       surfaceTintColor: Colors.transparent,
-      title: Row(children: [
-        RichText(
-          text: TextSpan(
-            style: GoogleFonts.inter(
-              fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-            children: [
-              const TextSpan(
-                text: 'RISK',
-                style: TextStyle(color: Color(0xFFE02020)),
-              ),
-              TextSpan(
-                text: 'RUNNER',
-                style: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : const Color(0xFF1C1C1E),
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
+      leadingWidth: 52,
+      leading: GestureDetector(
+        onTap: () => SettingsScreen.mostrar(context),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Icon(Icons.settings_outlined, color: _T.dim, size: 20),
         ),
-      ]),
+      ),
       actions: [
-        GestureDetector(
-          onTap: () => CoinShopScreen.mostrar(context),
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _T.gold.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _T.gold.withValues(alpha: 0.30)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 4),
-              Text('$monedas',
-                style: TextStyle(
-                  color: _T.gold,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                )),
-            ]),
-          ),
-        ),
         GestureDetector(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Stack(children: [
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Stack(alignment: Alignment.center, children: [
               Icon(Icons.notifications_outlined, color: _T.dim, size: 22),
               if (_notifNoLeidas > 0)
-                Positioned(right: 0, top: 0,
+                Positioned(right: 0, top: 6,
                   child: Container(
                     width: 7, height: 7,
-                    // Notificación — rojo se mantiene (es una alerta)
                     decoration: BoxDecoration(color: _T.red, shape: BoxShape.circle),
-                  ),
-                ),
+                  )),
             ]),
           ),
         ),
-        GestureDetector(
-          onTap: () => SettingsScreen.mostrar(context),
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Icon(Icons.settings_outlined, color: _T.dim, size: 20),
-          ),
-        ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
       ],
+    );
+  }
+
+  Widget _buildLargeTitle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(
+                  fontSize: 34, fontWeight: FontWeight.w900, height: 1.0),
+                children: [
+                  const TextSpan(
+                    text: 'RISK',
+                    style: TextStyle(color: Color(0xFFE02020)),
+                  ),
+                  TextSpan(
+                    text: 'RUNNER',
+                    style: TextStyle(color: _T.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => CoinShopScreen.mostrar(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: _T.gold.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _T.gold.withValues(alpha: 0.30)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.monetization_on_rounded, color: _T.gold, size: 14),
+                const SizedBox(width: 5),
+                Text('$monedas', style: TextStyle(
+                  color: _T.gold, fontSize: 14, fontWeight: FontWeight.w800,
+                  height: 1)),
+              ]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1376,7 +1377,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         border: Border(bottom: BorderSide(color: _T.border2)),
       ),
       child: SizedBox(
-        height: 104,
+        height: 112,
         child: _amigosLoaded
             ? ListView.separated(
                 scrollDirection: Axis.horizontal,
@@ -1413,7 +1414,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         builder: (context, child) {
                           return Stack(children: [
                             Container(
-                              width: 72, height: 72,
+                              width: 80, height: 80,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
@@ -1477,7 +1478,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 itemCount: 5,
                 separatorBuilder: (_, __) => const SizedBox(width: 14),
                 itemBuilder: (_, __) => Column(mainAxisSize: MainAxisSize.min, children: [
-                  Container(width: 72, height: 72,
+                  Container(width: 80, height: 80,
                       decoration: BoxDecoration(shape: BoxShape.circle,
                           color: _T.bg2, border: Border.all(color: _T.border2))),
                   const SizedBox(height: 5),
@@ -1492,79 +1493,83 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // TAB BAR
   // =============================================================================
   Widget _buildTabBar() {
-    final tabs = [
-      {'id': 'feed',  'label': 'FEED',  'icon': Icons.dynamic_feed_outlined, 'page': 0},
-      {'id': 'retos', 'label': 'RETOS', 'icon': Icons.bolt_outlined,          'page': 1},
-    ];
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      height: 42,
-      decoration: BoxDecoration(
-        color: _T.bg1,
-        border: Border.all(color: _T.border2),
-        borderRadius: BorderRadius.circular(6),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(children: [
+          _segmentTab(label: 'Feed', icon: Icons.dynamic_feed_outlined, pageIdx: 0),
+          _segmentTab(
+            label: 'Retos', icon: Icons.bolt_outlined, pageIdx: 1,
+            badge: _dailyChallenges.isNotEmpty ? '${_dailyChallenges.length}' : null,
+          ),
+        ]),
       ),
-      child: Row(
-        children: tabs.map((tab) {
-          final pageIdx  = tab['page'] as int;
-          final isCorrer = pageIdx == -1;
-          final isActive = !isCorrer && _tabIndex == pageIdx;
+    );
+  }
 
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                if (isCorrer) {
-                  Navigator.pushNamed(context, '/correr');
-                  return;
-                }
-                setState(() => _tabIndex = pageIdx);
-                _pageController.animateToPage(
-                  pageIdx,
-                  duration: const Duration(milliseconds: 280),
-                  curve: Curves.easeOutCubic,
-                );
-                if (tab['id'] == 'retos') _mostrarTooltipRetosIntro();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: isActive ? _T.bg2 : Colors.transparent,
-                  borderRadius: BorderRadius.circular(4),
-                  border: isActive ? Border.all(color: _T.border2) : null,
-                ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(tab['icon'] as IconData,
-                      size: 12,
-                      color: isCorrer ? _T.bronze : isActive ? _T.bronze : _T.dim),
-                  const SizedBox(width: 5),
-                  Stack(children: [
-                    Text(
-                      tab['label'] as String,
-                      style: _raj(9,
-                          isActive || isCorrer ? FontWeight.w900 : FontWeight.w600,
-                          isCorrer ? _T.bronze : isActive ? _T.white : _T.dim,
-                          spacing: 1.5),
-                    ),
-                    if (tab['id'] == 'retos' && _dailyChallenges.isNotEmpty)
-                      Positioned(
-                        right: -8, top: -2,
-                        child: Container(
-                          width: 12, height: 12,
-                          // Badge de retos — bronce, no rojo
-                          decoration: BoxDecoration(
-                              color: _T.bronze, shape: BoxShape.circle),
-                          child: Center(child: Text('${_dailyChallenges.length}',
-                              style: _raj(7, FontWeight.w900, _T.bg0))),
-                        ),
-                      ),
-                  ]),
-                ]),
-              ),
-            ),
+  Widget _segmentTab({
+    required String label,
+    required IconData icon,
+    required int pageIdx,
+    String? badge,
+  }) {
+    final isActive = _tabIndex == pageIdx;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _tabIndex = pageIdx);
+          _pageController.animateToPage(
+            pageIdx,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
           );
-        }).toList(),
+          if (pageIdx == 1) _mostrarTooltipRetosIntro();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: isActive
+                ? (isDark ? const Color(0xFF3A3A3C) : Colors.white)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: isActive
+                ? [BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.10),
+                    blurRadius: 8, offset: const Offset(0, 2))]
+                : null,
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 13, color: isActive ? _T.bronze : _T.dim),
+            const SizedBox(width: 5),
+            Stack(clipBehavior: Clip.none, children: [
+              Text(label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? _T.white : _T.dim,
+                  height: 1,
+                )),
+              if (badge != null)
+                Positioned(
+                  right: -10, top: -3,
+                  child: Container(
+                    width: 14, height: 14,
+                    decoration: BoxDecoration(color: _T.bronze, shape: BoxShape.circle),
+                    child: Center(child: Text(badge,
+                        style: _raj(7, FontWeight.w900, _T.bg0))),
+                  ),
+                ),
+            ]),
+          ]),
+        ),
       ),
     );
   }
@@ -1640,73 +1645,87 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // POST CARD
   // =============================================================================
   Widget _buildPostCard(FeedPost post) {
-    final isRun = post.tipo == 'run' || post.tipo == 'territorio';
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      // ── Header
-      Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-        child: Row(children: [
-          GestureDetector(
-            onTap: () => _navegarAlPerfil(post),
-            child: _buildAvatar(post, radius: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: GestureDetector(
+    final isRun  = post.tipo == 'run' || post.tipo == 'territorio';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      decoration: BoxDecoration(
+        color: _T.bg1,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _T.border, width: 0.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.06),
+            blurRadius: 12, offset: const Offset(0, 3)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+          child: Row(children: [
+            GestureDetector(
               onTap: () => _navegarAlPerfil(post),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(post.userNickname,
-                    style: _raj(14, FontWeight.w700, _T.white)),
-                const SizedBox(height: 1),
-                Text(_timeAgo(post.fecha),
-                    style: _raj(11, FontWeight.w400, _T.dim)),
+              child: _buildAvatar(post, radius: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _navegarAlPerfil(post),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(post.userNickname,
+                      style: _raj(14, FontWeight.w700, _T.white)),
+                  const SizedBox(height: 1),
+                  Text(_timeAgo(post.fecha),
+                      style: _raj(11, FontWeight.w400, _T.dim)),
+                ]),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: _T.bg2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_iconForTipo(post.tipo), color: _T.sub, size: 11),
+                const SizedBox(width: 4),
+                Text(_labelForTipo(post.tipo),
+                    style: _raj(9, FontWeight.w600, _T.sub, spacing: 0.3)),
               ]),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: _T.bg2,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_iconForTipo(post.tipo), color: _T.sub, size: 11),
-              const SizedBox(width: 4),
-              Text(_labelForTipo(post.tipo),
-                  style: _raj(9, FontWeight.w600, _T.sub, spacing: 0.3)),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.more_horiz, color: _T.dim, size: 20),
-        ]),
-      ),
-      // ── Título + descripción
-      if (post.titulo != null || post.descripcion != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (post.titulo != null)
-              Text(post.titulo!, style: _raj(15, FontWeight.w700, _T.white, height: 1.3)),
-            if (post.descripcion != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(post.descripcion!,
-                    style: _raj(13, FontWeight.w400, _T.sub, height: 1.5)),
-              ),
+            const SizedBox(width: 8),
+            Icon(Icons.more_horiz, color: _T.dim, size: 20),
           ]),
         ),
-      // ── Stats carrera
-      if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
-        _buildRunStatsBar(post),
-      // ── Media / mapa
-      if (post.mediaBase64 != null)
-        _buildMediaImage(post)
-      else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
-        _buildRouteMap(post),
-      // ── Acciones
-      _buildPostActions(post),
-      Divider(height: 1, thickness: 0.5, color: _T.border),
-    ]);
+        // ── Título + descripción
+        if (post.titulo != null || post.descripcion != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (post.titulo != null)
+                Text(post.titulo!, style: _raj(15, FontWeight.w700, _T.white, height: 1.3)),
+              if (post.descripcion != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(post.descripcion!,
+                      style: _raj(13, FontWeight.w400, _T.sub, height: 1.5)),
+                ),
+            ]),
+          ),
+        // ── Stats carrera
+        if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
+          _buildRunStatsBar(post),
+        // ── Media / mapa
+        if (post.mediaBase64 != null)
+          _buildMediaImage(post)
+        else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
+          _buildRouteMap(post),
+        // ── Acciones
+        _buildPostActions(post),
+      ]),
+    );
   }
 
   Widget _buildAvatar(FeedPost post, {double radius = 20}) {
