@@ -2032,18 +2032,20 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           }).toList();
         } else if (el['type'] == 'relation') {
           final members = el['members'] as List<dynamic>? ?? [];
+          final segs = <List<LatLng>>[];
           for (final member in members) {
             final m = member as Map<String, dynamic>;
             if (m['role'] == 'outer' && m['geometry'] != null) {
               final geom = m['geometry'] as List<dynamic>;
-              puntos = geom.map((g) {
+              final seg = geom.map((g) {
                 final gm = g as Map<String, dynamic>;
                 return LatLng((gm['lat'] as num).toDouble(),
                               (gm['lon'] as num).toDouble());
               }).toList();
-              break;
+              if (seg.length >= 2) segs.add(seg);
             }
           }
+          puntos = _encadenarSegmentos(segs);
         }
 
         if (puntos.length < 4) continue;
@@ -2089,6 +2091,45 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       });
     }
   }
+
+  // Encadena los segmentos outer de una relación OSM en un anillo continuo.
+  // Conecta cada segmento al que comparte vértice (directo o invertido).
+  List<LatLng> _encadenarSegmentos(List<List<LatLng>> segs) {
+    if (segs.isEmpty) return [];
+    if (segs.length == 1) return segs[0];
+
+    final result  = List<LatLng>.from(segs[0]);
+    final pending = segs.sublist(1).toList();
+
+    while (pending.isNotEmpty) {
+      final end = result.last;
+      bool matched = false;
+      for (int i = 0; i < pending.length; i++) {
+        final s = pending[i];
+        if (_cerca(s.first, end)) {
+          result.addAll(s.skip(1));
+          pending.removeAt(i);
+          matched = true;
+          break;
+        }
+        if (_cerca(s.last, end)) {
+          result.addAll(s.reversed.skip(1));
+          pending.removeAt(i);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        for (final s in pending) result.addAll(s);
+        break;
+      }
+    }
+    return result;
+  }
+
+  static bool _cerca(LatLng a, LatLng b) =>
+      (a.latitude  - b.latitude).abs()  < 0.00005 &&
+      (a.longitude - b.longitude).abs() < 0.00005;
 
   // ==========================================================================
   // MODO RUTAS
