@@ -31,7 +31,7 @@ import '../widgets/home/home_retos_tab.dart';
 // =============================================================================
 const _kMapboxToken = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
+    'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 typedef _TColors = HomePalette;
 
@@ -376,11 +376,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // ── TEMPORAL: seed de posts de prueba ──────────────────────────────────────
   Future<void> _seedTestPosts() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
     final db = FirebaseFirestore.instance;
     final now = DateTime.now();
     final posts = [
       {
-        'userId': 'seed_user_1', 'userNickname': 'Carlos R.', 'userNivel': 8,
+        'userId': uid, 'userNickname': 'Carlos R.', 'userNivel': 8,
         'tipo': 'run', 'titulo': 'Mañana por el Genil',
         'descripcion': 'Gran carrera hoy, mucho calor pero mereció la pena. Nuevo récord personal en los 8k.',
         'distanciaKm': 8.4, 'tiempoSegundos': 2580, 'velocidadMedia': 11.7,
@@ -400,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       },
       {
-        'userId': 'seed_user_2', 'userNickname': 'Ana M.', 'userNivel': 12,
+        'userId': uid, 'userNickname': 'Ana M.', 'userNivel': 12,
         'tipo': 'run', 'titulo': 'Subida al Sacromonte',
         'descripcion': 'Rutas de montaña épicas. Las vistas desde arriba son increíbles.',
         'distanciaKm': 5.1, 'tiempoSegundos': 1980, 'velocidadMedia': 9.2,
@@ -419,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       },
       {
-        'userId': 'seed_user_3', 'userNickname': 'Javi P.', 'userNivel': 4,
+        'userId': uid, 'userNickname': 'Javi P.', 'userNivel': 4,
         'tipo': 'run', 'titulo': null,
         'descripcion': 'Primera carrera de la semana. Poco a poco voy mejorando.',
         'distanciaKm': 3.2, 'tiempoSegundos': 1140, 'velocidadMedia': 10.1,
@@ -435,7 +437,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       },
       {
-        'userId': 'seed_user_1', 'userNickname': 'Carlos R.', 'userNivel': 8,
+        'userId': uid, 'userNickname': 'Carlos R.', 'userNivel': 8,
         'tipo': 'run', 'titulo': 'Entrenamiento zona Armilla',
         'descripcion': null,
         'distanciaKm': 12.6, 'tiempoSegundos': 3900, 'velocidadMedia': 11.5,
@@ -455,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       },
       {
-        'userId': 'seed_user_4', 'userNickname': 'Laura G.', 'userNivel': 19,
+        'userId': uid, 'userNickname': 'Laura G.', 'userNivel': 19,
         'tipo': 'run', 'titulo': 'Vuelta al Parque García Lorca',
         'descripcion': 'Sesión de tempo run. 5 repeticiones de 1k al 85%. Me quedo satisfecha.',
         'distanciaKm': 7.8, 'tiempoSegundos': 2340, 'velocidadMedia': 12.0,
