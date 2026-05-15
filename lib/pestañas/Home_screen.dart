@@ -374,6 +374,123 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // ── TEMPORAL: seed de posts de prueba ──────────────────────────────────────
+  Future<void> _seedTestPosts() async {
+    final db = FirebaseFirestore.instance;
+    final now = DateTime.now();
+    final posts = [
+      {
+        'userId': 'seed_user_1', 'userNickname': 'Carlos R.', 'userNivel': 8,
+        'tipo': 'run', 'titulo': 'Mañana por el Genil',
+        'descripcion': 'Gran carrera hoy, mucho calor pero mereció la pena. Nuevo récord personal en los 8k.',
+        'distanciaKm': 8.4, 'tiempoSegundos': 2580, 'velocidadMedia': 11.7,
+        'likes': <String>[], 'saved': <String>[], 'comentariosCount': 2,
+        'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 2))),
+        'ruta': [
+          {'lat': 37.1765, 'lng': -3.5986}, {'lat': 37.1772, 'lng': -3.5971},
+          {'lat': 37.1780, 'lng': -3.5955}, {'lat': 37.1791, 'lng': -3.5940},
+          {'lat': 37.1805, 'lng': -3.5928}, {'lat': 37.1820, 'lng': -3.5915},
+          {'lat': 37.1835, 'lng': -3.5900}, {'lat': 37.1848, 'lng': -3.5888},
+          {'lat': 37.1862, 'lng': -3.5875}, {'lat': 37.1875, 'lng': -3.5860},
+          {'lat': 37.1888, 'lng': -3.5872}, {'lat': 37.1875, 'lng': -3.5890},
+          {'lat': 37.1860, 'lng': -3.5905}, {'lat': 37.1845, 'lng': -3.5918},
+          {'lat': 37.1830, 'lng': -3.5930}, {'lat': 37.1812, 'lng': -3.5944},
+          {'lat': 37.1796, 'lng': -3.5958}, {'lat': 37.1781, 'lng': -3.5972},
+          {'lat': 37.1770, 'lng': -3.5985}, {'lat': 37.1765, 'lng': -3.5986},
+        ],
+      },
+      {
+        'userId': 'seed_user_2', 'userNickname': 'Ana M.', 'userNivel': 12,
+        'tipo': 'run', 'titulo': 'Subida al Sacromonte',
+        'descripcion': 'Rutas de montaña épicas. Las vistas desde arriba son increíbles.',
+        'distanciaKm': 5.1, 'tiempoSegundos': 1980, 'velocidadMedia': 9.2,
+        'likes': <String>[], 'saved': <String>[], 'comentariosCount': 5,
+        'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 5))),
+        'ruta': [
+          {'lat': 37.1810, 'lng': -3.5870}, {'lat': 37.1820, 'lng': -3.5852},
+          {'lat': 37.1835, 'lng': -3.5835}, {'lat': 37.1850, 'lng': -3.5818},
+          {'lat': 37.1868, 'lng': -3.5800}, {'lat': 37.1885, 'lng': -3.5782},
+          {'lat': 37.1902, 'lng': -3.5765}, {'lat': 37.1918, 'lng': -3.5748},
+          {'lat': 37.1930, 'lng': -3.5730}, {'lat': 37.1918, 'lng': -3.5748},
+          {'lat': 37.1902, 'lng': -3.5762}, {'lat': 37.1885, 'lng': -3.5778},
+          {'lat': 37.1868, 'lng': -3.5795}, {'lat': 37.1850, 'lng': -3.5812},
+          {'lat': 37.1835, 'lng': -3.5830}, {'lat': 37.1820, 'lng': -3.5848},
+          {'lat': 37.1810, 'lng': -3.5870},
+        ],
+      },
+      {
+        'userId': 'seed_user_3', 'userNickname': 'Javi P.', 'userNivel': 4,
+        'tipo': 'run', 'titulo': null,
+        'descripcion': 'Primera carrera de la semana. Poco a poco voy mejorando.',
+        'distanciaKm': 3.2, 'tiempoSegundos': 1140, 'velocidadMedia': 10.1,
+        'likes': <String>[], 'saved': <String>[], 'comentariosCount': 0,
+        'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 18))),
+        'ruta': [
+          {'lat': 37.1730, 'lng': -3.6010}, {'lat': 37.1742, 'lng': -3.5995},
+          {'lat': 37.1755, 'lng': -3.5980}, {'lat': 37.1768, 'lng': -3.5965},
+          {'lat': 37.1782, 'lng': -3.5950}, {'lat': 37.1795, 'lng': -3.5935},
+          {'lat': 37.1782, 'lng': -3.5950}, {'lat': 37.1768, 'lng': -3.5965},
+          {'lat': 37.1755, 'lng': -3.5980}, {'lat': 37.1742, 'lng': -3.5995},
+          {'lat': 37.1730, 'lng': -3.6010},
+        ],
+      },
+      {
+        'userId': 'seed_user_1', 'userNickname': 'Carlos R.', 'userNivel': 8,
+        'tipo': 'run', 'titulo': 'Entrenamiento zona Armilla',
+        'descripcion': null,
+        'distanciaKm': 12.6, 'tiempoSegundos': 3900, 'velocidadMedia': 11.5,
+        'likes': <String>[], 'saved': <String>[], 'comentariosCount': 1,
+        'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1))),
+        'ruta': [
+          {'lat': 37.1510, 'lng': -3.6280}, {'lat': 37.1525, 'lng': -3.6260},
+          {'lat': 37.1542, 'lng': -3.6240}, {'lat': 37.1560, 'lng': -3.6220},
+          {'lat': 37.1578, 'lng': -3.6200}, {'lat': 37.1595, 'lng': -3.6182},
+          {'lat': 37.1612, 'lng': -3.6165}, {'lat': 37.1628, 'lng': -3.6148},
+          {'lat': 37.1645, 'lng': -3.6130}, {'lat': 37.1660, 'lng': -3.6112},
+          {'lat': 37.1645, 'lng': -3.6130}, {'lat': 37.1628, 'lng': -3.6148},
+          {'lat': 37.1612, 'lng': -3.6165}, {'lat': 37.1595, 'lng': -3.6182},
+          {'lat': 37.1578, 'lng': -3.6200}, {'lat': 37.1560, 'lng': -3.6220},
+          {'lat': 37.1542, 'lng': -3.6240}, {'lat': 37.1525, 'lng': -3.6260},
+          {'lat': 37.1510, 'lng': -3.6280},
+        ],
+      },
+      {
+        'userId': 'seed_user_4', 'userNickname': 'Laura G.', 'userNivel': 19,
+        'tipo': 'run', 'titulo': 'Vuelta al Parque García Lorca',
+        'descripcion': 'Sesión de tempo run. 5 repeticiones de 1k al 85%. Me quedo satisfecha.',
+        'distanciaKm': 7.8, 'tiempoSegundos': 2340, 'velocidadMedia': 12.0,
+        'likes': <String>[], 'saved': <String>[], 'comentariosCount': 3,
+        'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2))),
+        'ruta': [
+          {'lat': 37.1690, 'lng': -3.6050}, {'lat': 37.1705, 'lng': -3.6035},
+          {'lat': 37.1720, 'lng': -3.6018}, {'lat': 37.1735, 'lng': -3.6000},
+          {'lat': 37.1750, 'lng': -3.5985}, {'lat': 37.1765, 'lng': -3.5970},
+          {'lat': 37.1750, 'lng': -3.5985}, {'lat': 37.1735, 'lng': -3.6000},
+          {'lat': 37.1720, 'lng': -3.6018}, {'lat': 37.1705, 'lng': -3.6035},
+          {'lat': 37.1690, 'lng': -3.6050},
+        ],
+      },
+    ];
+
+    final batch = db.batch();
+    for (final p in posts) {
+      batch.set(db.collection('posts').doc(), p);
+    }
+    await batch.commit();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('5 posts de prueba creados',
+            style: _raj(13, FontWeight.w600, _T.white)),
+        backgroundColor: _T.bronze,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
+      ));
+    }
+  }
+  // ── FIN TEMPORAL ───────────────────────────────────────────────────────────
+
   void _snackError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 3),
@@ -1373,6 +1490,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       actions: [
+        // TEMPORAL — borrar tras seed
+        GestureDetector(
+          onTap: _seedTestPosts,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Icon(Icons.bug_report_outlined, color: _T.dim, size: 20),
+          ),
+        ),
         GestureDetector(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const NotificationsScreen())),

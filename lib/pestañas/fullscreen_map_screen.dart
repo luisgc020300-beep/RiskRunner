@@ -625,6 +625,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
   String? _errorBarrios;
+  final TextEditingController _barriosSearchCtrl = TextEditingController();
+  String _barriosBusqueda = '';
   // Future que completa cuando _resolverCentro() termina de obtener el GPS real.
   // _activarModoSolitario() lo espera para no consultar Overpass con coords por defecto.
   Future<void>? _centroListo;
@@ -741,6 +743,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _cameraDebounce?.cancel();
     _cameraStream?.cancel();
     _sheetCtrl.dispose();
+    _barriosSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -2212,9 +2215,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       points: b.puntos,
                       color: color.withValues(alpha: pct > 0 ? 0.16 : 0.06),
                       borderColor: _mapaOscuro
-                          ? Colors.white.withValues(alpha: 0.80)
-                          : const Color(0xFF1A1A1A).withValues(alpha: 0.70),
-                      borderStrokeWidth: 2.5,
+                          ? Colors.white.withValues(alpha: 0.45)
+                          : const Color(0xFF888888).withValues(alpha: 0.55),
+                      borderStrokeWidth: 1.5,
                     );
                   }).toList(),
                 ),
@@ -4058,8 +4061,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // SHEET MODO SOLITARIO
   // ==========================================================================
   Widget _buildSheetSolitario(ScrollController scrollCtrl) {
-    final barriosOrdenados = List<_BarrioData>.from(_barriosCercanos)
-      ..sort((a, b) => b.porcentajeCubierto.compareTo(a.porcentajeCubierto));
+    // Solo zonas con ≥1% — las demás se desbloquean al visitar
+    final barriosOrdenados = (List<_BarrioData>.from(_barriosCercanos)
+      ..sort((a, b) => b.porcentajeCubierto.compareTo(a.porcentajeCubierto)))
+        .where((b) => b.porcentajeCubierto >= 0.01).toList();
+    // Filtro por búsqueda
+    final q = _barriosBusqueda.toLowerCase().trim();
+    final barriosFiltrados = q.isEmpty
+        ? barriosOrdenados
+        : barriosOrdenados.where((b) => b.nombre.toLowerCase().contains(q)).toList();
     final completados = barriosOrdenados.where((b) => b.porcentajeCubierto >= 1.0).length;
     final enProgreso  = barriosOrdenados.where((b) => b.porcentajeCubierto > 0 && b.porcentajeCubierto < 1.0).length;
     final avgPct = barriosOrdenados.isEmpty ? 0
@@ -4105,6 +4115,44 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 _ShStat('$enProgreso', 'EN CURSO'),
                 _ShStat('$avgPct%', 'COBERTURA'),
               ]),
+            if (barriosOrdenados.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: TextField(
+                  controller: _barriosSearchCtrl,
+                  onChanged: (v) => setState(() => _barriosBusqueda = v),
+                  style: _raj(13, FontWeight.w500, _shText),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar zona…',
+                    hintStyle: _raj(13, FontWeight.w400, _kSub),
+                    prefixIcon: Icon(Icons.search_rounded, color: _kSub, size: 18),
+                    suffixIcon: _barriosBusqueda.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () => setState(() {
+                              _barriosBusqueda = '';
+                              _barriosSearchCtrl.clear();
+                            }),
+                            child: Icon(Icons.close_rounded, color: _kSub, size: 16),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: _shSurf,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: _shBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: _shBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: _kSub),
+                    ),
+                  ),
+                ),
+              ),
             if (_cargandoBarrios)
               _shLoading('Cargando zonas', 'Consultando OpenStreetMap', _kSub)
             else if (_errorBarrios != null)
@@ -4116,12 +4164,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 child: _shEmptyState(Icons.refresh_rounded, 'No se pudieron cargar',
                     '$_errorBarrios\nToca para reintentar'),
               )
-            else if (barriosOrdenados.isNotEmpty) ...[
-              _shSectionTitle('Zonas cercanas'),
-              ...barriosOrdenados.map(_shBarrioCell),
-            ] else if (_barriosCargados)
-              _shEmptyState(Icons.explore_rounded, 'Sin zonas cercanas',
-                  'Intenta desplazarte a una zona urbana')
+            else if (barriosFiltrados.isNotEmpty) ...[
+              _shSectionTitle('Zonas desbloqueadas'),
+              ...barriosFiltrados.map(_shBarrioCell),
+            ] else if (barriosOrdenados.isNotEmpty)
+              _shEmptyState(Icons.search_off_rounded, 'Sin resultados',
+                  'No hay zonas que coincidan con "$_barriosBusqueda"')
+            else if (_barriosCargados)
+              _shEmptyState(Icons.explore_rounded, 'Sin zonas desbloqueadas',
+                  'Corre por una zona para desbloquearla aquí')
             else
               _shEmptyState(Icons.explore_rounded, 'Desliza para cargar',
                   'Se consultarán las zonas cercanas'),
