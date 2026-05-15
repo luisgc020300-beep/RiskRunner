@@ -84,6 +84,10 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
   // IDs de amigos (para query rutasDeAmigos)
   List<String> _friendIds = [];
 
+  // Búsqueda
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +98,7 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
   @override
   void dispose() {
     _tabs.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -175,6 +180,49 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
     if (mounted) setState(() { _guardadas = list; _loadingGuardadas = false; });
   }
 
+  List<RouteData> _filtrar(List<RouteData> list) {
+    if (_searchQuery.isEmpty) return list;
+    final q = _searchQuery.toLowerCase();
+    return list.where((r) {
+      final nombre  = (r.nombre ?? '').toLowerCase();
+      final creador = r.ownerNickname.toLowerCase();
+      return nombre.contains(q) || creador.contains(q);
+    }).toList();
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _searchQuery = v.trim()),
+        style: TextStyle(color: _p.text1, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: 'Buscar rutas o creador...',
+          hintStyle: TextStyle(color: _p.dim, fontSize: 15),
+          prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 20),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? GestureDetector(
+                  onTap: () => setState(() {
+                    _searchCtrl.clear();
+                    _searchQuery = '';
+                  }),
+                  child: Icon(Icons.cancel_rounded, color: _p.dim, size: 18))
+              : null,
+          filled: true,
+          fillColor: _p.surface2,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: _kPurple.withValues(alpha: 0.5), width: 1)),
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleGuardar(RouteData ruta) async {
     final estaba = _savedIds.contains(ruta.id);
     // Optimistic update
@@ -241,25 +289,30 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _buildTab(_populares, _loadingPopulares, _cargarPopulares,
-            emptyIcon: Icons.local_fire_department_rounded,
-            emptyTitle: 'Sin rutas populares aún',
-            emptySubtitulo: 'Las rutas más corridas aparecerán aquí'),
-          _buildTab(_nuevas, _loadingNuevas, _cargarNuevas,
-            emptyIcon: Icons.fiber_new_rounded,
-            emptyTitle: 'Sin rutas nuevas',
-            emptySubtitulo: 'Las últimas rutas publicadas aparecerán aquí'),
-          _buildTab(_amigos, _loadingAmigos, _cargarAmigos,
-            emptyIcon: Icons.group_rounded,
-            emptyTitle: 'Tus amigos no han publicado rutas',
-            emptySubtitulo: 'Añade amigos para ver sus recorridos'),
-          _buildTab(_guardadas, _loadingGuardadas, _cargarGuardadas,
-            emptyIcon: Icons.bookmark_outline_rounded,
-            emptyTitle: 'No tienes rutas guardadas',
-            emptySubtitulo: 'Guarda rutas de otros exploradores\npara correrlas después'),
+          _buildSearchBar(),
+          Expanded(child: TabBarView(
+            controller: _tabs,
+            children: [
+              _buildTab(_populares, _loadingPopulares, _cargarPopulares,
+                emptyIcon: Icons.local_fire_department_rounded,
+                emptyTitle: 'Sin rutas populares aún',
+                emptySubtitulo: 'Las rutas más corridas aparecerán aquí'),
+              _buildTab(_nuevas, _loadingNuevas, _cargarNuevas,
+                emptyIcon: Icons.fiber_new_rounded,
+                emptyTitle: 'Sin rutas nuevas',
+                emptySubtitulo: 'Las últimas rutas publicadas aparecerán aquí'),
+              _buildTab(_amigos, _loadingAmigos, _cargarAmigos,
+                emptyIcon: Icons.group_rounded,
+                emptyTitle: 'Tus amigos no han publicado rutas',
+                emptySubtitulo: 'Añade amigos para ver sus recorridos'),
+              _buildTab(_guardadas, _loadingGuardadas, _cargarGuardadas,
+                emptyIcon: Icons.bookmark_outline_rounded,
+                emptyTitle: 'No tienes rutas guardadas',
+                emptySubtitulo: 'Guarda rutas de otros exploradores\npara correrlas después'),
+            ],
+          )),
         ],
       ),
     );
@@ -274,23 +327,31 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
     required String emptySubtitulo,
   }) {
     if (loading && list.isEmpty) return _buildSkels();
-    if (list.isEmpty) return _buildEmpty(emptyIcon, emptyTitle, emptySubtitulo);
+    final filtered = _filtrar(list);
+    if (filtered.isEmpty) {
+      if (_searchQuery.isNotEmpty) {
+        return _buildEmpty(Icons.search_off_rounded,
+          'Sin resultados',
+          'No hay rutas que coincidan con "$_searchQuery"');
+      }
+      return _buildEmpty(emptyIcon, emptyTitle, emptySubtitulo);
+    }
     return RefreshIndicator(
       color: _kPurple,
       backgroundColor: _p.surface2,
       onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        itemCount: list.length,
+        itemCount: filtered.length,
         itemBuilder: (ctx, i) => _RouteCard(
-          ruta: list[i],
-          guardada: _savedIds.contains(list[i].id),
+          ruta: filtered[i],
+          guardada: _savedIds.contains(filtered[i].id),
           accent: widget.accent,
           p: _p,
-          onTap: () => _abrirDetalle(list[i]),
-          onToggleGuardar: () => _toggleGuardar(list[i]),
-          onTapCreador: list[i].userId == _uid ? null : () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => PerfilScreen(targetUserId: list[i].userId))),
+          onTap: () => _abrirDetalle(filtered[i]),
+          onToggleGuardar: () => _toggleGuardar(filtered[i]),
+          onTapCreador: filtered[i].userId == _uid ? null : () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => PerfilScreen(targetUserId: filtered[i].userId))),
         ),
       ),
     );
