@@ -399,31 +399,33 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       });
   }
 
-  Widget _rankingPill(String label, IconData icon, String modo, Color color) {
+  Widget _rankingPill(String label, IconData icon, String modo) {
     final isActive = _rankingModo == modo;
     return GestureDetector(
       onTap: isActive ? null : () => setState(() { _rankingModo = modo; _ligaSeleccionada = null; }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: isActive ? color.withValues(alpha: 0.12) : Colors.transparent,
+          color: isActive ? Colors.white.withValues(alpha: 0.10) : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: isActive ? color.withValues(alpha: 0.55) : _p.line2,
+            color: isActive ? Colors.white.withValues(alpha: 0.45) : _p.line2,
             width: 1,
           ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: isActive ? color : _p.dim),
-          const SizedBox(width: 5),
-          Text(label, style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-            color: isActive ? color : _p.dim,
-            letterSpacing: 0.8,
-          )),
-        ]),
+        child: Center(
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 11, color: isActive ? Colors.white : _p.dim),
+            const SizedBox(width: 5),
+            Text(label, style: TextStyle(
+              fontFamily: 'Rajdhani', fontSize: 11,
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              color: isActive ? Colors.white : _p.dim,
+              letterSpacing: 0.8,
+            )),
+          ]),
+        ),
       ),
     );
   }
@@ -435,14 +437,11 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
         child: Row(children: [
-          _rankingPill('COMPETITIVO', Icons.leaderboard_rounded,
-              'competitivo', const Color(0xFF0A84FF)),
+          Expanded(child: _rankingPill('COMPETITIVO', Icons.leaderboard_rounded, 'competitivo')),
           const SizedBox(width: 8),
-          _rankingPill('SEMANAL', Icons.public_rounded,
-              'semanal', const Color(0xFFFFD700)),
+          Expanded(child: _rankingPill('SEMANAL', Icons.public_rounded, 'semanal')),
           const SizedBox(width: 8),
-          _rankingPill('RUTAS', Icons.route_rounded,
-              'rutas', const Color(0xFFAF52DE)),
+          Expanded(child: _rankingPill('RUTAS', Icons.route_rounded, 'rutas')),
         ])),
       if (_rankingModo == 'competitivo') ...[
         if (_ligaSeleccionada != null) _buildBotonVolver(),

@@ -609,8 +609,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Campo de estrellas para el mapa global oscuro ─────────────────────────
   late final List<_Star> _starfield;
 
-  // ── FIX: zoom y centro inicial compartidos entre ciudad y solitario ────────
-  static const double _kInitialZoom = 13.0;
+  // zoom amplio por defecto al entrar — FAB lleva a la zona del usuario
+  static const double _kInitialZoom = 5.0;
+  static const double _kLocateZoom  = 15.0;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
@@ -2090,6 +2091,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoRutas() async {
     _state.setModoRutas(true);
+    _mapController.move(_state.centro, _kInitialZoom);
     await _cargarMisRutas();
   }
 
@@ -3096,8 +3098,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
 
       if (_fabCentradoEnUsuario) {
-        // Segunda pulsación: zoom out a vista ciudad
-        _mapController.move(_state.centro, 12.0);
+        // Segunda pulsación: volver a vista amplia
+        _mapController.move(_state.centro, _kInitialZoom);
         setState(() => _fabCentradoEnUsuario = false);
       } else {
         // Primera pulsación: ir a mi posición actual con zoom cercano
@@ -3110,12 +3112,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     accuracy: LocationAccuracy.low));
             if (!mounted) return;
             _mapController.move(
-                LatLng(pos.latitude, pos.longitude), 15.0);
+                LatLng(pos.latitude, pos.longitude), _kLocateZoom);
             setState(() => _fabCentradoEnUsuario = true);
           }
         } catch (_) {
-          // Sin permiso: simplemente centra en el centro conocido
-          _mapController.move(_state.centro, 15.0);
+          _mapController.move(_state.centro, _kLocateZoom);
           setState(() => _fabCentradoEnUsuario = true);
         }
       }
@@ -3979,11 +3980,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _ShStat('$pel', 'CRÍTICOS'),
           ]),
           if (pel > 0 || det > 0) _shAlert(det, pel),
-          if (_state.desafioActivo != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _buildBannerDesafio(_state.desafioActivo!),
-            ),
           if (_state.loadingTerritorios)
             _shLoading('Buscando zonas', 'Cargando territorios cercanos', _kSub)
           else if (_state.territorios.isEmpty)
@@ -5254,121 +5250,4 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
-  Widget _buildBannerDesafio(Map<String, dynamic> data) {
-    final bool soyR = data['retadorId'] == _uid;
-    final String rival = soyR
-        ? (data['retadoNick'] ?? 'Rival')
-        : (data['retadorNick'] ?? 'Rival');
-    final int misPts = soyR
-        ? (data['puntosRetador'] as num? ?? 0).toInt()
-        : (data['puntosRetado'] as num? ?? 0).toInt();
-    final int rivalPts = soyR
-        ? (data['puntosRetado'] as num? ?? 0).toInt()
-        : (data['puntosRetador'] as num? ?? 0).toInt();
-    final int apuesta = (data['apuesta'] as num? ?? 0).toInt();
-    final Timestamp? finTs = data['fin'] as Timestamp?;
-    final bool ganando = misPts > rivalPts; // empate → gana el retado (defensor)
-
-    String tiempo = '';
-    if (finTs != null) {
-      final diff = finTs.toDate().difference(DateTime.now());
-      tiempo = diff.isNegative
-          ? 'FINALIZADO'
-          : diff.inHours > 0
-              ? '${diff.inHours}h ${diff.inMinutes.remainder(60)}m'
-              : '${diff.inMinutes}m';
-    }
-    final int total = misPts + rivalPts;
-    final double pct = total > 0 ? misPts / total : 0.5;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _kRed.withValues(alpha: 0.04),
-        border: Border.all(color: _kBorder2),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 3,
-          decoration: const BoxDecoration(
-            color: _kRed,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(4),
-              bottomLeft: Radius.circular(4),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 10, 14, 8),
-              child: Row(children: [
-                const Icon(Icons.sports_rounded, size: 14, color: _kRed),
-                const SizedBox(width: 8),
-                Text('DESAFÍO ACTIVO',
-                    style:
-                        _raj(9, FontWeight.w900, _kRed, spacing: 2)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                      border: Border.all(color: _kBorder2),
-                      borderRadius: BorderRadius.circular(3)),
-                  child: Text(tiempo,
-                      style:
-                          _raj(9, FontWeight.w700, _kText, spacing: 1))),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 0, 14, 0),
-              child: Row(children: [
-                Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text('TÚ',
-                      style: _raj(7, FontWeight.w700, _kSub,
-                          spacing: 2)),
-                  Text('$misPts',
-                      style: _raj(22, FontWeight.w900,
-                          ganando ? _kWhite : _kSub, height: 1)),
-                ])),
-                Column(children: [
-                  Text('VS',
-                      style: _raj(10, FontWeight.w900, _kDim,
-                          spacing: 2)),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.monetization_on_rounded,
-                        size: 10, color: _kGoldDim),
-                    const SizedBox(width: 2),
-                    Text('$apuesta',
-                        style: _raj(9, FontWeight.w700, _kText)),
-                  ]),
-                ]),
-                Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                  Text(rival.toString().toUpperCase(),
-                      style: _raj(7, FontWeight.w700, _kSub,
-                          spacing: 2)),
-                  Text('$rivalPts',
-                      style: _raj(22, FontWeight.w900,
-                          !ganando ? _kWhite : _kSub, height: 1)),
-                ])),
-              ]),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 8, 14, 12),
-              child: Stack(children: [
-                Container(height: 3, color: _kBorder2),
-                FractionallySizedBox(
-                    widthFactor: pct.clamp(0.0, 1.0),
-                    child: Container(height: 3, color: _kRed)),
-              ]),
-            ),
-          ]),
-        ),
-      ]),
-    );
-  }
 }

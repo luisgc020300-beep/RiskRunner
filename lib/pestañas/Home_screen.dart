@@ -1362,10 +1362,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // =============================================================================
   PreferredSizeWidget _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1C1E);
     return AppBar(
       backgroundColor: isDark ? const Color(0xFF0D0D0D) : const Color(0xF0F2F2F7),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
+      centerTitle: true,
+      title: AnimatedOpacity(
+        opacity: _headerCollapsed ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          'RISKRUNNER',
+          style: _raj(15, FontWeight.w900, titleColor, spacing: 2),
+        ),
+      ),
       actions: [
         // TEMPORAL â€” borrar tras seed
         GestureDetector(
@@ -1408,24 +1418,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.inter(
-                  fontSize: 34, fontWeight: FontWeight.w900, height: 1.0),
-                children: [
-                  const TextSpan(
-                    text: 'RISK',
-                    style: TextStyle(color: Color(0xFFE02020)),
-                  ),
-                  TextSpan(
-                    text: 'RUNNER',
-                    style: TextStyle(color: _T.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
           GestureDetector(
             onTap: () => CoinShopScreen.mostrar(context),
             child: Container(

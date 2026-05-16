@@ -1210,12 +1210,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   //  TAB BAR â€” con 4 tabs incluyendo DUELOS
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildTabBar() {
-    const tabColors = [
-      Color(0xFF0A84FF),  // STATS     — azul
-      Color(0xFFCC7C3A),  // HISTORIAL — bronce
-      Color(0xFF34C759),  // POSTS     — verde
-      _kAccent,           // DUELOS    — rojo
-    ];
     final tabs = [
       (Icons.bar_chart_rounded,  'STATS',     false),
       (Icons.shield_outlined,    'HISTORIAL', false),
@@ -1224,57 +1218,57 @@ class _PerfilScreenState extends State<PerfilScreen>
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: tabs.asMap().entries.map((e) {
-            final i      = e.key;
-            final icon   = e.value.$1;
-            final label  = e.value.$2;
-            final badge  = e.value.$3;
-            final active = _tabPrincipal == i;
-            final color  = tabColors[i];
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: tabs.asMap().entries.map((e) {
+          final i      = e.key;
+          final icon   = e.value.$1;
+          final label  = e.value.$2;
+          final badge  = e.value.$3;
+          final active = _tabPrincipal == i;
 
-            return Padding(
-              padding: EdgeInsets.only(right: i < tabs.length - 1 ? 8 : 0),
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: i < tabs.length - 1 ? 6 : 0),
               child: GestureDetector(
                 onTap: () => setState(() => _tabPrincipal = i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   decoration: BoxDecoration(
-                    color: active ? color.withValues(alpha: 0.12) : Colors.transparent,
+                    color: active ? Colors.white.withValues(alpha: 0.10) : Colors.transparent,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: active ? color.withValues(alpha: 0.55) : _p.border2,
+                      color: active ? Colors.white.withValues(alpha: 0.45) : _p.border2,
                       width: 1,
                     ),
                   ),
-                  child: Stack(clipBehavior: Clip.none, children: [
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(icon, size: 12, color: active ? color : _p.dim),
-                      const SizedBox(width: 4),
-                      Text(label, style: _rajdhani(11,
-                          active ? FontWeight.w700 : FontWeight.w500,
-                          active ? color : _p.dim,
-                          spacing: 0.8)),
-                    ]),
-                    if (badge)
-                      Positioned(
-                        top: -4, right: -6,
-                        child: Container(
-                          width: 7, height: 7,
-                          decoration: const BoxDecoration(
-                              color: _kAccent, shape: BoxShape.circle),
+                  child: Center(
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(icon, size: 10, color: active ? Colors.white : _p.dim),
+                        const SizedBox(width: 3),
+                        Text(label, style: _rajdhani(10,
+                            active ? FontWeight.w700 : FontWeight.w500,
+                            active ? Colors.white : _p.dim,
+                            spacing: 0.6)),
+                      ]),
+                      if (badge)
+                        Positioned(
+                          top: -4, right: -6,
+                          child: Container(
+                            width: 7, height: 7,
+                            decoration: const BoxDecoration(
+                                color: _kAccent, shape: BoxShape.circle),
+                          ),
                         ),
-                      ),
-                  ]),
+                    ]),
+                  ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
