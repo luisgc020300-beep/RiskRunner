@@ -15,9 +15,6 @@ const _kMapboxToken   = Env.mapboxPublicToken;
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
     '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
-const _kMapboxDarkUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/512/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 class ResumenMapSection extends StatelessWidget {
   final List<LatLng>        ruta;
@@ -94,9 +91,7 @@ class ResumenMapSection extends StatelessWidget {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: MediaQuery.platformBrightnessOf(context) == Brightness.dark
-                        ? _kMapboxDarkUrl
-                        : _kMapboxTileUrl,
+                    urlTemplate: _kMapboxTileUrl,
                     userAgentPackageName: 'com.runner_risk.app',
                     tileDimension: 256,
                     keepBuffer:    4,

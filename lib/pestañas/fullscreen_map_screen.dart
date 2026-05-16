@@ -715,7 +715,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     for (final barrio in _barriosCercanos) {
       double areaCubierta = 0.0;
       for (final ter in misTers) {
-        if (_puntoEnPoligonoSol(ter.centro, barrio.puntos)) {
+        if (_territorioEnBarrio(ter, barrio.puntos)) {
           areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
         }
       }
@@ -2012,7 +2012,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         final misTers = _state.territorios.where((t) => t.esMio).toList();
         double areaCubierta = 0.0;
         for (final ter in misTers) {
-          if (_puntoEnPoligonoSol(ter.centro, puntos)) {
+          if (_territorioEnBarrio(ter, puntos)) {
             areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
           }
         }
@@ -2124,6 +2124,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
     }
     return cruces.isOdd;
+  }
+
+  /// Devuelve true si el territorio solapa con el barrio:
+  /// comprueba el centroide Y todos los vértices del territorio.
+  /// Esto evita perder territorios cuyo centro cae justo fuera del borde del barrio.
+  bool _territorioEnBarrio(TerritoryData ter, List<LatLng> barrioPuntos) {
+    if (_puntoEnPoligonoSol(ter.centro, barrioPuntos)) return true;
+    for (final v in ter.puntos) {
+      if (_puntoEnPoligonoSol(v, barrioPuntos)) return true;
+    }
+    return false;
   }
 
   // FIX: el mapa solitario ahora usa el mismo MapController y mismo zoom inicial

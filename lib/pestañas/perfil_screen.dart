@@ -1,5 +1,6 @@
 ﻿// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
+import 'Resumen_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -98,6 +99,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<Map<String, dynamic>> _historialCompleto     = [];
   List<Map<String, dynamic>> _historialFiltrado     = [];
   bool _cargandoHistorial       = false;
+  bool _cargandoResumen         = false;
   bool _verTodoHistorial        = false;
   final TextEditingController _historialSearchCtrl  = TextEditingController();
   static const int _historialPagina = 20;
@@ -909,6 +911,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         // historial completo (solo carreras con distancia â€” filtra reto-only)
         if (dist > 0) {
           historial.add({
+            'docId'          : doc.id,
             'titulo'         : d['titulo'] ?? 'Carrera completada',
             'recompensa'     : (d['recompensa'] as num? ?? 0).toInt(),
             'fecha'          : d['fecha_dia'] ?? 'Reciente',
@@ -1826,6 +1829,36 @@ class _PerfilScreenState extends State<PerfilScreen>
     return '${d.day}${meses[d.month - 1]}';
   }
 
+  Future<void> _abrirResumenHistorial(Map<String, dynamic> d) async {
+    final docId = d['docId'] as String?;
+    if (docId == null || _cargandoResumen) return;
+    setState(() => _cargandoResumen = true);
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('activity_logs')
+          .doc(docId)
+          .get();
+      if (!mounted || !doc.exists) return;
+      final data = doc.data()!;
+      final rutaRaw = data['ruta'] as List<dynamic>? ?? [];
+      final ruta = rutaRaw.map((p) {
+        final m = p as Map<String, dynamic>;
+        return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+      }).toList();
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
+        distancia        : (d['distancia'] as double? ?? 0),
+        tiempo           : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
+        ruta             : ruta,
+        esDesdeCarrera   : false,
+      )));
+    } catch (e) {
+      debugPrint('Error abriendo resumen: $e');
+    } finally {
+      if (mounted) setState(() => _cargandoResumen = false);
+    }
+  }
+
   Widget _buildHistorialCompleto() {
     final total     = _historialFiltrado.length;
     final mostrados = _verTodoHistorial || _historialSearchCtrl.text.isNotEmpty
@@ -1867,7 +1900,9 @@ class _PerfilScreenState extends State<PerfilScreen>
               final vel  = (d['velocidad_media'] as double? ?? 0);
               final fecha = _formatFechaCorta(d['timestamp']);
               final isFirst = idx == 0;
-              return Container(
+              return GestureDetector(
+                onTap: () => _abrirResumenHistorial(d),
+                child: Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(color: _p.bg, borderRadius: BorderRadius.circular(8), border: Border(left: BorderSide(color: isFirst ? _kAccent : _p.border2, width: isFirst ? 2 : 1))),
                 child: IntrinsicHeight(
@@ -1891,7 +1926,8 @@ class _PerfilScreenState extends State<PerfilScreen>
                     )),
                   ]),
                 ),
-              );
+              ),
+            );
             }),
             if (!_verTodoHistorial && _historialFiltrado.length > _historialPagina * _historialPaginaActual)
               GestureDetector(
