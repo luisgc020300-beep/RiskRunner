@@ -1210,6 +1210,8 @@ class _PerfilScreenState extends State<PerfilScreen>
   //  TAB BAR â€” con 4 tabs incluyendo DUELOS
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildTabBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? Colors.white : const Color(0xFF1C1C1E);
     final tabs = [
       (Icons.bar_chart_rounded,  'STATS',     false),
       (Icons.shield_outlined,    'HISTORIAL', false),
@@ -1236,21 +1238,21 @@ class _PerfilScreenState extends State<PerfilScreen>
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                   decoration: BoxDecoration(
-                    color: active ? Colors.white.withValues(alpha: 0.10) : Colors.transparent,
+                    color: active ? activeColor.withValues(alpha: 0.08) : Colors.transparent,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: active ? Colors.white.withValues(alpha: 0.45) : _p.border2,
+                      color: active ? activeColor.withValues(alpha: 0.45) : _p.border2,
                       width: 1,
                     ),
                   ),
                   child: Center(
                     child: Stack(clipBehavior: Clip.none, children: [
                       Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(icon, size: 10, color: active ? Colors.white : _p.dim),
+                        Icon(icon, size: 10, color: active ? activeColor : _p.dim),
                         const SizedBox(width: 3),
                         Text(label, style: _rajdhani(10,
                             active ? FontWeight.w700 : FontWeight.w500,
-                            active ? Colors.white : _p.dim,
+                            active ? activeColor : _p.dim,
                             spacing: 0.6)),
                       ]),
                       if (badge)

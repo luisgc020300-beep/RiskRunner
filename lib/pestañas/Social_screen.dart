@@ -401,30 +401,35 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
 
   Widget _rankingPill(String label, IconData icon, String modo) {
     final isActive = _rankingModo == modo;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? Colors.white : const Color(0xFF1C1C1E);
     return GestureDetector(
       onTap: isActive ? null : () => setState(() { _rankingModo = modo; _ligaSeleccionada = null; }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white.withValues(alpha: 0.10) : Colors.transparent,
+          color: isActive ? activeColor.withValues(alpha: 0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: isActive ? Colors.white.withValues(alpha: 0.45) : _p.line2,
+            color: isActive ? activeColor.withValues(alpha: 0.45) : _p.line2,
             width: 1,
           ),
         ),
         child: Center(
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 11, color: isActive ? Colors.white : _p.dim),
-            const SizedBox(width: 5),
-            Text(label, style: TextStyle(
-              fontFamily: 'Rajdhani', fontSize: 11,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              color: isActive ? Colors.white : _p.dim,
-              letterSpacing: 0.8,
-            )),
-          ]),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 11, color: isActive ? activeColor : _p.dim),
+              const SizedBox(width: 5),
+              Text(label, style: TextStyle(
+                fontFamily: 'Rajdhani', fontSize: 11,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? activeColor : _p.dim,
+                letterSpacing: 0.8,
+              )),
+            ]),
+          ),
         ),
       ),
     );
