@@ -3191,6 +3191,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   : _objetivoGlobal != null ? 'guerra_global' : 'competitivo',
           'fecha_dia':
               '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
+          'ruta': rutaFinal.isNotEmpty
+              ? rutaFinal.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList()
+              : [],
           if (_objetivoGlobal != null) ...{
             'objetivo_global_id':           _objetivoGlobal!['territorioId'],
             'objetivo_global_conquistado':  _globalConquistado,
