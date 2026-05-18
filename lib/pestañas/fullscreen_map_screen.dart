@@ -801,15 +801,25 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _resolverCentro() async {
     if (widget.centroInicial != null) {
       _state.setCentro(widget.centroInicial!);
+      _gpsResuelto = true;
       return;
     }
     try {
       final perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
-        final pos = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
-        _state.setCentro(LatLng(pos.latitude, pos.longitude));
-        _gpsResuelto = true;
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
+          _state.setCentro(LatLng(pos.latitude, pos.longitude));
+          _gpsResuelto = true;
+          return;
+        } catch (_) {}
+        // Fallback: última posición conocida si getCurrentPosition falla
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) {
+          _state.setCentro(LatLng(last.latitude, last.longitude));
+          _gpsResuelto = true;
+        }
       }
     } catch (e) {
       debugPrint('FullscreenMap resolverCentro error: $e');
@@ -1644,12 +1654,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      AnimatedBuilder(
-                        animation: _toggleCtrl,
+                      ListenableBuilder(
+                        listenable: Listenable.merge([_toggleCtrl, _state]),
                         builder: (_, __) => Text(
-                          _toggleAnim.value > 0.5
+                          _state.modoGlobal
                               ? 'MAPA GLOBAL'
-                              : 'MAPA DE CIUDAD',
+                              : _state.modoSolitario
+                              ? 'MAPA SOLITARIO'
+                              : _state.modoRutas
+                              ? 'MAPA RUTAS'
+                              : 'MAPA COMPETITIVO',
                           style: _raj(13, FontWeight.w900, _kWhite,
                               spacing: 2),
                         ),
@@ -1672,6 +1686,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                             _state.modoGlobal
                                 ? '${_state.totalJugadoresGlobal} GUERREROS · '
                                   '${_state.territoriosGlobales.length} TERRITORIOS'
+                                : _state.modoRutas
+                                ? '${_misRutas.length} ${_misRutas.length == 1 ? 'RUTA' : 'RUTAS'}'
                                 : '${_state.jugadoresEnVivo.length} EN VIVO · '
                                   '${_state.territorios.length} ZONAS',
                             style: _raj(8, FontWeight.w700, _kSub,

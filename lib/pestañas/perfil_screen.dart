@@ -1,4 +1,4 @@
-﻿// lib/screens/perfil_screen.dart
+// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
 import 'dart:async';
@@ -35,7 +35,7 @@ import '../widgets/perfil/perfil_duelos_tab.dart';
 const _kMapboxTileUrl =
     'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
-// Aliases â€” la paleta y constantes viven en perfil_theme.dart
+// Aliases — la paleta y constantes viven en perfil_theme.dart
 typedef _PP = PerfilPalette;
 const _kAccent = kPerfilAccent;
 const _kGold   = kPerfilGold;
@@ -143,7 +143,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<TituloRey> _titulosActivos  = [];
   List<TituloRey> _todosLosTitulos = [];
 
-  // â”€â”€ Contadores de desafÃ­os para badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Contadores de desafíos para badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   int _desafiosActivosCount = 0;
 
   // â”€â”€ Rate limiting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -173,7 +173,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   // â”€â”€ Stats premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<PuntoTendencia> _tendencia8Semanas = [];
   ComparativaSemanal?  _comparativaSemanal;
-  Map<int, String>     _nombresZonas     = {};  // Ã­ndice territorio â†’ nombre
+  Map<int, String>     _nombresZonas     = {};  // índice territorio â†’ nombre
   bool   _loadingStatsPremium  = false;
   bool   _statsPremiumCargadas = false;
   String _statsPremiumError    = '';
@@ -234,7 +234,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     super.dispose();
   }
 
-  // â”€â”€ Cargar stats premium (lazy â€” solo cuando se abre el tab STATS) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Cargar stats premium (lazy — solo cuando se abre el tab STATS) â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _cargarStatsPremium() async {
     if (!_isPremium || _statsPremiumCargadas || _loadingStatsPremium) return;
     if (viewedUserId == null) return;
@@ -272,7 +272,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       final tendencia    = StatsService.calcularTendencia8Semanas(carreras);
       final comparativa  = StatsService.calcularComparativaSemanal(carreras);
 
-      // Geocoding de territorios â€” centroide de cada territorio
+      // Geocoding de territorios — centroide de cada territorio
       final Map<int, String> nombres = {};
       if (_territoriosDelUsuario.isNotEmpty) {
         final centroides = _territoriosDelUsuario.map((t) {
@@ -298,12 +298,12 @@ class _PerfilScreenState extends State<PerfilScreen>
       debugPrint('Error cargando stats premium: $e');
       if (mounted) setState(() {
         _loadingStatsPremium = false;
-        _statsPremiumError   = 'No se pudo cargar el anÃ¡lisis. Comprueba tu conexiÃ³n.';
+        _statsPremiumError   = 'No se pudo cargar el análisis. Comprueba tu conexión.';
       });
     }
   }
 
-  // â”€â”€ Escuchar conteo de desafÃ­os activos para el badge (dos streams O(1)) â”€â”€
+  // â”€â”€ Escuchar conteo de desafíos activos para el badge (dos streams O(1)) â”€â”€
   int _desafiosComoRetador = 0;
   int _desafiosComoRetado  = 0;
 
@@ -373,7 +373,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (viewedUserId == null) return;
     setState(() => isLoading = true);
     try {
-      // _cargarPerfil primero para que _puntosLiga estÃ© disponible en _cargarRangoEnLiga
+      // _cargarPerfil primero para que _puntosLiga esté disponible en _cargarRangoEnLiga
       await _cargarPerfil();
       await Future.wait([
         _cargarEstadisticas(), _cargarLogros(),
@@ -407,11 +407,11 @@ class _PerfilScreenState extends State<PerfilScreen>
         _titulosActivos  = resultados[1];
       });
     } catch (e) {
-      debugPrint('Error tÃ­tulos: $e');
+      debugPrint('Error títulos: $e');
     }
   }
 
-  // Delegada a _cargarEstadisticas â€” historial se construye desde el mismo snapshot
+  // Delegada a _cargarEstadisticas — historial se construye desde el mismo snapshot
   Future<void> _cargarHistorialCompleto() async {}
 
   void _filtrarHistorial(String q) => setState(() {
@@ -536,7 +536,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         'read':         false,
         'timestamp':    FieldValue.serverTimestamp(),
       });
-      // GestiÃ³n automÃ¡tica de amistad
+      // Gestión automática de amistad
       String newStatus = _friendshipStatus;
       String? newDocId = _friendshipDocId;
       if (_friendshipStatus == 'pending_received' && _friendshipDocId != null) {
@@ -544,7 +544,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
         newStatus = 'accepted';
       } else if (_friendshipStatus == 'none') {
-        // Ver si ya nos siguen (follow mutuo sin doc de amistad aÃºn)
+        // Ver si ya nos siguen (follow mutuo sin doc de amistad aún)
         final theyFollowMe = await FirebaseFirestore.instance
             .collection('follows')
             .where('followerId', isEqualTo: viewedUserId)
@@ -568,7 +568,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       });
     } catch (e) {
       debugPrint('Error seguir: $e');
-      if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexiÃ³n', error: true);
+      if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexión', error: true);
     }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
@@ -641,8 +641,8 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (mounted) setState(() => _liveCenter = LatLng(lat, lng));
       }
     }
-    // Filtro geogrÃ¡fico centrado en los territorios del usuario visto.
-    // Si no hay centro conocido, carga los 200 mÃ¡s recientes sin filtro.
+    // Filtro geográfico centrado en los territorios del usuario visto.
+    // Si no hay centro conocido, carga los 200 más recientes sin filtro.
     const double kRad = 0.12; // ~13 km
     final center = _liveCenter;
     final baseQuery = (center.latitude != 40.4168 || center.longitude != -3.7038)
@@ -695,7 +695,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  //  DESAFÃO â€” botÃ³n retar (perfil ajeno)
+  //  DESAFÍO — botón retar (perfil ajeno)
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildBotonRetar() {
@@ -746,10 +746,10 @@ class _PerfilScreenState extends State<PerfilScreen>
             Row(children: [
               Container(width: 2, height: 16, color: _kAccent),
               const SizedBox(width: 10),
-              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÃO DIRECTO', style: _rajdhani(13, FontWeight.w900, _p.title, spacing: 2)),
+              Text(esContrapropuesta ? 'CONTRAPROPONAR' : 'DESAFÍO DIRECTO', style: _rajdhani(13, FontWeight.w900, _p.title, spacing: 2)),
             ]),
             const SizedBox(height: 6),
-            Text(esContrapropuesta ? 'PropÃ³n tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista mÃ¡s', style: _rajdhani(12, FontWeight.w500, _p.sub)),
+            Text(esContrapropuesta ? 'Propón tus condiciones a ${nickname.toUpperCase()}' : 'Reta a ${nickname.toUpperCase()} a quien conquista más', style: _rajdhani(12, FontWeight.w500, _p.sub)),
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
@@ -771,7 +771,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: _p.surface2, border: Border.all(color: _p.border2)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('DURACIÃ“N (HORAS)', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
+                Text('DURACIÓN (HORAS)', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 12),
                 Row(children: [
                   GestureDetector(onTap: () { setModal(() => horas = (horas - 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
@@ -779,7 +779,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   GestureDetector(onTap: () { setModal(() => horas = (horas + 1).clamp(1, 168)); horasCtrl.text = '$horas'; }, child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 4),
-                Center(child: Text('MÃ­nimo 1h Â· MÃ¡ximo 168h (7 dÃ­as)', style: _rajdhani(9, FontWeight.w500, _p.sub))),
+                Center(child: Text('Mínimo 1h · Máximo 168h (7 días)', style: _rajdhani(9, FontWeight.w500, _p.sub))),
               ]),
             ),
             const SizedBox(height: 12),
@@ -787,16 +787,16 @@ class _PerfilScreenState extends State<PerfilScreen>
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _p.border2), right: BorderSide(color: _p.border2), bottom: BorderSide(color: _p.border2))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('PUNTUACIÃ“N', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
+                Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 6),
-                Text('Territorios conquistados Ã— 10', style: _rajdhani(11, FontWeight.w500, _p.sub)),
-                Text('KilÃ³metros corridos Ã— 5', style: _rajdhani(11, FontWeight.w500, _p.sub)),
+                Text('Territorios conquistados × 10', style: _rajdhani(11, FontWeight.w500, _p.sub)),
+                Text('Kilómetros corridos × 5', style: _rajdhani(11, FontWeight.w500, _p.sub)),
               ]),
             ),
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () { Navigator.pop(ctx); if (esContrapropuesta && desafioId != null) { _enviarContrapropuesta(desafioId, apuesta, horas); } else { _enviarReto(apuesta, horas); } },
-              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '  ENVIAR CONTRAPROPUESTA' : '  ENVIAR DESAFÃO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
+              child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 15), color: _kAccent, child: Text(esContrapropuesta ? '  ENVIAR CONTRAPROPUESTA' : '  ENVIAR DESAFÍO', textAlign: TextAlign.center, style: _rajdhani(13, FontWeight.w900, Colors.white, spacing: 2))),
             ),
           ]),
         ),
@@ -810,7 +810,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final ahora = DateTime.now();
     if (_ultimoReto != null && ahora.difference(_ultimoReto!) < _kCooldownReto) {
       final restantes = _kCooldownReto.inSeconds - ahora.difference(_ultimoReto!).inSeconds;
-      _mostrarSnackbar('Espera ${restantes}s antes de enviar otro desafÃ­o', error: true);
+      _mostrarSnackbar('Espera ${restantes}s antes de enviar otro desafío', error: true);
       return;
     }
     try {
@@ -819,11 +819,11 @@ class _PerfilScreenState extends State<PerfilScreen>
       final misMonedas = (myDoc.data()?['monedas'] as num?)?.toInt() ?? 0;
       if (misMonedas < apuesta) { _mostrarSnackbar('No tienes suficientes monedas', error: true); return; }
       await FirebaseFirestore.instance.collection('desafios').add({'retadorId': myUserId, 'retadorNick': myNick, 'retadoId': viewedUserId, 'retadoNick': nickname, 'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente', 'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0, 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h Â· $apuesta . Â¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'monedas': FieldValue.increment(-apuesta)});
       _ultimoReto = DateTime.now();
-      _mostrarSnackbar('Â¡DesafÃ­o enviado!');
-    } catch (e) { _mostrarSnackbar('Error al enviar el desafÃ­o', error: true); }
+      _mostrarSnackbar('¡Desafío enviado!');
+    } catch (e) { _mostrarSnackbar('Error al enviar el desafío', error: true); }
   }
 
   Future<void> _enviarContrapropuesta(String desafioId, int apuesta, int horas) async {
@@ -838,7 +838,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       final data       = desafioDoc.data()!;
       final retadorId  = data['retadorId'] as String;
       final toUserId   = myUserId == retadorId ? data['retadoId'] : retadorId;
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': ' $myNick contrapropone: ${horas}h Â· $apuesta ', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
+      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': toUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'desafioId': desafioId, 'message': ' $myNick contrapropone: ${horas}h · $apuesta ', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': true, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       _mostrarSnackbar('Contrapropuesta enviada');
     } catch (e) { _mostrarSnackbar('Error al enviar contrapropuesta', error: true); }
   }
@@ -866,7 +866,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     } catch (e) { debugPrint('Error racha: $e'); }
   }
 
-  // Una sola query a activity_logs â€” stats + logros + carreras recientes de golpe
+  // Una sola query a activity_logs — stats + logros + carreras recientes de golpe
   Future<void> _cargarEstadisticas() async {
     try {
       final logsSnap = await FirebaseFirestore.instance
@@ -908,7 +908,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           carrerasConDist++;
         }
 
-        // historial completo (solo carreras con distancia â€” filtra reto-only)
+        // historial completo (solo carreras con distancia — filtra reto-only)
         if (dist > 0) {
           historial.add({
             'docId'          : doc.id,
@@ -958,7 +958,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       debugPrint('Error stats: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error cargando estadÃ­sticas: $e'),
+          content: Text('Error cargando estadísticas: $e'),
           duration: const Duration(seconds: 15),
           backgroundColor: Colors.red[900],
         ));
@@ -966,7 +966,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     }
   }
 
-  // Delegadas a _cargarEstadisticas â€” no necesitan hacer su propia query
+  // Delegadas a _cargarEstadisticas — no necesitan hacer su propia query
   Future<void> _cargarLogros() async {}
   Future<void> _cargarCarrerasRecientes() async {}
 
@@ -999,9 +999,9 @@ class _PerfilScreenState extends State<PerfilScreen>
           Text('FOTO DE PERFIL', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 3)),
           const SizedBox(height: 20),
           Row(children: [
-            Expanded(child: _BotonFoto(icon: Icons.camera_alt_outlined, label: 'CÃ¡mara', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.camera); })),
+            Expanded(child: _BotonFoto(icon: Icons.camera_alt_outlined, label: 'Cámara', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.camera); })),
             const SizedBox(width: 12),
-            Expanded(child: _BotonFoto(icon: Icons.photo_library_outlined, label: 'GalerÃ­a', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.gallery); })),
+            Expanded(child: _BotonFoto(icon: Icons.photo_library_outlined, label: 'Galería', accent: _kAccent, onTap: () { Navigator.pop(ctx); _tomarFoto(ImageSource.gallery); })),
           ]),
           if (fotoBase64 != null) ...[const SizedBox(height: 12), SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () { Navigator.pop(ctx); _eliminarFoto(); }, icon: const Icon(Icons.delete_outline, color: Colors.redAccent), label: Text('Eliminar foto', style: _rajdhani(13, FontWeight.w600, Colors.redAccent))))],
           const SizedBox(height: 8),
@@ -1037,9 +1037,9 @@ class _PerfilScreenState extends State<PerfilScreen>
   Future<void> _guardarNickname() async {
     if (!isOwnProfile) return;
     final nn = _nicknameController.text.trim();
-    if (nn.isEmpty)  { _mostrarSnackbar('El nickname no puede estar vacÃ­o', error: true); return; }
+    if (nn.isEmpty)  { _mostrarSnackbar('El nickname no puede estar vacío', error: true); return; }
     if (nn == nickname) { _mostrarSnackbar('El nickname no ha cambiado'); return; }
-    if (nn.length < 3) { _mostrarSnackbar('MÃ­nimo 3 caracteres', error: true); return; }
+    if (nn.length < 3) { _mostrarSnackbar('Mínimo 3 caracteres', error: true); return; }
     setState(() => isSaving = true);
     try {
       await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'nickname': nn});
@@ -1071,7 +1071,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(height: 24),
           Text('EDITAR CALLSIGN', style: _rajdhani(11, FontWeight.w700, _p.text, spacing: 3)),
           const SizedBox(height: 4),
-          Text('Se actualizarÃ¡ en toda la app', style: _rajdhani(12, FontWeight.w400, _p.sub)),
+          Text('Se actualizará en toda la app', style: _rajdhani(12, FontWeight.w400, _p.sub)),
           const SizedBox(height: 20),
           TextField(
             controller: _nicknameController, autofocus: true, maxLength: 20,
@@ -1096,7 +1096,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
   String _nivelTitulo(int n) {
     if (n >= 50) return 'LEYENDA';
-    if (n >= 30) return 'Ã‰LITE';
+    if (n >= 30) return 'ÉLITE';
     if (n >= 20) return 'VETERANO';
     if (n >= 10) return 'EXPLORADOR';
     return 'ROOKIE';
@@ -1210,7 +1210,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  //  TAB BAR â€” con 4 tabs incluyendo DUELOS
+  //  TAB BAR — con 4 tabs incluyendo DUELOS
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildTabBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1354,7 +1354,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   ? Row(children: [
                       Icon(Icons.route_rounded, size: 18, color: _p.muted),
                       const SizedBox(width: 8),
-                      Text('Sin rutas libres aÃºn',
+                      Text('Sin rutas libres aún',
                           style: _rajdhani(12, FontWeight.w500, _p.sub)),
                     ])
                   : Wrap(
@@ -1365,7 +1365,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                         _statChip(Icons.straighten_rounded,   '${_rutasKmTotal.toStringAsFixed(1)} km', 'total'),
                         _statChip(Icons.timer_outlined,       durStr(_rutasSegTotal),                  'tiempo'),
                         _statChip(Icons.speed_rounded,        ritmoStr(_rutasMejorRitmo),              'mejor ritmo'),
-                        _statChip(Icons.trending_up_rounded,  '${_rutasMayorDist.toStringAsFixed(2)} km', 'mÃ¡s larga'),
+                        _statChip(Icons.trending_up_rounded,  '${_rutasMayorDist.toStringAsFixed(2)} km', 'más larga'),
                       ],
                     ),
         ),
@@ -1399,7 +1399,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(height: 16),
           _buildRutasStats(), const SizedBox(height: 16),
 
-          // â”€â”€ Panel de estadÃ­sticas avanzadas (Premium) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // â”€â”€ Panel de estadísticas avanzadas (Premium) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_isPremium)
             _buildPanelStatsPremium()
           else
@@ -1431,7 +1431,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  //  PANEL ESTADÃSTICAS AVANZADAS â€” PREMIUM
+  //  PANEL ESTADÍSTICAS AVANZADAS — PREMIUM
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildPanelStatsPremium() {
@@ -1449,7 +1449,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               child: CircularProgressIndicator(
                   color: _kGold, strokeWidth: 1.5)),
           const SizedBox(height: 12),
-          Text('Cargando anÃ¡lisis avanzado...',
+          Text('Cargando análisis avanzado...',
               style: _rajdhani(11, FontWeight.w600, _p.sub)),
           const SizedBox(height: 8),
         ]),
@@ -1506,7 +1506,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               color: _kGold, margin: const EdgeInsets.only(right: 8)),
           const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFD60A), size: 11),
           const SizedBox(width: 6),
-          Text('ANÃLISIS AVANZADO',
+          Text('ANÁLISIS AVANZADO',
               style: _rajdhani(10, FontWeight.w900, _kGold, spacing: 2)),
           const Spacer(),
           Container(
@@ -1596,7 +1596,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           ])),
         ]),
         const SizedBox(height: 12),
-        // PrÃ³ximo hito
+        // Próximo hito
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1637,7 +1637,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(child: Text(
-                'Necesitas mÃ¡s carreras para ver la tendencia',
+                'Necesitas más carreras para ver la tendencia',
                 style: _rajdhani(11, FontWeight.w500, _p.sub))),
           )
         else
@@ -1716,7 +1716,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (!tieneDatos)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('Sin territorios conquistados aÃºn',
+            child: Text('Sin territorios conquistados aún',
                 style: _rajdhani(11, FontWeight.w500, _p.sub)),
           )
         else if (_nombresZonas.isEmpty && !_loadingStatsPremium)
@@ -1768,7 +1768,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         if (_territoriosDelUsuario.length > 20) ...[
           const SizedBox(height: 4),
           Center(child: Text(
-              '+${_territoriosDelUsuario.length - 20} zonas mÃ¡s',
+              '+${_territoriosDelUsuario.length - 20} zonas más',
               style: _rajdhani(10, FontWeight.w600, _p.sub))),
         ],
       ]),
@@ -1803,7 +1803,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(width: 14),
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('AnÃ¡lisis avanzado',
+            Text('Análisis avanzado',
                 style: _rajdhani(14, FontWeight.w800, _p.title)),
             const SizedBox(height: 3),
             Text(
@@ -1839,18 +1839,26 @@ class _PerfilScreenState extends State<PerfilScreen>
           .doc(docId)
           .get();
       if (!mounted || !doc.exists) return;
-      final data = doc.data()!;
+      final data    = doc.data()!;
       final rutaRaw = data['ruta'] as List<dynamic>? ?? [];
-      final ruta = rutaRaw.map((p) {
+      var ruta = rutaRaw.map((p) {
         final m = p as Map<String, dynamic>;
         return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
       }).toList();
+      // Fallback: si no hay ruta guardada, usar posición final como centro
+      if (ruta.isEmpty) {
+        final latF = (data['latFinal'] as num?)?.toDouble();
+        final lngF = (data['lngFinal'] as num?)?.toDouble();
+        if (latF != null && lngF != null) {
+          ruta = [LatLng(latF, lngF)];
+        }
+      }
       if (!mounted) return;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
-        distancia        : (d['distancia'] as double? ?? 0),
-        tiempo           : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
-        ruta             : ruta,
-        esDesdeCarrera   : false,
+        distancia      : (d['distancia'] as double? ?? 0),
+        tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
+        ruta           : ruta,
+        esDesdeCarrera : false,
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen: $e');
@@ -1868,7 +1876,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       accent: _kAccent, label: 'TODAS LAS MISIONES', icon: Icons.history_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('$total misiÃ³n${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
+          Expanded(child: Text('$total misión${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
           if (_historialCompleto.length > 5)
             GestureDetector(
               onTap: () => setState(() {
@@ -1883,7 +1891,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           TextField(
             controller: _historialSearchCtrl, onChanged: _filtrarHistorial,
             style: _rajdhani(13, FontWeight.w500, _p.title),
-            decoration: InputDecoration(hintText: 'Buscar misiÃ³n...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim), prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16), filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
+            decoration: InputDecoration(hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim), prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16), filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5))),
           ),
         ],
         const SizedBox(height: 12),
@@ -1933,7 +1941,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               GestureDetector(
                 onTap: () => setState(() => _historialPaginaActual++),
                 child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('Ver mÃ¡s misiones', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                  Text('Ver más misiones', style: _rajdhani(11, FontWeight.w600, _p.text)),
                   const SizedBox(width: 4),
                   Icon(Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
                 ])),
@@ -2296,7 +2304,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       Expanded(flex: 4, child: Column(children: [
         _buildStatPequena('$_territoriosConquistados', 'CONQUISTAS', Icons.military_tech_rounded, Colors.amber),
         const SizedBox(height: 8),
-        _buildStatPequena(_rangoEnLiga > 0 ? '#$_rangoEnLiga' : 'â€”', 'RANKING LIGA', Icons.leaderboard_rounded, ligaColor),
+        _buildStatPequena(_rangoEnLiga > 0 ? '#$_rangoEnLiga' : '—', 'RANKING LIGA', Icons.leaderboard_rounded, ligaColor),
       ])),
     ]);
   }
@@ -2370,8 +2378,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     String msg;
     if (!activa)                msg = 'Sin actividad reciente';
     else if (_rachaActual == 1) msg = 'Buen comienzo. No pares.';
-    else if (_rachaActual < 7)  msg = '${7 - _rachaActual} dÃ­as para una semana';
-    else if (_rachaActual < 30) msg = 'MÃ¡s de una semana consecutiva';
+    else if (_rachaActual < 7)  msg = '${7 - _rachaActual} días para una semana';
+    else if (_rachaActual < 30) msg = 'Más de una semana consecutiva';
     else                        msg = 'Un mes sin parar. Leyenda.';
     return Container(
       padding: const EdgeInsets.all(22),
@@ -2391,7 +2399,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             const SizedBox(width: 6),
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text(_rachaActual == 1 ? 'DÃA' : 'DÃAS',
+              child: Text(_rachaActual == 1 ? 'DÍA' : 'DÍAS',
                   style: _rajdhani(14, FontWeight.w600, _p.dim, spacing: 1)),
             ),
           ]),
@@ -2401,7 +2409,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('META', style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 2)),
           Text('$hito', style: _rajdhani(28, FontWeight.w700, _p.text, height: 1)),
-          Text('dÃ­as', style: _rajdhani(9, FontWeight.w500, _p.dim)),
+          Text('días', style: _rajdhani(9, FontWeight.w500, _p.dim)),
         ]),
       ]),
     );
@@ -2434,7 +2442,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 0), child: Row(children: [
             _guerraKpi('${(winPct * 100).toStringAsFixed(0)}%', 'WIN RATE', _p.text), _guerraDivider(),
             _guerraKpi('$total', 'TOTAL', _p.text), _guerraDivider(),
-            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÃCTIMA TOP', _p.text),
+            _guerraKpi(rivalTop, _tabGuerraIndex == 0 ? 'RIVAL TOP' : 'VÍCTIMA TOP', _p.text),
           ])),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -2445,7 +2453,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   : Column(children: [
                       ...lista.take(3).map((item) => _guerraRow(item, colTab)),
                       if (lista.length > 3 && isOwnProfile)
-                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _p.dim, size: 12)]))),
+                        GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())), child: Padding(padding: const EdgeInsets.only(top: 4), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver ${lista.length - 3} más', style: _rajdhani(11, FontWeight.w600, _p.text)), const SizedBox(width: 4), Icon(Icons.chevron_right_rounded, color: _p.dim, size: 12)]))),
                     ]),
         ),
       ]),
@@ -2475,7 +2483,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildMisionesRecientes() {
     if (_carrerasRecientes.isEmpty) {
       return _Panel(
-        accent: _kAccent, label: 'ÃšLTIMAS MISIONES', icon: Icons.directions_run_rounded,
+        accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
         child: _emptyRow('Sin misiones registradas'));
     }
     final query     = _misionesQuery.trim().toLowerCase();
@@ -2490,7 +2498,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final hayMas    = _carrerasRecientes.length > 5;
 
     return _Panel(
-      accent: _kAccent, label: 'ÃšLTIMAS MISIONES', icon: Icons.directions_run_rounded,
+      accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (_misionesExpandidas) ...[
           TextField(
@@ -2498,7 +2506,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             onChanged: (v) => setState(() => _misionesQuery = v),
             style: _rajdhani(13, FontWeight.w500, _p.title),
             decoration: InputDecoration(
-              hintText: 'Buscar misiÃ³n...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
+              hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
               prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16),
               filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
@@ -2523,7 +2531,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
-                Text('${_formatTiempo(Duration(seconds: seg))}  Â·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
+                Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
               ])),
               Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
             ]),
@@ -2538,7 +2546,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_misionesExpandidas ? 'Ver menos' : 'Ver mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                Text(_misionesExpandidas ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
                 const SizedBox(width: 4),
                 Icon(_misionesExpandidas ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
               ]),
@@ -2552,7 +2560,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (_logros.isEmpty) {
       return _Panel(
         accent: _kAccent, label: 'LOGROS', icon: Icons.emoji_events_outlined,
-        child: _emptyRow('Sin logros todavÃ­a'));
+        child: _emptyRow('Sin logros todavía'));
     }
     final query     = _logrosQuery.trim().toLowerCase();
     final filtrados = query.isEmpty
@@ -2610,7 +2618,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_logrosExpandidos ? 'Ver menos' : 'Ver mÃ¡s', style: _rajdhani(11, FontWeight.w600, _p.text)),
+                Text(_logrosExpandidos ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
                 const SizedBox(width: 4),
                 Icon(_logrosExpandidos ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
               ]),
@@ -2670,7 +2678,7 @@ class _PerfilScreenState extends State<PerfilScreen>
 //  WIDGETS AUXILIARES
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-/// Widget que anima un nÃºmero desde 0 hasta [value].
+/// Widget que anima un número desde 0 hasta [value].
 /// Se reinicia cada vez que [value] cambia.
 class _AnimatedCounter extends StatefulWidget {
   final double value;

@@ -6,19 +6,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/avatar_config.dart';
 import '../services/subscription_service.dart';
+import '../widgets/perfil/perfil_theme.dart';
 import 'paywall_screen.dart';
 
-// ── Paleta iOS dark (igual que Login / Register / Perfil) ──────────────────
-const _kBg      = Color(0xFF090807);
-const _kSurf    = Color(0xFF1C1C1E);
-const _kSurf2   = Color(0xFF2C2C2E);
-const _kBorder  = Color(0xFF38383A);
-const _kBorder2 = Color(0xFF48484A);
-const _kText    = Color(0xFFEEEEEE);
-const _kSub     = Color(0xFF8E8E93);
-const _kDim     = Color(0xFF636366);
-const _kAccent  = Color(0xFFE02020);
-const _kGold    = Color(0xFFFFD60A);
+const _kAccent = kPerfilAccent;
+const _kGold   = kPerfilGold;
 
 TextStyle _s(double size, FontWeight weight, Color color, {double spacing = 0}) =>
     GoogleFonts.inter(
@@ -50,6 +42,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
   late Animation<double> _previewScale;
 
   bool get _esPremium => SubscriptionService.currentStatus.isPremium;
+  PerfilPalette get _p => PerfilPalette.of(context);
 
   @override
   void initState() {
@@ -109,12 +102,12 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
       content: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
-          color: _kSurf,
+          color: _p.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: error ? _kAccent.withValues(alpha: 0.4) : _kBorder),
+              color: error ? _kAccent.withValues(alpha: 0.4) : _p.border),
         ),
-        child: Text(msg, style: _s(13, FontWeight.w500, _kSub)),
+        child: Text(msg, style: _s(13, FontWeight.w500, _p.sub)),
       ),
     ));
   }
@@ -129,7 +122,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
       initialData: SubscriptionService.currentStatus,
       builder: (context, _) {
         return Scaffold(
-          backgroundColor: _kBg,
+          backgroundColor: _p.bg,
           body: SafeArea(
             child: Column(children: [
               _buildHeader(),
@@ -165,18 +158,18 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
           child: Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: _kSurf,
+              color: _p.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kBorder),
+              border: Border.all(color: _p.border),
             ),
-            child: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: _kSub, size: 14),
+            child: Icon(Icons.arrow_back_ios_new_rounded,
+                color: _p.sub, size: 14),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Text('PERSONALIZAR AVATAR',
-              style: _s(12, FontWeight.w800, _kText, spacing: 1.5)),
+              style: _s(12, FontWeight.w800, _p.title, spacing: 1.5)),
         ),
         _esPremium
             ? Container(
@@ -199,15 +192,15 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _kSurf,
+                  color: _p.surface,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kBorder),
+                  border: Border.all(color: _p.border),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.toll_rounded, color: _kSub, size: 13),
+                  Icon(Icons.toll_rounded, color: _p.sub, size: 13),
                   const SizedBox(width: 5),
                   Text('$_monedas',
-                      style: _s(13, FontWeight.w700, _kText)),
+                      style: _s(13, FontWeight.w700, _p.title)),
                 ]),
               ),
       ]),
@@ -221,9 +214,9 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
       child: Container(
         width: 148, height: 148,
         decoration: BoxDecoration(
-          color: _kSurf,
+          color: _p.surface,
           shape: BoxShape.circle,
-          border: Border.all(color: _kBorder2, width: 1.5),
+          border: Border.all(color: _p.border, width: 1.5),
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withValues(alpha: 0.5), blurRadius: 24),
@@ -267,22 +260,22 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
               decoration: BoxDecoration(
                 color: activa
                     ? _kAccent.withValues(alpha: 0.10)
-                    : _kSurf,
+                    : _p.surface,
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: activa
                       ? _kAccent.withValues(alpha: 0.50)
-                      : _kBorder,
+                      : _p.border,
                 ),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(s['icon'] as IconData,
-                    color: activa ? _kAccent : _kDim, size: 13),
+                    color: activa ? _kAccent : _p.dim, size: 13),
                 const SizedBox(width: 6),
                 Text(s['label'] as String,
                     style: _s(11,
                         activa ? FontWeight.w700 : FontWeight.w500,
-                        activa ? _kAccent : _kSub)),
+                        activa ? _kAccent : _p.sub)),
               ]),
             ),
           );
@@ -413,10 +406,10 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: selected ? _kAccent.withValues(alpha: 0.08) : _kSurf,
+        color: selected ? _kAccent.withValues(alpha: 0.08) : _p.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: selected ? _kAccent.withValues(alpha: 0.65) : _kBorder,
+          color: selected ? _kAccent.withValues(alpha: 0.65) : _p.border,
           width: selected ? 1.5 : 1,
         ),
       ),
@@ -430,7 +423,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                 asset,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) =>
-                    Icon(fallbackIcon, color: _kDim, size: 36),
+                    Icon(fallbackIcon, color: _p.dim, size: 36),
               ),
             ),
           ),
@@ -440,7 +433,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
           child: Text(name,
               textAlign: TextAlign.center,
               style: _s(9, FontWeight.w700,
-                  selected ? _kAccent : _kSub)),
+                  selected ? _kAccent : _p.sub)),
         ),
         if (bloqueado)
           Positioned(
@@ -496,7 +489,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('GRATIS',
-              style: _s(10, FontWeight.w700, _kDim, spacing: 2)),
+              style: _s(10, FontWeight.w700, _p.dim, spacing: 2)),
           const SizedBox(height: 14),
           Wrap(
             spacing: 12, runSpacing: 12,
@@ -542,21 +535,21 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
               decoration: BoxDecoration(
                 color: _esPremium
                     ? _kGold.withValues(alpha: 0.10)
-                    : _kSurf2,
+                    : _p.surface2,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: _esPremium
                       ? _kGold.withValues(alpha: 0.35)
-                      : _kBorder,
+                      : _p.border,
                 ),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.workspace_premium_rounded,
-                    color: _esPremium ? _kGold : _kSub, size: 10),
+                    color: _esPremium ? _kGold : _p.sub, size: 10),
                 const SizedBox(width: 4),
                 Text(_esPremium ? 'Incluido' : 'Suscripción',
                     style: _s(9, FontWeight.w700,
-                        _esPremium ? _kGold : _kSub)),
+                        _esPremium ? _kGold : _p.sub)),
               ]),
             ),
           ]),
@@ -650,16 +643,16 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Desbloquea todos los colores neón',
-                            style: _s(13, FontWeight.w700, _kText)),
+                            style: _s(13, FontWeight.w700, _p.title)),
                         const SizedBox(height: 2),
                         Text(
                             'Matrix, Rosa neón, Cian, Oro — incluidos en Premium',
-                            style: _s(11, FontWeight.w400, _kSub)),
+                            style: _s(11, FontWeight.w400, _p.sub)),
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right_rounded, color: _kDim),
+                  Icon(Icons.chevron_right_rounded, color: _p.dim),
                 ]),
               ),
             ),
@@ -685,17 +678,17 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
           width: double.infinity,
           height: 52,
           decoration: BoxDecoration(
-            color: _guardando ? _kSurf2 : _kText,
+            color: _guardando ? _p.surface2 : _p.title,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Center(
             child: _guardando
-                ? const SizedBox(
+                ? SizedBox(
                     width: 20, height: 20,
                     child: CircularProgressIndicator(
-                        color: _kSub, strokeWidth: 2))
+                        color: _p.sub, strokeWidth: 2))
                 : Text('Guardar avatar',
-                    style: _s(16, FontWeight.w600, _kBg)),
+                    style: _s(16, FontWeight.w600, _p.bg)),
           ),
         ),
       ),

@@ -711,6 +711,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
 
       if (!_modoRuta) {
+        final modo = _modoSolitario ? 'solitario' : 'competitivo';
+        // 1. Caché válida → mostrar al instante
         final cached = _modoSolitario
             ? GameStateService.instance.getSolitarioTerritories()
             : GameStateService.instance.getCompetitiveTerritories();
@@ -719,8 +721,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _dibujarTerritoriosEnMapa();
           _aplicarTerritoriosFantasma();
         } else {
+          // 2. Caché expirada → mostrar stale mientras refrescamos en background
+          final stale = _modoSolitario
+              ? GameStateService.instance.getStaleSolitarioTerritories()
+              : GameStateService.instance.getStaleCompetitiveTerritories();
+          if (stale != null && mounted) {
+            setState(() { _territorios = List<TerritoryData>.from(stale); _territoriosCargados = true; });
+            _dibujarTerritoriosEnMapa();
+            _aplicarTerritoriosFantasma();
+          }
+          // 3. Sin centro GPS aún → intentar obtenerlo antes de la carga Firestore
+          if (centro == null) {
+            try {
+              final pos = await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+              ).timeout(const Duration(seconds: 6));
+              centro = LatLng(pos.latitude, pos.longitude);
+              if (mounted) setState(() => _currentPosition = pos);
+            } catch (_) {}
+          }
           final lista = await TerritoryService.cargarTodosLosTerritorios(
-              centro: centro, modo: _modoSolitario ? 'solitario' : 'competitivo');
+              centro: centro, modo: modo);
           if (mounted) {
             setState(() { _territorios = lista; _territoriosCargados = true; });
             if (_modoSolitario) {
@@ -893,7 +914,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             Geolocator.distanceBetween(anteriorCentro.latitude,
                 anteriorCentro.longitude, pos.latitude, pos.longitude) > 500;
 
-        if (debeCargarse && _territoriosCargados && !_modoRuta) {
+        if (debeCargarse && (anteriorCentro == null || _territoriosCargados) && !_modoRuta) {
           TerritoryService.invalidarCache();
           GameStateService.instance.invalidateTerritories();
           final centro = LatLng(pos.latitude, pos.longitude);

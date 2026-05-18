@@ -553,11 +553,19 @@ class _ResumenScreenState extends State<ResumenScreen>
       if (!mounted || !doc.exists) return;
       final data    = doc.data()!;
       final rutaRaw = data['ruta'] as List<dynamic>? ?? [];
-      final ruta = rutaRaw.map((p) {
+      var ruta = rutaRaw.map((p) {
         final m = p as Map<String, dynamic>;
         return LatLng((m['lat'] as num).toDouble(),
                       (m['lng'] as num).toDouble());
       }).toList();
+      // Fallback: si no hay ruta guardada, usar posición final como centro
+      if (ruta.isEmpty) {
+        final latF = (data['latFinal'] as num?)?.toDouble();
+        final lngF = (data['lngFinal'] as num?)?.toDouble();
+        if (latF != null && lngF != null) {
+          ruta = [LatLng(latF, lngF)];
+        }
+      }
       if (!mounted) return;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
         distancia      : (d['distancia'] as double? ?? 0),

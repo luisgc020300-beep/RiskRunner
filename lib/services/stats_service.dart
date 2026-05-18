@@ -601,11 +601,19 @@ class StatsService {
       final rutaJson     = rutaReducida
           .map((p) => {'lat': p.latitude, 'lng': p.longitude})
           .toList();
-      final calles = await extraerCalles(rutaReducida);
+      // Guardar ruta primero — independiente de calles
       await FirebaseFirestore.instance
           .collection('activity_logs')
           .doc(logId)
-          .update({'ruta': rutaJson, 'calles': calles});
+          .update({'ruta': rutaJson});
+      // Enriquecer con calles en segundo plano (best-effort)
+      try {
+        final calles = await extraerCalles(rutaReducida);
+        await FirebaseFirestore.instance
+            .collection('activity_logs')
+            .doc(logId)
+            .update({'calles': calles});
+      } catch (_) {}
     } catch (e) {
       debugPrint('StatsService.enriquecerLog error: $e');
     }
