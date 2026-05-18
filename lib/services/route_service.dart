@@ -67,6 +67,15 @@ class RouteData {
     savesCount: savesCount, runsCount: runsCount,
   );
 
+  RouteData conColor(Color nuevoColor) => RouteData(
+    id: id, userId: userId, nombre: nombre, descripcion: descripcion,
+    privacidad: privacidad, coords: coords, distanciaKm: distanciaKm,
+    tiempoSeg: tiempoSeg, ritmoMinKm: ritmoMinKm, fecha: fecha,
+    monedasGanadas: monedasGanadas, puntosLigaGanados: puntosLigaGanados,
+    color: nuevoColor, ownerNickname: ownerNickname,
+    savesCount: savesCount, runsCount: runsCount,
+  );
+
   factory RouteData.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     final rawCoords = (d['coords'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -227,8 +236,19 @@ class RouteService {
           .where('userId', isEqualTo: user.uid)
           .limit(limit)
           .get();
-      final list = snap.docs.map(RouteData.fromFirestore).toList();
+      var list = snap.docs.map(RouteData.fromFirestore).toList();
       list.sort((a, b) => b.fecha.compareTo(a.fecha));
+
+      // Aplicar el color actual del jugador a todas sus rutas
+      try {
+        final playerDoc = await _db.collection('players').doc(user.uid).get();
+        final colorInt = (playerDoc.data()?['territorio_color'] as num?)?.toInt();
+        if (colorInt != null) {
+          final playerColor = Color(colorInt);
+          list = list.map((r) => r.conColor(playerColor)).toList();
+        }
+      } catch (_) {}
+
       return list;
     } catch (e) {
       debugPrint('RouteService.cargarMisRutas: $e');

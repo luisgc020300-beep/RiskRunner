@@ -54,6 +54,7 @@ class ResumenScreen extends StatefulWidget {
 
   final bool modoRuta;
   final int  monedasRuta;
+  final bool esDetalle;
 
   const ResumenScreen({
     super.key,
@@ -72,6 +73,7 @@ class ResumenScreen extends StatefulWidget {
     this.nuevaClausula,
     this.modoRuta                = false,
     this.monedasRuta             = 0,
+    this.esDetalle               = false,
   });
 
   @override
@@ -208,7 +210,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         await _actualizarRacha();
         OnboardingService.registrarRunCompletado();
       } else {
-        await _cargarTodosLosTerritorios();
+        if (!widget.modoRuta) await _guardarYMostrarTerritorioActual();
       }
     } catch (e) {
       debugPrint('Resumen _inicializarPantalla error: $e');
@@ -302,9 +304,12 @@ class _ResumenScreenState extends State<ResumenScreen>
             : ritmo < 6.5 ? ZonaRitmo.moderado
             : ritmo < 7.5 ? ZonaRitmo.facil
             : ZonaRitmo.recuperacion;
+        final fechaSesion = widget.timestamp != null
+            ? DateTime.fromMillisecondsSinceEpoch(widget.timestamp!)
+            : DateTime.now();
         carreraActual = CarreraStats(
           id:          '',
-          fecha:       DateTime.now(),
+          fecha:       fechaSesion,
           distanciaKm: widget.distancia,
           tiempoSeg:   widget.tiempo.inSeconds,
           ritmoMinKm:  ritmo,
@@ -452,44 +457,6 @@ class _ResumenScreenState extends State<ResumenScreen>
     }
   }
 
-  Future<void> _cargarTodosLosTerritorios() async {
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('territories')
-          .where('userId', isEqualTo: userId)
-          .get()
-          .timeout(const Duration(seconds: 6));
-      final res = <TerritoryData>[];
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final raw  = data['puntos'] as List<dynamic>?;
-        if (raw == null || raw.isEmpty) continue;
-        final pts = raw.map((p) {
-          final m = p as Map<String, dynamic>;
-          return LatLng((m['lat'] as num).toDouble(),
-              (m['lng'] as num).toDouble());
-        }).toList();
-        final latC =
-            pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
-        final lngC =
-            pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
-        DateTime? uv;
-        final ts = data['ultima_visita'];
-        if (ts is Timestamp) uv = ts.toDate();
-        res.add(TerritoryData(
-          docId:         doc.id,
-          ownerId:       userId,
-          ownerNickname: 'YO',
-          color:         _acento,
-          puntos:        pts,
-          centro:        LatLng(latC, lngC),
-          esMio:         true,
-          ultimaVisita:  uv,
-        ));
-      }
-      if (mounted) setState(() => _territoriosEnMapa = res);
-    } catch (e) { debugPrint('Error territorios: $e'); }
-  }
 
   Future<void> _cargarHistorialTotal() async {
     if (userId.isEmpty) return;
@@ -567,11 +534,16 @@ class _ResumenScreenState extends State<ResumenScreen>
         }
       }
       if (!mounted) return;
+      final ts = d['timestamp'];
+      final tsMs = ts is Timestamp ? ts.millisecondsSinceEpoch : null;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
         distancia      : (d['distancia'] as double? ?? 0),
         tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
         ruta           : ruta,
         esDesdeCarrera : false,
+        esDetalle      : true,
+        timestamp      : tsMs,
+        modoRuta       : (d['modo'] as String? ?? '') == 'ruta',
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen desde logro: $e');
@@ -898,7 +870,9 @@ class _ResumenScreenState extends State<ResumenScreen>
         : widget.modoRuta
             ? 'RESUMEN DE RUTA LIBRE'
             : _esGuerraGlobal ? 'RESUMEN DE LA CARRERA GLOBAL' : 'RESUMEN DE LA CARRERA';
-    final ahora  = DateTime.now();
+    final ahora  = widget.timestamp != null
+        ? DateTime.fromMillisecondsSinceEpoch(widget.timestamp!)
+        : DateTime.now();
     const meses  = ['ENE','FEB','MAR','ABR','MAY','JUN',
                      'JUL','AGO','SEP','OCT','NOV','DIC'];
     final fecha  =
@@ -908,7 +882,9 @@ class _ResumenScreenState extends State<ResumenScreen>
       GestureDetector(
         onTap: () {
           HapticFeedback.lightImpact();
-          if (Navigator.canPop(context)) {
+          if (widget.esDetalle) {
+            Navigator.popUntil(context, (route) => route.isFirst);
+          } else if (Navigator.canPop(context)) {
             Navigator.pop(context);
           } else {
             Navigator.pushNamedAndRemoveUntil(context, '/', (r) => false);

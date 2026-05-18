@@ -1854,11 +1854,16 @@ class _PerfilScreenState extends State<PerfilScreen>
         }
       }
       if (!mounted) return;
+      final tsRaw = data['timestamp'];
+      final tsMs  = tsRaw is Timestamp ? tsRaw.millisecondsSinceEpoch : null;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
         distancia      : (d['distancia'] as double? ?? 0),
         tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
         ruta           : ruta,
         esDesdeCarrera : false,
+        esDetalle      : true,
+        timestamp      : tsMs,
+        modoRuta       : (data['modo'] as String? ?? '') == 'ruta',
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen: $e');

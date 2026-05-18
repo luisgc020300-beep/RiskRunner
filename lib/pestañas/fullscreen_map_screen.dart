@@ -266,6 +266,7 @@ class _MapState extends ChangeNotifier {
   GlobalTerritory? territorioGlobalSeleccionado;
   int territoriosMios                         = 0;
   static const int maxTerritoriosPorJugador   = 5;
+  Color colorJugador                          = const Color(0xFFCC2222);
 
   int diasRestantesSemana  = 0;
   int totalJugadoresGlobal = 0;
@@ -383,7 +384,7 @@ class _MapState extends ChangeNotifier {
         return t.copyWith(
           ownerUid:        ownerUid,
           ownerNickname:   ownerNickname,
-          ownerColor:      ownerColorInt != null ? Color(ownerColorInt) : null,
+          ownerColor:      ownerUid == uid ? colorJugador : (ownerColorInt != null ? Color(ownerColorInt) : null),
           difficultyLevel: difficulty,
           conquestCount:   count,
           clausulaKm:      clausula,
@@ -401,7 +402,10 @@ class _MapState extends ChangeNotifier {
     final cached = GameStateService.instance.getGlobalTerritories();
     if (cached != null) {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-      territoriosGlobales = List<GlobalTerritory>.from(cached);
+      territoriosGlobales = cached.map((t) =>
+          (t.ownerUid != null && t.ownerUid == uid)
+              ? t.copyWith(ownerColor: colorJugador)
+              : t).toList();
       territoriosMios     = territoriosGlobales.where((t) => t.ownerUid == uid).length;
       loadingGlobal = false;
       notifyListeners();
@@ -420,8 +424,12 @@ class _MapState extends ChangeNotifier {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       final List<GlobalTerritory> fromDb = [];
       for (final doc in snap.docs) {
-        final t = GlobalTerritory.fromFirestore(doc);
-        if (t != null) fromDb.add(t);
+        var t = GlobalTerritory.fromFirestore(doc);
+        if (t == null) continue;
+        if (t.ownerUid != null && t.ownerUid == uid) {
+          t = t.copyWith(ownerColor: colorJugador);
+        }
+        fromDb.add(t);
       }
 
       if (fromDb.isNotEmpty) {
@@ -647,6 +655,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   void initState() {
     super.initState();
     _state = _MapState();
+    _state.colorJugador = widget.colorTerritorio;
     _state.addListener(_onErrorCheck);
     _state.addListener(_recalcularPorcentajesBarrios);
 
