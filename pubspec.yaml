@@ -55,6 +55,8 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  experimentalFeaturesEnabled:
+    swiftPackageManager: false
   assets:
     - assets/images/Mapa_risk.png
     - assets/images/app_icon.png
