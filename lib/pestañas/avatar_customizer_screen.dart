@@ -1,16 +1,28 @@
-// lib/screens/avatar_customizer_screen.dart
-//
-// Pantalla de personalización del avatar.
-// Se abre desde perfil_screen.dart
-// Guarda la configuración en Firestore: players/{uid}/avatar_config (como subcampo)
-
 import 'package:RiskRunner/widgets/avatar_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/avatar_config.dart';
-import '../services/subscription_service.dart'; // ← NUEVO
-import 'paywall_screen.dart';                   // ← NUEVO
+import '../services/subscription_service.dart';
+import 'paywall_screen.dart';
+
+// ── Paleta iOS dark (igual que Login / Register / Perfil) ──────────────────
+const _kBg      = Color(0xFF090807);
+const _kSurf    = Color(0xFF1C1C1E);
+const _kSurf2   = Color(0xFF2C2C2E);
+const _kBorder  = Color(0xFF38383A);
+const _kBorder2 = Color(0xFF48484A);
+const _kText    = Color(0xFFEEEEEE);
+const _kSub     = Color(0xFF8E8E93);
+const _kDim     = Color(0xFF636366);
+const _kAccent  = Color(0xFFE02020);
+const _kGold    = Color(0xFFFFD60A);
+
+TextStyle _s(double size, FontWeight weight, Color color, {double spacing = 0}) =>
+    GoogleFonts.inter(
+      fontSize: size, fontWeight: weight, color: color, letterSpacing: spacing);
 
 class AvatarCustomizerScreen extends StatefulWidget {
   final AvatarConfig initialConfig;
@@ -37,7 +49,6 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
   late AnimationController _previewAnim;
   late Animation<double> _previewScale;
 
-  // ── Getter de conveniencia ─────────────────────────────────────────
   bool get _esPremium => SubscriptionService.currentStatus.isPremium;
 
   @override
@@ -48,7 +59,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
 
     _previewAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 300));
-    _previewScale = Tween<double>(begin: 0.95, end: 1.0).animate(
+    _previewScale = Tween<double>(begin: 0.93, end: 1.0).animate(
         CurvedAnimation(parent: _previewAnim, curve: Curves.easeOut));
     _previewAnim.forward();
   }
@@ -59,7 +70,6 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     super.dispose();
   }
 
-  // ── Guardar en Firestore ───────────────────────────────────────────
   Future<void> _guardar() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -73,29 +83,19 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _guardando = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Error al guardar el avatar. Inténtalo de nuevo.'),
-          behavior: SnackBarBehavior.floating,
-        ));
+        _mostrarSnack('Error al guardar el avatar', error: true);
       }
     }
   }
 
-  // ── Acceso a item premium ──────────────────────────────────────────
-  // Devuelve true si puede usar el item (tiene premium o lo compra ahora)
   Future<bool> _accederItemPremium(String nombre) async {
-    // Si ya tiene suscripción premium → acceso directo, sin coste de monedas
     if (_esPremium) return true;
-
-    // Si no tiene premium → abrir paywall
     final comprado = await PaywallScreen.mostrar(
       context,
       featureOrigen: 'Avatar — $nombre',
     );
-
-    // Si acaba de suscribirse → refrescar estado y permitir
     if (comprado) {
-      setState(() {}); // rebuild para reflejar nuevo estado premium
+      setState(() {});
       return true;
     }
     return false;
@@ -103,202 +103,195 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
 
   void _mostrarSnack(String msg, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold)),
-      backgroundColor: error ? Colors.redAccent : Colors.orange,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      duration: const Duration(seconds: 3),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: _kSurf,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: error ? _kAccent.withValues(alpha: 0.4) : _kBorder),
+        ),
+        child: Text(msg, style: _s(13, FontWeight.w500, _kSub)),
+      ),
     ));
   }
 
-  void _animarCambio() {
-    _previewAnim.forward(from: 0);
-  }
+  void _animarCambio() => _previewAnim.forward(from: 0);
 
-  // ── BUILD ──────────────────────────────────────────────────────────
+  // ── BUILD ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<SubscriptionStatus>(
-      // Rebuild automático si el usuario se suscribe dentro de esta pantalla
       stream: SubscriptionService.statusStream,
       initialData: SubscriptionService.currentStatus,
       builder: (context, _) {
         return Scaffold(
-          backgroundColor: Colors.black,
-          body: Stack(children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF0A0A0A), Color(0xFF1A0A00), Color(0xFF0A0A0A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+          backgroundColor: _kBg,
+          body: SafeArea(
+            child: Column(children: [
+              _buildHeader(),
+              Expanded(
+                child: Column(children: [
+                  const SizedBox(height: 20),
+                  _buildPreview(),
+                  const SizedBox(height: 24),
+                  _buildSectionTabs(),
+                  const SizedBox(height: 16),
+                  Expanded(child: _buildOptions()),
+                  _buildBotonGuardar(),
+                  const SizedBox(height: 16),
+                ]),
               ),
-            ),
-            SafeArea(
-              child: Column(children: [
-                _buildHeader(),
-                Expanded(
-                  child: Column(children: [
-                    const SizedBox(height: 16),
-                    _buildPreview(),
-                    const SizedBox(height: 20),
-                    _buildSectionTabs(),
-                    const SizedBox(height: 16),
-                    Expanded(child: _buildOptions()),
-                    _buildBotonGuardar(),
-                    const SizedBox(height: 16),
-                  ]),
-                ),
-              ]),
-            ),
-          ]),
+            ]),
+          ),
         );
       },
     );
   }
 
-  // ── Header ─────────────────────────────────────────────────────────
+  // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Row(children: [
-        IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-        const Expanded(
-          child: Text(
-            'PERSONALIZAR AVATAR',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            Navigator.pop(context);
+          },
+          child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: _kSurf,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kBorder),
             ),
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: _kSub, size: 14),
           ),
         ),
-        // Si es premium mostramos corona, si no mostramos monedas
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text('PERSONALIZAR AVATAR',
+              style: _s(12, FontWeight.w800, _kText, spacing: 1.5)),
+        ),
         _esPremium
             ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDECA46).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDECA46).withValues(alpha: 0.4)),
+                  color: _kGold.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.35)),
                 ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('👑', style: TextStyle(fontSize: 14)),
-                  SizedBox(width: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.workspace_premium_rounded,
+                      color: _kGold, size: 13),
+                  const SizedBox(width: 5),
                   Text('PREMIUM',
-                      style: TextStyle(
-                          color: Color(0xFFDECA46),
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
-                          letterSpacing: 1)),
+                      style: _s(10, FontWeight.w800, _kGold, spacing: 0.8)),
                 ]),
               )
             : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                  color: _kSurf,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kBorder),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Text('🪙', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 4),
+                  const Icon(Icons.toll_rounded, color: _kSub, size: 13),
+                  const SizedBox(width: 5),
                   Text('$_monedas',
-                      style: const TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14)),
+                      style: _s(13, FontWeight.w700, _kText)),
                 ]),
               ),
       ]),
     );
   }
 
-  // ── Preview del avatar ─────────────────────────────────────────────
+  // ── Preview ────────────────────────────────────────────────────────────────
   Widget _buildPreview() {
     return ScaleTransition(
       scale: _previewScale,
       child: Container(
-        width: 160,
-        height: 160,
+        width: 148, height: 148,
         decoration: BoxDecoration(
-          color: const Color(0xFF0F0F0F),
+          color: _kSurf,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.orange.withValues(alpha: 0.3), width: 2),
+          border: Border.all(color: _kBorder2, width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: Colors.orange.withValues(alpha: 0.15),
-                blurRadius: 30,
-                spreadRadius: 5),
+                color: Colors.black.withValues(alpha: 0.5), blurRadius: 24),
           ],
         ),
         child: Center(
-          child: AvatarWidget(config: _config, size: 120, fallbackLabel: 'TÚ'),
+          child: AvatarWidget(config: _config, size: 110, fallbackLabel: 'TÚ'),
         ),
       ),
     );
   }
 
-  // ── Tabs de sección ────────────────────────────────────────────────
+  // ── Tabs de sección ────────────────────────────────────────────────────────
   Widget _buildSectionTabs() {
     final secciones = [
-      {'id': 'hair',   'icon': '💇', 'label': 'Pelo'},
-      {'id': 'eyes',   'icon': '👁️',  'label': 'Ojos'},
-      {'id': 'jacket', 'icon': '🧥', 'label': 'Chaqueta'},
-      {'id': 'pants',  'icon': '👖', 'label': 'Pantalón'},
-      {'id': 'shoes',  'icon': '👟', 'label': 'Zapatillas'},
+      {'id': 'hair',   'icon': Icons.face_rounded,             'label': 'Pelo'},
+      {'id': 'eyes',   'icon': Icons.remove_red_eye_rounded,   'label': 'Ojos'},
+      {'id': 'jacket', 'icon': Icons.checkroom_rounded,        'label': 'Chaqueta'},
+      {'id': 'pants',  'icon': Icons.accessibility_new_rounded,'label': 'Pantalón'},
+      {'id': 'shoes',  'icon': Icons.directions_run_rounded,   'label': 'Zapatillas'},
     ];
 
     return SizedBox(
-      height: 64,
-      child: ListView(
+      height: 52,
+      child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        children: secciones.map((s) {
+        itemCount: secciones.length,
+        itemBuilder: (context, i) {
+          final s = secciones[i];
           final bool activa = _seccionActiva == s['id'];
           return GestureDetector(
-            onTap: () => setState(() => _seccionActiva = s['id'] as String),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _seccionActiva = s['id'] as String);
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.only(right: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: activa
-                    ? Colors.orange.withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(14),
+                    ? _kAccent.withValues(alpha: 0.10)
+                    : _kSurf,
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                  color: activa ? Colors.orange.withValues(alpha: 0.6) : Colors.white12,
+                  color: activa
+                      ? _kAccent.withValues(alpha: 0.50)
+                      : _kBorder,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(s['icon'] as String, style: const TextStyle(fontSize: 18)),
-                  const SizedBox(height: 2),
-                  Text(
-                    s['label'] as String,
-                    style: TextStyle(
-                      color: activa ? Colors.orange : Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(s['icon'] as IconData,
+                    color: activa ? _kAccent : _kDim, size: 13),
+                const SizedBox(width: 6),
+                Text(s['label'] as String,
+                    style: _s(11,
+                        activa ? FontWeight.w700 : FontWeight.w500,
+                        activa ? _kAccent : _kSub)),
+              ]),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
 
-  // ── Opciones según sección activa ──────────────────────────────────
+  // ── Opciones según sección activa ──────────────────────────────────────────
   Widget _buildOptions() {
     switch (_seccionActiva) {
       case 'hair':   return _buildHairOptions();
@@ -328,27 +321,26 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     }
   }
 
-  // ── Opciones de pelo ───────────────────────────────────────────────
+  // ── Grid de pelo ───────────────────────────────────────────────────────────
   Widget _buildHairOptions() {
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
         childAspectRatio: 0.85,
       ),
       itemCount: AvatarConfig.hairOptions.length,
       itemBuilder: (context, i) {
         final opt = AvatarConfig.hairOptions[i];
-        final bool seleccionado = _config.hairIndex == i;
+        final bool sel = _config.hairIndex == i;
         final bool esPremium = opt['premium'] as bool;
-
-        // Si es premium y el usuario NO tiene suscripción → mostrar candado
         final bool bloqueado = esPremium && !_esPremium;
 
         return GestureDetector(
           onTap: () async {
+            HapticFeedback.selectionClick();
             if (esPremium) {
               final acceso = await _accederItemPremium(opt['name'] as String);
               if (!acceso) return;
@@ -356,113 +348,39 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             setState(() => _config = _config.copyWith(hairIndex: i));
             _animarCambio();
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: seleccionado
-                  ? Colors.orange.withValues(alpha: 0.15)
-                  : const Color(0xFF0F0F0F),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: seleccionado
-                    ? Colors.orange
-                    : Colors.white.withValues(alpha: 0.08),
-                width: seleccionado ? 2 : 1,
-              ),
-            ),
-            child: Stack(children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Opacity(
-                    opacity: bloqueado ? 0.35 : 1.0,
-                    child: Image.asset(
-                      opt['asset'] as String,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.person_rounded, color: Colors.white24, size: 40),
-                    ),
-                  ),
-                ),
-              ),
-              // Nombre
-              Positioned(
-                bottom: 6, left: 0, right: 0,
-                child: Text(
-                  opt['name'] as String,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: seleccionado ? Colors.orange : Colors.white54,
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              // Badge: candado si bloqueado, corona si premium desbloqueado
-              if (bloqueado)
-                Positioned(
-                  top: 6, right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCC7C3A),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('👑',
-                        style: TextStyle(fontSize: 9)),
-                  ),
-                )
-              else if (esPremium && _esPremium)
-                Positioned(
-                  top: 6, right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDECA46).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: const Color(0xFFDECA46).withValues(alpha: 0.5)),
-                    ),
-                    child: const Text('👑', style: TextStyle(fontSize: 9)),
-                  ),
-                ),
-              // Check si seleccionado
-              if (seleccionado)
-                Positioned(
-                  top: 6, left: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                        color: Colors.orange, shape: BoxShape.circle),
-                    child: const Icon(Icons.check_rounded,
-                        color: Colors.white, size: 10),
-                  ),
-                ),
-            ]),
+          child: _buildGridItem(
+            asset: opt['asset'] as String,
+            name: opt['name'] as String,
+            selected: sel,
+            bloqueado: bloqueado,
+            esPremium: esPremium,
+            fallbackIcon: Icons.face_rounded,
           ),
         );
       },
     );
   }
 
-  // ── Opciones de ojos ───────────────────────────────────────────────
+  // ── Grid de ojos ───────────────────────────────────────────────────────────
   Widget _buildEyesOptions() {
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
         childAspectRatio: 0.85,
       ),
       itemCount: AvatarConfig.eyesOptions.length,
       itemBuilder: (context, i) {
         final opt = AvatarConfig.eyesOptions[i];
-        final bool seleccionado = _config.eyesIndex == i;
+        final bool sel = _config.eyesIndex == i;
         final bool esPremium = opt['premium'] as bool;
         final bool bloqueado = esPremium && !_esPremium;
 
         return GestureDetector(
           onTap: () async {
+            HapticFeedback.selectionClick();
             if (esPremium) {
               final acceso = await _accederItemPremium(opt['name'] as String);
               if (!acceso) return;
@@ -470,167 +388,182 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             setState(() => _config = _config.copyWith(eyesIndex: i));
             _animarCambio();
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: seleccionado
-                  ? Colors.orange.withValues(alpha: 0.15)
-                  : const Color(0xFF0F0F0F),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: seleccionado
-                    ? Colors.orange
-                    : Colors.white.withValues(alpha: 0.08),
-                width: seleccionado ? 2 : 1,
-              ),
-            ),
-            child: Stack(children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Opacity(
-                    opacity: bloqueado ? 0.35 : 1.0,
-                    child: Image.asset(
-                      opt['asset'] as String,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.remove_red_eye_rounded,
-                          color: Colors.white24, size: 40),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 6, left: 0, right: 0,
-                child: Text(
-                  opt['name'] as String,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: seleccionado ? Colors.orange : Colors.white54,
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (bloqueado)
-                Positioned(
-                  top: 6, right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCC7C3A),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('👑', style: TextStyle(fontSize: 9)),
-                  ),
-                )
-              else if (esPremium && _esPremium)
-                Positioned(
-                  top: 6, right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDECA46).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text('👑', style: TextStyle(fontSize: 9)),
-                  ),
-                ),
-              if (seleccionado)
-                Positioned(
-                  top: 6, left: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                        color: Colors.orange, shape: BoxShape.circle),
-                    child: const Icon(Icons.check_rounded,
-                        color: Colors.white, size: 10),
-                  ),
-                ),
-            ]),
+          child: _buildGridItem(
+            asset: opt['asset'] as String,
+            name: opt['name'] as String,
+            selected: sel,
+            bloqueado: bloqueado,
+            esPremium: esPremium,
+            fallbackIcon: Icons.remove_red_eye_rounded,
           ),
         );
       },
     );
   }
 
-  // ── Opciones de color (ropa) ───────────────────────────────────────
+  // ── Widget de item en grid ─────────────────────────────────────────────────
+  Widget _buildGridItem({
+    required String asset,
+    required String name,
+    required bool selected,
+    required bool bloqueado,
+    required bool esPremium,
+    required IconData fallbackIcon,
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: selected ? _kAccent.withValues(alpha: 0.08) : _kSurf,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected ? _kAccent.withValues(alpha: 0.65) : _kBorder,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: Stack(children: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
+            child: Opacity(
+              opacity: bloqueado ? 0.25 : 1.0,
+              child: Image.asset(
+                asset,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    Icon(fallbackIcon, color: _kDim, size: 36),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: 6, left: 0, right: 0,
+          child: Text(name,
+              textAlign: TextAlign.center,
+              style: _s(9, FontWeight.w700,
+                  selected ? _kAccent : _kSub)),
+        ),
+        if (bloqueado)
+          Positioned(
+            top: 5, right: 5,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: _kGold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: _kGold.withValues(alpha: 0.35)),
+              ),
+              child: const Icon(Icons.workspace_premium_rounded,
+                  color: _kGold, size: 9),
+            ),
+          )
+        else if (esPremium)
+          Positioned(
+            top: 5, right: 5,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: _kGold.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: _kGold.withValues(alpha: 0.30)),
+              ),
+              child: const Icon(Icons.workspace_premium_rounded,
+                  color: _kGold, size: 9),
+            ),
+          ),
+        if (selected)
+          Positioned(
+            top: 5, left: 5,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(
+                  color: _kAccent, shape: BoxShape.circle),
+              child: const Icon(Icons.check_rounded,
+                  color: Colors.white, size: 9),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  // ── Opciones de color ──────────────────────────────────────────────────────
   Widget _buildColorOptions({
     required Color currentColor,
     required Function(Color) onColorSelected,
   }) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Colores gratis — siempre disponibles
-          const Text('GRATIS',
-              style: TextStyle(color: Colors.white38, fontSize: 10,
-                  fontWeight: FontWeight.w700, letterSpacing: 2)),
-          const SizedBox(height: 12),
+          Text('GRATIS',
+              style: _s(10, FontWeight.w700, _kDim, spacing: 2)),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 12, runSpacing: 12,
             children: AvatarConfig.freeColors.map((color) {
               final bool sel = currentColor.toARGB32() == color.toARGB32();
               return GestureDetector(
-                onTap: () => onColorSelected(color),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onColorSelected(color);
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 48, height: 48,
+                  width: 46, height: 46,
                   decoration: BoxDecoration(
                     color: color,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: sel ? Colors.white : Colors.transparent,
-                      width: 3,
+                      width: 2.5,
                     ),
                     boxShadow: sel
-                        ? [BoxShadow(color: color.withValues(alpha: 0.6),
-                            blurRadius: 12, spreadRadius: 2)]
+                        ? [BoxShadow(
+                            color: color.withValues(alpha: 0.55),
+                            blurRadius: 10, spreadRadius: 1)]
                         : [],
                   ),
                   child: sel
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
+                      ? const Icon(Icons.check_rounded,
+                          color: Colors.white, size: 20)
                       : null,
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
 
-          // Colores premium (neón) — requieren suscripción
           Row(children: [
-            const Text('PREMIUM',
-                style: TextStyle(color: Color(0xFFDECA46), fontSize: 10,
-                    fontWeight: FontWeight.w700, letterSpacing: 2)),
+            Text('PREMIUM',
+                style: _s(10, FontWeight.w700, _kGold, spacing: 2)),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
                 color: _esPremium
-                    ? const Color(0xFFDECA46).withValues(alpha: 0.15)
-                    : const Color(0xFFCC7C3A).withValues(alpha: 0.15),
+                    ? _kGold.withValues(alpha: 0.10)
+                    : _kSurf2,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: _esPremium
-                      ? const Color(0xFFDECA46).withValues(alpha: 0.4)
-                      : const Color(0xFFCC7C3A).withValues(alpha: 0.4),
+                      ? _kGold.withValues(alpha: 0.35)
+                      : _kBorder,
                 ),
               ),
-              child: Text(
-                _esPremium ? '👑 Incluido' : '👑 Suscripción',
-                style: TextStyle(
-                  color: _esPremium
-                      ? const Color(0xFFDECA46)
-                      : const Color(0xFFCC7C3A),
-                  fontSize: 9, fontWeight: FontWeight.w700,
-                ),
-              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.workspace_premium_rounded,
+                    color: _esPremium ? _kGold : _kSub, size: 10),
+                const SizedBox(width: 4),
+                Text(_esPremium ? 'Incluido' : 'Suscripción',
+                    style: _s(9, FontWeight.w700,
+                        _esPremium ? _kGold : _kSub)),
+              ]),
             ),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+
           Wrap(
-            spacing: 12, runSpacing: 12,
+            spacing: 12, runSpacing: 16,
             children: AvatarConfig.premiumColors.map((opt) {
               final Color color = opt['color'] as Color;
               final bool sel = currentColor.toARGB32() == color.toARGB32();
@@ -639,67 +572,57 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
               return GestureDetector(
                 onTap: () async {
                   if (bloqueado) {
-                    final acceso = await _accederItemPremium(opt['name'] as String);
+                    final acceso =
+                        await _accederItemPremium(opt['name'] as String);
                     if (!acceso) return;
                   }
+                  HapticFeedback.selectionClick();
                   onColorSelected(color);
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 48, height: 48,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: sel ? Colors.white : Colors.transparent,
-                              width: 3,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: color.withValues(alpha: bloqueado ? 0.3 : 0.7),
-                                blurRadius: sel ? 16 : 8,
-                                spreadRadius: sel ? 3 : 1,
-                              ),
-                            ],
-                          ),
-                          child: bloqueado
-                              ? Center(
-                                  child: Icon(Icons.lock_rounded,
-                                      color: Colors.white.withValues(alpha: 0.8),
-                                      size: 18))
-                              : sel
-                                  ? const Icon(Icons.check_rounded,
-                                      color: Colors.white, size: 22)
-                                  : null,
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: sel ? Colors.white : Colors.transparent,
+                          width: 2.5,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      bloqueado ? '🔒' : opt['name'] as String,
-                      style: TextStyle(
-                        color: bloqueado
-                            ? const Color(0xFFCC7C3A)
-                            : const Color(0xFFDECA46),
-                        fontSize: 9, fontWeight: FontWeight.w700,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withValues(
+                                alpha: bloqueado ? 0.2 : (sel ? 0.7 : 0.45)),
+                            blurRadius: sel ? 14 : 7,
+                            spreadRadius: sel ? 2 : 0,
+                          ),
+                        ],
                       ),
+                      child: bloqueado
+                          ? Icon(Icons.lock_rounded,
+                              color: Colors.white.withValues(alpha: 0.75),
+                              size: 18)
+                          : sel
+                              ? const Icon(Icons.check_rounded,
+                                  color: Colors.white, size: 20)
+                              : null,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      bloqueado ? '' : opt['name'] as String,
+                      style: _s(9, FontWeight.w700, _kGold),
                     ),
                   ],
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 20),
 
-          // Banner si no es premium
           if (!_esPremium) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
             GestureDetector(
               onTap: () => PaywallScreen.mostrar(context,
                   featureOrigen: 'Colores neón y accesorios premium'),
@@ -707,32 +630,36 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1C1410), Color(0xFF2A1E0E)],
-                  ),
+                  color: _kGold.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: const Color(0xFFCC7C3A).withValues(alpha: 0.4)),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.22)),
                 ),
-                child: const Row(children: [
-                  Text('👑', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 12),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _kGold.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.workspace_premium_rounded,
+                        color: _kGold, size: 18),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Desbloquea todos los colores neón',
-                          style: TextStyle(color: Color(0xFFEAD9AA),
-                              fontSize: 13, fontWeight: FontWeight.w700)),
-                        SizedBox(height: 2),
-                        Text('Matrix, Rosa neón, Cian, Oro — incluidos en Premium',
-                          style: TextStyle(
-                              color: Color(0xFF8C7242), fontSize: 11)),
+                            style: _s(13, FontWeight.w700, _kText)),
+                        const SizedBox(height: 2),
+                        Text(
+                            'Matrix, Rosa neón, Cian, Oro — incluidos en Premium',
+                            style: _s(11, FontWeight.w400, _kSub)),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded,
-                      color: Color(0xFFCC7C3A)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right_rounded, color: _kDim),
                 ]),
               ),
             ),
@@ -742,37 +669,34 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
     );
   }
 
-  // ── Botón guardar ──────────────────────────────────────────────────
+  // ── Botón guardar (estilo Login) ───────────────────────────────────────────
   Widget _buildBotonGuardar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _guardando ? null : _guardar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange,
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
-            elevation: 8,
-            shadowColor: Colors.orange.withValues(alpha: 0.4),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: GestureDetector(
+        onTap: _guardando
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                _guardar();
+              },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: double.infinity,
+          height: 52,
+          decoration: BoxDecoration(
+            color: _guardando ? _kSurf2 : _kText,
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: _guardando
-              ? const SizedBox(width: 20, height: 20,
-                  child: CircularProgressIndicator(
-                      color: Colors.black, strokeWidth: 2))
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.check_rounded, size: 20),
-                    SizedBox(width: 8),
-                    Text('GUARDAR AVATAR',
-                        style: TextStyle(fontSize: 15,
-                            fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                  ],
-                ),
+          child: Center(
+            child: _guardando
+                ? const SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(
+                        color: _kSub, strokeWidth: 2))
+                : Text('Guardar avatar',
+                    style: _s(16, FontWeight.w600, _kBg)),
+          ),
         ),
       ),
     );

@@ -11,15 +11,16 @@ const _kSurface = Color(0xFFFFFFFF);
 const _kBg      = Color(0xFFE8E8ED);
 
 class ResumenHistorial extends StatelessWidget {
-  final List<Map<String, dynamic>> logrosFiltrados;
-  final List<Map<String, dynamic>> todosLosLogros;
-  final bool                       verTodos;
-  final TextEditingController      searchCtrl;
-  final int                        paginaActual;
-  final int                        paginaTamanio;
-  final Map<String, dynamic>?      retoCompletadoEnSesion;
-  final ValueChanged<String>       onSearch;
-  final VoidCallback               onToggleVerTodos;
+  final List<Map<String, dynamic>>          logrosFiltrados;
+  final List<Map<String, dynamic>>          todosLosLogros;
+  final bool                                verTodos;
+  final TextEditingController               searchCtrl;
+  final int                                 paginaActual;
+  final int                                 paginaTamanio;
+  final Map<String, dynamic>?               retoCompletadoEnSesion;
+  final ValueChanged<String>                onSearch;
+  final VoidCallback                        onToggleVerTodos;
+  final ValueChanged<Map<String, dynamic>>? onTapLogro;
 
   const ResumenHistorial({
     super.key,
@@ -32,6 +33,7 @@ class ResumenHistorial extends StatelessWidget {
     required this.onSearch,
     required this.onToggleVerTodos,
     this.retoCompletadoEnSesion,
+    this.onTapLogro,
   });
 
   @override
@@ -106,7 +108,13 @@ class ResumenHistorial extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 6),
-                child:   _HistorialRow(idx: e.key, data: e.value),
+                child:   _HistorialRow(
+                  idx:   e.key,
+                  data:  e.value,
+                  onTap: onTapLogro != null
+                      ? () => onTapLogro!(e.value)
+                      : null,
+                ),
               ),
             )),
     ]);
@@ -195,7 +203,8 @@ class _BannerRetoCompletado extends StatelessWidget {
 class _HistorialRow extends StatelessWidget {
   final int                  idx;
   final Map<String, dynamic> data;
-  const _HistorialRow({required this.idx, required this.data});
+  final VoidCallback?        onTap;
+  const _HistorialRow({required this.idx, required this.data, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -204,8 +213,11 @@ class _HistorialRow extends StatelessWidget {
     final isFirst    = idx == 0;
     final modo       = data['modo'] as String? ?? 'competitivo';
     final esGlobal   = modo == 'guerra_global';
+    final tappable   = onTap != null && (data['docId'] as String?)?.isNotEmpty == true;
 
-    return Container(
+    return GestureDetector(
+      onTap: tappable ? onTap : null,
+      child: Container(
       decoration: BoxDecoration(
         color:        _kSurface,
         borderRadius: BorderRadius.circular(10),
@@ -303,12 +315,17 @@ class _HistorialRow extends StatelessWidget {
                     ],
                   ),
                 ],
+                if (tappable) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: _kGreyDim, size: 16),
+                ],
               ]),
             ),
           ),
         ]),
       ),
-    );
+    ));
   }
 }
 

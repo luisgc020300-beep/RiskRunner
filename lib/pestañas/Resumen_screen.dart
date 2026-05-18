@@ -286,13 +286,36 @@ class _ResumenScreenState extends State<ResumenScreen>
   }
 
   Future<void> _cargarStatsResumen() async {
-    if (!widget.esDesdeCarrera) return;
     try {
       final historial = await StatsService.cargarCarreras(limite: 20);
-      if (historial.isEmpty || !mounted) return;
+      if (!mounted) return;
+      CarreraStats? carreraActual;
+      if (widget.esDesdeCarrera && historial.isNotEmpty) {
+        carreraActual = historial.first;
+      } else {
+        final velMedia = widget.tiempo.inSeconds > 0
+            ? widget.distancia / (widget.tiempo.inSeconds / 3600)
+            : 0.0;
+        final ritmo = velMedia > 0 ? 60.0 / velMedia : 0.0;
+        final zona = ritmo < 4.5 ? ZonaRitmo.competicion
+            : ritmo < 5.5 ? ZonaRitmo.umbral
+            : ritmo < 6.5 ? ZonaRitmo.moderado
+            : ritmo < 7.5 ? ZonaRitmo.facil
+            : ZonaRitmo.recuperacion;
+        carreraActual = CarreraStats(
+          id:          '',
+          fecha:       DateTime.now(),
+          distanciaKm: widget.distancia,
+          tiempoSeg:   widget.tiempo.inSeconds,
+          ritmoMinKm:  ritmo,
+          zona:        zona,
+          calles:      [],
+          ruta:        widget.ruta,
+        );
+      }
       setState(() {
         _historialStats = historial;
-        _carreraActual  = historial.first;
+        _carreraActual  = carreraActual;
       });
     } catch (e) { debugPrint('Error stats: $e'); }
   }
@@ -487,12 +510,14 @@ class _ResumenScreenState extends State<ResumenScreen>
         final dist = (d['distancia'] as num? ?? 0).toDouble();
         if (dist <= 0 || d['id_reto_completado'] != null) continue;
         lista.add({
-          'titulo':     d['titulo'] ?? 'Carrera completada',
-          'recompensa': (d['recompensa'] as num? ?? 0).toInt(),
-          'fecha':      d['fecha_dia'] ?? 'Reciente',
-          'timestamp':  d['timestamp'],
-          'distancia':  dist,
-          'modo':       d['modo'] ?? 'competitivo',
+          'docId':           doc.id,
+          'titulo':          d['titulo'] ?? 'Carrera completada',
+          'recompensa':      (d['recompensa'] as num? ?? 0).toInt(),
+          'fecha':           d['fecha_dia'] ?? 'Reciente',
+          'timestamp':       d['timestamp'],
+          'distancia':       dist,
+          'tiempo_segundos': (d['tiempo_segundos'] as num? ?? 0).toInt(),
+          'modo':            d['modo'] ?? 'competitivo',
         });
         monedas += (d['recompensa'] as num? ?? 0).toInt();
       }
@@ -518,6 +543,32 @@ class _ResumenScreenState extends State<ResumenScreen>
             l['titulo'].toString().toLowerCase().contains(q.toLowerCase()))
         .toList();
   });
+
+  Future<void> _abrirResumenDesdeLogro(Map<String, dynamic> d) async {
+    final docId = d['docId'] as String?;
+    if (docId == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('activity_logs').doc(docId).get();
+      if (!mounted || !doc.exists) return;
+      final data    = doc.data()!;
+      final rutaRaw = data['ruta'] as List<dynamic>? ?? [];
+      final ruta = rutaRaw.map((p) {
+        final m = p as Map<String, dynamic>;
+        return LatLng((m['lat'] as num).toDouble(),
+                      (m['lng'] as num).toDouble());
+      }).toList();
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
+        distancia      : (d['distancia'] as double? ?? 0),
+        tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
+        ruta           : ruta,
+        esDesdeCarrera : false,
+      )));
+    } catch (e) {
+      debugPrint('Error abriendo resumen desde logro: $e');
+    }
+  }
 
   Future<void> _compartirEnFeed(BuildContext ctx) async {
     if (userId.isEmpty) return;
@@ -743,7 +794,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   ),
                   const SizedBox(height: 18),
 
-                  if (widget.esDesdeCarrera && _carreraActual != null)
+                  if (_carreraActual != null)
                     Reveal(
                       anim: _statsReveal,
                       child: Padding(
@@ -784,6 +835,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       paginaTamanio:          _paginaTamanio,
                       retoCompletadoEnSesion: _retoCompletadoEnSesion,
                       onSearch:               _filtrarBusqueda,
+                      onTapLogro:             _abrirResumenDesdeLogro,
                       onToggleVerTodos: () => setState(() {
                         _verTodosLosLogros = !_verTodosLosLogros;
                         if (!_verTodosLosLogros) {

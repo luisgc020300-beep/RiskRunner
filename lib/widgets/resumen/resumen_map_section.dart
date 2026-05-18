@@ -105,7 +105,7 @@ class ResumenMapSection extends StatelessWidget {
                           borderColor:       t.color,
                           borderStrokeWidth: 2.5,
                         )).toList()),
-                  if (tieneRuta && esDesdeCarrera)
+                  if (tieneRuta)
                     AnimatedBuilder(
                       animation: rutaProgress,
                       builder: (_, __) {
@@ -157,7 +157,7 @@ class ResumenMapSection extends StatelessWidget {
                   child: Icon(Icons.open_in_full_rounded,
                       color: acento.withValues(alpha: 0.85), size: 13),
                 )),
-              if (tieneRuta && esDesdeCarrera)
+              if (tieneRuta)
                 Positioned(bottom: 0, left: 0, right: 0,
                   child: AnimatedBuilder(
                     animation: rutaProgress,

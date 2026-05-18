@@ -129,10 +129,24 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-    } on FirebaseAuthException {
+    } on FirebaseAuthException catch (e) {
       if (mounted) {
-        _setError('ACCESO DENEGADO — CREDENCIALES INVÁLIDAS',
-            stopLoading: true);
+        String msg;
+        switch (e.code) {
+          case 'too-many-requests':
+            msg = 'DEMASIADOS INTENTOS — ESPERA UNOS MINUTOS';
+          case 'user-disabled':
+            msg = 'CUENTA DESHABILITADA';
+          case 'user-not-found':
+          case 'wrong-password':
+          case 'invalid-credential':
+            msg = 'ACCESO DENEGADO — CREDENCIALES INVÁLIDAS';
+          case 'network-request-failed':
+            msg = 'ERROR DE CONEXIÓN';
+          default:
+            msg = 'ERROR (${e.code})';
+        }
+        _setError(msg, stopLoading: true);
       }
     } catch (_) {
       if (mounted) _setError('ERROR DE CONEXIÓN', stopLoading: true);
