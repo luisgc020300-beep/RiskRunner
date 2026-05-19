@@ -36,6 +36,7 @@ dependencies:
   firebase_analytics: ^12.0.0
   health: ^10.0.0
   wakelock_plus: ^1.2.10
+  google_sign_in: ^6.2.2
 
 dev_dependencies:
   flutter_test:

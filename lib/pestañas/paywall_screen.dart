@@ -34,7 +34,7 @@ class _C {
 class _PlanLocal {
   final String id;
   final String titulo;
-  final String emoji;
+  final IconData icon;
   final String precio;
   final String periodo;
   final String? precioPorMes;
@@ -45,7 +45,7 @@ class _PlanLocal {
   const _PlanLocal({
     required this.id,
     required this.titulo,
-    required this.emoji,
+    required this.icon,
     required this.precio,
     required this.periodo,
     this.precioPorMes,
@@ -59,7 +59,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'monthly_explorer',
     titulo: 'EXPLORADOR',
-    emoji: '',
+    icon: Icons.explore,
     precio: '2,99€',
     periodo: '/mes',
     esRecomendado: false,
@@ -68,7 +68,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'monthly_commander',
     titulo: 'COMANDANTE',
-    emoji: '',
+    icon: Icons.military_tech,
     precio: '4,99€',
     periodo: '/mes',
     esRecomendado: false,
@@ -77,7 +77,7 @@ const _planesLocales = [
   _PlanLocal(
     id: 'annual',
     titulo: 'ANUAL',
-    emoji: '',
+    icon: Icons.workspace_premium,
     precio: '39,99€',
     periodo: '/año',
     precioPorMes: '3,33€/mes',
@@ -91,20 +91,20 @@ const _planesLocales = [
 // FEATURES POR PLAN
 // =============================================================================
 
-// Cada feature: (emoji, nombre, libre, explorador, comandante)
+// Cada feature: (icon, nombre, libre, explorador, comandante)
 const _features = [
-  ('', 'Tracking GPS y conquista',          true,  true,  true),
-  ('', 'Desafíos PvP y clanes',             true,  true,  true),
-  ('', 'Monedas x2 por carrera',            false, true,  true),
-  ('', 'Badge Premium en perfil',           false, true,  true),
-  ('', 'Colores neón de ropa',              false, true,  true),
-  ('', 'Avatar premium (Afro, Mohicano)',   false, true,  true),
-  ('', 'Escudo +7 días al suscribirte',    false, true,  true),
-  ('', 'Estilos de mapa exclusivos',       false, false, true),
-  ('', 'Radar de operativos (500m)',        false, false, true),
-  ('', 'Estadísticas avanzadas',           false, false, true),
-  ('', '+2 retos premium diarios',         false, false, true),
-  ('', 'Historial completo (200 carreras)',false, false, true),
+  (Icons.location_on,       'Tracking GPS y conquista',          true,  true,  true),
+  (Icons.groups,            'Desafíos PvP y clanes',             true,  true,  true),
+  (Icons.toll,              'Monedas x2 por carrera',            false, true,  true),
+  (Icons.verified,          'Badge Premium en perfil',           false, true,  true),
+  (Icons.palette,           'Colores neón de ropa',              false, true,  true),
+  (Icons.person_pin,        'Avatar premium (Afro, Mohicano)',   false, true,  true),
+  (Icons.shield,            'Escudo +7 días al suscribirte',    false, true,  true),
+  (Icons.map,               'Estilos de mapa exclusivos',       false, false, true),
+  (Icons.radar,             'Radar de operativos (500m)',        false, false, true),
+  (Icons.bar_chart,         'Estadísticas avanzadas',           false, false, true),
+  (Icons.add_task,          '+2 retos premium diarios',         false, false, true),
+  (Icons.history,           'Historial completo (200 carreras)',false, false, true),
 ];
 
 // =============================================================================
@@ -268,7 +268,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('', style: TextStyle(fontSize: 56)),
+            const Icon(Icons.workspace_premium, color: _C.gold, size: 56),
             const SizedBox(height: 16),
             const Text('¡BIENVENIDO AL MANDO!',
               style: TextStyle(color: _C.gold, fontSize: 18,
@@ -516,7 +516,7 @@ class _PaywallScreenState extends State<PaywallScreen>
       child: Column(
         children: _features.asMap().entries.map((e) {
           final isLast = e.key == _features.length - 1;
-          final (emoji, titulo, libre, explorer, commander) = e.value;
+          final (icon, titulo, libre, explorer, commander) = e.value;
 
           // Determinar si está incluido en el plan actual
           final incluida = planIdx == 0
@@ -526,7 +526,7 @@ class _PaywallScreenState extends State<PaywallScreen>
           final inFree = libre;
 
           return _featureRow(
-            emoji: emoji,
+            icon: icon,
             titulo: titulo,
             incluida: incluida,
             inFree: inFree,
@@ -538,7 +538,7 @@ class _PaywallScreenState extends State<PaywallScreen>
   }
 
   Widget _featureRow({
-    required String emoji,
+    required IconData icon,
     required String titulo,
     required bool incluida,
     required bool inFree,
@@ -548,7 +548,7 @@ class _PaywallScreenState extends State<PaywallScreen>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
+          Icon(icon, size: 18, color: incluida ? _C.t2 : _C.dim),
           const SizedBox(width: 12),
           Expanded(child: Text(titulo, style: TextStyle(
             color: incluida ? _C.t1 : _C.dim,
@@ -609,14 +609,14 @@ class _PaywallScreenState extends State<PaywallScreen>
         // Rows
         ..._features.asMap().entries.map((e) {
           final isLast = e.key == _features.length - 1;
-          final (emoji, titulo, libre, explorer, commander) = e.value;
+          final (icon, titulo, libre, explorer, commander) = e.value;
           return Column(children: [
             Row(children: [
               Expanded(flex: 3, child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),
                 child: Row(children: [
-                  Text(emoji, style: const TextStyle(fontSize: 14)),
+                  Icon(icon, size: 14, color: _C.t3),
                   const SizedBox(width: 8),
                   Expanded(child: Text(titulo,
                     style: const TextStyle(color: _C.t2, fontSize: 11))),
@@ -723,7 +723,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         Expanded(child: _planCardRC(
           package: monthly,
           titulo: 'MENSUAL',
-          emoji: '',
+          icon: Icons.military_tech,
           accentColor: _C.bronze,
           esRecomendado: false,
         )),
@@ -733,7 +733,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         Expanded(child: _planCardRC(
           package: annual,
           titulo: 'ANUAL',
-          emoji: '',
+          icon: Icons.workspace_premium,
           accentColor: _C.gold,
           esRecomendado: true,
           savingText:
@@ -782,7 +782,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(plan.emoji, style: const TextStyle(fontSize: 22)),
+          Icon(plan.icon, size: 22, color: sel ? plan.accentColor : _C.dim),
           const SizedBox(height: 8),
           Text(plan.titulo, style: TextStyle(
             color: sel ? plan.accentColor : _C.t3,
@@ -829,7 +829,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               : null,
         ),
         child: Row(children: [
-          Text(plan.emoji, style: const TextStyle(fontSize: 28)),
+          Icon(plan.icon, size: 28, color: sel ? plan.accentColor : _C.dim),
           const SizedBox(width: 14),
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -896,7 +896,7 @@ class _PaywallScreenState extends State<PaywallScreen>
   Widget _planCardRC({
     required rc.Package package,
     required String titulo,
-    required String emoji,
+    required IconData icon,
     required Color accentColor,
     required bool esRecomendado,
     String? savingText,
@@ -944,7 +944,7 @@ class _PaywallScreenState extends State<PaywallScreen>
             )
           else
             const SizedBox(height: 22),
-          Text(emoji, style: const TextStyle(fontSize: 22)),
+          Icon(icon, size: 22, color: sel ? accentColor : _C.dim),
           const SizedBox(height: 8),
           Text(titulo, style: TextStyle(
             color: sel ? accentColor : _C.t3,

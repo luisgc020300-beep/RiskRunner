@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'Home_screen.dart';
 import 'Registrarse_screen.dart';
 
@@ -163,7 +165,51 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _signInWithGoogle() async {
-    _showSnack('Google Sign-In próximamente');
+    setState(() { _loading = true; _error = ''; });
+    HapticFeedback.mediumImpact();
+    try {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        setState(() => _loading = false);
+        return;
+      }
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken:     googleAuth.idToken,
+      );
+      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user     = userCred.user!;
+
+      final playerRef = FirebaseFirestore.instance.collection('players').doc(user.uid);
+      final playerDoc = await playerRef.get();
+      if (!playerDoc.exists) {
+        final rawNick = user.displayName?.isNotEmpty == true
+            ? user.displayName!.split(' ').first
+            : user.email!.split('@').first;
+        final nick = rawNick.length > 20 ? rawNick.substring(0, 20) : rawNick;
+        await playerRef.set({
+          'nickname':         nick,
+          'email':            user.email ?? '',
+          'victorias':        0,
+          'nivel':            1,
+          'monedas':          100,
+          'fecha_registro':   FieldValue.serverTimestamp(),
+          'proteccion_hasta': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 7))),
+          'liga':             'bronce',
+          'puntos_liga':      0,
+        });
+      }
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+    } on FirebaseAuthException catch (e) {
+      if (mounted) _setError('ERROR: ${e.code}', stopLoading: true);
+    } catch (_) {
+      if (mounted) _setError('ERROR AL INICIAR CON GOOGLE', stopLoading: true);
+    }
   }
 
   Future<void> _resetPassword() async {

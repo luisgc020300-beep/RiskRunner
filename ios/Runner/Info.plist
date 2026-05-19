@@ -70,5 +70,18 @@
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
 
+	<!-- Google Sign-In URL scheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1097151479835-o3rl8le4kmnnmuj2ht1lgumikdpti951</string>
+			</array>
+		</dict>
+	</array>
+
 </dict>
 </plist>

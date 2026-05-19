@@ -229,7 +229,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       if (_esGuerraGlobal && widget.globalConquistado) {
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) {
-            _snack('', '¡Territorio global conquistado!',
+            _snack('¡Territorio global conquistado!',
                 widget.objetivoGlobal!['territorioNombre'] as String? ?? '',
                 _kGold);
           }
@@ -359,20 +359,20 @@ class _ResumenScreenState extends State<ResumenScreen>
   void _mostrarBannerRacha(int r) =>
       Future.delayed(const Duration(milliseconds: 900), () {
         if (!mounted) return;
-        _snack('', '¡Racha de $r días!',
-            r >= 7 ? ' Una semana seguida conquistando' : 'Sigue así, conquistador',
+        _snack('¡Racha de $r días!',
+            r >= 7 ? 'Una semana seguida conquistando' : 'Sigue así, conquistador',
             _kGrey);
       });
 
   void _mostrarBannerConquista(int n) =>
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
-        _snack('', '¡Territorio conquistado!',
+        _snack('¡Territorio conquistado!',
             n == 1 ? '1 rival eliminado del mapa' : '$n rivales eliminados',
             _kGrey);
       });
 
-  void _snack(String emoji, String title, String sub, Color color) {
+  void _snack(String title, String sub, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration:        const Duration(seconds: 4),
       backgroundColor: Colors.transparent,
@@ -387,22 +387,18 @@ class _ResumenScreenState extends State<ResumenScreen>
             BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 20)
           ],
         ),
-        child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: const TextStyle(
-                  color: _kWhite, fontWeight: FontWeight.w800,
-                  fontSize: 13, letterSpacing: 0.5)),
-              const SizedBox(height: 2),
-              Text(sub, style: TextStyle(
-                  color: color.withValues(alpha: 0.8), fontSize: 11)),
-            ],
-          )),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, style: const TextStyle(
+                color: _kWhite, fontWeight: FontWeight.w800,
+                fontSize: 13, letterSpacing: 0.5)),
+            const SizedBox(height: 2),
+            Text(sub, style: TextStyle(
+                color: color.withValues(alpha: 0.8), fontSize: 11)),
+          ],
+        ),
       ),
     ));
   }
@@ -661,14 +657,14 @@ class _ResumenScreenState extends State<ResumenScreen>
                       });
                       if (bCtx.mounted) {
                         Navigator.pop(bCtx);
-                        _snack('', '¡Publicado!',
+                        _snack('¡Publicado!',
                             'Tu conquista ya está en el feed', _kGrey);
                       }
                     } catch (e) {
                       debugPrint('Error publicando post: $e');
                       setM(() => pub = false);
                       if (bCtx.mounted) {
-                        _snack('', 'Error al publicar',
+                        _snack('Error al publicar',
                             'Comprueba tu conexión', _kGreyDim);
                       }
                     }
@@ -853,8 +849,6 @@ class _ResumenScreenState extends State<ResumenScreen>
             border: Border.all(
                 color: _kGrey.withValues(alpha: _pulse.value), width: 1.5),
           ),
-          child: const Center(
-              child: Text('', style: TextStyle(fontSize: 24))),
         ),
       ),
       const SizedBox(height: 18),
@@ -1016,13 +1010,9 @@ class _ResumenScreenState extends State<ResumenScreen>
           border:       Border.all(color: _kBorder2),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Text('', style: TextStyle(fontSize: 11)),
-            const SizedBox(width: 6),
-            const Text('TIEMPO', style: TextStyle(
-                color: _kGrey, fontSize: 7,
-                fontWeight: FontWeight.w900, letterSpacing: 2)),
-          ]),
+          const Text('TIEMPO', style: TextStyle(
+              color: _kGrey, fontSize: 7,
+              fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 8),
           Text(tiempo, style: const TextStyle(
               color: _kBright, fontSize: 28,
@@ -1031,20 +1021,19 @@ class _ResumenScreenState extends State<ResumenScreen>
       )),
       const SizedBox(width: 8),
       Expanded(flex: 4, child: Column(children: [
-        _metricTileSmall(ritmo, 'MIN/KM', '', accent: false),
+        _metricTileSmall(ritmo, 'MIN/KM', accent: false),
         const SizedBox(height: 8),
-        _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', '', accent: true),
+        _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', accent: true),
         const SizedBox(height: 8),
         _metricTileSmall(
             (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0))
                 .round().toString(),
-            'KCAL', '', accent: false),
+            'KCAL', accent: false),
       ])),
     ]);
   }
 
-  Widget _metricTileSmall(String v, String l, String emoji,
-      {bool accent = false}) =>
+  Widget _metricTileSmall(String v, String l, {bool accent = false}) =>
       Container(
         padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
         decoration: BoxDecoration(
@@ -1052,47 +1041,41 @@ class _ResumenScreenState extends State<ResumenScreen>
           borderRadius: BorderRadius.circular(12),
           border:       Border.all(color: _kBorder2),
         ),
-        child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 11)),
-          const SizedBox(width: 8),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(v, style: TextStyle(
-                  color:      accent ? _kBright : _kWhite,
-                  fontSize:   15,
-                  fontWeight: FontWeight.w900,
-                  height:     1)),
-              const SizedBox(height: 2),
-              Text(l, style: const TextStyle(
-                  color: _kGreyDim, fontSize: 7,
-                  fontWeight: FontWeight.w700, letterSpacing: 1.5)),
-            ],
-          )),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(v, style: TextStyle(
+                color:      accent ? _kBright : _kWhite,
+                fontSize:   15,
+                fontWeight: FontWeight.w900,
+                height:     1)),
+            const SizedBox(height: 2),
+            Text(l, style: const TextStyle(
+                color: _kGreyDim, fontSize: 7,
+                fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+          ],
+        ),
       );
 
   Widget _buildTotalesRow() => Row(children: [
     Expanded(child: _totalCell(
-        retosTotalesHistorial.toString(), 'CARRERAS TOTALES', '')),
+        retosTotalesHistorial.toString(), 'CARRERAS TOTALES')),
     const SizedBox(width: 8),
     Expanded(child: _totalCell(
         monedasTotalesHistorial.toString(),
-        'PUNTOS ACUMULADOS', '', accent: true)),
+        'PUNTOS ACUMULADOS', accent: true)),
   ]);
 
-  Widget _totalCell(String v, String l, String emoji,
-      {bool accent = false}) =>
+  Widget _totalCell(String v, String l, {bool accent = false}) =>
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
             color:        _kSurface,
             borderRadius: BorderRadius.circular(10),
             border:       Border.all(color: _kBorder2)),
-        child: Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(v, style: TextStyle(
                 color:      accent ? _kBright : _kWhite,
                 fontSize:   18,
@@ -1100,8 +1083,8 @@ class _ResumenScreenState extends State<ResumenScreen>
             Text(l, style: const TextStyle(
                 color: _kGrey, fontSize: 7,
                 fontWeight: FontWeight.w700, letterSpacing: 1.2)),
-          ]),
-        ]),
+          ],
+        ),
       );
 
   Widget _buildAcciones() => Column(children: [
