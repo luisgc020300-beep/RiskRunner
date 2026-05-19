@@ -26,6 +26,8 @@ import '../config/env.dart';
 import '../widgets/map/map_theme.dart';
 import '../widgets/map/map_dialogs.dart';
 import '../widgets/map/map_starfield.dart';
+import '../models/avatar_config.dart';
+import '../widgets/avatar_painter.dart';
 
 // =============================================================================
 // MAPBOX
@@ -629,6 +631,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // Toggle mapa claro/oscuro
   bool _mapaOscuro = false;
 
+  // ── Avatar del jugador (se carga desde Firestore al iniciar) ─────────────
+  AvatarConfig _avatarConfig = const AvatarConfig();
+
   // ── Modo solitario — barrios OSM ──────────────────────────────────────────
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
@@ -801,10 +806,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
     _escucharJugadores();
     _escucharDesafio();
+    _loadAvatarConfig(); // fire-and-forget, no bloquea el resto del init
     await _cargarTerritorios();
     await _rellenarConFantasmas();
     if (!mounted) return;
     _sheetEntryCtrl.forward();
+  }
+
+  Future<void> _loadAvatarConfig() async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('players').doc(uid).get();
+      final av = doc.data()?['avatar_config'] as Map<String, dynamic>?;
+      if (av != null && mounted) setState(() => _avatarConfig = AvatarConfig.fromMap(av));
+    } catch (_) {}
   }
 
   Future<void> _resolverCentro() async {
@@ -2286,17 +2302,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               // Marcador de posición del usuario
               MarkerLayer(markers: [
                 Marker(
-                  point: _state.centro, width: 22, height: 22,
-                  child: Container(
-                    width: 22, height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      border: Border.all(color: _kRed, width: 2),
-                      boxShadow: [BoxShadow(
-                          color: _kRed.withValues(alpha: 0.50),
-                          blurRadius: 8, spreadRadius: 1)],
-                    ),
+                  point: _state.centro, width: 32, height: 32,
+                  child: RunningAvatarWidget(
+                    config: _avatarConfig,
+                    size: 32,
+                    running: false,
                   ),
                 ),
               ]),
@@ -2494,27 +2504,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         MarkerLayer(markers: [
           Marker(
-            point: _state.centro, width: 40, height: 40,
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kRed.withValues(alpha: 0.12),
-                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
-              ),
-              child: Center(
-                child: Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: _kRed, width: 2.5),
-                    boxShadow: [BoxShadow(
-                        color: _kRed.withValues(alpha: 0.55),
-                        blurRadius: 10, spreadRadius: 1)],
-                  ),
-                ),
-              ),
+            point: _state.centro, width: 44, height: 44,
+            child: RunningAvatarWidget(
+              config: _avatarConfig,
+              size: 44,
+              running: true,
             ),
           ),
         ]),
@@ -2682,27 +2676,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         // Posición del usuario
         MarkerLayer(markers: [
           Marker(
-            point: _state.centro, width: 40, height: 40,
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kRed.withValues(alpha: 0.12),
-                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
-              ),
-              child: Center(
-                child: Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: _kRed, width: 2.5),
-                    boxShadow: [BoxShadow(
-                        color: _kRed.withValues(alpha: 0.55),
-                        blurRadius: 10, spreadRadius: 1)],
-                  ),
-                ),
-              ),
+            point: _state.centro, width: 44, height: 44,
+            child: RunningAvatarWidget(
+              config: _avatarConfig,
+              size: 44,
+              running: true,
             ),
           ),
         ]),
