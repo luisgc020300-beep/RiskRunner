@@ -39,7 +39,6 @@ import '../services/onboarding_service.dart';
 import '../services/activity_service.dart';
 import '../config/env.dart';
 import '../widgets/live_activity/live_starfield.dart';
-import '../widgets/live_activity/live_painters.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_painter.dart';
 
@@ -90,7 +89,6 @@ class _LP {
 
 // aliases para los call sites existentes
 typedef _StarfieldWidget   = LiveStarfieldWidget;
-typedef _SpeedLinesPainter = LiveSpeedLinesPainter;
 
 // =============================================================================
 // CONSTANTES GPS / CÁMARA
@@ -268,7 +266,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _hudMinimizado = false;
 
   late AnimationController _bounceAnim;
-  late Animation<double>   _bounceOffset;
 
   late AnimationController _pulsoAnim;
   late Animation<double>   _pulso;
@@ -381,8 +378,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     _bounceAnim = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 420));
-    _bounceOffset = Tween<double>(begin: 0, end: -7).animate(
-        CurvedAnimation(parent: _bounceAnim, curve: Curves.easeInOut));
     _bounceAnim.repeat(reverse: true);
 
     _pulsoAnim = AnimationController(
@@ -641,8 +636,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _puckBuilding = true;
     _puckAnimTimer?.cancel();
 
-    const int kN     = 8;
-    const double kSz = 52.0;
+    const int kN     = 12;
+    const double kSz = 128.0;
     final frames = <Uint8List>[];
 
     for (int i = 0; i < kN; i++) {
@@ -4307,7 +4302,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ],
           ),
         ),
-        if (isTracking && !isPaused) _buildAvatarOverlay(),
+        // Avatar se muestra en el puck de Mapbox (posición GPS real)
         if (isTracking)
           AnimatedAlign(
             duration: const Duration(milliseconds: 300),
@@ -5000,38 +4995,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 letterSpacing: 4,
                 fontFeatures: [FontFeature.tabularFigures()],
               ),
-            ),
-          ),
-        ),
-      );
-
-  Widget _buildAvatarOverlay() => Positioned(
-        bottom: 140, left: 0, right: 0,
-        child: IgnorePointer(
-          child: AnimatedBuilder(
-            animation: _bounceAnim,
-            builder: (_, __) => Transform.translate(
-              offset: Offset(0, _bounceOffset.value),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                if (_velocidadActualKmh > 1)
-                  SizedBox(width: 100, height: 28,
-                      child: CustomPaint(
-                          painter: _SpeedLinesPainter(color: _p.terracotta))),
-                RunningAvatarWidget(
-                  config: _avatarConfig,
-                  size: 110,
-                  running: isTracking && !isPaused,
-                ),
-                Container(
-                  width: 52, height: 9,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(50),
-                    gradient: RadialGradient(colors: [
-                      _kGold.withValues(alpha: 0.28), Colors.transparent
-                    ]),
-                  ),
-                ),
-              ]),
             ),
           ),
         ),
