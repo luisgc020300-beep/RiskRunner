@@ -4863,17 +4863,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           margin:  const EdgeInsets.fromLTRB(14, 50, 14, 0),
           padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 18),
           decoration: BoxDecoration(
-            color: _p.parchment.withValues(alpha: 0.93),
+            color: Colors.black.withValues(alpha: 0.62),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-                color: (_objetivoGlobal != null ? _p.globalRed : _kGold)
-                    .withValues(alpha: 0.18 + _pulso.value * 0.22),
-                width: 1.5),
+                color: Colors.white.withValues(alpha: 0.10 + _pulso.value * 0.06),
+                width: 1.0),
             boxShadow: [
-              BoxShadow(color: (_objetivoGlobal != null ? _p.globalRed : _kGold)
-                  .withValues(alpha: 0.10 + _pulso.value * 0.08),
-                  blurRadius: 20, spreadRadius: 1),
-              BoxShadow(color: Colors.black.withValues(alpha: 0.55), blurRadius: 10),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.40), blurRadius: 12),
             ],
           ),
           child: child,
@@ -4916,41 +4912,42 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
             decoration: BoxDecoration(
-              color: _p.parchment.withValues(alpha: 0.90),
+              color: Colors.black.withValues(alpha: 0.60),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: _p.goldDim.withValues(alpha: 0.45)),
-              boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 10)],
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Text(_distanciaTotal.toStringAsFixed(2),
-                    style: GoogleFonts.orbitron(color: _kGoldLight,
-                        fontWeight: FontWeight.w900, fontSize: 14)),
-                Text(' km', style: TextStyle(color: _kGold.withValues(alpha: 0.55), fontSize: 11)),
-                Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                    style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.w300, fontSize: 15,
+                        letterSpacing: 0.5,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+                const Text(' km', style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11)),
+                Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
                 Text(_ritmoStr,
-                    style: GoogleFonts.orbitron(color: _kWaterLight,
-                        fontWeight: FontWeight.w900, fontSize: 14)),
-                Text(' /km', style: TextStyle(color: _kWater.withValues(alpha: 0.55), fontSize: 11)),
+                    style: const TextStyle(color: Colors.white,
+                        fontWeight: FontWeight.w300, fontSize: 15,
+                        letterSpacing: 0.5,
+                        fontFeatures: [FontFeature.tabularFigures()])),
+                const Text(' /km', style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11)),
                 if (_objetivoGlobal != null) ...[
-                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
                   Text('${(_progresoGlobal * 100).toInt()}%',
-                      style: GoogleFonts.orbitron(
-                          color: _globalConquistado ? _kVerde : _p.globalRed,
-                          fontWeight: FontWeight.w900, fontSize: 14)),
+                      style: TextStyle(color: _globalConquistado ? _kVerde : Colors.white,
+                          fontWeight: FontWeight.w300, fontSize: 15)),
                 ] else if (_rutaGuiada != null) ...[
-                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
+                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
                   Text('${(_porcentajeRuta * 100).toInt()}%',
-                      style: GoogleFonts.orbitron(
-                          color: _rutaCompletada ? _kVerde : _kWaterLight,
-                          fontWeight: FontWeight.w900, fontSize: 14)),
+                      style: TextStyle(color: _rutaCompletada ? _kVerde : Colors.white,
+                          fontWeight: FontWeight.w300, fontSize: 15)),
                 ] else if (_modoSolitario) ...[
-                  Container(width: 1, height: 14, color: _p.goldDim.withValues(alpha: 0.4)),
-                  Text('SOLO', style: GoogleFonts.inter(color: _kVerde,
-                      fontWeight: FontWeight.w900, fontSize: 11)),
+                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
+                  const Text('SOLO', style: TextStyle(color: Color(0xFF30D158),
+                      fontWeight: FontWeight.w500, fontSize: 11, letterSpacing: 0.8)),
                 ],
-                Icon(CupertinoIcons.chevron_down, color: _p.goldDim, size: 15),
+                Icon(CupertinoIcons.chevron_down, color: Colors.white.withValues(alpha: 0.35), size: 14),
               ],
             ),
           ),
@@ -4959,12 +4956,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Widget _hudStat(String label, String valor, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(label, style: GoogleFonts.inter(color: color.withValues(alpha: 0.7),
-            fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1.8)),
-        const SizedBox(height: 4),
-        Text(valor, style: GoogleFonts.orbitron(color: Colors.white,
-            fontSize: valor.length > 5 ? 14 : 18, fontWeight: FontWeight.w900,
-            shadows: [Shadow(color: color.withValues(alpha: 0.55), blurRadius: 10)])),
+        Text(label, style: const TextStyle(
+            color: Color(0xFF8E8E93), fontSize: 9,
+            fontWeight: FontWeight.w500, letterSpacing: 1.2)),
+        const SizedBox(height: 3),
+        Text(valor, style: TextStyle(
+            color: Colors.white,
+            fontSize: valor.length > 5 ? 14 : 19,
+            fontWeight: FontWeight.w300,
+            letterSpacing: 1.0,
+            fontFeatures: const [FontFeature.tabularFigures()])),
       ]);
 
   Widget _hudDivider() =>
@@ -4984,24 +4985,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: CustomTimer(
           controller: _timerController,
           builder: (_, remaining) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
             decoration: BoxDecoration(
-              color: _p.parchment.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _p.goldDim.withValues(alpha: 0.45)),
-              boxShadow: [
-                BoxShadow(color: _kGold.withValues(alpha: 0.18), blurRadius: 24),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 8),
-              ],
+              color: Colors.black.withValues(alpha: 0.58),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
             ),
             child: Text(
-              '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
-              style: GoogleFonts.orbitron(fontSize: 30, fontWeight: FontWeight.w800,
-                  color: Colors.white, letterSpacing: 1.5,
-                  shadows: const [
-                    Shadow(blurRadius: 16, color: _kGold),
-                    Shadow(blurRadius: 32, color: Color(0x66D4722A)),
-                  ]),
+              '${remaining.hours.toString().padLeft(2,'0')}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
+              style: const TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w200,
+                color: Colors.white,
+                letterSpacing: 4,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ),
@@ -5019,10 +5017,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   SizedBox(width: 100, height: 28,
                       child: CustomPaint(
                           painter: _SpeedLinesPainter(color: _p.terracotta))),
-                Image.asset('assets/avatars/explorador.png',
-                    width: 110, height: 110, fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
-                        Icon(CupertinoIcons.person, color: _kGold, size: 80)),
+                RunningAvatarWidget(
+                  config: _avatarConfig,
+                  size: 110,
+                  running: isTracking && !isPaused,
+                ),
                 Container(
                   width: 52, height: 9,
                   decoration: BoxDecoration(
@@ -5040,41 +5039,55 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Widget _buildChips() {
     if (!isTracking) return const SizedBox.shrink();
+    if (_modoRuta) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_rutaGuiada != null) ...[
+          _chip('${(_porcentajeRuta * 100).toInt()}% completado', _kVerde, Icons.route_rounded),
+          const SizedBox(height: 8),
+          _chip('${_rutaGuiada!.distanciaKm.toStringAsFixed(1)} km total', _kWaterLight, Icons.straighten),
+        ] else ...[
+          _chip('Ruta libre', _kWaterLight, Icons.route_rounded),
+          if (_distanciaTotal > 0) ...[
+            const SizedBox(height: 8),
+            _chip('${_distanciaTotal.toStringAsFixed(2)} km', _kVerde, Icons.straighten),
+          ],
+        ],
+      ]);
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (_territoriosCargados)
-        _chip('${_territorios.length} territorios', _kGold, '🗺'),
+        _chip('${_territorios.length} territorios', _kGold, Icons.map_rounded),
       if (!_modoSolitario && _jugadoresActivos.isNotEmpty) ...[
         const SizedBox(height: 8),
-        _chip('${_jugadoresActivos.length} cerca', _kWater, '🏃'),
+        _chip('${_jugadoresActivos.length} cerca', _kWater, Icons.directions_run_rounded),
       ],
       if (_territoriosVisitadosEnSesion.isNotEmpty) ...[
         const SizedBox(height: 8),
-        _chip('${_territoriosVisitadosEnSesion.length} reforzados', _kVerde, '🛡'),
+        _chip('${_territoriosVisitadosEnSesion.length} reforzados', _kVerde, Icons.shield_rounded),
       ],
       if (!_modoSolitario && _territoriosNotificadosEnSesion.isNotEmpty) ...[
         const SizedBox(height: 8),
-        _chip('${_territoriosNotificadosEnSesion.length} invadidos', _p.terracotta, '⚔'),
+        _chip('${_territoriosNotificadosEnSesion.length} invadidos', _p.terracotta, Icons.warning_amber_rounded),
       ],
       if (_globalConquistado) ...[
         const SizedBox(height: 8),
-        _chip('¡Conquistado!', _kVerde, '⚔️'),
+        _chip('Conquistado', _kVerde, Icons.flag_rounded),
       ],
     ]);
   }
 
-  Widget _chip(String texto, Color color, String emoji) => Container(
+  Widget _chip(String texto, Color color, IconData icon) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
         decoration: BoxDecoration(
-          color: _p.parchment.withValues(alpha: 0.90),
+          color: Colors.black.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.08), blurRadius: 8)],
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(emoji, style: const TextStyle(fontSize: 11)),
+          Icon(icon, color: color, size: 11),
           const SizedBox(width: 5),
-          Text(texto, style: GoogleFonts.inter(color: color,
-              fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(texto, style: GoogleFonts.inter(color: Colors.white,
+              fontSize: 11, fontWeight: FontWeight.w500)),
         ]),
       );
 
