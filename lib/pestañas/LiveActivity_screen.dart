@@ -40,6 +40,8 @@ import '../services/activity_service.dart';
 import '../config/env.dart';
 import '../widgets/live_activity/live_starfield.dart';
 import '../widgets/live_activity/live_painters.dart';
+import '../models/avatar_config.dart';
+import '../widgets/avatar_painter.dart';
 
 // =============================================================================
 // PALETA
@@ -171,6 +173,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   final Map<String, mapbox.PointAnnotation> _anotacionesJugadores = {};
   final Map<String, mapbox.PointAnnotation> _anotacionesReyes = {};
   Uint8List? _coronaBytes;
+
+  // ── Avatar animado en el puck de posición
+  AvatarConfig _avatarConfig = const AvatarConfig();
+  List<Uint8List> _puckFrames = [];
+  int   _puckFrameIdx  = 0;
+  Timer? _puckAnimTimer;
+  bool  _puckBuilding  = false;
+  bool  _puckUpdating  = false;
 
   // ── GPS
   List<TerritoryData> _territoriosRivalesCercanos = [];
@@ -538,6 +548,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   @override
   void dispose() {
     _timerSesion?.cancel();
+    _puckAnimTimer?.cancel();
     _timerController.dispose();
     _timerCuentaAtras?.cancel();
     _positionStream?.cancel();
@@ -624,43 +635,58 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
       '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
 
-  // Renders a tactical ring-and-dot marker image for the location puck.
-  Future<Uint8List> _buildTacticalPuckImage({double size = 52}) async {
-    final s = size;
-    final r = ui.PictureRecorder();
-    final canvas = Canvas(r);
+  // Pre-renders 8 frames of the running avatar cycle and starts the puck animation.
+  Future<void> _buildAvatarPuckFrames() async {
+    if (_puckBuilding) return;
+    _puckBuilding = true;
+    _puckAnimTimer?.cancel();
 
-    // Outer dark fill
-    canvas.drawCircle(
-      Offset(s / 2, s / 2), s / 2 - 2,
-      Paint()..color = const Color(0xFF08080B),
-    );
-    // Gold ring
-    canvas.drawCircle(
-      Offset(s / 2, s / 2), s / 2 - 5,
-      Paint()
-        ..color = const Color(0xFFFFD60A)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
-    );
-    // Thin inner ring
-    canvas.drawCircle(
-      Offset(s / 2, s / 2), s / 2 - 12,
-      Paint()
-        ..color = const Color(0xFFFFD60A).withValues(alpha: 0.30)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-    // Center dot
-    canvas.drawCircle(
-      Offset(s / 2, s / 2), 4.5,
-      Paint()..color = const Color(0xFFFFD60A),
-    );
+    const int kN     = 8;
+    const double kSz = 52.0;
+    final frames = <Uint8List>[];
 
-    final pic = r.endRecording();
-    final img = await pic.toImage(s.toInt(), s.toInt());
-    final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
-    return bytes!.buffer.asUint8List();
+    for (int i = 0; i < kN; i++) {
+      final rec = ui.PictureRecorder();
+      AvatarPainter(config: _avatarConfig, runPhase: i / kN)
+          .paint(Canvas(rec), const Size(kSz, kSz));
+      final pic = rec.endRecording();
+      final img = await pic.toImage(kSz.toInt(), kSz.toInt());
+      final bd  = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (bd != null) frames.add(bd.buffer.asUint8List());
+      if (!mounted) { _puckBuilding = false; return; }
+    }
+
+    _puckBuilding = false;
+    if (frames.isEmpty || !mounted || _mapboxMap == null) return;
+
+    _puckFrames   = frames;
+    _puckFrameIdx = 0;
+    await _applyPuckFrame(frames[0]);
+
+    _puckAnimTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+      if (!mounted) return;
+      _puckFrameIdx = (_puckFrameIdx + 1) % _puckFrames.length;
+      _applyPuckFrame(_puckFrames[_puckFrameIdx]);
+    });
+  }
+
+  Future<void> _applyPuckFrame(Uint8List bytes) async {
+    if (_mapboxMap == null || _puckUpdating) return;
+    _puckUpdating = true;
+    try {
+      await _mapboxMap!.location.updateSettings(mapbox.LocationComponentSettings(
+        enabled: true,
+        puckBearingEnabled: false,
+        locationPuck: mapbox.LocationPuck(
+          locationPuck2D: mapbox.DefaultLocationPuck2D(
+            topImage: bytes,
+            bearingImage: null,
+            shadowImage: null,
+          ),
+        ),
+      ));
+    } catch (_) {}
+    _puckUpdating = false;
   }
 
   String _encodeJson(dynamic obj) {
@@ -693,6 +719,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         final expira = doc.data()?['boost_xp_expira'] as Timestamp?;
         if (boost && expira != null && expira.toDate().isAfter(DateTime.now())) {
           if (mounted) setState(() => _boostXpActivo = true);
+        }
+        final av = doc.data()?['avatar_config'] as Map<String, dynamic>?;
+        if (av != null) {
+          try { _avatarConfig = AvatarConfig.fromMap(av); } catch (_) {}
+          if (_mapboxMap != null && mounted) _buildAvatarPuckFrames();
         }
         // Tutorial de primer uso
         final onb = await OnboardingService.cargarEstado();
@@ -1221,18 +1252,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
-    final puckImg = await _buildTacticalPuckImage();
-    await map.location.updateSettings(mapbox.LocationComponentSettings(
-      enabled: true,
-      puckBearingEnabled: false,
-      locationPuck: mapbox.LocationPuck(
-        locationPuck2D: mapbox.DefaultLocationPuck2D(
-          topImage: puckImg,
-          bearingImage: null,
-          shadowImage: null,
-        ),
-      ),
-    ));
+    _buildAvatarPuckFrames();
     await _moverCamara(
       lat: _currentPosition?.latitude ?? 40.4167,
       lng: _currentPosition?.longitude ?? -3.70325,
