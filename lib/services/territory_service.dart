@@ -421,10 +421,10 @@ class TerritoryService {
   // Si [centro] es null se devuelve solo el territorio propio (fallback seguro
   // para cuando la posición GPS aún no está disponible).
   // ──────────────────────────────────────────────────────────────────────────
-  static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo) {
+  static List<TerritoryData> _filtrarPorModo(List<TerritoryData> lista, String modo, String myUid) {
     if (modo == 'solitario') {
-      // Solo territorios creados en modo solitario (propios + ajenos)
-      return lista.where((t) => t.modo == 'solitario').toList();
+      // Solitario es privado: solo propios
+      return lista.where((t) => t.modo == 'solitario' && t.ownerId == myUid).toList();
     }
     // Competitivo: competitivos + legacy (null) — excluye todos los solitario
     return lista.where((t) => t.modo == null || t.modo == 'competitivo').toList();
@@ -434,14 +434,14 @@ class TerritoryService {
     LatLng? centro,
     String? modo,
   }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
     if (_cacheValido) {
       debugPrint('✅ TerritoryService: caché hit (${_cachedTerritorios!.length} territorios)');
       final cached = _cachedTerritorios!;
-      return modo != null ? _filtrarPorModo(cached, modo) : cached;
+      return modo != null ? _filtrarPorModo(cached, modo, user.uid) : cached;
     }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return [];
 
     // ── Sin posición: solo territorios propios (arranque rápido) ─────────
     if (centro == null) {
@@ -452,7 +452,7 @@ class TerritoryService {
       final propios = _parsearDocs(snap.docs, user.uid, {});
       _cachedTerritorios = propios;
       _cacheTimestamp    = DateTime.now();
-      return modo != null ? _filtrarPorModo(propios, modo) : propios;
+      return modo != null ? _filtrarPorModo(propios, modo, user.uid) : propios;
     }
 
     // ── Con posición: query geográfica sin filtro de amistad ─────────────
@@ -508,7 +508,7 @@ class TerritoryService {
     _cachedTerritorios = resultado;
     _cacheTimestamp    = DateTime.now();
     debugPrint('🌍 TerritoryService: ${resultado.length} territorios en radio de ${(kRadGrados * 111).round()} km');
-    return modo != null ? _filtrarPorModo(resultado, modo) : resultado;
+    return modo != null ? _filtrarPorModo(resultado, modo, user.uid) : resultado;
   }
 
   /// Carga puntos de todos los territorios para mostrar en el globo terráqueo.
@@ -524,11 +524,12 @@ class TerritoryService {
     void addPunto(QueryDocumentSnapshot<Map<String, dynamic>> doc, bool esMio) {
       if (!seenIds.add(doc.id)) return;
       final d = doc.data();
-      // Filtrar por modo: solitario solo ve solitario; competitivo ve null+competitivo
+      // Filtrar por modo; solitario es privado: solo propios
       if (modo != null) {
-        final docModo = d['modo'] as String?;
+        final docModo  = d['modo'] as String?;
+        final docOwner = d['userId'] as String?;
         final pasa = modo == 'solitario'
-            ? docModo == 'solitario'
+            ? docModo == 'solitario' && docOwner == user.uid
             : (docModo == null || docModo == 'competitivo');
         if (!pasa) return;
       }
