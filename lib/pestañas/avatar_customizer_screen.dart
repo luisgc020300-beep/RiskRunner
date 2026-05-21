@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/avatar_config.dart';
 import '../services/subscription_service.dart';
 import '../widgets/perfil/perfil_theme.dart';
+import '../widgets/avatar_painter.dart';
 import 'paywall_screen.dart';
 
 const _kAccent = kPerfilAccent;
@@ -209,21 +210,65 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
 
   // ── Preview ────────────────────────────────────────────────────────────────
   Widget _buildPreview() {
-    return ScaleTransition(
-      scale: _previewScale,
-      child: Container(
-        width: 148, height: 148,
-        decoration: BoxDecoration(
-          color: _p.surface,
-          shape: BoxShape.circle,
-          border: Border.all(color: _p.border, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5), blurRadius: 24),
-          ],
+    return GestureDetector(
+      onTap: _mostrarPreviewGrande,
+      child: ScaleTransition(
+        scale: _previewScale,
+        child: Container(
+          width: 148, height: 148,
+          decoration: BoxDecoration(
+            color: _p.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: _p.border, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5), blurRadius: 24),
+            ],
+          ),
+          child: Center(
+            child: AvatarWidget(config: _config, size: 110, fallbackLabel: 'TÚ'),
+          ),
         ),
-        child: Center(
-          child: AvatarWidget(config: _config, size: 110, fallbackLabel: 'TÚ'),
+      ),
+    );
+  }
+
+  void _mostrarPreviewGrande() {
+    HapticFeedback.lightImpact();
+    final config = _config;
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                color: _p.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: _p.border, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 40,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: RunningAvatarWidget(config: config, size: 220, running: true),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Tu avatar',
+              style: _s(12, FontWeight.w500, Colors.white54),
+            ),
+          ],
         ),
       ),
     );

@@ -177,8 +177,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   List<Uint8List> _puckFrames = [];
   int   _puckFrameIdx  = 0;
   Timer? _puckAnimTimer;
-  bool  _puckBuilding  = false;
-  bool  _puckUpdating  = false;
+  bool  _puckBuilding       = false;
+  bool  _puckRebuildPending = false;
+  bool  _puckUpdating       = false;
+  Uint8List? _emptyPng;
 
   // ── GPS
   List<TerritoryData> _territoriosRivalesCercanos = [];
@@ -630,19 +632,34 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
       '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
 
-  // Pre-renders 8 frames of the running avatar cycle and starts the puck animation.
   Future<void> _buildAvatarPuckFrames() async {
-    if (_puckBuilding) return;
+    if (_puckBuilding) {
+      _puckRebuildPending = true;
+      return;
+    }
+    _puckRebuildPending = false;
     _puckBuilding = true;
     _puckAnimTimer?.cancel();
 
+    // Generate a 1×1 transparent PNG once, used to explicitly disable
+    // the Mapbox SDK's default bearing/shadow images (which are green).
+    if (_emptyPng == null) {
+      final rec = ui.PictureRecorder();
+      Canvas(rec);
+      final pic = rec.endRecording();
+      final img = await pic.toImage(1, 1);
+      final bd  = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (bd != null) _emptyPng = bd.buffer.asUint8List();
+    }
+
     const int kN     = 12;
     const double kSz = 128.0;
+    final capturedConfig = _avatarConfig;
     final frames = <Uint8List>[];
 
     for (int i = 0; i < kN; i++) {
       final rec = ui.PictureRecorder();
-      AvatarPainter(config: _avatarConfig, runPhase: i / kN)
+      AvatarPainter(config: capturedConfig, runPhase: i / kN)
           .paint(Canvas(rec), const Size(kSz, kSz));
       final pic = rec.endRecording();
       final img = await pic.toImage(kSz.toInt(), kSz.toInt());
@@ -657,6 +674,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _puckFrames   = frames;
     _puckFrameIdx = 0;
     await _applyPuckFrame(frames[0]);
+
+    // If avatar config changed while we were building, rebuild with latest config.
+    if (_puckRebuildPending) {
+      _buildAvatarPuckFrames();
+      return;
+    }
 
     _puckAnimTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (!mounted) return;
@@ -675,8 +698,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         locationPuck: mapbox.LocationPuck(
           locationPuck2D: mapbox.DefaultLocationPuck2D(
             topImage: bytes,
-            bearingImage: null,
-            shadowImage: null,
+            bearingImage: _emptyPng,
+            shadowImage: _emptyPng,
           ),
         ),
       ));

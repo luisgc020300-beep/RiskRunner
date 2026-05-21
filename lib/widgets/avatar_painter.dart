@@ -140,13 +140,13 @@ class AvatarPainter extends CustomPainter {
       case 2: // Gorra — cap body + brim
         c.drawArc(
           Rect.fromCircle(center: Offset(cx, cy - r * 0.08), radius: r * 1.07),
-          -math.pi * 1.05, -math.pi * 0.90,
+          math.pi * 1.05, math.pi * 0.90,
           true,
           Paint()..color = const Color(0xFF1A237E),
         );
         c.drawLine(
-          Offset(cx - r * 0.95, cy + r * 0.04),
-          Offset(cx + r * 1.44, cy + r * 0.04),
+          Offset(cx - r * 0.95, cy - r * 0.08),
+          Offset(cx + r * 1.44, cy - r * 0.08),
           Paint()
             ..color = const Color(0xFF0D47A1)
             ..strokeWidth = r * 0.17
@@ -177,7 +177,7 @@ class AvatarPainter extends CustomPainter {
       default: // Corto (0) — dark cap on top half of head
         c.drawArc(
           Rect.fromCircle(center: Offset(cx, cy), radius: r),
-          -math.pi * 1.02, -math.pi * 0.96,
+          math.pi * 1.02, math.pi * 0.96,
           true,
           Paint()..color = const Color(0xFF4E342E),
         );
