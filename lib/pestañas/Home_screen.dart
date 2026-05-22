@@ -245,15 +245,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _initListeners() {
     _initializeData();
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (mounted) _escucharNotificacionesInvasion();
-    });
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _escucharConteoNotificaciones();
-    });
-    Future.delayed(const Duration(milliseconds: 450), () {
-      if (mounted) _escucharFeed();
-    });
+    _escucharNotificacionesInvasion();
+    _escucharConteoNotificaciones();
+    _escucharFeed();
   }
 
   @override
@@ -507,14 +501,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (userId == null) return;
     if (mounted) setState(() => isLoading = true);
     try {
-      await _loadUserData();
-      await _loadAmigos();
-      await _checkDailyReset();
-      await _loadCompletedChallenges();
+      // Phase 1: todas independientes en paralelo
+      await Future.wait([
+        _loadUserData(),
+        _loadAmigos(),
+        _loadCompletedChallenges(),
+        _cargarTerritorios(),
+        _checkDailyReset(),
+      ]);
+      // Phase 2: necesita nivel (de _loadUserData) y _completedChallengesCache
       await _loadRandomDailyChallenges();
-      await _cargarTerritorios();
     } catch (e) {
-      debugPrint("Error en inicializaciÃ³n: $e");
+      debugPrint("Error en inicialización: $e");
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -526,13 +524,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadAmigos() async {
     if (userId == null) return;
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('friendships')
-          .where('status', isEqualTo: 'accepted')
-          .get();
-
-      final misFriendships = snap.docs.where((doc) =>
-          doc['senderId'] == userId || doc['receiverId'] == userId).toList();
+      // Dos queries en paralelo en vez de descargar toda la colección
+      final snaps = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('friendships')
+            .where('senderId', isEqualTo: userId)
+            .where('status', isEqualTo: 'accepted')
+            .get(),
+        FirebaseFirestore.instance
+            .collection('friendships')
+            .where('receiverId', isEqualTo: userId)
+            .where('status', isEqualTo: 'accepted')
+            .get(),
+      ]);
+      final misFriendships = [...snaps[0].docs, ...snaps[1].docs];
 
       final futures = misFriendships.map((doc) {
         final friendId = doc['senderId'] == userId

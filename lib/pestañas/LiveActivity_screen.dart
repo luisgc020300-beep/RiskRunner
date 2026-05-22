@@ -1289,6 +1289,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   void _onStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _styleLoaded = true;
+    if (!mounted) return;
+    // Territorios, atmósfera y edificios arrancan todos en paralelo.
+    // Los edificios tienen su propia lógica de reintento sin bloquear el resto.
+    await Future.wait([
+      _configurarAtmosfera(),
+      _mejorarAgua(),
+      _dibujarTerritoriosEnMapa(),
+      if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
+      if (_rutaGuiada != null) _dibujarGhostRuta(),
+      if (_modoRuta) _cargarYDibujarRutasPreview(),
+      _cargarBuildings3DConRetry(),
+    ]);
+  }
+
+  Future<void> _cargarBuildings3DConRetry() async {
     await Future.delayed(const Duration(milliseconds: 200));
     if (!mounted) return;
     await _addBuildings3D();
@@ -1300,16 +1315,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await Future.delayed(const Duration(milliseconds: 2000));
       if (mounted) await _addBuildings3D();
     }
-    if (!mounted) return;
-    // Ejecutar en paralelo: atmósfera+agua son independientes de territorios+globo
-    await Future.wait([
-      _configurarAtmosfera(),
-      _mejorarAgua(),
-      _dibujarTerritoriosEnMapa(),
-      if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
-      if (_rutaGuiada != null) _dibujarGhostRuta(),
-      if (_modoRuta) _cargarYDibujarRutasPreview(),
-    ]);
   }
 
   Future<void> _moverCamara({

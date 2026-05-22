@@ -168,12 +168,19 @@ class _MapDataService {
     final ownerIds = tersPorOwner.keys.toList();
     final chunks = _chunked(ownerIds, 30);
     final Map<String, Map<String, dynamic>> playersMap = {};
-    for (final chunk in chunks) {
-      try {
-        final pd = await _db.collection('players')
-            .where(FieldPath.documentId, whereIn: chunk).get();
-        for (final p in pd.docs) { playersMap[p.id] = p.data(); }
-      } catch (_) {}
+    final results = await Future.wait(
+      chunks.map((chunk) async {
+        try {
+          return await _db.collection('players')
+              .where(FieldPath.documentId, whereIn: chunk).get();
+        } catch (_) {
+          return null;
+        }
+      }),
+    );
+    for (final snap in results) {
+      if (snap == null) continue;
+      for (final p in snap.docs) { playersMap[p.id] = p.data(); }
     }
     final Map<String, _UserGroup> grupos = {};
     for (final ownerId in tersPorOwner.keys) {
