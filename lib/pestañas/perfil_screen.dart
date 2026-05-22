@@ -930,12 +930,10 @@ class _PerfilScreenState extends State<PerfilScreen>
         }
       }
 
-      // ya viene ordenado desc por timestamp
       final conqSnap = await FirebaseFirestore.instance
-          .collection('notifications')
-          .where('toUserId', isEqualTo: viewedUserId)
-          .where('type', isEqualTo: 'territory_conquered')
-          .limit(500)
+          .collection('territories')
+          .where('userId', isEqualTo: viewedUserId)
+          .count()
           .get();
 
       if (mounted) setState(() {
@@ -943,7 +941,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         _velocidadMediaHistorica = countVel > 0 ? sumVel / countVel : 0;
         _totalCarreras           = carrerasConDist;
         _tiempoTotalActividad    = Duration(seconds: totalSeg);
-        _territoriosConquistados = conqSnap.docs.length;
+        _territoriosConquistados = (conqSnap.count as num?)?.toInt() ?? 0;
         _carrerasRecientes       = carreras.toList();
         _logros                  = logrosData.toList();
         _historialCompleto       = historial;
@@ -1958,119 +1956,128 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _buildZonaIdentidad() {
     final h = MediaQuery.of(context).size.height;
-    return SizedBox(
-      height: h * 0.52,
-      child: Stack(fit: StackFit.expand, children: [
-        ClipRect(
-          child: FlutterMap(
-            mapController: _liveMapCtrl,
-            options: MapOptions(initialCenter: _liveCenter, initialZoom: 14.5, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
-            children: [
-              TileLayer(urlTemplate: _kMapboxTileUrl, tileProvider: NetworkTileProvider(), userAgentPackageName: 'com.runnerrisk.app'),
-              PolygonLayer(polygons: _allTerritories.map((t) {
-                final pts = t['puntos'] as List<LatLng>; final color = t['color'] as Color; final isMe = (t['userId'] as String) == viewedUserId;
-                return Polygon(points: pts, color: color.withValues(alpha: isMe ? 0.28 : 0.12), borderColor: color.withValues(alpha: isMe ? 0.75 : 0.30), borderStrokeWidth: isMe ? 1.6 : 0.7);
-              }).toList()),
-              PolylineLayer(polylines: _liveRunners.map((r) {
-                final trail = r['trail'] as List<LatLng>; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
-                return Polyline(points: [r['pos'] as LatLng, ...trail], color: color.withValues(alpha: isMe ? 0.9 : 0.55), strokeWidth: isMe ? 3.0 : 1.8, gradientColors: [color.withValues(alpha: isMe ? 0.9 : 0.55), color.withValues(alpha: 0.0)]);
-              }).toList()),
-              MarkerLayer(markers: _liveRunners.map((r) {
-                final pos = r['pos'] as LatLng; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
-                return Marker(point: pos, width: isMe ? 14 : 9, height: isMe ? 14 : 9, child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: color, boxShadow: [BoxShadow(color: color.withValues(alpha: isMe ? 0.6 : 0.4), blurRadius: isMe ? 8 : 4, spreadRadius: isMe ? 2 : 1)])));
-              }).toList()),
-            ],
-          ),
+    const double mapH       = 0.38;
+    const double avatarSize = 128.0;
+    const double halfAvatar = avatarSize / 2;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── Mapa + avatar solapando el borde inferior ──────────────────────
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            SizedBox(
+              height: h * mapH,
+              child: Stack(fit: StackFit.expand, children: [
+                ClipRect(
+                  child: FlutterMap(
+                    mapController: _liveMapCtrl,
+                    options: MapOptions(initialCenter: _liveCenter, initialZoom: 14.5, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
+                    children: [
+                      TileLayer(urlTemplate: _kMapboxTileUrl, tileProvider: NetworkTileProvider(), userAgentPackageName: 'com.runnerrisk.app'),
+                      PolygonLayer(polygons: _allTerritories.map((t) {
+                        final pts = t['puntos'] as List<LatLng>; final color = t['color'] as Color; final isMe = (t['userId'] as String) == viewedUserId;
+                        return Polygon(points: pts, color: color.withValues(alpha: isMe ? 0.28 : 0.12), borderColor: color.withValues(alpha: isMe ? 0.75 : 0.30), borderStrokeWidth: isMe ? 1.6 : 0.7);
+                      }).toList()),
+                      PolylineLayer(polylines: _liveRunners.map((r) {
+                        final trail = r['trail'] as List<LatLng>; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
+                        return Polyline(points: [r['pos'] as LatLng, ...trail], color: color.withValues(alpha: isMe ? 0.9 : 0.55), strokeWidth: isMe ? 3.0 : 1.8, gradientColors: [color.withValues(alpha: isMe ? 0.9 : 0.55), color.withValues(alpha: 0.0)]);
+                      }).toList()),
+                      MarkerLayer(markers: _liveRunners.map((r) {
+                        final pos = r['pos'] as LatLng; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
+                        return Marker(point: pos, width: isMe ? 14 : 9, height: isMe ? 14 : 9, child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: color, boxShadow: [BoxShadow(color: color.withValues(alpha: isMe ? 0.6 : 0.4), blurRadius: isMe ? 8 : 4, spreadRadius: isMe ? 2 : 1)])));
+                      }).toList()),
+                    ],
+                  ),
+                ),
+                Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.10), Colors.black.withValues(alpha: 0.55)]))),
+                CustomPaint(painter: _DossierBgPainter(accent: _kAccent)),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    height: h * mapH * 0.55,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, _p.bg.withValues(alpha: 0.5), _p.bg],
+                        stops: const [0.0, 0.55, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+            // Avatar centrado solapando el borde inferior del mapa
+            Positioned(
+              bottom: -halfAvatar,
+              left: 0, right: 0,
+              child: Center(child: _buildAvatar()),
+            ),
+          ],
         ),
-        Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.15), Colors.black.withValues(alpha: 0.60)]))),
-        CustomPaint(painter: _DossierBgPainter(accent: _kAccent)),
-        Align(alignment: Alignment.bottomCenter, child: Container(height: h * 0.22, decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, _p.bg])))),
-        Positioned(bottom: 0, left: 0, right: 0,
+        // ── Tarjeta de identidad ───────────────────────────────────────────
+        Container(
+          width: double.infinity,
+          color: _p.bg,
+          padding: const EdgeInsets.fromLTRB(24, halfAvatar + 14, 24, 0),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            _buildAvatar(),
-            const SizedBox(height: 20),
+            // Nombre
             GestureDetector(
               onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(nickname.toUpperCase(), style: GoogleFonts.inter(fontSize: 36, fontWeight: FontWeight.w700, color: _p.title, letterSpacing: 4, height: 1)),
-                if (isOwnProfile) ...[const SizedBox(width: 10), Icon(Icons.edit_outlined, color: _p.dim, size: 13)],
+                Text(
+                  nickname.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    fontSize: 26, fontWeight: FontWeight.w800,
+                    color: _p.title, letterSpacing: 3.5, height: 1,
+                  ),
+                ),
+                if (isOwnProfile) ...[const SizedBox(width: 8), Icon(Icons.edit_outlined, color: _p.dim, size: 12)],
               ]),
             ),
             const SizedBox(height: 10),
+            // Rango + Nivel + Monedas
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _tagPill(_nivelTitulo(nivel), _p.text, filled: true),
-              const SizedBox(width: 8),
-              _tagPill('NIV. $nivel', _p.text),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: isOwnProfile
-                    ? () => CoinShopScreen.mostrar(context)
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
-                    const SizedBox(width: 4),
-                    Text('$monedas', style: TextStyle(
-                      color: Colors.amber.withValues(alpha: 0.85),
-                      fontSize: 12, fontWeight: FontWeight.w800,
-                    )),
-                    if (isOwnProfile) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.add_circle_outline_rounded,
-                          color: Colors.amber.withValues(alpha: 0.6), size: 12),
-                    ],
-                  ]),
-                ),
-              ),
-              // â”€â”€ Badge Premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-              if (_isPremium) ...[
-                const SizedBox(width: 8),
-                _buildPremiumBadge(),
-              ],
+              _headerBadge(_nivelTitulo(nivel), filled: true),
+              const SizedBox(width: 6),
+              _headerBadge('NIV. $nivel'),
+              const SizedBox(width: 6),
+              _coinsBadge(),
+              if (_isPremium) ...[const SizedBox(width: 6), _buildPremiumBadge()],
             ]),
-            const SizedBox(height: 8),
             if (_titulosActivos.isNotEmpty) ...[
-              ReyBannerActivo(titulosActivos: _titulosActivos),
               const SizedBox(height: 8),
+              ReyBannerActivo(titulosActivos: _titulosActivos),
             ],
-            _clanNombre == null
-              ? GestureDetector(
-                  onTap: isOwnProfile ? () => Navigator.pushNamed(context, '/clan') : null,
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.transparent, border: Border.all(color: _p.muted), borderRadius: BorderRadius.circular(4)), child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 1.5))))
-              : Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.08), border: Border.all(color: _kAccent.withValues(alpha: 0.3)), borderRadius: BorderRadius.circular(4)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('[$_clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
-                    const SizedBox(width: 6),
-                    Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _p.text, spacing: 1)),
-                    if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Icon(Icons.workspace_premium_rounded, color: _kGold, size: 11)],
-                  ])),
-            if (isOwnProfile && email.isNotEmpty) ...[const SizedBox(height: 8), Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub))],
             const SizedBox(height: 10),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _followCounter(_seguidores, 'SEGUIDORES'),
-              Container(width: 1, height: 20, color: _p.muted, margin: const EdgeInsets.symmetric(horizontal: 16)),
-              _followCounter(_siguiendo, 'SIGUIENDO'),
+            _buildClanChip(),
+            if (isOwnProfile && email.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub)),
+            ],
+            const SizedBox(height: 22),
+            // Separador
+            Container(height: 1, color: _p.border.withValues(alpha: 0.45)),
+            const SizedBox(height: 20),
+            // Stats strip
+            Row(children: [
+              _statCol(_seguidores.toString(), 'SEGUIDORES'),
+              Container(width: 1, height: 32, color: _p.muted.withValues(alpha: 0.28)),
+              _statCol(_siguiendo.toString(), 'SIGUIENDO'),
+              Container(width: 1, height: 32, color: _p.muted.withValues(alpha: 0.28)),
+              _statCol(_territoriosConquistados.toString(), 'TERRITORIOS'),
             ]),
             const SizedBox(height: 28),
           ]),
         ),
-      ]),
+      ],
     );
   }
 
   Widget _buildAvatar() {
-    // El radar se dibuja en un área 360×360 centrada en la foto,
-    // OverflowBox mantiene el layout en 96×96 para no alterar la columna.
     return SizedBox(
-      width: 96, height: 96,
+      width: 128, height: 128,
       child: OverflowBox(
         minWidth: 0, maxWidth: 360, minHeight: 0, maxHeight: 360,
         child: AnimatedBuilder(
@@ -2081,36 +2088,57 @@ class _PerfilScreenState extends State<PerfilScreen>
               painter: _AvatarRadarPainter(
                 accent: _kAccent, pulse: _pulse.value, scan: _scan.value),
             ),
+            // Glow ring animado
+            Container(
+              width: 136, height: 136,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                  color: _kAccent.withValues(alpha: _pulse.value * 0.40),
+                  blurRadius: 28, spreadRadius: 6,
+                )],
+              ),
+            ),
             SizedBox(
-              width: 96, height: 96,
+              width: 128, height: 128,
               child: Stack(alignment: Alignment.center, children: [
-                Container(width: 96, height: 96, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: _p.border2, width: 1))),
+                Container(width: 128, height: 128, decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _kAccent.withValues(alpha: 0.55), width: 2),
+                )),
                 GestureDetector(
                   onTap: isOwnProfile ? _seleccionarFoto : null,
                   child: Container(
-                    width: 80, height: 80,
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: _p.surface2, border: Border.all(color: _kAccent, width: 1.5), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.0), blurRadius: 0), BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 0, spreadRadius: 2)]),
+                    width: 112, height: 112,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle, color: _p.surface2,
+                      border: Border.all(color: _p.border2, width: 1),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 2)],
+                    ),
                     child: isUploadingPhoto
-                        ? Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
-                        : ClipOval(child: fotoBase64 != null ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 80, height: 80, gaplessPlayback: false) : AvatarWidget(config: _avatarConfig, size: 80, fallbackLabel: nickname)),
+                        ? Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
+                        : ClipOval(child: fotoBase64 != null
+                            ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 112, height: 112, gaplessPlayback: false)
+                            : AvatarWidget(config: _avatarConfig, size: 112, fallbackLabel: nickname)),
                   ),
                 ),
                 if (isOwnProfile)
                   Positioned(
-                    bottom: 4, right: 4,
+                    bottom: 5, right: 5,
                     child: GestureDetector(
                       onTap: _abrirCustomizador,
                       child: Container(
-                        width: 24, height: 24,
+                        width: 28, height: 28,
                         decoration: BoxDecoration(
                           color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
                           shape: BoxShape.circle,
-                          border: Border.all(color: _p.bg, width: 2),
+                          border: Border.all(color: _p.bg, width: 2.5),
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8)],
                         ),
                         child: Center(
                           child: _titulosActivos.isNotEmpty
-                              ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 11)
-                              : const Icon(Icons.palette_rounded, color: Colors.black, size: 11),
+                              ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 13)
+                              : const Icon(Icons.palette_rounded, color: Colors.black, size: 13),
                         ),
                       ),
                     ),
@@ -2120,6 +2148,81 @@ class _PerfilScreenState extends State<PerfilScreen>
           ]),
         ),
       ),
+    );
+  }
+
+  Widget _headerBadge(String text, {bool filled = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: filled ? _p.text : _p.text.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(4),
+        border: filled ? null : Border.all(color: _p.text.withValues(alpha: 0.20)),
+      ),
+      child: Text(text, style: _rajdhani(10, FontWeight.w800, filled ? _p.bg : _p.text, spacing: 0.5)),
+    );
+  }
+
+  Widget _coinsBadge() {
+    return GestureDetector(
+      onTap: isOwnProfile ? () => CoinShopScreen.mostrar(context) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
+          const SizedBox(width: 4),
+          Text('$monedas', style: const TextStyle(color: Color(0xFFFFD60A), fontSize: 12, fontWeight: FontWeight.w800)),
+          if (isOwnProfile) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.add_circle_outline_rounded, color: Colors.amber.withValues(alpha: 0.60), size: 12),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildClanChip() {
+    if (_clanNombre == null) {
+      return GestureDetector(
+        onTap: isOwnProfile ? () => Navigator.pushNamed(context, '/clan') : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            border: Border.all(color: _p.muted.withValues(alpha: 0.35)),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text('SIN CLAN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 1.5)),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: _kAccent.withValues(alpha: 0.08),
+        border: Border.all(color: _kAccent.withValues(alpha: 0.30)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text('[$_clanTag]', style: _rajdhani(9, FontWeight.w900, _kAccent, spacing: 1)),
+        const SizedBox(width: 6),
+        Text(_clanNombre!.toUpperCase(), style: _rajdhani(9, FontWeight.w700, _p.text, spacing: 1)),
+        if (_clanRol == 'lider') ...[const SizedBox(width: 5), const Icon(Icons.workspace_premium_rounded, color: _kGold, size: 11)],
+      ]),
+    );
+  }
+
+  Widget _statCol(String value, String label) {
+    return Expanded(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(value, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: _p.title)),
+        const SizedBox(height: 3),
+        Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.0)),
+      ]),
     );
   }
 
@@ -2165,13 +2268,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _tagPill(String text, Color color, {bool filled = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: filled ? color : color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(3), border: filled ? null : Border.all(color: color.withValues(alpha: 0.20))),
-      child: Text(text, style: _rajdhani(10, FontWeight.w700, filled ? Colors.black : color, spacing: 0.5)),
-    );
-  }
 
   Widget _buildKmSangre() {
     final progreso = (_kmTotales % 100) / 100;
@@ -2642,14 +2738,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _followCounter(int count, String label) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text('$count', style: _rajdhani(18, FontWeight.w900, _p.title)),
-      const SizedBox(height: 1),
-      Text(label, style: _rajdhani(8, FontWeight.w700, _p.dim, spacing: 1.5)),
-    ],
-  );
 
   Widget _buildFollowButton() {
     if (_loadingFollow) return const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 1.5)));

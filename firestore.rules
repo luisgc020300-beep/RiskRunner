@@ -197,8 +197,8 @@ service cloud.firestore {
     // ── follows ───────────────────────────────────────────────────────────────
     match /follows/{followId} {
       allow read:   if isAuth();
-      allow create: if isAuth() && request.resource.data.fromUid == request.auth.uid;
-      allow delete: if isAuth() && resource.data.fromUid == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isAuth() && resource.data.followerId == request.auth.uid;
       allow update: if false;
     }
 
