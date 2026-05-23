@@ -1,4 +1,4 @@
-﻿// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 //  runner_risk_logo.dart
 //  Widget reutilizable — reemplaza el Icon(Icons.bolt_rounded)
 //  en login_screen.dart y donde quieras en la app

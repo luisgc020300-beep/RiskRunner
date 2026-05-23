@@ -1,4 +1,4 @@
-﻿// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 //  conquista_overlay.dart
 //  Coloca este archivo en: lib/widgets/conquista_overlay.dart
 //

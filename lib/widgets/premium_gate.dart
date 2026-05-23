@@ -1,4 +1,4 @@
-﻿// lib/widgets/premium_gate.dart
+// lib/widgets/premium_gate.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — PremiumGate

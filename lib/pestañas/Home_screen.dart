@@ -1,4 +1,4 @@
-﻿﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';

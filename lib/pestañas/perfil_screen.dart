@@ -1,4 +1,4 @@
-﻿// lib/screens/perfil_screen.dart
+// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
 import 'dart:async';

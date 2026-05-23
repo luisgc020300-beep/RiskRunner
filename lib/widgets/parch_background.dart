@@ -1,4 +1,4 @@
-﻿// lib/Widgets/parch_background.dart
+// lib/Widgets/parch_background.dart
 //
 // Uso:
 //   import '../Widgets/parch_background.dart';

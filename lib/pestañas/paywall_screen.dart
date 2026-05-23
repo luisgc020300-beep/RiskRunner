@@ -1,4 +1,4 @@
-﻿// lib/Pestañas/paywall_screen.dart
+// lib/Pestañas/paywall_screen.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Paywall Premium v2
