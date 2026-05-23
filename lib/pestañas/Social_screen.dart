@@ -456,8 +456,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           child: _ligaSeleccionada != null
               ? _buildLeagueRankingById(_ligaSeleccionada!)
               : ListView(padding: const EdgeInsets.fromLTRB(20, 6, 20, 32), children: [
-                  SocialLeagueBanner(ligaInfo: ligaInfo, puntosLiga: _misPuntosLiga, accent: _accent),
-                  const SizedBox(height: 20),
                   _buildTodasLasLigas(ligaInfo),
                 ])))
       ] else if (_rankingModo == 'semanal')

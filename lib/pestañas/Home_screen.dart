@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+﻿﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
@@ -135,7 +135,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
-  // Paleta dinÃ¡mica â€” se actualiza al inicio de cada build()
+  // Paleta dinámica â€” se actualiza al inicio de cada build()
   _TColors _T = _TColors.light;
 
   // â”€â”€ Perfil
@@ -326,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             .get();
         if (!mounted) return;
         final fetched = {for (final d in snap.docs) d.id: d.data()['foto_base64'] as String?};
-        // Marcar como null los ids que no devolviÃ³ Firestore
+        // Marcar como null los ids que no devolvió Firestore
         final missing = {for (final id in chunk) id: null as String?};
         setState(() => _avatarCache.addAll({...missing, ...fetched}));
       } catch (e) {
@@ -415,7 +415,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        Text('LÃMITE ALCANZADO (5/5)', style: _raj(11, FontWeight.w800, _T.white, spacing: 1)),
+                        Text('LÍMITE ALCANZADO (5/5)', style: _raj(11, FontWeight.w800, _T.white, spacing: 1)),
                         const SizedBox(height: 2),
                         Text('Premium â†’ rutas ilimitadas. Toca para activar.', style: _raj(10, FontWeight.w500, _T.sub)),
                       ]),
@@ -479,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // â”€â”€ UbicaciÃ³n
+  // â”€â”€ Ubicación
   Future<void> _getUserLocation() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -492,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (mounted) setState(() => _currentPosition = position);
       }
     } catch (e) {
-      debugPrint("Error ubicaciÃ³n: $e");
+      debugPrint("Error Ubicación: $e");
     }
   }
 
@@ -608,7 +608,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // â”€â”€ InvasiÃ³n â€” ROJO se mantiene porque son alertas
+  // â”€â”€ Invasión â€” ROJO se mantiene porque son alertas
   void _escucharNotificacionesInvasion() {
     if (userId == null) return;
     _invasionListener?.cancel();
@@ -624,14 +624,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final data = change.doc.data();
           if (data == null) continue;
           _mostrarBannerInvasion(
-              data['message'] ?? ' Alguien estÃ¡ invadiendo tu territorio',
+              data['message'] ?? ' Alguien Está invadiendo tu territorio',
               change.doc.id);
         }
       }
     });
   }
 
-  // Banner de invasiÃ³n â€” ROJO se mantiene (es una alerta crÃ­tica)
+  // Banner de Invasión â€” ROJO se mantiene (es una alerta crítica)
   void _mostrarBannerInvasion(String mensaje, String notifId) {
     if (!mounted) return;
     FirebaseFirestore.instance.collection('notifications').doc(notifId).update({'read': true});
@@ -834,11 +834,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: const Center(child: Text('', style: TextStyle(fontSize: 26))),
             ),
             const SizedBox(height: 16),
-            Text('INICIAR MISIÃ“N',
+            Text('INICIAR MISIÓN',
                 style: _raj(9, FontWeight.w900, _T.bronze, spacing: 3)),
             const SizedBox(height: 8),
             Text(
-              'Â¿Vas a iniciar el reto de\n"$titulo"?\nÂ¿EstÃ¡s seguro?',
+              '¿Vas a iniciar el reto de\n"$titulo"?\n¿Estás seguro?',
               textAlign: TextAlign.center,
               style: _raj(15, FontWeight.w700, _T.white, height: 1.4),
             ),
@@ -963,10 +963,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (tsVisita != null) {
           final diasSinVisitar = DateTime.now().difference(tsVisita.toDate()).inDays;
           if (diasSinVisitar < 5) {
-            return 'Este territorio estÃ¡ protegido.\nEl dueÃ±o lo visitÃ³ hace $diasSinVisitar dÃ­a${diasSinVisitar == 1 ? '' : 's'}. Necesitas 5+ dÃ­as sin visitar.';
+            return 'Este territorio Está protegido.\nEl dueño lo visitó hace $diasSinVisitar día${diasSinVisitar == 1 ? '' : 's'}. Necesitas 5+ días sin visitar.';
           }
         } else {
-          return 'Este territorio estÃ¡ activo y protegido.\nVuelve cuando lleve 5+ dÃ­as sin ser visitado.';
+          return 'Este territorio Está activo y protegido.\nVuelve cuando lleve 5+ días sin ser visitado.';
         }
       }
     } catch (e) { // intentional
@@ -993,7 +993,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final horas = duracion.inHours;
           final minutos = duracion.inMinutes.remainder(60);
           final tiempoRestante = horas > 0 ? '${horas}h ${minutos}m' : '${minutos}m';
-          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante mÃ¡s.';
+          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
         }
       }
     } catch (e) { // intentional
@@ -1127,7 +1127,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 10),
-          // AÃ±adir historia
+          // Añadir historia
           GestureDetector(
             onTap: () {
               Navigator.pop(ctx);
@@ -1148,7 +1148,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const Icon(Icons.add_rounded, color: Colors.white, size: 18),
                 const SizedBox(width: 8),
-                Text('AÃ±adir historia', style: _raj(15, FontWeight.w600, Colors.white)),
+                Text('Añadir historia', style: _raj(15, FontWeight.w600, Colors.white)),
               ]),
             ),
           ),
@@ -1169,7 +1169,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ? _buildLoadingState()
           : NotificationListener<ScrollUpdateNotification>(
               onNotification: (notif) {
-                if (notif.metrics.axis == Axis.vertical) {
+                // Solo colapsar/expandir header cuando estamos en el tab Feed
+                if (_tabIndex == 0 && notif.metrics.axis == Axis.vertical) {
                   final collapsed = notif.metrics.pixels > 60;
                   if (collapsed != _headerCollapsed) {
                     setState(() => _headerCollapsed = collapsed);
@@ -1345,7 +1346,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 itemBuilder: (context, i) {
                   final item = items[i];
                   final bool isMe = item['isMe'] == true;
-                  final String label = isMe ? 'TÃº' : (item['nickname'] as String? ?? '?');
+                  final String label = isMe ? 'Tú' : (item['nickname'] as String? ?? '?');
                   final String? foto = isMe ? fotoBase64 : (item['foto_base64'] as String?);
                   final bool hasStories = isMe
                       ? _misHistorias.isNotEmpty
@@ -1420,7 +1421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       const SizedBox(height: 5),
                       Text(
                         isMe
-                            ? (_misHistorias.isNotEmpty ? 'Mi historia' : 'TÃº')
+                            ? (_misHistorias.isNotEmpty ? 'Mi historia' : 'Tú')
                             : (label.length > 7 ? '${label.substring(0, 6)}â€¦' : label),
                         style: _raj(9, hasStories && !allViewed ? FontWeight.w700 : FontWeight.w500,
                             hasStories && !allViewed ? _T.white : _T.sub),
@@ -1470,7 +1471,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final isActive = _tabIndex == pageIdx;
     return GestureDetector(
       onTap: () {
-        setState(() => _tabIndex = pageIdx);
+        setState(() {
+          _tabIndex = pageIdx;
+          // Al entrar en Retos: colapsar header para evitar glitch de historias
+          if (pageIdx == 1) _headerCollapsed = true;
+        });
         _pageController.animateToPage(
           pageIdx,
           duration: const Duration(milliseconds: 250),
@@ -1559,7 +1564,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         const SizedBox(height: 20),
         Text('SIN ACTIVIDAD', style: _raj(14, FontWeight.w900, _T.white, spacing: 4)),
         const SizedBox(height: 8),
-        Text('SÃ© el primero en compartir\ntu carrera con la comunidad',
+        Text('Sé el primero en compartir\ntu carrera con la comunidad',
             textAlign: TextAlign.center,
             style: _raj(13, FontWeight.w500, _T.sub, height: 1.5)),
         const SizedBox(height: 28),
@@ -1637,7 +1642,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Icon(Icons.more_horiz, color: _T.dim, size: 20),
           ]),
         ),
-        // â”€â”€ TÃ­tulo + descripciÃ³n
+        // â”€â”€ Título + descripción
         if (post.titulo != null || post.descripcion != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -1870,7 +1875,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 }
                 final docs = snap.data?.docs ?? [];
                 if (docs.isEmpty) {
-                  return Center(child: Text('Sin comentarios todavÃ­a',
+                  return Center(child: Text('Sin comentarios todavía',
                       style: _raj(13, FontWeight.w500, _T.muted)));
                 }
                 return ListView.builder(
@@ -2086,7 +2091,7 @@ class _CommentInputState extends State<_CommentInput> {
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => _handleSend(),
             decoration: InputDecoration(
-              hintText: 'AÃ±adir comentario...',
+              hintText: 'Añadir comentario...',
               hintStyle: _raj(13, FontWeight.w400, _T.muted),
               filled: true, fillColor: _T.bg1,
               border: OutlineInputBorder(borderRadius: BorderRadius.zero,

@@ -146,6 +146,7 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
                 borderRadius: BorderRadius.circular(12),
                 child: FlutterMap(
                   options: MapOptions(
+                    backgroundColor: const Color(0xFF1A1A1A),
                     initialCameraFit: CameraFit.bounds(
                       bounds: LatLngBounds.fromPoints(route),
                       padding: const EdgeInsets.all(32),
@@ -302,6 +303,7 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
           if (route.length > 1)
             FlutterMap(
               options: MapOptions(
+                backgroundColor: const Color(0xFF141414),
                 initialCameraFit: CameraFit.bounds(
                   bounds: LatLngBounds.fromPoints(route),
                   padding: const EdgeInsets.all(12),

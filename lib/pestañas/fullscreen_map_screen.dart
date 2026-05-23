@@ -1900,6 +1900,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               ),
               const SizedBox(width: 5),
               pill(
+                label: 'RUTAS',
+                icon: Icons.route_rounded,
+                isActive: isRutas,
+                color: const Color(0xFF9B72CF),
+                onTap: isRutas ? null : () async {
+                  if (isGlobal) _toggleModo();
+                  if (isSolitario) _state.setModoSolitario(false);
+                  await _activarModoRutas();
+                },
+              ),
+              const SizedBox(width: 5),
+              pill(
                 label: 'GLOBAL',
                 icon: Icons.public_rounded,
                 isActive: isGlobal,
@@ -1920,18 +1932,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                             style: _raj(8, FontWeight.w900, _kGold)),
                       )
                     : null,
-              ),
-              const SizedBox(width: 5),
-              pill(
-                label: 'RUTAS',
-                icon: Icons.route_rounded,
-                isActive: isRutas,
-                color: const Color(0xFF9B72CF),
-                onTap: isRutas ? null : () async {
-                  if (isGlobal) _toggleModo();
-                  if (isSolitario) _state.setModoSolitario(false);
-                  await _activarModoRutas();
-                },
               ),
             ]),
           ),
