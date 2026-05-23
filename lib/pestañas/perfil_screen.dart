@@ -1,4 +1,4 @@
-// lib/screens/perfil_screen.dart
+﻿// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
 import 'dart:async';
@@ -30,6 +30,7 @@ import 'coin_shop_screen.dart';
 import '../widgets/perfil/perfil_theme.dart';
 import '../widgets/perfil/perfil_posts_tab.dart';
 import '../widgets/perfil/perfil_duelos_tab.dart';
+import '../widgets/perfil/perfil_social_sheets.dart';
 
 
 // Aliases — la paleta y constantes viven en perfil_theme.dart
@@ -112,12 +113,14 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   String  _friendshipStatus  = 'none';
   String? _friendshipDocId;
-  bool    _loadingFriendship = false;
 
   int  _seguidores    = 0;
   int  _siguiendo     = 0;
-  bool _esSiguiendo   = false;
-  bool _loadingFollow = false;
+  bool    _esSiguiendo        = false;
+  bool    _loadingFollow      = false;
+  bool    _esPerfilPrivado    = false;
+  bool    _solicitudPendiente = false;
+  String? _solicitudDocId;
 
   int         _rangoEnLiga = 0;
   int         _puntosLiga  = 0;
@@ -170,7 +173,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   // â”€â”€ Stats premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<PuntoTendencia> _tendencia8Semanas = [];
   ComparativaSemanal?  _comparativaSemanal;
-  Map<int, String>     _nombresZonas     = {};  // índice territorio â†’ nombre
+  Map<int, String>     _nombresZonas     = {};  // índice territorio â†' nombre
   bool   _loadingStatsPremium  = false;
   bool   _statsPremiumCargadas = false;
   String _statsPremiumError    = '';
@@ -443,10 +446,11 @@ class _PerfilScreenState extends State<PerfilScreen>
       if (isOwnProfile) _nicknameController.text = nickname;
       if (colorInt != null) _colorTerritorio = Color(colorInt);
       if (parsedAvatar != null) _avatarConfig = parsedAvatar;
-      _isPremium  = (data['is_premium'] as bool?) ?? SubscriptionService.currentStatus.isPremium;
-      _clanNombre = data['clanNombre'] as String?;
-      _clanTag    = data['clanTag'] as String?;
-      _clanRol    = data['clanRol'] as String?;
+      _isPremium       = (data['is_premium'] as bool?) ?? SubscriptionService.currentStatus.isPremium;
+      _clanNombre      = data['clanNombre'] as String?;
+      _clanTag         = data['clanTag'] as String?;
+      _clanRol         = data['clanRol'] as String?;
+      _esPerfilPrivado = (data['perfilPrivado'] as bool?) ?? false;
     });
   }
 
@@ -506,11 +510,27 @@ class _PerfilScreenState extends State<PerfilScreen>
   Future<void> _cargarEstadoFollow() async {
     if (myUserId == null || viewedUserId == null) return;
     try {
-      final snap = await FirebaseFirestore.instance.collection('follows')
+      final followSnap = await FirebaseFirestore.instance.collection('follows')
           .where('followerId', isEqualTo: myUserId)
           .where('followingId', isEqualTo: viewedUserId)
           .limit(1).get();
-      if (mounted) setState(() => _esSiguiendo = snap.docs.isNotEmpty);
+      bool pendiente = false;
+      String? pendienteDocId;
+      if (followSnap.docs.isEmpty) {
+        final reqSnap = await FirebaseFirestore.instance
+            .collection('friendships')
+            .where('senderId', isEqualTo: myUserId)
+            .where('receiverId', isEqualTo: viewedUserId)
+            .where('status', isEqualTo: 'pending')
+            .limit(1).get();
+        pendiente = reqSnap.docs.isNotEmpty;
+        if (pendiente) { pendienteDocId = reqSnap.docs.first.id; }
+      }
+      if (mounted) setState(() {
+        _esSiguiendo        = followSnap.docs.isNotEmpty;
+        _solicitudPendiente = pendiente;
+        _solicitudDocId     = pendienteDocId;
+      });
     } catch (e) { debugPrint('Error estado follow: $e'); }
   }
 
@@ -518,54 +538,96 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (myUserId == null || viewedUserId == null) return;
     setState(() => _loadingFollow = true);
     try {
-      await FirebaseFirestore.instance.collection('follows').add({
-        'followerId':  myUserId,
-        'followingId': viewedUserId,
-        'timestamp':   FieldValue.serverTimestamp(),
-      });
       final nick = await _getMyNickname();
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'toUserId':     viewedUserId,
-        'type':         'follow',
-        'fromUserId':   myUserId,
-        'fromNickname': nick,
-        'message':      'ha empezado a seguirte',
-        'read':         false,
-        'timestamp':    FieldValue.serverTimestamp(),
-      });
-      // Gestión automática de amistad
-      String newStatus = _friendshipStatus;
-      String? newDocId = _friendshipDocId;
-      if (_friendshipStatus == 'pending_received' && _friendshipDocId != null) {
-        // Ellos nos siguieron primero â†’ aceptamos la amistad
-        await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
-        newStatus = 'accepted';
-      } else if (_friendshipStatus == 'none') {
-        // Ver si ya nos siguen (follow mutuo sin doc de amistad aún)
-        final theyFollowMe = await FirebaseFirestore.instance
-            .collection('follows')
-            .where('followerId', isEqualTo: viewedUserId)
-            .where('followingId', isEqualTo: myUserId)
-            .limit(1).get();
-        final accepted = theyFollowMe.docs.isNotEmpty;
+      if (_esPerfilPrivado) {
+        // Perfil privado → solicitud de seguimiento (no follow inmediato)
         final ref = await FirebaseFirestore.instance.collection('friendships').add({
           'senderId':   myUserId,
           'receiverId': viewedUserId,
-          'status':     accepted ? 'accepted' : 'pending',
+          'status':     'pending',
+          'type':       'follow_request',
           'timestamp':  FieldValue.serverTimestamp(),
         });
-        newStatus = accepted ? 'accepted' : 'pending_sent';
-        newDocId  = ref.id;
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'toUserId':     viewedUserId,
+          'type':         'follow_request',
+          'fromUserId':   myUserId,
+          'fromNickname': nick,
+          'message':      'quiere seguirte',
+          'read':         false,
+          'timestamp':    FieldValue.serverTimestamp(),
+        });
+        if (mounted) setState(() {
+          _solicitudPendiente = true;
+          _solicitudDocId     = ref.id;
+        });
+      } else {
+        // Perfil público → follow inmediato
+        await FirebaseFirestore.instance.collection('follows').add({
+          'followerId':  myUserId,
+          'followingId': viewedUserId,
+          'timestamp':   FieldValue.serverTimestamp(),
+        });
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'toUserId':     viewedUserId,
+          'type':         'follow',
+          'fromUserId':   myUserId,
+          'fromNickname': nick,
+          'message':      'ha empezado a seguirte',
+          'read':         false,
+          'timestamp':    FieldValue.serverTimestamp(),
+        });
+        // Gestión automática de amistad
+        String newStatus = _friendshipStatus;
+        String? newDocId = _friendshipDocId;
+        if (_friendshipStatus == 'pending_received' && _friendshipDocId != null) {
+          await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).update({'status': 'accepted'});
+          newStatus = 'accepted';
+        } else if (_friendshipStatus == 'none') {
+          final theyFollowMe = await FirebaseFirestore.instance
+              .collection('follows')
+              .where('followerId', isEqualTo: viewedUserId)
+              .where('followingId', isEqualTo: myUserId)
+              .limit(1).get();
+          final accepted = theyFollowMe.docs.isNotEmpty;
+          final ref = await FirebaseFirestore.instance.collection('friendships').add({
+            'senderId':   myUserId,
+            'receiverId': viewedUserId,
+            'status':     accepted ? 'accepted' : 'pending',
+            'timestamp':  FieldValue.serverTimestamp(),
+          });
+          newStatus = accepted ? 'accepted' : 'pending_sent';
+          newDocId  = ref.id;
+        }
+        if (mounted) setState(() {
+          _esSiguiendo      = true;
+          _seguidores      += 1;
+          _friendshipStatus = newStatus;
+          _friendshipDocId  = newDocId;
+        });
       }
-      if (mounted) setState(() {
-        _esSiguiendo      = true;
-        _seguidores      += 1;
-        _friendshipStatus = newStatus;
-        _friendshipDocId  = newDocId;
-      });
     } catch (e) {
       debugPrint('Error seguir: $e');
       if (mounted) _mostrarSnackbar('No se pudo seguir. Comprueba tu conexión', error: true);
+    }
+    finally { if (mounted) setState(() => _loadingFollow = false); }
+  }
+
+  Future<void> _cancelarSolicitud() async {
+    if (_solicitudDocId == null) return;
+    setState(() => _loadingFollow = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('friendships')
+          .doc(_solicitudDocId)
+          .delete();
+      if (mounted) setState(() {
+        _solicitudPendiente = false;
+        _solicitudDocId     = null;
+      });
+    } catch (e) {
+      debugPrint('Error cancelar solicitud: $e');
+      if (mounted) _mostrarSnackbar('No se pudo cancelar la solicitud', error: true);
     }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }
@@ -1275,6 +1337,10 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildTabContent() {
+    // Tabs 0-2 (stats, historial, posts) bloqueadas en perfil privado para no seguidores
+    if (_esPerfilPrivado && !isOwnProfile && !_esSiguiendo && _tabPrincipal < 3) {
+      return _buildPerfilPrivadoLock();
+    }
     switch (_tabPrincipal) {
       case 0:
         if (_isPremium && !_statsPremiumCargadas && !_loadingStatsPremium) {
@@ -1288,6 +1354,32 @@ class _PerfilScreenState extends State<PerfilScreen>
         return PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3);
       default: return const SizedBox.shrink();
     }
+  }
+
+  Widget _buildPerfilPrivadoLock() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 48, 32, 48),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 72, height: 72,
+          decoration: BoxDecoration(
+            color: _p.surface2,
+            shape: BoxShape.circle,
+            border: Border.all(color: _p.border2, width: 1),
+          ),
+          child: Icon(Icons.lock_rounded, color: _p.dim, size: 28),
+        ),
+        const SizedBox(height: 16),
+        Text('Perfil privado',
+            style: _rajdhani(16, FontWeight.w700, _p.title)),
+        const SizedBox(height: 8),
+        Text(
+          'Síguele para ver sus publicaciones\ny estadísticas de juego.',
+          style: _rajdhani(13, FontWeight.w400, _p.sub),
+          textAlign: TextAlign.center,
+        ),
+      ]),
+    );
   }
 
   Widget _buildRutasStats() {
@@ -2026,11 +2118,17 @@ class _PerfilScreenState extends State<PerfilScreen>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(children: [
-              _statCol(_seguidores.toString(), 'SEGUIDORES'),
+              _statCol(_seguidores.toString(), 'SEGUIDORES',
+                  onTap: viewedUserId == null ? null : () =>
+                      mostrarSeguidores(context, viewedUserId!, myUserId, _colorTerritorio)),
               Container(width: 1, height: 32, color: _p.border),
-              _statCol(_siguiendo.toString(), 'SIGUIENDO'),
+              _statCol(_siguiendo.toString(), 'SIGUIENDO',
+                  onTap: viewedUserId == null ? null : () =>
+                      mostrarSiguiendo(context, viewedUserId!, myUserId, _colorTerritorio)),
               Container(width: 1, height: 32, color: _p.border),
-              _statCol(_territoriosConquistados.toString(), 'TERRITORIOS'),
+              _statCol(_territoriosConquistados.toString(), 'TERRITORIOS',
+                  onTap: viewedUserId == null ? null : () =>
+                      mostrarTerritorios(context, viewedUserId!, _colorTerritorio)),
             ]),
           ),
           const SizedBox(height: 24),
@@ -2172,13 +2270,17 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _statCol(String value, String label) {
+  Widget _statCol(String value, String label, {VoidCallback? onTap}) {
     return Expanded(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(value, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: _p.title)),
-        const SizedBox(height: 3),
-        Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.0)),
-      ]),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(value, style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: _p.title)),
+          const SizedBox(height: 3),
+          Text(label, style: _rajdhani(8, FontWeight.w600, _p.dim, spacing: 1.0)),
+        ]),
+      ),
     );
   }
 
@@ -2700,7 +2802,10 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (_esSiguiendo) {
       return _socialBtn('Siguiendo', Icons.how_to_reg_rounded, _p.dim, _dejarDeSeguir, outlined: true);
     }
-    return _socialBtn('Seguir', Icons.person_add_rounded, _kAccent, _seguir);
+    if (_solicitudPendiente) {
+      return _socialBtn('Solicitado', Icons.schedule_rounded, _p.dim, _cancelarSolicitud, outlined: true);
+    }
+    return _socialBtn('Seguir', Icons.person_add_rounded, _colorTerritorio, _seguir);
   }
 
   Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {

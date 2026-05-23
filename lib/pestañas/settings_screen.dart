@@ -52,10 +52,12 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   Color?       _colorTerritorio;
-  bool         _savingColor    = false;
-  bool         _esAdmin        = false;
-  AvatarConfig _avatarConfig   = const AvatarConfig();
-  int          _monedas        = 0;
+  bool         _savingColor     = false;
+  bool         _esAdmin         = false;
+  bool         _perfilPrivado   = false;
+  bool         _savingPrivado   = false;
+  AvatarConfig _avatarConfig    = const AvatarConfig();
+  int          _monedas         = 0;
 
   @override
   void initState() {
@@ -77,8 +79,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         setState(() {
           if (colorInt != null) _colorTerritorio = Color(colorInt);
-          _esAdmin   = d['esAdmin'] as bool? ?? false;
-          _monedas   = (d['monedas'] as num?)?.toInt() ?? 0;
+          _esAdmin       = d['esAdmin'] as bool? ?? false;
+          _monedas       = (d['monedas'] as num?)?.toInt() ?? 0;
+          _perfilPrivado = d['perfilPrivado'] as bool? ?? false;
           if (avatarJson != null) {
             try { _avatarConfig = AvatarConfig.fromMap(avatarJson); } catch (_) {}
           }
@@ -217,6 +220,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Fantasmas creados')));
     }
+  }
+
+  Future<void> _togglePerfilPrivado(bool val) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() { _perfilPrivado = val; _savingPrivado = true; });
+    try {
+      await FirebaseFirestore.instance
+          .collection('players')
+          .doc(uid)
+          .update({'perfilPrivado': val});
+    } catch (_) {
+      if (mounted) setState(() => _perfilPrivado = !val);
+    }
+    if (mounted) setState(() => _savingPrivado = false);
   }
 
   Future<void> _guardarColor(Color color) async {
@@ -500,6 +518,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // ── PRIVACIDAD ────────────────────────────────────────────
           _SectionHeader(text: 'PRIVACIDAD', color: textSec),
           _SettingsGroup(surface: surface, border: border, children: [
+            _SwitchTile(
+              icon: Icons.lock_person_rounded,
+              iconColor: const Color(0xFF636AE8),
+              title: 'Perfil privado',
+              subtitle: _perfilPrivado
+                  ? 'Solo seguidores ven tus stats y posts'
+                  : 'Cualquier jugador puede ver tu perfil',
+              value: _perfilPrivado,
+              textPri: textPri,
+              textSec: textSec,
+              accentColor: accent,
+              onChanged: (v) { if (!_savingPrivado) _togglePerfilPrivado(v); },
+            ),
+            _Divider(color: border),
             _NavTile(
               icon: Icons.shield_outlined,
               iconColor: const Color(0xFF636AE8),

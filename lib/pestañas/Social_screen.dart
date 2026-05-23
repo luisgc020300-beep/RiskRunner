@@ -875,7 +875,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
                   onAceptar: () async {
                     await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
-                    await FirebaseFirestore.instance.collection('follows').add({'followerId': currentUserId, 'followingId': senderId, 'timestamp': FieldValue.serverTimestamp()});
+                    final isFollowReq = (doc['type'] as String?) == 'follow_request';
+                    await FirebaseFirestore.instance.collection('follows').add({
+                      'followerId':  isFollowReq ? senderId       : currentUserId,
+                      'followingId': isFollowReq ? currentUserId  : senderId,
+                      'timestamp':   FieldValue.serverTimestamp(),
+                    });
                     _snack('¡${data['nickname']} ahora es tu operativo!');
                   },
                   onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));
@@ -892,6 +897,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                     puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
                     onAceptar: () async {
                       await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
+                      final isFollowReq = (doc['type'] as String?) == 'follow_request';
+                      await FirebaseFirestore.instance.collection('follows').add({
+                        'followerId':  isFollowReq ? senderId      : currentUserId,
+                        'followingId': isFollowReq ? currentUserId : senderId,
+                        'timestamp':   FieldValue.serverTimestamp(),
+                      });
                       _snack('¡${data['nickname']} ahora es tu aliado!');
                     },
                     onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));
