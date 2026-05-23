@@ -1125,10 +1125,11 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   AppBar _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final appBarBg = isDark ? const Color(0xFF0D0D0D) : const Color(0xFFF2F2F7);
     final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
     return AppBar(
-      backgroundColor: appBarBg, elevation: 0,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      toolbarHeight: 44,
       leading: !isOwnProfile
           ? IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
@@ -1955,8 +1956,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     final topPad = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final gradTop = isDark
-        ? Color.lerp(_p.bg, _kAccent, 0.10)!
-        : Color.lerp(_p.bg, _kAccent, 0.07)!;
+        ? Color.lerp(_p.bg, _colorTerritorio, 0.10)!
+        : Color.lerp(_p.bg, _colorTerritorio, 0.07)!;
 
     return Container(
       width: double.infinity,
@@ -1972,7 +1973,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           // Espacio appbar + status bar
-          SizedBox(height: topPad + 56 + 16),
+          SizedBox(height: topPad + 44 + 8),
 
           // ── Avatar ──────────────────────────────────────────────────────
           _buildAvatar(),
@@ -2050,7 +2051,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           width: size + 16, height: size + 16,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: _kAccent.withValues(alpha: 0.22), blurRadius: 24, spreadRadius: 4)],
+            boxShadow: [BoxShadow(color: _colorTerritorio.withValues(alpha: 0.22), blurRadius: 24, spreadRadius: 4)],
           ),
         ),
         // Anillo exterior
@@ -2058,7 +2059,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           width: size + 4, height: size + 4,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: _kAccent.withValues(alpha: 0.50), width: 1.5),
+            border: Border.all(color: _colorTerritorio.withValues(alpha: 0.50), width: 1.5),
           ),
         ),
         // Foto / avatar
@@ -2073,7 +2074,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             ),
             child: ClipOval(
               child: isUploadingPhoto
-                  ? Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
+                  ? Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: _colorTerritorio, strokeWidth: 1.5)))
                   : fotoBase64 != null
                       ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: size, height: size, gaplessPlayback: false)
                       : AvatarWidget(config: _avatarConfig, size: size, fallbackLabel: nickname),
@@ -2089,7 +2090,7 @@ class _PerfilScreenState extends State<PerfilScreen>
               child: Container(
                 width: 28, height: 28,
                 decoration: BoxDecoration(
-                  color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
+                  color: _titulosActivos.isNotEmpty ? _kGold : _colorTerritorio,
                   shape: BoxShape.circle,
                   border: Border.all(color: _p.bg, width: 2),
                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6)],

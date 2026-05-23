@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart' hide Path;
 
+import '../../config/env.dart';
 import 'perfil_theme.dart';
 
 class PerfilPostsTab extends StatefulWidget {
@@ -24,9 +27,13 @@ class PerfilPostsTab extends StatefulWidget {
 class _PerfilPostsTabState extends State<PerfilPostsTab> {
   PerfilPalette get _p => PerfilPalette.of(context);
 
+  static const _tileUrl =
+      'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
+      '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
+
   // ── Borrar un post ──────────────────────────────────────────────────────────
   Future<void> _borrarPost(BuildContext ctx, String postId) async {
-    Navigator.pop(ctx); // cierra el detail sheet
+    Navigator.pop(ctx);
     await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -44,23 +51,28 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     );
   }
 
+  // ── Parsear ruta ────────────────────────────────────────────────────────────
+  List<LatLng> _parseRoute(dynamic rawRoute) {
+    if (rawRoute == null) return [];
+    return (rawRoute as List<dynamic>).map((pt) {
+      final m = pt as Map;
+      return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+    }).toList();
+  }
+
   // ── Detail sheet ────────────────────────────────────────────────────────────
   void _mostrarDetallePost(
       BuildContext context, String postId, Map<String, dynamic> data) {
-    final p     = _p;
-    final dist  = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final p      = _p;
+    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
     final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
-    final vel   = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
-    final desc  = (data['descripcion'] as String? ?? '').trim();
+    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
+    final desc   = (data['descripcion'] as String? ?? '').trim();
     final titulo = (data['titulo'] as String? ?? '').trim();
-    final ts    = data['timestamp'] as Timestamp?;
-    final rawRoute = data['ruta'] as List<dynamic>?;
-    final route = rawRoute?.map((pt) {
-      final m = pt as Map;
-      return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
-    }).toList() ?? <Offset>[];
-    final mins = tiempo ~/ 60;
-    final secs = tiempo % 60;
+    final ts     = data['timestamp'] as Timestamp?;
+    final route  = _parseRoute(data['ruta']);
+    final mins   = tiempo ~/ 60;
+    final secs   = tiempo % 60;
 
     showModalBottomSheet(
       context: context,
@@ -121,20 +133,40 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
           ]),
           const SizedBox(height: 20),
 
-          // Mini mapa
+          // Mini mapa con tiles reales
           if (route.length > 1) ...[
             Container(
-              height: 160,
+              height: 200,
               decoration: BoxDecoration(
-                color: p.surface2,
+                color: const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: p.border2),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: CustomPaint(
-                    painter: _RouteMiniPainter(
-                        route, widget.colorTerritorio, strokeWidth: 2.5)),
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCameraFit: CameraFit.bounds(
+                      bounds: LatLngBounds.fromPoints(route),
+                      padding: const EdgeInsets.all(32),
+                    ),
+                    interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: _tileUrl,
+                      userAgentPackageName: 'com.example.mi_app',
+                    ),
+                    PolylineLayer(polylines: [
+                      Polyline(
+                        points: route,
+                        color: widget.colorTerritorio,
+                        strokeWidth: 4,
+                      ),
+                    ]),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -253,8 +285,10 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     final date = ts != null
         ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year % 100}'
         : '';
-    final rawRoute = data['ruta'] as List<dynamic>?;
-    final route = rawRoute?.map((pt) {
+    final route = _parseRoute(data['ruta']);
+
+    // Offset route para el painter (sin tiles, solo la forma)
+    final offsetRoute = (data['ruta'] as List<dynamic>?)?.map((pt) {
       final m = pt as Map;
       return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
     }).toList() ?? <Offset>[];
@@ -262,19 +296,45 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     return GestureDetector(
       onTap: () => _mostrarDetallePost(context, postId, data),
       child: Container(
-        color: p.surface,
+        color: const Color(0xFF141414),
         child: Stack(fit: StackFit.expand, children: [
+          // Fondo: mapa con tiles reales si hay ruta
           if (route.length > 1)
+            FlutterMap(
+              options: MapOptions(
+                initialCameraFit: CameraFit.bounds(
+                  bounds: LatLngBounds.fromPoints(route),
+                  padding: const EdgeInsets.all(12),
+                ),
+                interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.none),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: _tileUrl,
+                  userAgentPackageName: 'com.example.mi_app',
+                ),
+                PolylineLayer(polylines: [
+                  Polyline(
+                    points: route,
+                    color: widget.colorTerritorio,
+                    strokeWidth: 2,
+                  ),
+                ]),
+              ],
+            )
+          else if (offsetRoute.length > 1)
             CustomPaint(
-                painter: _RouteMiniPainter(route, widget.colorTerritorio)),
+                painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio)),
+          // Gradiente inferior para texto
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, p.bg.withValues(alpha: 0.85)],
-                  stops: const [0.4, 1.0],
+                  colors: [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
+                  stops: const [0.45, 1.0],
                 ),
               ),
             ),
@@ -282,11 +342,12 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
           Positioned(
             bottom: 6, left: 7,
             child: Text('${dist.toStringAsFixed(1)} km',
-                style: perfilStyle(11, FontWeight.w800, p.title))),
+                style: perfilStyle(11, FontWeight.w800, Colors.white))),
           Positioned(
             top: 6, right: 6,
             child: Text(date,
-                style: perfilStyle(8, FontWeight.w500, p.dim))),
+                style: perfilStyle(8, FontWeight.w500,
+                    Colors.white.withValues(alpha: 0.7)))),
         ]),
       ),
     );
@@ -338,7 +399,6 @@ class _ConfirmDeleteSheet extends StatelessWidget {
                 color: p.sub, fontSize: 13, height: 1.4),
             textAlign: TextAlign.center),
         const SizedBox(height: 28),
-        // Eliminar
         GestureDetector(
           onTap: onConfirm,
           child: Container(
@@ -357,7 +417,6 @@ class _ConfirmDeleteSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        // Cancelar
         GestureDetector(
           onTap: onCancel,
           child: Container(
@@ -379,12 +438,11 @@ class _ConfirmDeleteSheet extends StatelessWidget {
   }
 }
 
-// ── Painter privado ─────────────────────────────────────────────────────────
+// ── Painter de fallback (cuando no hay coordenadas GPS válidas) ─────────────
 class _RouteMiniPainter extends CustomPainter {
   final List<Offset> points;
   final Color color;
-  final double strokeWidth;
-  const _RouteMiniPainter(this.points, this.color, {this.strokeWidth = 1.5});
+  const _RouteMiniPainter(this.points, this.color);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -416,13 +474,13 @@ class _RouteMiniPainter extends CustomPainter {
     }
     canvas.drawPath(path, Paint()
       ..color = color.withValues(alpha: 0.25)
-      ..strokeWidth = strokeWidth + 3
+      ..strokeWidth = 4.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
     canvas.drawPath(path, Paint()
       ..color = color.withValues(alpha: 0.75)
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round);
@@ -431,4 +489,3 @@ class _RouteMiniPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RouteMiniPainter old) => false;
 }
-
