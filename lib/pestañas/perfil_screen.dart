@@ -1933,8 +1933,29 @@ class _PerfilScreenState extends State<PerfilScreen>
         final m = p as Map<String, dynamic>;
         return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
       }).toList();
-      // Fallback: si no hay ruta guardada, usar posición final como centro
       if (ruta.isEmpty) {
+        // Fallback 1: sesión solitaria con territorio_id → reconstruir polígono
+        final territorioId = data['territorio_id'] as String?;
+        if (territorioId != null) {
+          try {
+            final tDoc = await FirebaseFirestore.instance
+                .collection('territories')
+                .doc(territorioId)
+                .get();
+            if (tDoc.exists) {
+              final rawPuntos = tDoc.data()!['puntos'] as List<dynamic>?;
+              if (rawPuntos != null && rawPuntos.isNotEmpty) {
+                ruta = rawPuntos.map((p) {
+                  final m = p as Map<String, dynamic>;
+                  return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+                }).toList();
+              }
+            }
+          } catch (_) {}
+        }
+      }
+      if (ruta.isEmpty) {
+        // Fallback 2: usar posición final como pin de centro
         final latF = (data['latFinal'] as num?)?.toDouble();
         final lngF = (data['lngFinal'] as num?)?.toDouble();
         if (latF != null && lngF != null) {

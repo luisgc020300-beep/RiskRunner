@@ -1925,13 +1925,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               EstadoHp.danado    => 2.0,
               EstadoHp.critico   => 2.4,
             };
-      final innerOpacity = t.esMio ? t.opacidadRelleno * 0.28 : 0.0;
+      final fillOpacity  = (_modoSolitario && t.esMio) ? 0.85 : t.opacidadRelleno;
+      final innerOpacity = t.esMio ? fillOpacity * 0.28 : 0.0;
 
       return _encodeJson({
         'type': 'Feature',
         'properties': {
           'color':         colorHex,
-          'fillOpacity':   t.opacidadRelleno,
+          'fillOpacity':   fillOpacity,
           'innerOpacity':  innerOpacity,
           'borderOpacity': t.opacidadBorde,
           'borderWidth':   borderWidth,
@@ -3294,13 +3295,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
 
     if (_modoSolitario) {
-      final creado = await TerritoryService.crearTerritorioSolitario(
+      final territorioId = await TerritoryService.crearTerritorioSolitario(
         ruta:            rutaFinal,
         colorTerritorio: _colorTerritorio,
         nickname:        _miNickname,
       );
-      if (creado) {
+      if (territorioId != null) {
         conquistados = 1;
+        if (logId != null) {
+          FirebaseFirestore.instance
+              .collection('activity_logs')
+              .doc(logId)
+              .update({'territorio_id': territorioId});
+        }
         final nuevosTerritorios =
             await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
         GameStateService.instance.setSolitarioTerritories(nuevosTerritorios);

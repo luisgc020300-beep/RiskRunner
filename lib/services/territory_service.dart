@@ -357,19 +357,19 @@ class TerritoryService {
 }
 
   // ── Crear territorio solitario ────────────────────────────────────────────
-  static Future<bool> crearTerritorioSolitario({
+  static Future<String?> crearTerritorioSolitario({
     required List<LatLng> ruta,
     required Color colorTerritorio,
     required String nickname,
     double velocidadMediaKmh = 5.0,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || ruta.length < 3) return false;
+    if (user == null || ruta.length < 3) return null;
 
     final areaM2 = calcularAreaM2(ruta);
     if (areaM2 < kAreaMinimaM2) {
       debugPrint('Área insuficiente: ${areaM2.toStringAsFixed(0)} m²');
-      return false;
+      return null;
     }
 
     try {
@@ -379,7 +379,7 @@ class TerritoryService {
       final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
       final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
 
-      await _db.collection('territories').add({
+      final ref = await _db.collection('territories').add({
         'userId':                  user.uid,
         'nickname':                nickname,
         'puntos':                  puntosList,
@@ -405,10 +405,10 @@ class TerritoryService {
       });
 
       invalidarCache();
-      return true;
+      return ref.id;
     } catch (e) {
       debugPrint('❌ Error creando territorio: $e');
-      return false;
+      return null;
     }
   }
 
