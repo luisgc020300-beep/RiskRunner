@@ -22,7 +22,6 @@ import '../services/league_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
-import '../config/env.dart';
 import '../services/zona_service.dart';
 import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
@@ -32,8 +31,6 @@ import '../widgets/perfil/perfil_theme.dart';
 import '../widgets/perfil/perfil_posts_tab.dart';
 import '../widgets/perfil/perfil_duelos_tab.dart';
 
-const _kMapboxTileUrl =
-    'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
 
 // Aliases — la paleta y constantes viven en perfil_theme.dart
 typedef _PP = PerfilPalette;
@@ -1955,199 +1952,157 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildZonaIdentidad() {
-    final h = MediaQuery.of(context).size.height;
-    const double mapH       = 0.38;
-    const double avatarSize = 128.0;
-    const double halfAvatar = avatarSize / 2;
+    final topPad = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final gradTop = isDark
+        ? Color.lerp(_p.bg, _kAccent, 0.10)!
+        : Color.lerp(_p.bg, _kAccent, 0.07)!;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Mapa + avatar solapando el borde inferior ──────────────────────
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            SizedBox(
-              height: h * mapH,
-              child: Stack(fit: StackFit.expand, children: [
-                ClipRect(
-                  child: FlutterMap(
-                    mapController: _liveMapCtrl,
-                    options: MapOptions(initialCenter: _liveCenter, initialZoom: 14.5, interactionOptions: const InteractionOptions(flags: InteractiveFlag.none)),
-                    children: [
-                      TileLayer(urlTemplate: _kMapboxTileUrl, tileProvider: NetworkTileProvider(), userAgentPackageName: 'com.runnerrisk.app'),
-                      PolygonLayer(polygons: _allTerritories.map((t) {
-                        final pts = t['puntos'] as List<LatLng>; final color = t['color'] as Color; final isMe = (t['userId'] as String) == viewedUserId;
-                        return Polygon(points: pts, color: color.withValues(alpha: isMe ? 0.28 : 0.12), borderColor: color.withValues(alpha: isMe ? 0.75 : 0.30), borderStrokeWidth: isMe ? 1.6 : 0.7);
-                      }).toList()),
-                      PolylineLayer(polylines: _liveRunners.map((r) {
-                        final trail = r['trail'] as List<LatLng>; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
-                        return Polyline(points: [r['pos'] as LatLng, ...trail], color: color.withValues(alpha: isMe ? 0.9 : 0.55), strokeWidth: isMe ? 3.0 : 1.8, gradientColors: [color.withValues(alpha: isMe ? 0.9 : 0.55), color.withValues(alpha: 0.0)]);
-                      }).toList()),
-                      MarkerLayer(markers: _liveRunners.map((r) {
-                        final pos = r['pos'] as LatLng; final color = r['color'] as Color; final isMe = r['isMe'] as bool;
-                        return Marker(point: pos, width: isMe ? 14 : 9, height: isMe ? 14 : 9, child: Container(decoration: BoxDecoration(shape: BoxShape.circle, color: color, boxShadow: [BoxShadow(color: color.withValues(alpha: isMe ? 0.6 : 0.4), blurRadius: isMe ? 8 : 4, spreadRadius: isMe ? 2 : 1)])));
-                      }).toList()),
-                    ],
-                  ),
-                ),
-                Container(decoration: BoxDecoration(gradient: RadialGradient(center: Alignment.center, radius: 1.2, colors: [Colors.black.withValues(alpha: 0.10), Colors.black.withValues(alpha: 0.55)]))),
-                CustomPaint(painter: _DossierBgPainter(accent: _kAccent)),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    height: h * mapH * 0.55,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, _p.bg.withValues(alpha: 0.5), _p.bg],
-                        stops: const [0.0, 0.55, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-            // Avatar centrado solapando el borde inferior del mapa
-            Positioned(
-              bottom: -halfAvatar,
-              left: 0, right: 0,
-              child: Center(child: _buildAvatar()),
-            ),
-          ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [gradTop, _p.bg],
+          stops: const [0.0, 0.72],
         ),
-        // ── Tarjeta de identidad ───────────────────────────────────────────
-        Container(
-          width: double.infinity,
-          color: _p.bg,
-          padding: const EdgeInsets.fromLTRB(24, halfAvatar + 14, 24, 0),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Nombre
-            GestureDetector(
-              onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(
-                  nickname.toUpperCase(),
-                  style: GoogleFonts.inter(
-                    fontSize: 26, fontWeight: FontWeight.w800,
-                    color: _p.title, letterSpacing: 3.5, height: 1,
-                  ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Espacio appbar + status bar
+          SizedBox(height: topPad + 56 + 16),
+
+          // ── Avatar ──────────────────────────────────────────────────────
+          _buildAvatar(),
+          const SizedBox(height: 18),
+
+          // ── Nombre ──────────────────────────────────────────────────────
+          GestureDetector(
+            onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text(
+                nickname.toUpperCase(),
+                style: GoogleFonts.inter(
+                  fontSize: 24, fontWeight: FontWeight.w800,
+                  color: _p.title, letterSpacing: 3.0, height: 1,
                 ),
-                if (isOwnProfile) ...[const SizedBox(width: 8), Icon(Icons.edit_outlined, color: _p.dim, size: 12)],
-              ]),
-            ),
-            const SizedBox(height: 10),
-            // Rango + Nivel + Monedas
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _headerBadge(_nivelTitulo(nivel), filled: true),
-              const SizedBox(width: 6),
-              _headerBadge('NIV. $nivel'),
-              const SizedBox(width: 6),
-              _coinsBadge(),
-              if (_isPremium) ...[const SizedBox(width: 6), _buildPremiumBadge()],
+              ),
+              if (isOwnProfile) ...[
+                const SizedBox(width: 8),
+                Icon(Icons.edit_outlined, color: _p.dim, size: 12),
+              ],
             ]),
-            if (_titulosActivos.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ReyBannerActivo(titulosActivos: _titulosActivos),
-            ],
-            const SizedBox(height: 10),
-            _buildClanChip(),
-            if (isOwnProfile && email.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub)),
-            ],
-            const SizedBox(height: 22),
-            // Separador
-            Container(height: 1, color: _p.border.withValues(alpha: 0.45)),
-            const SizedBox(height: 20),
-            // Stats strip
-            Row(children: [
+          ),
+          const SizedBox(height: 12),
+
+          // ── Rango + Nivel + Monedas ──────────────────────────────────────
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _headerBadge(_nivelTitulo(nivel), filled: true),
+            const SizedBox(width: 6),
+            _headerBadge('NIV. $nivel'),
+            const SizedBox(width: 6),
+            _coinsBadge(),
+            if (_isPremium) ...[const SizedBox(width: 6), _buildPremiumBadge()],
+          ]),
+
+          if (_titulosActivos.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ReyBannerActivo(titulosActivos: _titulosActivos),
+          ],
+          const SizedBox(height: 10),
+
+          // ── Clan ────────────────────────────────────────────────────────
+          _buildClanChip(),
+          if (isOwnProfile && email.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub)),
+          ],
+          const SizedBox(height: 28),
+
+          // ── Stats strip ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(children: [
               _statCol(_seguidores.toString(), 'SEGUIDORES'),
-              Container(width: 1, height: 32, color: _p.muted.withValues(alpha: 0.28)),
+              Container(width: 1, height: 32, color: _p.border),
               _statCol(_siguiendo.toString(), 'SIGUIENDO'),
-              Container(width: 1, height: 32, color: _p.muted.withValues(alpha: 0.28)),
+              Container(width: 1, height: 32, color: _p.border),
               _statCol(_territoriosConquistados.toString(), 'TERRITORIOS'),
             ]),
-            const SizedBox(height: 28),
-          ]),
-        ),
-      ],
+          ),
+          const SizedBox(height: 24),
+          Container(height: 1, color: _p.border.withValues(alpha: 0.50)),
+        ],
+      ),
     );
   }
 
   Widget _buildAvatar() {
-    return SizedBox(
-      width: 128, height: 128,
-      child: OverflowBox(
-        minWidth: 0, maxWidth: 360, minHeight: 0, maxHeight: 360,
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_loopAnim, _scanAnim]),
-          builder: (_, __) => Stack(alignment: Alignment.center, children: [
-            CustomPaint(
-              size: const Size(360, 360),
-              painter: _AvatarRadarPainter(
-                accent: _kAccent, pulse: _pulse.value, scan: _scan.value),
+    const double size = 100;
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        // Glow sutil
+        Container(
+          width: size + 16, height: size + 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: _kAccent.withValues(alpha: 0.22), blurRadius: 24, spreadRadius: 4)],
+          ),
+        ),
+        // Anillo exterior
+        Container(
+          width: size + 4, height: size + 4,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: _kAccent.withValues(alpha: 0.50), width: 1.5),
+          ),
+        ),
+        // Foto / avatar
+        GestureDetector(
+          onTap: isOwnProfile ? _seleccionarFoto : null,
+          child: Container(
+            width: size, height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _p.surface2,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 12)],
             ),
-            // Glow ring animado
-            Container(
-              width: 136, height: 136,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(
-                  color: _kAccent.withValues(alpha: _pulse.value * 0.40),
-                  blurRadius: 28, spreadRadius: 6,
-                )],
+            child: ClipOval(
+              child: isUploadingPhoto
+                  ? Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
+                  : fotoBase64 != null
+                      ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: size, height: size, gaplessPlayback: false)
+                      : AvatarWidget(config: _avatarConfig, size: size, fallbackLabel: nickname),
+            ),
+          ),
+        ),
+        // Botón editar avatar (perfil propio)
+        if (isOwnProfile)
+          Positioned(
+            bottom: -2, right: -2,
+            child: GestureDetector(
+              onTap: _abrirCustomizador,
+              child: Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _p.bg, width: 2),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6)],
+                ),
+                child: Center(
+                  child: _titulosActivos.isNotEmpty
+                      ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 13)
+                      : const Icon(Icons.palette_rounded, color: Colors.black, size: 13),
+                ),
               ),
             ),
-            SizedBox(
-              width: 128, height: 128,
-              child: Stack(alignment: Alignment.center, children: [
-                Container(width: 128, height: 128, decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _kAccent.withValues(alpha: 0.55), width: 2),
-                )),
-                GestureDetector(
-                  onTap: isOwnProfile ? _seleccionarFoto : null,
-                  child: Container(
-                    width: 112, height: 112,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: _p.surface2,
-                      border: Border.all(color: _p.border2, width: 1),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 2)],
-                    ),
-                    child: isUploadingPhoto
-                        ? Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
-                        : ClipOval(child: fotoBase64 != null
-                            ? Image.memory(base64Decode(fotoBase64!), key: ValueKey(fotoBase64!.hashCode), fit: BoxFit.cover, width: 112, height: 112, gaplessPlayback: false)
-                            : AvatarWidget(config: _avatarConfig, size: 112, fallbackLabel: nickname)),
-                  ),
-                ),
-                if (isOwnProfile)
-                  Positioned(
-                    bottom: 5, right: 5,
-                    child: GestureDetector(
-                      onTap: _abrirCustomizador,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                          color: _titulosActivos.isNotEmpty ? _kGold : _kAccent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: _p.bg, width: 2.5),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8)],
-                        ),
-                        child: Center(
-                          child: _titulosActivos.isNotEmpty
-                              ? const Icon(Icons.emoji_events_rounded, color: Colors.black, size: 13)
-                              : const Icon(Icons.palette_rounded, color: Colors.black, size: 13),
-                        ),
-                      ),
-                    ),
-                  ),
-              ]),
-            ),
-          ]),
-        ),
-      ),
+          ),
+      ],
     );
   }
 
@@ -2866,43 +2821,6 @@ class _Panel extends StatelessWidget {
   }
 }
 
-class _DossierBgPainter extends CustomPainter {
-  final Color accent;
-  const _DossierBgPainter({required this.accent});
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawLine(Offset(0, size.height * 0.62), Offset(size.width, size.height * 0.62), Paint()..color = accent.withValues(alpha: 0.04)..strokeWidth = 0.8);
-    for (int i = 0; i < 6; i++) {
-      final y = 60.0 + i * 24;
-      canvas.drawLine(Offset(0, y), Offset(i % 2 == 0 ? 12 : 6, y), Paint()..color = accent.withValues(alpha: 0.07)..strokeWidth = 0.8);
-      canvas.drawLine(Offset(size.width, y), Offset(size.width - (i % 2 == 0 ? 12 : 6), y), Paint()..color = accent.withValues(alpha: 0.07)..strokeWidth = 0.8);
-    }
-  }
-  @override
-  bool shouldRepaint(_DossierBgPainter o) => o.accent != accent;
-}
-
-class _AvatarRadarPainter extends CustomPainter {
-  final Color accent;
-  final double pulse, scan;
-  const _AvatarRadarPainter({required this.accent, required this.pulse, required this.scan});
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2, cy = size.height / 2;
-    for (int i = 1; i <= 5; i++) {
-      canvas.drawCircle(Offset(cx, cy), i * 36.0, Paint()..color = accent.withValues(alpha: 0.012)..strokeWidth = 0.6..style = PaintingStyle.stroke);
-    }
-    canvas.drawLine(Offset(cx - 180, cy), Offset(cx + 180, cy), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
-    canvas.drawLine(Offset(cx, cy - 180), Offset(cx, cy + 180), Paint()..color = accent.withValues(alpha: 0.022)..strokeWidth = 0.4);
-    final sweepAngle = scan * 2 * math.pi;
-    final sweepRect  = Rect.fromCircle(center: Offset(cx, cy), radius: 180);
-    canvas.drawArc(sweepRect, sweepAngle - 0.7, 0.7, true, Paint()..shader = RadialGradient(colors: [accent.withValues(alpha: 0.05), Colors.transparent]).createShader(sweepRect)..style = PaintingStyle.fill);
-    canvas.drawLine(Offset(cx, cy), Offset(cx + 178 * math.cos(sweepAngle), cy + 178 * math.sin(sweepAngle)), Paint()..color = accent.withValues(alpha: 0.09)..strokeWidth = 0.8);
-    canvas.drawCircle(Offset(cx, cy), 2.5, Paint()..color = accent.withValues(alpha: 0.28));
-  }
-  @override
-  bool shouldRepaint(_AvatarRadarPainter o) => o.pulse != pulse || o.scan != scan || o.accent != accent;
-}
 
 class _RachaGaugePainter extends CustomPainter {
   final double progress, pulse; final Color accent; final bool activa;
