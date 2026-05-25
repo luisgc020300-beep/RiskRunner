@@ -3,6 +3,7 @@
 // Pantalla de desafíos: activos con marcador en vivo, pendientes y historial.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -189,16 +190,25 @@ class _TabActivos extends StatelessWidget {
       stream: DesafiosService.streamActivos(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar desafíos');
-        if (!snap.hasData) return const Center(
-            child: CircularProgressIndicator(color: _kRed, strokeWidth: 1.5));
+        if (!snap.hasData) return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          children: const [_DesafioSkel(tall: true), _DesafioSkel(tall: true)],
+        );
         final lista = snap.data!;
         if (lista.isEmpty) return _emptyState(context, 'No tienes desafíos activos\nReta a un rival desde su perfil');
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          itemCount: lista.length,
-          itemBuilder: (_, i) => _CardActivo(
-            info: lista[i], uid: uid!,
-            resaltado: lista[i].id == desafioId,
+        return RefreshIndicator(
+          color: _kRed,
+          onRefresh: () async {
+            if (uid != null) await DesafiosService.verificarExpirados(uid!);
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            itemCount: lista.length,
+            itemBuilder: (_, i) => _CardActivo(
+              info: lista[i], uid: uid!,
+              resaltado: lista[i].id == desafioId,
+            ),
           ),
         );
       },
@@ -378,6 +388,7 @@ class _CardActivo extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () {
+                HapticFeedback.mediumImpact();
                 GameStateService.instance.currentMode = 'ruta';
                 Navigator.pushNamed(
                   context,
@@ -425,15 +436,24 @@ class _TabPendientes extends StatelessWidget {
       stream: DesafiosService.streamPendientes(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar desafíos');
-        if (!snap.hasData) return const Center(
-            child: CircularProgressIndicator(color: _kRed, strokeWidth: 1.5));
+        if (!snap.hasData) return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          children: const [_DesafioSkel(), _DesafioSkel(), _DesafioSkel()],
+        );
         final lista = snap.data!;
         if (lista.isEmpty) return _emptyState(context,
             'No tienes desafíos enviados pendientes\nde respuesta');
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          itemCount: lista.length,
-          itemBuilder: (_, i) => _CardPendiente(info: lista[i], uid: uid!),
+        return RefreshIndicator(
+          color: _kRed,
+          onRefresh: () async {
+            if (uid != null) await DesafiosService.verificarExpirados(uid!);
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            itemCount: lista.length,
+            itemBuilder: (_, i) => _CardPendiente(info: lista[i], uid: uid!),
+          ),
         );
       },
     );
@@ -487,6 +507,7 @@ class _CardPendiente extends StatelessWidget {
   }
 
   Future<void> _cancelar(BuildContext context) async {
+    HapticFeedback.lightImpact();
     try {
       await FirebaseFirestore.instance
           .collection('players').doc(uid)
@@ -520,8 +541,10 @@ class _TabHistorial extends StatelessWidget {
       stream: DesafiosService.streamHistorial(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar historial');
-        if (!snap.hasData) return const Center(
-            child: CircularProgressIndicator(color: _kRed, strokeWidth: 1.5));
+        if (!snap.hasData) return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          children: const [_DesafioSkel(), _DesafioSkel(), _DesafioSkel(), _DesafioSkel()],
+        );
         final lista = snap.data!;
         if (lista.isEmpty) return _emptyState(context, 'Sin desafíos completados todavía');
 
@@ -529,26 +552,31 @@ class _TabHistorial extends StatelessWidget {
         final perdidos = lista.length - ganados;
         final winPct   = lista.isEmpty ? 0.0 : ganados / lista.length;
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          children: [
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: p.surface,
-                borderRadius: BorderRadius.circular(12),
+        return RefreshIndicator(
+          color: _kRed,
+          onRefresh: () async {},
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  _statCol('$ganados', 'Victorias', _kGold),
+                  _vDivider(p.sep),
+                  _statCol('$perdidos', 'Derrotas', _kRed),
+                  _vDivider(p.sep),
+                  _statCol('${(winPct * 100).toStringAsFixed(0)}%', 'Win rate', p.text),
+                ]),
               ),
-              child: Row(children: [
-                _statCol('$ganados', 'Victorias', _kGold),
-                _vDivider(p.sep),
-                _statCol('$perdidos', 'Derrotas', _kRed),
-                _vDivider(p.sep),
-                _statCol('${(winPct * 100).toStringAsFixed(0)}%', 'Win rate', p.text),
-              ]),
-            ),
-            ...lista.map((d) => _CardHistorial(info: d, uid: uid!)),
-          ],
+              ...lista.map((d) => _CardHistorial(info: d, uid: uid!)),
+            ],
+          ),
         );
       },
     );
@@ -619,6 +647,83 @@ class _CardHistorial extends StatelessWidget {
               Icon(Icons.monetization_on_rounded, color: color, size: 12),
             ]),
           ),
+        ]),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// SKELETON
+// =============================================================================
+class _DesafioSkel extends StatefulWidget {
+  final bool tall;
+  const _DesafioSkel({this.tall = false});
+  @override
+  State<_DesafioSkel> createState() => _DesafioSkelState();
+}
+
+class _DesafioSkelState extends State<_DesafioSkel>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _fade = Tween<double>(begin: 0.35, end: 0.85).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Widget _bar(_DP p, double w, double h, {double radius = 4}) => Container(
+    width: w == double.infinity ? null : w,
+    height: h,
+    decoration: BoxDecoration(
+      color: p.muted,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _DP.of(context);
+    return FadeTransition(
+      opacity: _fade,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: p.sep.withValues(alpha: 0.6)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            _bar(p, 90, 10),
+            const Spacer(),
+            _bar(p, 64, 28, radius: 8),
+          ]),
+          if (widget.tall) ...[
+            const SizedBox(height: 16),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _bar(p, 56, 52, radius: 4),
+              _bar(p, 22, 18, radius: 4),
+              _bar(p, 56, 52, radius: 4),
+            ]),
+            const SizedBox(height: 12),
+            _bar(p, double.infinity, 6, radius: 2),
+            const SizedBox(height: 12),
+            _bar(p, double.infinity, 40, radius: 10),
+          ] else ...[
+            const SizedBox(height: 10),
+            _bar(p, 150, 9, radius: 4),
+          ],
         ]),
       ),
     );

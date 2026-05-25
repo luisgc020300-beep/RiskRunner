@@ -260,6 +260,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required Color color, required Map<String, String> stats,
     required String nickname,
   }) {
+    final isDark       = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg     = isDark ? const Color(0xFF1C1C1E) : _kSurface;
+    final cardBg       = isDark ? const Color(0xFF2C2C2E) : _kBg;
+    final cardBdr      = isDark ? const Color(0xFF38383A) : _kBorder2;
+    final nickColor    = isDark ? const Color(0xFFEEEEEE) : _kWhite;
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -269,10 +274,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _kSurface,
+            color: dialogBg,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: color.withValues(alpha: 0.25)),
-            boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 32)],
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 32)],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
@@ -281,7 +286,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Text(titulo, style: _raj(12, FontWeight.w900, color, spacing: 2)),
               const SizedBox(width: 8),
               Text(nickname.toUpperCase(),
-                  style: _raj(12, FontWeight.w700, _kWhite)),
+                  style: _raj(12, FontWeight.w700, nickColor)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, color: _kSub, size: 18),
@@ -310,17 +315,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildStatCard(Icons.shield_outlined, 'Estado',
-                    stats['estado']!, color),
+                    stats['estado']!, color, bgColor: cardBg, borderColor: cardBdr),
                 _buildStatCard(Icons.calendar_today_outlined, 'Sin visitar',
-                    stats['sinVisitar']!, _kText),
+                    stats['sinVisitar']!, _kText, bgColor: cardBg, borderColor: cardBdr),
                 _buildStatCard(Icons.straighten_outlined, 'Distancia',
-                    stats['distancia']!, _kText),
+                    stats['distancia']!, _kText, bgColor: cardBg, borderColor: cardBdr),
                 _buildStatCard(Icons.speed_outlined, 'Vel. media',
-                    stats['velMedia']!, _kText),
+                    stats['velMedia']!, _kText, bgColor: cardBg, borderColor: cardBdr),
                 _buildStatCard(Icons.timer_outlined, 'Tiempo',
-                    stats['tiempo']!, _kText),
+                    stats['tiempo']!, _kText, bgColor: cardBg, borderColor: cardBdr),
                 _buildStatCard(Icons.flag_outlined, 'Resultado',
-                    titulo, color),
+                    titulo, color, bgColor: cardBg, borderColor: cardBdr),
               ],
             ),
           ]),
@@ -329,13 +334,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildStatCard(IconData icon, String label, String value, Color c) =>
+  Widget _buildStatCard(IconData icon, String label, String value, Color c, {Color? bgColor, Color? borderColor}) =>
       Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: _kBg,
+          color: bgColor ?? _kBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _kBorder2),
+          border: Border.all(color: borderColor ?? _kBorder2),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 14, color: c),
@@ -512,9 +517,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final horasCtrl = TextEditingController(text: '$horasIniciales');
 
     if (!mounted) return;
+    final isDark     = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg    = isDark ? const Color(0xFF1C1C1E) : _kSurface;
+    final controlBg  = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+    final controlBdr = isDark ? const Color(0xFF38383A) : _kBorder2;
+    final titleColor = isDark ? const Color(0xFFEEEEEE) : _kWhite;
     showModalBottomSheet(
       context: context,
-      backgroundColor: _kSurface,
+      backgroundColor: sheetBg,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       builder: (ctx) => StatefulBuilder(
@@ -530,7 +540,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Container(width: 2, height: 16, color: _kRed),
               const SizedBox(width: 10),
               Text('CONTRAPROPONAR',
-                  style: _raj(13, FontWeight.w900, _kWhite, spacing: 2)),
+                  style: _raj(13, FontWeight.w900, titleColor, spacing: 2)),
             ]),
             const SizedBox(height: 6),
             Text('Propón tus condiciones al rival',
@@ -541,6 +551,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               label: 'APUESTA',
               value: '$apuesta ',
               sub: 'Tienes $misMonedas  disponibles',
+              bgColor: controlBg,
+              borderColor: controlBdr,
+              titleColor: titleColor,
               onMinus: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)),
               onPlus:  () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)),
             ),
@@ -549,8 +562,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                  color: const Color(0xFF101010),
-                  border: Border.all(color: _kBorder2)),
+                  color: controlBg,
+                  border: Border.all(color: controlBdr)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                 Text('DURACIÓN (HORAS)',
@@ -570,7 +583,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     controller: horasCtrl,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: _raj(22, FontWeight.w900, _kWhite),
+                    style: _raj(22, FontWeight.w900, titleColor),
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       suffix: Text('h', style: _raj(14, FontWeight.w600, _kSub)),
@@ -621,12 +634,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required String label, required String value,
     required String sub,
     required VoidCallback onMinus, required VoidCallback onPlus,
+    Color bgColor = const Color(0xFF101010),
+    Color borderColor = _kBorder2,
+    Color titleColor = _kWhite,
   }) =>
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-            color: const Color(0xFF101010),
-            border: Border.all(color: _kBorder2)),
+            color: bgColor,
+            border: Border.all(color: borderColor)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: _raj(9, FontWeight.w700, _kDim, spacing: 2)),
           const SizedBox(height: 12),
@@ -635,7 +651,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: Container(width: 36, height: 36, color: _kMuted,
                     child: const Icon(Icons.remove, color: Colors.white, size: 16))),
             Expanded(child: Center(child: Text(value,
-                style: _raj(28, FontWeight.w900, _kWhite)))),
+                style: _raj(28, FontWeight.w900, titleColor)))),
             GestureDetector(onTap: onPlus,
                 child: Container(width: 36, height: 36, color: _kMuted,
                     child: const Icon(Icons.add, color: Colors.white, size: 16))),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:RiskRunner/pestañas/clan_screen.dart';
 import 'package:RiskRunner/pestañas/settings_screen.dart';
@@ -350,7 +351,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _tabController.animateTo(idx),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _tabController.animateTo(idx);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 9),
           child: Column(mainAxisSize: MainAxisSize.min, children: [

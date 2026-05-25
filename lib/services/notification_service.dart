@@ -31,7 +31,7 @@ class NotificationService {
       sound: true,
       provisional: false,
     );
-    debugPrint('🔔 Permisos notificaciones: ${settings.authorizationStatus}');
+    debugPrint('Permisos notificaciones: ${settings.authorizationStatus}');
 
     // 2. Guardar token FCM en Firestore
     await _guardarToken();
@@ -48,6 +48,16 @@ class NotificationService {
     // 6. App abierta desde estado terminado al tocar la notificación
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) _onNotificacionAbierta(initialMessage);
+  }
+
+  /// Devuelve true si el usuario ha denegado las notificaciones.
+  static Future<bool> permisoDenegado() async {
+    try {
+      final settings = await _messaging.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.denied;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ==========================================================================

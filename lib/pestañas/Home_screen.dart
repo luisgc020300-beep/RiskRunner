@@ -5,6 +5,7 @@ import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/paywall_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/settings_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +18,7 @@ import '../services/subscription_service.dart';
 import '../services/game_state_service.dart';
 import '../services/story_service.dart';
 import 'coin_shop_screen.dart';
+import '../services/notification_service.dart';
 import '../services/onboarding_service.dart';
 import '../widgets/onboarding_overlay.dart';
 import 'notifications_screen.dart';
@@ -244,6 +246,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _escucharNotificacionesInvasion();
     _escucharConteoNotificaciones();
     _escucharFeed();
+    _verificarPermisoNotificaciones();
+  }
+
+  Future<void> _verificarPermisoNotificaciones() async {
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    final denegado = await NotificationService.permisoDenegado();
+    if (!mounted || !denegado) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Las notificaciones están desactivadas. Te perderás avisos de invasiones y retos.',
+        ),
+        backgroundColor: const Color(0xFF3A3A3C),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: 'ACTIVAR',
+          textColor: const Color(0xFF0A84FF),
+          onPressed: () => Geolocator.openAppSettings(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -336,6 +360,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _toggleLike(FeedPost post) async {
     if (userId == null) return;
+    HapticFeedback.selectionClick();
     final ref = FirebaseFirestore.instance.collection('posts').doc(post.id);
     try {
       if (post.likedByMe) {
@@ -351,6 +376,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _toggleSave(FeedPost post) async {
     if (userId == null) return;
+    HapticFeedback.selectionClick();
     final ref = FirebaseFirestore.instance.collection('posts').doc(post.id);
     try {
       if (post.savedByMe) {
@@ -572,10 +598,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } catch (e) {
       debugPrint('Error cargando territorios: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No se pudieron cargar los territorios. Comprueba tu conexión.'),
-          backgroundColor: Color(0xFF3A3A3C),
-          duration: Duration(seconds: 3),
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('No se pudieron cargar los territorios. Comprueba tu conexión.'),
+          backgroundColor: const Color(0xFF3A3A3C),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'REINTENTAR',
+            textColor: const Color(0xFF0A84FF),
+            onPressed: _cargarTerritorios,
+          ),
         ));
       }
     }

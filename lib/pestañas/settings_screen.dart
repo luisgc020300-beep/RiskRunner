@@ -604,6 +604,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () =>
                   _confirmarCerrarSesion(context, textPri, textSec, surface),
             ),
+            _Divider(color: border),
+            _NavTile(
+              icon: Icons.delete_forever_rounded,
+              iconColor: const Color(0xFFFF453A),
+              title: 'Eliminar cuenta',
+              titleColor: const Color(0xFFFF453A),
+              textPri: textPri,
+              textSec: textSec,
+              showChevron: false,
+              onTap: () => _eliminarCuenta(surface, textPri, textSec),
+            ),
           ]),
 
           const SizedBox(height: 40),
@@ -617,6 +628,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _eliminarCuenta(Color surface, Color textPri, Color textSec) async {
+    final uid  = FirebaseAuth.instance.currentUser?.uid;
+    final user = FirebaseAuth.instance.currentUser;
+    if (uid == null || user == null) return;
+
+    final loading = ValueNotifier(false);
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => ValueListenableBuilder<bool>(
+        valueListenable: loading,
+        builder: (_, cargando, __) => AlertDialog(
+          backgroundColor: surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Row(children: [
+            const Icon(Icons.warning_rounded, color: Color(0xFFFF453A), size: 20),
+            const SizedBox(width: 8),
+            Text('Eliminar cuenta',
+                style: GoogleFonts.inter(
+                    color: const Color(0xFFFF453A),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700)),
+          ]),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Esta acción es permanente e irreversible:',
+                style: GoogleFonts.inter(color: textPri, fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            _BulletItem('Tu perfil y estadísticas serán eliminados', textSec),
+            _BulletItem('Tus territorios quedarán libres', textSec),
+            _BulletItem('No podrás recuperar tu progreso', textSec),
+            const SizedBox(height: 4),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: cargando ? null : () => Navigator.pop(ctx, false),
+              child: Text('Cancelar',
+                  style: GoogleFonts.inter(color: textSec, fontWeight: FontWeight.w500)),
+            ),
+            TextButton(
+              onPressed: cargando ? null : () => Navigator.pop(ctx, true),
+              child: Text('ELIMINAR',
+                  style: GoogleFonts.inter(
+                      color: const Color(0xFFFF453A), fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    try {
+      final db = FirebaseFirestore.instance;
+
+      // Liberar territorios del usuario
+      final territorios = await db.collection('territories')
+          .where('ownerUid', isEqualTo: uid)
+          .get();
+      final batch = db.batch();
+      for (final doc in territorios.docs) {
+        batch.update(doc.reference, {
+          'ownerUid':      null,
+          'ownerNickname': null,
+          'color':         null,
+        });
+      }
+      await batch.commit();
+
+      // Borrar documento del jugador
+      await db.collection('players').doc(uid).delete();
+
+      // Borrar cuenta de Firebase Auth
+      await user.delete();
+
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'requires-recent-login') {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Por seguridad, cierra sesión, vuelve a iniciarla y repite esta acción.'),
+          backgroundColor: Color(0xFFFF453A),
+          duration: Duration(seconds: 5),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: ${e.message}'),
+          backgroundColor: const Color(0xFFFF453A),
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Error al eliminar la cuenta. Inténtalo de nuevo.'),
+        backgroundColor: Color(0xFFFF453A),
+      ));
+    }
   }
 
   void _confirmarCerrarSesion(BuildContext context, Color textPri,
@@ -813,5 +925,29 @@ class _Divider extends StatelessWidget {
         height: 1,
         margin: const EdgeInsets.only(left: 60),
         color: color.withValues(alpha: 0.5),
+      );
+}
+
+class _BulletItem extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _BulletItem(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              width: 4, height: 4,
+              decoration: BoxDecoration(
+                color: color, shape: BoxShape.circle),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text,
+              style: GoogleFonts.inter(color: color, fontSize: 13))),
+        ]),
       );
 }
