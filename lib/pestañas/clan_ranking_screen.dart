@@ -113,7 +113,7 @@ enum _RankingModo { semanal, total }
 // =============================================================================
 class _RankingTab extends StatelessWidget {
   final _RankingModo modo;
-  const _RankingTab({super.key, required this.modo});
+  const _RankingTab({required this.modo});
 
   @override
   Widget build(BuildContext context) {

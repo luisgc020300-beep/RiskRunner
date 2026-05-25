@@ -40,12 +40,9 @@ class NarradorService {
   int _ultimoKmNotificado       = 0;
   DateTime? _ultimoMensajeTs;
   double _ritmoUltimos500m      = 0;
-  int _mensajesEnviados         = 0;
   bool _mitadNotificada         = false;
-  DateTime? _inicioCampana;
 
   // ── Estado del reto activo ────────────────────────────────────────────────
-  String? _tituloRetoActivo;
   double? _objetivoRetoMetros;
   bool _mitadRetoNotificada   = false;
   bool _finalRetoNotificado   = false; // aviso a 200m del final
@@ -54,10 +51,8 @@ class NarradorService {
   static const Duration _cooldownMinimo = Duration(seconds: 12);
 
   void iniciar() {
-    _inicioCampana = DateTime.now();
     _ultimoKmNotificado = 0;
     _mitadNotificada = false;
-    _mensajesEnviados = 0;
     _ultimoMensajeTs = null;
     // No reseteamos el reto aquí — se configura antes de iniciar
   }
@@ -65,11 +60,8 @@ class NarradorService {
   void resetear() {
     _ultimoKmNotificado = 0;
     _mitadNotificada = false;
-    _mensajesEnviados = 0;
     _ultimoMensajeTs = null;
-    _inicioCampana = null;
     _ritmoUltimos500m = 0;
-    _tituloRetoActivo = null;
     _objetivoRetoMetros = null;
     _mitadRetoNotificada = false;
     _finalRetoNotificado = false;
@@ -85,14 +77,12 @@ class NarradorService {
   void _emitir(MensajeNarrador msg) {
     if (!_puedeMostrar) return;
     _ultimoMensajeTs = DateTime.now();
-    _mensajesEnviados++;
     onMensaje?.call(msg);
   }
 
   // Emitir ignorando cooldown — para eventos críticos del reto
   void _emitirForzado(MensajeNarrador msg) {
     _ultimoMensajeTs = DateTime.now();
-    _mensajesEnviados++;
     onMensaje?.call(msg);
   }
 
@@ -102,7 +92,6 @@ class NarradorService {
 
   /// Configura el reto activo. Llamar ANTES de iniciar().
   void configurarReto(String titulo, double objetivoMetros) {
-    _tituloRetoActivo   = titulo;
     _objetivoRetoMetros = objetivoMetros;
     _mitadRetoNotificada   = false;
     _finalRetoNotificado   = false;

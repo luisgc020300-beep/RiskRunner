@@ -37,6 +37,7 @@ dependencies:
   health: ^10.0.0
   wakelock_plus: ^1.2.10
   google_sign_in: ^6.2.2
+  in_app_review: ^2.0.12
 
 dev_dependencies:
   flutter_test:

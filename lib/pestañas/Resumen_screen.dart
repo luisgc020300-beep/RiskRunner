@@ -4,8 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territory_service.dart';
 import '../services/stats_service.dart';
 import '../services/onboarding_service.dart';
@@ -209,6 +212,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         if (!widget.modoRuta) await _guardarYMostrarTerritorioActual();
         await _actualizarRacha();
         OnboardingService.registrarRunCompletado();
+        _verificarSolicitudResena();
       } else {
         if (!widget.modoRuta) await _guardarYMostrarTerritorioActual();
       }
@@ -245,6 +249,56 @@ class _ResumenScreenState extends State<ResumenScreen>
       Future.delayed(const Duration(milliseconds: 700),
           () { if (mounted) _rutaCtrl.forward(); });
     }
+  }
+
+  // ── Compartir resumen ────────────────────────────────────────────────────
+  Future<void> _compartirResumen() async {
+    HapticFeedback.mediumImpact();
+    final km      = widget.distancia.toStringAsFixed(2);
+    final min     = widget.tiempo.inMinutes.toString().padLeft(2, '0');
+    final seg     = (widget.tiempo.inSeconds % 60).toString().padLeft(2, '0');
+    final ritmo   = widget.tiempo.inSeconds > 0 && widget.distancia > 0
+        ? () {
+            final ritmoTotal = widget.tiempo.inSeconds / 60.0 / widget.distancia;
+            final ritmoMin   = ritmoTotal.floor();
+            final ritmoSeg   = ((ritmoTotal - ritmoMin) * 60).round();
+            return "${ritmoMin}'${ritmoSeg.toString().padLeft(2, '0')}\"";
+          }()
+        : null;
+
+    final buffer = StringBuffer();
+    buffer.writeln('Acabo de correr $km km con Runner Risk');
+    buffer.writeln('$min:$seg${ritmo != null ? ' · $ritmo/km' : ''}');
+    if (_territoriosConquistados > 0) {
+      buffer.writeln('$_territoriosConquistados territorios conquistados · +$_puntosLigaSesion pts de liga');
+    }
+    if (_rachaActual > 1) {
+      buffer.writeln('Racha de $_rachaActual días consecutivos');
+    }
+    buffer.writeln('Conquista tu ciudad con Runner Risk');
+
+    await SharePlus.instance.share(ShareParams(text: buffer.toString().trim()));
+  }
+
+  // ── Solicitar valoracion App Store ───────────────────────────────────────
+  Future<void> _verificarSolicitudResena() async {
+    if (!widget.esDesdeCarrera) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final runs  = (prefs.getInt('runs_completados_local') ?? 0) + 1;
+      await prefs.setInt('runs_completados_local', runs);
+
+      const milestones = {5, 20, 50};
+      if (!milestones.contains(runs)) return;
+
+      await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return;
+
+      final review = InAppReview.instance;
+      if (await review.isAvailable()) {
+        await review.requestReview();
+      }
+    } catch (_) {}
   }
 
   Future<void> _guardarRetoCompletado(Map<String, dynamic> reto) async {
@@ -935,6 +989,19 @@ class _ResumenScreenState extends State<ResumenScreen>
             ),
           ),
         ]),
+      ),
+      const SizedBox(width: 8),
+      GestureDetector(
+        onTap: _compartirResumen,
+        child: Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            color:        _kSurface,
+            borderRadius: BorderRadius.circular(8),
+            border:       Border.all(color: _kBorder2),
+          ),
+          child: const Icon(Icons.ios_share_rounded, color: _kGrey, size: 16),
+        ),
       ),
     ]);
   }

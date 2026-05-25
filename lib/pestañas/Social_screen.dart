@@ -44,8 +44,6 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   int _misPuntosLiga = 0;
   String _miLiga = 'BRONCE';
   String _rankingModo = 'competitivo';
-  int _misPuntosSemanal = 0;
-  double _misKmRutas = 0.0;
   String? _ligaSeleccionada;
   StreamSubscription? _solicitudesStream;
   StreamSubscription? _mensajesStream;
@@ -92,18 +90,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       final c    = (data['territorio_color'] as num?)?.toInt();
       final pts  = (data['puntos_liga'] as num? ?? 0).toInt();
       final info = LeagueHelper.getLeague(pts);
-      final semanaDoc    = data['semana_global'] as String?;
-      final semanaActual = RankingService.getSemanaActual();
-      final ptsSemanal   = semanaDoc == semanaActual
-          ? (data['puntos_semana_global'] as num? ?? 0).toInt()
-          : 0;
-      final kmRutas = (data['km_totales_rutas'] as num? ?? 0).toDouble();
       setState(() {
         if (c != null) _accent = Color(c);
         _misPuntosLiga    = pts;
         _miLiga           = info.name;
-        _misPuntosSemanal = ptsSemanal;
-        _misKmRutas       = kmRutas;
         _ligaSeleccionada = null;
       });
     } catch (e) { debugPrint('Error cargando datos propios: $e'); }
@@ -343,35 +333,57 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   }
 
   Widget _buildTabBar() {
-    final p = SocialPalette.of(context);
-    return TabBar(
-    controller: _tabController,
-    indicatorColor: kSocAccent, indicatorWeight: 2, indicatorSize: TabBarIndicatorSize.tab,
-    labelColor: p.text1, unselectedLabelColor: p.subtext,
-    labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 9, letterSpacing: 2),
-    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 9, letterSpacing: 1.5),
-    dividerColor: Colors.transparent,
-    tabs: [
-      const Tab(icon: Icon(Icons.emoji_events_outlined, size: 13), text: 'LIGAS', iconMargin: EdgeInsets.only(bottom: 2)),
-      const Tab(icon: Icon(Icons.people_outline, size: 13), text: 'AMIGOS', iconMargin: EdgeInsets.only(bottom: 2)),
-      Tab(
-        iconMargin: const EdgeInsets.only(bottom: 2),
-        icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.chat_bubble_outline_rounded, size: 13),
-          if (_mensajesNoLeidos > 0) ...[const SizedBox(width: 3), SocialPulseBadge(count: _mensajesNoLeidos, color: kSocAccent)],
-        ]),
-        text: 'CHAT',
+    return AnimatedBuilder(
+      animation: _tabController,
+      builder: (_, __) => Row(children: [
+        _iosTab(0, Icons.emoji_events_outlined,       'LIGAS',       const Color(0xFFFFD60A)),
+        _iosTab(1, Icons.people_outline,              'AMIGOS',      const Color(0xFF30D158)),
+        _iosTab(2, Icons.chat_bubble_outline_rounded, 'CHAT',        const Color(0xFF0A84FF), badge: _mensajesNoLeidos),
+        _iosTab(3, Icons.person_add_outlined,         'SOLICITUDES', const Color(0xFFFF9F0A), badge: _solicitudesPendientes),
+        _iosTab(4, Icons.groups_outlined,             'CLUB',        const Color(0xFF5E5CE6)),
+      ]),
+    );
+  }
+
+  Widget _iosTab(int idx, IconData icon, String label, Color color, {int badge = 0}) {
+    final active = _tabController.index == idx;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _tabController.animateTo(idx),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 34, height: 34,
+              decoration: BoxDecoration(
+                color: active ? color.withValues(alpha: 0.15) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                Icon(icon, size: 17, color: active ? color : _p.subtext),
+                if (badge > 0)
+                  Positioned(
+                    top: -4, right: -4,
+                    child: SocialPulseBadge(count: badge, color: color),
+                  ),
+              ]),
+            ),
+            const SizedBox(height: 4),
+            Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 7,
+                letterSpacing: active ? 1.5 : 1.0,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                color: active ? color : _p.subtext,
+              )),
+          ]),
+        ),
       ),
-      Tab(
-        iconMargin: const EdgeInsets.only(bottom: 2),
-        icon: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.person_add_outlined, size: 13),
-          if (_solicitudesPendientes > 0) ...[const SizedBox(width: 3), SocialPulseBadge(count: _solicitudesPendientes, color: kSocAccent)],
-        ]),
-        text: 'SOLICITUDES',
-      ),
-      const Tab(icon: Icon(Icons.groups_outlined, size: 13), text: 'CLUB', iconMargin: EdgeInsets.only(bottom: 2)),
-    ]);
+    );
   }
 
   // ══════════════════════════ SEARCH RESULTS ════════════════════════════════════

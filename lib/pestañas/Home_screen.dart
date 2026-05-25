@@ -139,7 +139,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   _TColors _T = _TColors.light;
 
   // â”€â”€ Perfil
-  Position? _currentPosition;
   String nickname = "Cargando...";
   int monedas = 0;
   int nivel = 1;
@@ -151,7 +150,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // â”€â”€ Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
   bool _amigosLoaded = false;
-  bool _storiesLoaded = false;
   Map<String, List<StoryModel>> _storiesPorAmigo = {};
   List<StoryModel> _misHistorias = [];
 
@@ -163,11 +161,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
   // â”€â”€ Mapa
-  bool _loadingTerritorios = true;
   StreamSubscription<QuerySnapshot>? _invasionListener;
 
   // â”€â”€ Territorios cercanos
-  final Map<String, List<_TerritoryDetail>> _detallesPorUser = {};
 
   // â”€â”€ Notificaciones
   int _notifNoLeidas = 0;
@@ -488,8 +484,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
       if (permission == LocationPermission.always ||
           permission == LocationPermission.whileInUse) {
-        final position = await Geolocator.getCurrentPosition();
-        if (mounted) setState(() => _currentPosition = position);
+        await Geolocator.getCurrentPosition();
       }
     } catch (e) {
       debugPrint("Error Ubicación: $e");
@@ -564,48 +559,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _amigosLoaded = true;
           _storiesPorAmigo = storiesPorAmigo;
           _misHistorias = misHistorias;
-          _storiesLoaded = true;
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() { _amigosLoaded = true; _storiesLoaded = true; });
-      }
+      if (mounted) setState(() { _amigosLoaded = true; });
     }
   }
 
   Future<void> _cargarTerritorios() async {
-    if (mounted) setState(() => _loadingTerritorios = true);
     try {
       await TerritoryService.cargarTodosLosTerritorios();
-      if (mounted) {
-        setState(() { _loadingTerritorios = false; });
-      }
     } catch (e) {
-      if (mounted) setState(() => _loadingTerritorios = false);
+      debugPrint('Error cargando territorios: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudieron cargar los territorios. Comprueba tu conexión.'),
+          backgroundColor: Color(0xFF3A3A3C),
+          duration: Duration(seconds: 3),
+        ));
+      }
     }
-  }
-
-  Widget _dialogStatCard({required IconData icon, required String title,
-      required String value, required Color color, bool smallText = false}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.04),
-          border: Border.all(color: color.withValues(alpha: 0.15))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Icon(icon, color: color, size: 13),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: _raj(8, FontWeight.w700, _T.muted, spacing: 1)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-            child: Text(value, style: _raj(smallText ? 10 : 12, FontWeight.w900, color)),
-          ),
-        ]),
-      ]),
-    );
   }
 
   // â”€â”€ Invasión â€” ROJO se mantiene porque son alertas
@@ -946,59 +919,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
-  }
-
-  Future<String?> _puedeRobarTerritorio({
-    required String ownerIdObjetivo,
-    required String territorioDocId,
-  }) async {
-    if (nivel < 2) {
-      return 'Necesitas al menos nivel 2 para conquistar territorios.\nActualmente eres nivel $nivel.';
-    }
-    try {
-      final terDoc = await FirebaseFirestore.instance.collection('territories').doc(territorioDocId).get();
-      if (terDoc.exists) {
-        final data = terDoc.data()!;
-        final tsVisita = data['ultima_visita'] as Timestamp?;
-        if (tsVisita != null) {
-          final diasSinVisitar = DateTime.now().difference(tsVisita.toDate()).inDays;
-          if (diasSinVisitar < 5) {
-            return 'Este territorio Está protegido.\nEl dueño lo visitó hace $diasSinVisitar día${diasSinVisitar == 1 ? '' : 's'}. Necesitas 5+ días sin visitar.';
-          }
-        } else {
-          return 'Este territorio Está activo y protegido.\nVuelve cuando lleve 5+ días sin ser visitado.';
-        }
-      }
-    } catch (e) { // intentional
-    }
-    try {
-      final misTerritoriosSnap = await FirebaseFirestore.instance
-          .collection('territories').where('userId', isEqualTo: userId).get();
-      final territoriosDefensorSnap = await FirebaseFirestore.instance
-          .collection('territories').where('userId', isEqualTo: ownerIdObjetivo).get();
-      final misCantidad = misTerritoriosSnap.docs.length;
-      final defensorCantidad = territoriosDefensorSnap.docs.length;
-      if (defensorCantidad > 0 && misCantidad >= defensorCantidad * 3) {
-        return 'Ya tienes demasiados territorios comparado con este jugador.\nNo puedes seguir conquistando hasta que el rival crezca.';
-      }
-    } catch (e) { // intentional
-    }
-    try {
-      final ownerDoc = await FirebaseFirestore.instance.collection('players').doc(ownerIdObjetivo).get();
-      if (ownerDoc.exists) {
-        final escudoActivo = ownerDoc.data()?['escudo_activo'] as bool? ?? false;
-        final escudoExpiraTs = ownerDoc.data()?['escudo_expira'] as Timestamp?;
-        if (escudoActivo && escudoExpiraTs != null && escudoExpiraTs.toDate().isAfter(DateTime.now())) {
-          final duracion = escudoExpiraTs.toDate().difference(DateTime.now());
-          final horas = duracion.inHours;
-          final minutos = duracion.inMinutes.remainder(60);
-          final tiempoRestante = horas > 0 ? '${horas}h ${minutos}m' : '${minutos}m';
-          return ' Este territorio tiene un escudo activo.\nNo puede ser conquistado durante $tiempoRestante más.';
-        }
-      }
-    } catch (e) { // intentional
-    }
-    return null;
   }
 
   void _navegarAlPerfil(FeedPost post) {
@@ -2000,34 +1920,6 @@ class _LoaderPainter extends CustomPainter {
 // =============================================================================
 // MODELOS AUXILIARES
 // =============================================================================
-class _UserTerritoryGroup {
-  final String ownerId;
-  final String nickname;
-  final int nivel;
-  final bool esMio;
-  final List<_TerritoryDetail> territorios;
-
-  _UserTerritoryGroup({
-    required this.ownerId, required this.nickname, required this.nivel,
-    required this.esMio, required this.territorios});
-}
-
-class _TerritoryDetail {
-  final String docId;
-  final double distanciaAlCentroKm;
-  final int? diasSinVisitar;
-  final DateTime? fechaCreacion;
-  final double? distanciaRecorrida;
-  final double? velocidadMedia;
-  final Duration? tiempoActividad;
-  final List<LatLng> puntos;
-
-  _TerritoryDetail({
-    required this.docId, required this.distanciaAlCentroKm,
-    this.diasSinVisitar, this.fechaCreacion, this.distanciaRecorrida,
-    this.velocidadMedia, this.tiempoActividad, this.puntos = const []});
-}
-
 // =============================================================================
 // COMMENT INPUT â€” StatefulWidget para ciclo de vida correcto del controller
 // =============================================================================

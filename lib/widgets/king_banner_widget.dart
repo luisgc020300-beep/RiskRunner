@@ -194,8 +194,6 @@ class _KingBannerCompact extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!territory.tieneRey) return const SizedBox.shrink();
 
-    final color = territory.color;
-
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();

@@ -332,7 +332,6 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
         return Center(child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20), child: card));
       case TooltipPosition.bottom:
-      default:
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Spacer(),
           Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 20), child: card),

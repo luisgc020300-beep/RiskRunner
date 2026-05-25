@@ -130,8 +130,6 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   final MapController _liveMapCtrl = MapController();
   LatLng _liveCenter = const LatLng(40.4168, -3.7038);
-  List<Map<String, dynamic>> _allTerritories = [];
-  List<Map<String, dynamic>> _liveRunners    = [];
   StreamSubscription<QuerySnapshot>? _territoriesStream;
   StreamSubscription<QuerySnapshot>? _runnersStream;
   StreamSubscription<QuerySnapshot>? _desafiosStreamRetador;
@@ -665,32 +663,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     } catch (_) { return 'Runner'; }
   }
 
-  Future<void> _cargarTerritoriosDelUsuario() async {
-    if (viewedUserId == null) return;
-    try {
-      final snap = await FirebaseFirestore.instance.collection('territories').where('userId', isEqualTo: viewedUserId).get();
-      final List<Map<String, dynamic>> lista = [];
-      for (final doc in snap.docs) {
-        final data      = doc.data();
-        final rawPuntos = data['puntos'] as List<dynamic>?;
-        if (rawPuntos == null || rawPuntos.isEmpty) continue;
-        final puntos = rawPuntos.map((p) { final m = p as Map<String, dynamic>; return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble()); }).toList();
-        lista.add({'docId': doc.id, 'puntos': puntos});
-      }
-      if (mounted) {
-        setState(() => _territoriosDelUsuario = lista);
-        if (lista.isNotEmpty) {
-          final pts = lista.first['puntos'] as List<LatLng>;
-          if (pts.isNotEmpty) {
-            final lat = pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length;
-            final lng = pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length;
-            setState(() => _liveCenter = LatLng(lat, lng));
-          }
-        }
-      }
-    } catch (e) { debugPrint('Error territorios: $e'); }
-  }
-
   Future<void> _initLiveMap() async {
     if (_territoriosDelUsuario.isNotEmpty) {
       final pts = _territoriosDelUsuario.first['puntos'] as List<LatLng>;
@@ -724,7 +696,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         final colorVal = (data['color'] as num?)?.toInt();
         lista.add({'puntos': pts, 'userId': data['userId'] ?? '', 'color': colorVal != null ? Color(colorVal) : const Color(0xFF2EAAAA)});
       }
-      setState(() => _allTerritories = lista);
     });
     final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
     _runnersStream = FirebaseFirestore.instance
@@ -744,7 +715,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         final colorVal = (d['color'] as num?)?.toInt();
         runners.add({'uid': doc.id, 'pos': LatLng(lat, lng), 'trail': trail, 'nickname': d['nickname'] ?? '?', 'color': colorVal != null ? Color(colorVal) : const Color(0xFF2EAAAA), 'isMe': doc.id == myUserId});
       }
-      setState(() => _liveRunners = runners);
     });
   }
 

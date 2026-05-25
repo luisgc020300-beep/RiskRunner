@@ -120,13 +120,12 @@ class _BarrioData {
   final String       nombre;
   final List<LatLng> puntos;
   final double       areaM2;
-  double             porcentajeCubierto;
+  double             porcentajeCubierto = 0.0;
 
   _BarrioData({
     required this.nombre,
     required this.puntos,
     required this.areaM2,
-    this.porcentajeCubierto = 0.0,
   });
 
   LatLng get centro {
@@ -835,6 +834,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         color: Color(0xFF30D158),
         titulo: 'Solitario',
         desc: 'Explora barrios. Cubre el máximo porcentaje de cada zona tú solo.',
+      ),
+      (
+        icon: Icons.route_rounded,
+        color: Color(0xFF6A4A9B),
+        titulo: 'Ruta',
+        desc: 'Elige una ruta guardada o crea la tuya. Corre siguiendo el trazado y bate tu mejor marca.',
       ),
       (
         icon: Icons.public_rounded,
@@ -2873,7 +2878,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (esNoche != _modoNoche) setState(() => _modoNoche = esNoche);
         }
       },
-      onError: (e) => debugPrint('GPS error: $e'),
+      onError: (e) {
+        debugPrint('GPS error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Señal GPS perdida. Busca un espacio abierto.'),
+            backgroundColor: Color(0xFFFF453A),
+            duration: Duration(seconds: 4),
+          ));
+        }
+      },
     );
   }
 
