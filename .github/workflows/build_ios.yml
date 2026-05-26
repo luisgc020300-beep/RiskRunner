@@ -56,6 +56,7 @@ jobs:
             -configuration Release \
             -destination generic/platform=iOS \
             -archivePath $GITHUB_WORKSPACE/build/Runner.xcarchive \
+            -resultBundlePath $GITHUB_WORKSPACE/build/result.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -71,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcode-result-bundle
-          path: /var/folders/**/*.xcresult
+          path: ${{ github.workspace }}/build/result.xcresult
           retention-days: 3
 
       - name: Package IPA
