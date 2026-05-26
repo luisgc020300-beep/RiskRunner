@@ -50,13 +50,14 @@ jobs:
 
       - name: Build with xcodebuild
         run: |
+          set -o pipefail
+          mkdir -p $GITHUB_WORKSPACE/build
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -destination generic/platform=iOS \
             -archivePath $GITHUB_WORKSPACE/build/Runner.xcarchive \
-            -resultBundlePath $GITHUB_WORKSPACE/build/result.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -65,14 +66,20 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             OTHER_CFLAGS="-w" \
-            archive
+            archive 2>&1 | tee $GITHUB_WORKSPACE/build/xcodebuild.log
 
-      - name: Upload xcresult on failure
+      - name: Show build errors
+        if: failure()
+        run: |
+          echo "====== ERRORS ======"
+          grep -E "error:|BUILD FAILED" $GITHUB_WORKSPACE/build/xcodebuild.log | grep -v "^//" | tail -60 || true
+
+      - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-result-bundle
-          path: ${{ github.workspace }}/build/result.xcresult
+          name: xcode-build-log
+          path: ${{ github.workspace }}/build/xcodebuild.log
           retention-days: 3
 
       - name: Package IPA
