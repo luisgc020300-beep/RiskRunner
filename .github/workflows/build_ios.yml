@@ -10,36 +10,27 @@ on:
   workflow_dispatch:
 jobs:
   build-ios:
-    runs-on: macos-15
-    timeout-minutes: 40
+    runs-on: macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
-
       - name: Disable Swift Package Manager
         run: flutter config --no-enable-swift-package-manager
-
       - name: Flutter pub get
         run: flutter pub get
-
       - name: Generate Flutter iOS config
         run: flutter build ios --config-only --release --no-codesign
-
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: false
-
       - name: Install CocoaPods
         run: gem install cocoapods --no-document
-
       - name: Pod install
         run: |
           cd ios
@@ -47,11 +38,10 @@ jobs:
           pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: true
-
+      - name: Flutter build iOS
+        run: flutter build ios --release --no-codesign
       - name: Build with xcodebuild
         run: |
-          set -o pipefail
-          mkdir -p $GITHUB_WORKSPACE/build
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -63,25 +53,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             COMPILER_INDEX_STORE_ENABLE=NO \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
-            OTHER_CFLAGS="-w" \
-            archive 2>&1 | tee $GITHUB_WORKSPACE/build/xcodebuild.log
-
-      - name: Show build errors
-        if: failure()
-        run: |
-          echo "====== ERRORS ======"
-          grep -E "error:|BUILD FAILED" $GITHUB_WORKSPACE/build/xcodebuild.log | grep -v "^//" | tail -60 || true
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcode-build-log
-          path: ${{ github.workspace }}/build/xcodebuild.log
-          retention-days: 3
-
+            archive
       - name: Package IPA
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
@@ -93,7 +65,6 @@ jobs:
           cp -r "$APP_PATH" $GITHUB_WORKSPACE/build/ipa/Payload/
           cd $GITHUB_WORKSPACE/build/ipa
           zip -r $GITHUB_WORKSPACE/risk_runner.ipa Payload/
-
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
