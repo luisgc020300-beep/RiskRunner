@@ -66,6 +66,14 @@ jobs:
             OTHER_CFLAGS="-w" \
             archive
 
+      - name: Upload xcresult on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-result-bundle
+          path: /var/folders/**/*.xcresult
+          retention-days: 3
+
       - name: Package IPA
         run: |
           APP_PATH=$(find $GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications -name "*.app" -type d | head -1)
