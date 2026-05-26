@@ -8,6 +8,7 @@ import 'chat_screen.dart';
 import 'package:RiskRunner/widgets/rey_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -728,21 +729,28 @@ class _PerfilScreenState extends State<PerfilScreen>
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildBotonRetar() {
-    return GestureDetector(
-      onTap: _mostrarModalReto,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+    return Semantics(
+      label: 'Retar a $nickname',
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          _mostrarModalReto();
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.sports_mma_rounded, color: Colors.white, size: 15),
+            const SizedBox(width: 7),
+            Text('Retar', style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
+          ]),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.sports_mma_rounded, color: Colors.white, size: 15),
-          const SizedBox(width: 7),
-          Text('Retar', style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
-        ]),
       ),
     );
   }
@@ -1263,39 +1271,47 @@ class _PerfilScreenState extends State<PerfilScreen>
           return Expanded(
             child: Padding(
               padding: EdgeInsets.only(right: i < tabs.length - 1 ? 6 : 0),
-              child: GestureDetector(
-                onTap: () => setState(() => _tabPrincipal = i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: active ? activeColor.withValues(alpha: 0.08) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: active ? activeColor.withValues(alpha: 0.45) : _p.border2,
-                      width: 1,
+              child: Semantics(
+                label: label,
+                selected: active,
+                button: true,
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _tabPrincipal = i);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: active ? activeColor.withValues(alpha: 0.08) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: active ? activeColor.withValues(alpha: 0.45) : _p.border2,
+                        width: 1,
+                      ),
                     ),
-                  ),
-                  child: Center(
-                    child: Stack(clipBehavior: Clip.none, children: [
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(icon, size: 10, color: active ? activeColor : _p.dim),
-                        const SizedBox(width: 3),
-                        Text(label, style: _rajdhani(10,
-                            active ? FontWeight.w700 : FontWeight.w500,
-                            active ? activeColor : _p.dim,
-                            spacing: 0.6)),
-                      ]),
-                      if (badge)
-                        Positioned(
-                          top: -4, right: -6,
-                          child: Container(
-                            width: 7, height: 7,
-                            decoration: const BoxDecoration(
-                                color: _kAccent, shape: BoxShape.circle),
+                    child: Center(
+                      child: Stack(clipBehavior: Clip.none, children: [
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(icon, size: 10, color: active ? activeColor : _p.dim),
+                          const SizedBox(width: 3),
+                          Text(label, style: _rajdhani(10,
+                              active ? FontWeight.w700 : FontWeight.w500,
+                              active ? activeColor : _p.dim,
+                              spacing: 0.6)),
+                        ]),
+                        if (badge)
+                          Positioned(
+                            top: -4, right: -6,
+                            child: Container(
+                              width: 7, height: 7,
+                              decoration: const BoxDecoration(
+                                  color: _kAccent, shape: BoxShape.circle),
+                            ),
                           ),
-                        ),
-                    ]),
+                      ]),
+                    ),
                   ),
                 ),
               ),
@@ -2800,20 +2816,27 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+    return Semantics(
+      label: label,
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: Colors.white, size: 15),
+            const SizedBox(width: 7),
+            Text(label, style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
+          ]),
         ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, color: Colors.white, size: 15),
-          const SizedBox(width: 7),
-          Text(label, style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
-        ]),
       ),
     );
   }

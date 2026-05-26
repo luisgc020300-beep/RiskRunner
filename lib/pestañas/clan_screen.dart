@@ -327,6 +327,7 @@ class _ClanScreenState extends State<ClanScreen>
     final esUnico = clan.miembros.length == 1;
     return GestureDetector(
       onTap: () async {
+        HapticFeedback.lightImpact();
         final confirm = await showDialog<bool>(
           context: context,
           builder: (_) => _ConfirmDialog(
@@ -524,9 +525,10 @@ class _MiembroTile extends StatelessWidget {
   }
 
   void _showOpciones(BuildContext context) {
+    HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0D0D10),
+      backgroundColor: _CP.of(context).surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => _MiembroOpcionesSheet(clan: clan, miembro: miembro, esLider: esLider),
@@ -614,8 +616,11 @@ class _GuerraActivaBanner extends StatelessWidget {
         final rivalPun = (war.clanA['id'] == clanId ? war.puntuacion['clanB'] : war.puntuacion['clanA']) ?? 0;
 
         return GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => ClanWarScreen(war: war))),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => ClanWarScreen(war: war)));
+          },
           child: Container(
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.all(16),
@@ -709,8 +714,11 @@ class _InvitacionesBanner extends StatelessWidget {
         final invites = snap.data ?? [];
         if (invites.isEmpty) return const SizedBox();
         return GestureDetector(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const ClanInviteScreen())),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ClanInviteScreen()));
+          },
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),

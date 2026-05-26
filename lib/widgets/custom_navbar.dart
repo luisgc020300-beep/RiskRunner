@@ -318,12 +318,16 @@ class _NavItem extends StatelessWidget {
     final Color color = selected ? AppColors.red : AppColors.textDim;
 
     return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+      child: Semantics(
+        label: label,
+        selected: selected,
+        button: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
             Stack(clipBehavior: Clip.none, children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -378,6 +382,7 @@ class _NavItem extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -34,6 +34,8 @@ import 'pestañas/desafios_screen.dart';
 import 'services/desafios_service.dart';
 import 'services/game_state_service.dart';
 import 'widgets/operative_bg.dart';
+import 'widgets/offline_banner.dart';
+import 'services/connectivity_service.dart';
 
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -63,6 +65,7 @@ void main() async {
 
   await ThemeNotifier.instance.init();
   await GameStateService.instance.initAsync();
+  await ConnectivityService.instance.init();
   mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -162,6 +165,7 @@ class _MyAppState extends State<MyApp> {
       themeMode: ThemeNotifier.instance.mode,
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
+      builder: (context, child) => OfflineBanner(child: child!),
       // ── Tema de fallback (antiguo) eliminado — darkTheme lo cubre ──
       navigatorKey: navigatorKey,
       home: StreamBuilder<User?>(
