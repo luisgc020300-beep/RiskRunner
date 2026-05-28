@@ -1720,7 +1720,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
             const Spacer(),
 
-            if (!_state.modoGlobal && (det > 0 || pel > 0)) ...[
+            if (!_state.modoGlobal && !_state.modoSolitario && !_state.modoRutas && (det > 0 || pel > 0)) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: BackdropFilter(
@@ -2255,12 +2255,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       points: t.puntos,
                       color: frio
                           ? Colors.grey.withValues(alpha: 0.14)
-                          : _state.modoSolitario
-                              ? t.color.withValues(alpha: 0.85)
-                              : t.color.withValues(alpha: 0.30 * decay),
+                          : t.color.withValues(alpha: 0.30 * decay),
                       borderColor: frio
                           ? Colors.grey.withValues(alpha: 0.60)
-                          : t.color.withValues(alpha: _state.modoSolitario ? 0.95 : (0.90 * decay).clamp(0.0, 1.0)),
+                          : t.color.withValues(alpha: (0.90 * decay).clamp(0.0, 1.0)),
                       borderStrokeWidth: 2.8,
                     );
                   }).toList(),

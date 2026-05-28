@@ -1866,32 +1866,34 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   child: const Icon(Icons.close_rounded, color: Colors.white38, size: 15),
                 ),
               ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                Container(
-                  width: 6, height: 6, margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: hpColor, shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: hpColor.withValues(alpha: 0.6), blurRadius: 4)],
+              if (!_modoSolitario) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  Container(
+                    width: 6, height: 6, margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: hpColor, shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: hpColor.withValues(alpha: 0.6), blurRadius: 4)],
+                    ),
+                  ),
+                  Expanded(child: Text(hpLabel,
+                      style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
+                          fontWeight: FontWeight.w700, letterSpacing: 0.8))),
+                  Text('${t.hpActual}/$kHpMax HP',
+                      style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
+                          fontWeight: FontWeight.w700)),
+                ]),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: (t.hpActual / kHpMax).clamp(0.0, 1.0),
+                    backgroundColor: Colors.white12,
+                    valueColor: AlwaysStoppedAnimation<Color>(hpColor),
+                    minHeight: 3,
                   ),
                 ),
-                Expanded(child: Text(hpLabel,
-                    style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
-                        fontWeight: FontWeight.w700, letterSpacing: 0.8))),
-                Text('${t.hpActual}/$kHpMax HP',
-                    style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
-                        fontWeight: FontWeight.w700)),
-              ]),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: (t.hpActual / kHpMax).clamp(0.0, 1.0),
-                  backgroundColor: Colors.white12,
-                  valueColor: AlwaysStoppedAnimation<Color>(hpColor),
-                  minHeight: 3,
-                ),
-              ),
+              ],
             ],
           ),
         ),

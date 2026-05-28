@@ -9,15 +9,40 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 
-const _kBg      = Color(0xFFE8E8ED);
-const _kSurface = Color(0xFFFFFFFF);
-const _kLine    = Color(0xFFC6C6C8);
-const _kLine2   = Color(0xFFD1D1D6);
-const _kDim     = Color(0xFFAEAEB2);
-const _kSubtext = Color(0xFF8E8E93);
-const _kWhite   = Color(0xFF1C1C1E);
-const _kAccent  = Color(0xFFE02020);
-const _kBlue    = Color(0xFFE02020);
+const _kAccent = Color(0xFFE02020);
+
+class _CP {
+  final Color bg, surface, line, line2, dim, subtext, text;
+  const _CP._({
+    required this.bg,
+    required this.surface,
+    required this.line,
+    required this.line2,
+    required this.dim,
+    required this.subtext,
+    required this.text,
+  });
+  static const light = _CP._(
+    bg:      Color(0xFFE8E8ED),
+    surface: Color(0xFFFFFFFF),
+    line:    Color(0xFFC6C6C8),
+    line2:   Color(0xFFD1D1D6),
+    dim:     Color(0xFFAEAEB2),
+    subtext: Color(0xFF8E8E93),
+    text:    Color(0xFF1C1C1E),
+  );
+  static const dark = _CP._(
+    bg:      Color(0xFF090807),
+    surface: Color(0xFF1C1C1E),
+    line:    Color(0xFF38383A),
+    line2:   Color(0xFF2C2C2E),
+    dim:     Color(0xFF636366),
+    subtext: Color(0xFF8E8E93),
+    text:    Color(0xFFEEEEEE),
+  );
+  static _CP of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
+}
 
 class ClanInviteScreen extends StatefulWidget {
   const ClanInviteScreen({super.key});
@@ -31,8 +56,8 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
   late TabController _tabs;
   final _buscarCtrl = TextEditingController();
 
-  List<Map<String, dynamic>> _amigos      = [];
-  List<Map<String, dynamic>> _resultados  = [];
+  List<Map<String, dynamic>> _amigos     = [];
+  List<Map<String, dynamic>> _resultados = [];
   bool _cargandoAmigos = true;
   bool _sinResultados  = false;
 
@@ -50,7 +75,6 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
     super.dispose();
   }
 
-  // ── Carga amigos desde la colección "friendships" ─────────
   Future<void> _cargarAmigos() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) { setState(() => _cargandoAmigos = false); return; }
@@ -58,7 +82,6 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
     try {
       final fs = FirebaseFirestore.instance;
 
-      // Busca donde soy sender O receiver con status accepted
       final asSender = await fs.collection('friendships')
           .where('senderId', isEqualTo: uid)
           .where('status', isEqualTo: 'accepted')
@@ -69,7 +92,6 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
           .where('status', isEqualTo: 'accepted')
           .get();
 
-      // Recoge los UIDs del otro lado
       final Set<String> amigoUids = {};
       for (final doc in asSender.docs) {
         final rid = doc.data()['receiverId'] as String?;
@@ -85,7 +107,6 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
         return;
       }
 
-      // Carga los datos de cada amigo en batches de 10
       final List<Map<String, dynamic>> todos = [];
       final uidList = amigoUids.toList();
       for (var i = 0; i < uidList.length; i += 10) {
@@ -105,7 +126,6 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
     }
   }
 
-  // ── Filtra por nickname — si no coincide → "no encontrado" ─
   void _buscar(String q) {
     if (q.isEmpty) {
       setState(() { _resultados = []; _sinResultados = false; });
@@ -119,13 +139,15 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
 
   @override
   Widget build(BuildContext context) {
+    final p = _CP.of(context);
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: p.bg,
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('CLANES', style: GoogleFonts.inter(
@@ -138,8 +160,8 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
           indicatorWeight: 2,
           labelStyle: GoogleFonts.inter(
               fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2),
-          unselectedLabelColor: _kSubtext,
-          labelColor: _kWhite,
+          unselectedLabelColor: const Color(0xFF8E8E93),
+          labelColor: Colors.white,
           tabs: const [
             Tab(text: 'INVITACIONES'),
             Tab(text: 'INVITAR AMIGOS'),
@@ -148,27 +170,26 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
       ),
       body: TabBarView(
         controller: _tabs,
-        children: [_buildInvitaciones(), _buildInvitarAmigos()],
+        children: [_buildInvitaciones(p), _buildInvitarAmigos(p)],
       ),
     );
   }
 
-  // ── Tab 1: Invitaciones recibidas ─────────────────────────
-  Widget _buildInvitaciones() {
+  Widget _buildInvitaciones(_CP p) {
     return StreamBuilder<List<ClanInvite>>(
       stream: ClanService.misInvitacionesPendientes(),
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child:
-              CircularProgressIndicator(color: _kAccent, strokeWidth: 2));
+          return const Center(
+              child: CircularProgressIndicator(color: _kAccent, strokeWidth: 2));
         }
         final invites = snap.data ?? [];
         if (invites.isEmpty) {
           return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('📭', style: TextStyle(fontSize: 48)),
+            Icon(Icons.inbox_rounded, size: 52, color: p.dim),
             const SizedBox(height: 16),
             Text('Sin invitaciones pendientes',
-                style: GoogleFonts.inter(fontSize: 15, color: _kSubtext)),
+                style: GoogleFonts.inter(fontSize: 15, color: p.subtext)),
           ]));
         }
         return ListView.separated(
@@ -181,35 +202,33 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
     );
   }
 
-  // ── Tab 2: Invitar amigos al clan ─────────────────────────
-  Widget _buildInvitarAmigos() {
+  Widget _buildInvitarAmigos(_CP p) {
     return Column(children: [
       Padding(
         padding: const EdgeInsets.all(16),
         child: TextField(
           controller: _buscarCtrl,
           onChanged: _buscar,
-          style: GoogleFonts.inter(color: _kWhite, fontSize: 14),
+          style: GoogleFonts.inter(color: p.text, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Buscar amigo por nickname...',
-            hintStyle: GoogleFonts.inter(color: _kDim),
-            filled: true, fillColor: _kSurface,
+            hintStyle: GoogleFonts.inter(color: p.dim),
+            filled: true, fillColor: p.surface,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _kLine2)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: p.line2)),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _kLine2)),
+                borderSide: BorderSide(color: p.line2)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: const BorderSide(color: _kAccent)),
-            prefixIcon:
-                const Icon(Icons.search_rounded, color: _kSubtext, size: 18),
+            prefixIcon: Icon(Icons.search_rounded, color: p.subtext, size: 18),
             suffixIcon: _buscarCtrl.text.isNotEmpty
                 ? IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        color: _kSubtext, size: 16),
+                    icon: Icon(Icons.close_rounded, color: p.subtext, size: 16),
                     onPressed: () {
                       _buscarCtrl.clear();
                       setState(() { _resultados = []; _sinResultados = false; });
@@ -218,11 +237,11 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
           ),
         ),
       ),
-      Expanded(child: _buildCuerpo()),
+      Expanded(child: _buildCuerpo(p)),
     ]);
   }
 
-  Widget _buildCuerpo() {
+  Widget _buildCuerpo(_CP p) {
     if (_cargandoAmigos) {
       return const Center(
           child: CircularProgressIndicator(color: _kAccent, strokeWidth: 2));
@@ -230,39 +249,40 @@ class _ClanInviteScreenState extends State<ClanInviteScreen>
 
     if (_amigos.isEmpty && _buscarCtrl.text.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('👥', style: TextStyle(fontSize: 48)),
+        Icon(Icons.people_rounded, size: 52, color: p.dim),
         const SizedBox(height: 16),
-        Text('Aún no tienes amigos', style: GoogleFonts.inter(
-            fontSize: 15, color: _kSubtext)),
+        Text('Aún no tienes amigos',
+            style: GoogleFonts.inter(fontSize: 15, color: p.subtext)),
         const SizedBox(height: 4),
         Text('Añade amigos para poder invitarlos a tu clan',
-            style: GoogleFonts.inter(fontSize: 11, color: _kDim),
+            style: GoogleFonts.inter(fontSize: 11, color: p.dim),
             textAlign: TextAlign.center),
       ]));
     }
 
     if (_buscarCtrl.text.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🔍', style: TextStyle(fontSize: 40)),
+        Icon(Icons.search_rounded, size: 44, color: p.dim),
         const SizedBox(height: 12),
         Text('Busca a un amigo por su nickname',
-            style: GoogleFonts.inter(fontSize: 14, color: _kSubtext)),
+            style: GoogleFonts.inter(fontSize: 14, color: p.subtext)),
         const SizedBox(height: 4),
         Text('Solo puedes invitar a jugadores que ya son tus amigos',
-            style: GoogleFonts.inter(fontSize: 11, color: _kDim),
+            style: GoogleFonts.inter(fontSize: 11, color: p.dim),
             textAlign: TextAlign.center),
       ]));
     }
 
     if (_sinResultados) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🚫', style: TextStyle(fontSize: 40)),
+        Icon(Icons.block_rounded, size: 44, color: p.dim),
         const SizedBox(height: 12),
-        Text('Usuario no encontrado', style: GoogleFonts.inter(
-            fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
+        Text('Usuario no encontrado',
+            style: GoogleFonts.inter(
+                fontSize: 15, fontWeight: FontWeight.w800, color: p.text)),
         const SizedBox(height: 4),
         Text('Solo puedes invitar a tus amigos',
-            style: GoogleFonts.inter(fontSize: 11, color: _kSubtext)),
+            style: GoogleFonts.inter(fontSize: 11, color: p.subtext)),
       ]));
     }
 
@@ -329,35 +349,37 @@ class _AmigoTileState extends State<_AmigoTile> {
 
   @override
   Widget build(BuildContext context) {
+    final p    = _CP.of(context);
     final nick  = widget.amigo['nickname'] as String? ?? '?';
     final nivel = widget.amigo['nivel'] as int? ?? 1;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: p.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kLine),
+        border: Border.all(color: p.line),
       ),
       child: Row(children: [
         Container(
           width: 46, height: 46,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: _kBlue.withValues(alpha: 0.15),
-            border: Border.all(color: _kBlue.withValues(alpha: 0.3)),
+            color: _kAccent.withValues(alpha: 0.15),
+            border: Border.all(color: _kAccent.withValues(alpha: 0.3)),
           ),
           child: Center(child: Text(nick[0].toUpperCase(),
               style: GoogleFonts.inter(
-                  fontSize: 18, fontWeight: FontWeight.w900, color: _kBlue))),
+                  fontSize: 18, fontWeight: FontWeight.w900,
+                  color: _kAccent))),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(nick, style: GoogleFonts.inter(
-              fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
-          Text('Nivel $nivel', style: GoogleFonts.inter(
-              fontSize: 10, color: _kSubtext)),
+              fontSize: 15, fontWeight: FontWeight.w800, color: p.text)),
+          Text('Nivel $nivel',
+              style: GoogleFonts.inter(fontSize: 10, color: p.subtext)),
         ])),
         if (_enviada)
           Container(
@@ -367,9 +389,14 @@ class _AmigoTileState extends State<_AmigoTile> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF2A5A3A)),
             ),
-            child: Text('✓ ENVIADA', style: GoogleFonts.inter(
-                fontSize: 9, fontWeight: FontWeight.w900,
-                color: const Color(0xFF4FA830), letterSpacing: 1)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.check_rounded,
+                  size: 11, color: Color(0xFF4FA830)),
+              const SizedBox(width: 4),
+              Text('ENVIADA', style: GoogleFonts.inter(
+                  fontSize: 9, fontWeight: FontWeight.w900,
+                  color: const Color(0xFF4FA830), letterSpacing: 1)),
+            ]),
           )
         else
           GestureDetector(
@@ -378,10 +405,10 @@ class _AmigoTileState extends State<_AmigoTile> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                    colors: [Color(0xFF1A3060), _kBlue]),
+                    colors: [Color(0xFF1A3060), _kAccent]),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [BoxShadow(
-                    color: _kBlue.withValues(alpha: 0.25), blurRadius: 8)],
+                    color: _kAccent.withValues(alpha: 0.25), blurRadius: 8)],
               ),
               child: _loading
                   ? const SizedBox(width: 16, height: 16,
@@ -444,25 +471,26 @@ class _InviteTileState extends State<_InviteTile> {
 
   @override
   Widget build(BuildContext context) {
+    final p   = _CP.of(context);
     final inv = widget.invite;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kSurface,
+        color: p.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kBlue.withValues(alpha: 0.25)),
+        border: Border.all(color: _kAccent.withValues(alpha: 0.25)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Text('📨', style: TextStyle(fontSize: 20)),
+          Icon(Icons.forward_to_inbox_rounded, size: 22, color: _kAccent),
           const SizedBox(width: 10),
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Invitación de ${inv.fromNickname}',
-                style: GoogleFonts.inter(fontSize: 11, color: _kSubtext)),
+                style: GoogleFonts.inter(fontSize: 11, color: p.subtext)),
             Text('[${inv.clanTag}] ${inv.clanNombre}',
                 style: GoogleFonts.inter(
-                    fontSize: 15, fontWeight: FontWeight.w800, color: _kWhite)),
+                    fontSize: 15, fontWeight: FontWeight.w800, color: p.text)),
           ])),
         ]),
         const SizedBox(height: 14),
@@ -480,10 +508,14 @@ class _InviteTileState extends State<_InviteTile> {
                   ? const Center(child: SizedBox(width: 16, height: 16,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2)))
-                  : Center(child: Text('✓  ACEPTAR',
-                      style: GoogleFonts.inter(
+                  : Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.check_rounded,
+                          size: 14, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text('ACEPTAR', style: GoogleFonts.inter(
                           fontSize: 12, fontWeight: FontWeight.w900,
-                          color: Colors.white, letterSpacing: 1.5))),
+                          color: Colors.white, letterSpacing: 1.5)),
+                    ])),
             ),
           )),
           const SizedBox(width: 8),
@@ -492,12 +524,11 @@ class _InviteTileState extends State<_InviteTile> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               decoration: BoxDecoration(
-                color: _kSurface,
+                color: p.surface,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _kLine2),
+                border: Border.all(color: p.line2),
               ),
-              child: Text('✗', style: GoogleFonts.inter(
-                  fontSize: 14, fontWeight: FontWeight.w900, color: _kSubtext)),
+              child: Icon(Icons.close_rounded, size: 16, color: p.subtext),
             ),
           ),
         ]),
