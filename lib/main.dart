@@ -188,21 +188,27 @@ class _MyAppState extends State<MyApp> {
             );
 
           case '/home':
-            return MaterialPageRoute(
+            return PageRouteBuilder(
               settings: settings,
-              builder: (_) => const HomeScreen(),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => const HomeScreen(),
             );
 
           case '/social':
-            return MaterialPageRoute(
+            return PageRouteBuilder(
               settings: settings,
-              builder: (_) => const SocialScreen(),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => const SocialScreen(),
             );
 
           case '/perfil':
-            return MaterialPageRoute(
+            return PageRouteBuilder(
               settings: settings,
-              builder: (_) => const PerfilScreen(),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => const PerfilScreen(),
             );
 
           case '/notificaciones':
