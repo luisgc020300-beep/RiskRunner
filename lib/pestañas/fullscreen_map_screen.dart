@@ -138,7 +138,7 @@ class _MapDataService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const double _kRadGrados = 0.045;
 
-  Future<List<_UserGroup>> cargarGruposCercanos(LatLng centro, String myUid) async {
+  Future<List<_UserGroup>> cargarGruposCercanos(LatLng centro, String myUid, {String modo = 'competitivo'}) async {
     final latMin = centro.latitude  - _kRadGrados;
     final latMax = centro.latitude  + _kRadGrados;
     QuerySnapshot snap;
@@ -155,6 +155,15 @@ class _MapDataService {
       final data = (doc.data() ?? {}) as Map<String, dynamic>;
       final rawPts = data['puntos'] as List<dynamic>?;
       if (rawPts == null || rawPts.isEmpty) continue;
+      // Filter by mode: solitario territories are private; competitive shows null+competitivo
+      final docModo = data['modo'] as String?;
+      if (modo == 'solitario') {
+        if (docModo != 'solitario') continue;
+        final docOwner = data['userId'] as String? ?? '';
+        if (docOwner != myUid) continue;
+      } else {
+        if (docModo == 'solitario') continue;
+      }
       final pts = _parsePuntos(rawPts);
       final c = _centroide(pts);
       final dist = Geolocator.distanceBetween(
@@ -201,12 +210,18 @@ class _MapDataService {
       });
   }
 
-  Future<List<_TerDet>> cargarDetalles(String ownerId, LatLng centro) async {
+  Future<List<_TerDet>> cargarDetalles(String ownerId, LatLng centro, {String modo = 'competitivo'}) async {
     final snap = await _db.collection('territories')
         .where('userId', isEqualTo: ownerId).get();
     final List<_TerDet> dets = [];
     for (final doc in snap.docs) {
       final data = doc.data();
+      final docModo = data['modo'] as String?;
+      if (modo == 'solitario') {
+        if (docModo != 'solitario') continue;
+      } else {
+        if (docModo == 'solitario') continue;
+      }
       final rawPts = data['puntos'] as List<dynamic>?;
       List<LatLng> pts = [];
       double dist = 0;
@@ -529,20 +544,20 @@ class _MapState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> cargarCercanos(String myUid) async {
+  Future<void> cargarCercanos(String myUid, {String modo = 'competitivo'}) async {
     setLoadingCercanos(true);
     try {
-      final result = await _service.cargarGruposCercanos(centro, myUid);
+      final result = await _service.cargarGruposCercanos(centro, myUid, modo: modo);
       setGrupos(result);
     } catch (e) {
       setError('No se pudieron cargar los territorios cercanos');
     }
   }
 
-  Future<void> cargarDetalles(String ownerId) async {
+  Future<void> cargarDetalles(String ownerId, {String modo = 'competitivo'}) async {
     if (_detallesCacheValido(ownerId)) { notifyListeners(); return; }
     try {
-      final dets = await _service.cargarDetalles(ownerId, centro);
+      final dets = await _service.cargarDetalles(ownerId, centro, modo: modo);
       _setDetalles(ownerId, dets);
     } catch (e) {
       setError('No se pudieron cargar los detalles');
@@ -4781,7 +4796,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (_state.cercanosVisible) {
         _state.toggleCercanos();
       } else {
-        _state.cargarCercanos(_uid ?? '');
+        _state.cargarCercanos(_uid ?? '', modo: _state.modoSolitario ? 'solitario' : 'competitivo');
       }
     },
     child: Container(
@@ -4866,7 +4881,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   _state.setUserExpandido(null);
                 } else {
                   _state.setUserExpandido(g.ownerId);
-                  await _state.cargarDetalles(g.ownerId);
+                  await _state.cargarDetalles(g.ownerId, modo: _state.modoSolitario ? 'solitario' : 'competitivo');
                 }
               },
               child: Padding(
@@ -4962,7 +4977,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Widget _terCard(int i, _TerDet det, String nick) {
     String est = 'ACTIVO';
-    Color c = _kSafe;
+    Color c = _state.modoSolitario ? _kSafe : _kBlue;
     if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroFuncional) {
       est = 'CRÍTICO'; c = _kRed;
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
@@ -5281,7 +5296,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _mostrarExito(
                 '✏️ Territorio renombrado como "$nuevoNombre"');
             _MapState.invalidarDetallesCache();
-            await _state.cargarDetalles(det.ownerId);
+            await _state.cargarDetalles(det.ownerId, modo: _state.modoSolitario ? 'solitario' : 'competitivo');
           } on FirebaseFunctionsException catch (e) {
             if (!mounted) return;
             _mostrarError(e.message ?? 'No se pudo renombrar');

@@ -131,6 +131,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   Map<String, dynamic>? _retoCompletadoEnSesion;
 
   bool get _esGuerraGlobal => widget.objetivoGlobal != null;
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
   // ==========================================================================
   // INIT / DISPOSE
@@ -954,7 +955,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(titulo, style: TextStyle(
-              color:         _kWhite,
+              color:         _isDark ? Colors.white : _kWhite,
               fontSize:      titulo.length > 20 ? 15 : 19,
               fontWeight:    FontWeight.w900,
               letterSpacing: 0.5)),
@@ -1056,6 +1057,7 @@ class _ResumenScreenState extends State<ResumenScreen>
   );
 
   Widget _buildSecondaryMetrics() {
+    final isDark = _isDark;
     final horas = widget.tiempo.inSeconds / 3600;
     final vel   = horas > 0 && widget.distancia > 0
         ? widget.distancia / horas : 0.0;
@@ -1068,61 +1070,67 @@ class _ResumenScreenState extends State<ResumenScreen>
     final tiempo =
         '${widget.tiempo.inMinutes.toString().padLeft(2, '0')}:${(widget.tiempo.inSeconds % 60).toString().padLeft(2, '0')}';
 
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(flex: 5, child: Container(
+    final cardBg     = isDark ? const Color(0xFF2C2C2E) : _kSurface;
+    final cardBorder = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
-          color:        _kSurface,
+          color:        cardBg,
           borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: _kBorder2),
+          border:       Border.all(color: cardBorder),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('TIEMPO', style: TextStyle(
+          Text('TIEMPO', style: const TextStyle(
               color: _kGrey, fontSize: 7,
               fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 8),
-          Text(tiempo, style: const TextStyle(
-              color: _kBright, fontSize: 28,
+          Text(tiempo, style: TextStyle(
+              color: isDark ? Colors.white : _kBright, fontSize: 28,
               fontWeight: FontWeight.w900, letterSpacing: 1)),
         ]),
-      )),
-      const SizedBox(width: 8),
-      Expanded(flex: 4, child: Column(children: [
-        _metricTileSmall(ritmo, 'MIN/KM', accent: false),
-        const SizedBox(height: 8),
-        _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', accent: true),
-        const SizedBox(height: 8),
-        _metricTileSmall(
+      ),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _metricTileSmall(ritmo, 'MIN/KM', isDark: isDark)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', isDark: isDark)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricTileSmall(
             (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0))
                 .round().toString(),
-            'KCAL', accent: false),
-      ])),
+            'KCAL', isDark: isDark)),
+      ]),
     ]);
   }
 
-  Widget _metricTileSmall(String v, String l, {bool accent = false}) =>
-      Container(
-        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
-        decoration: BoxDecoration(
-          color:        _kSurface,
-          borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: _kBorder2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(v, style: TextStyle(
-                color:      accent ? _kBright : _kWhite,
-                fontSize:   15,
-                fontWeight: FontWeight.w900,
-                height:     1)),
-            const SizedBox(height: 2),
-            Text(l, style: const TextStyle(
-                color: _kGreyDim, fontSize: 7,
-                fontWeight: FontWeight.w700, letterSpacing: 1.5)),
-          ],
-        ),
-      );
+  Widget _metricTileSmall(String v, String l, {bool isDark = false}) {
+    final cardBg     = isDark ? const Color(0xFF2C2C2E) : _kSurface;
+    final cardBorder = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+      decoration: BoxDecoration(
+        color:        cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(v, style: TextStyle(
+              color:      isDark ? Colors.white : _kWhite,
+              fontSize:   18,
+              fontWeight: FontWeight.w900,
+              height:     1)),
+          const SizedBox(height: 2),
+          Text(l, style: const TextStyle(
+              color: _kGreyDim, fontSize: 7,
+              fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+        ],
+      ),
+    );
+  }
 
   Widget _buildTotalesRow() => Row(children: [
     Expanded(child: _totalCell(
@@ -1154,7 +1162,9 @@ class _ResumenScreenState extends State<ResumenScreen>
         ),
       );
 
-  Widget _buildAcciones() => Column(children: [
+  Widget _buildAcciones() {
+    final isDark = _isDark;
+    return Column(children: [
     GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -1165,13 +1175,12 @@ class _ResumenScreenState extends State<ResumenScreen>
         padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          color: _kWhite,
+          color: isDark ? Colors.white : _kWhite,
         ),
-        child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('', style: TextStyle(fontSize: 16)),
-          SizedBox(width: 10),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const SizedBox(width: 10),
           Text('PUBLICAR EN EL FEED', style: TextStyle(
-              color:         _kBg,
+              color:         isDark ? _kWhite : _kBg,
               fontSize:      11,
               fontWeight:    FontWeight.w900,
               letterSpacing: 2.5)),
@@ -1188,6 +1197,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       Expanded(child: Container(height: 1, color: _kBorder2)),
     ]),
   ]);
+  }
 
   Widget _sectionLabel(String t) => Row(children: [
     Container(

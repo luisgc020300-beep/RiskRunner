@@ -597,6 +597,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _puntosGloboLayerCreated   = false;
       _actualizandoGloboLayer   = false;
       _dibujandoTerritorios     = false;
+      _routeLayerCreated        = false;
+      _ghostLayerCreated        = false;
+      _rutasPreviewLayerCreated = false;
       _styleLoaded              = false;
       _mapboxMap?.loadStyleURI(_mapStyle);
     }
@@ -1304,6 +1307,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
       if (_rutaGuiada != null) _dibujarGhostRuta(),
       if (_modoRuta) _cargarYDibujarRutasPreview(),
+      if (routePoints.length >= 2) _actualizarRutaEnMapa(),
       _cargarBuildings3DConRetry(),
     ]);
   }
@@ -3537,7 +3541,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   fromColorValue:    t.color.toARGB32(),
                 );
               }
+              TerritoryService.invalidarCache();
+              GameStateService.instance.invalidateTerritories();
+              _puntosGloboCargados = false;
               final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+                  centro: _currentPosition != null
+                      ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                      : null,
                   modo: _modoSolitario ? 'solitario' : 'competitivo');
                 if (_modoSolitario) {
                   GameStateService.instance.setSolitarioTerritories(nuevos);
