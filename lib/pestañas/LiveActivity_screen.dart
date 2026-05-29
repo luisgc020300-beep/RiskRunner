@@ -236,8 +236,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   String _miNickname           = 'Alguien';
   bool   _boostXpActivo        = false;
 
-  final Set<String> _territoriosNotificadosEnSesion = {};
-  final Set<String> _territoriosVisitadosEnSesion   = {};
+  final Set<String>            _territoriosNotificadosEnSesion = {};
+  final Set<String>            _territoriosVisitadosEnSesion   = {};
+  final Map<String, DateTime>  _ultimaNotifRival               = {};
 
   StreamSubscription? _jugadoresStream;
   final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
@@ -3001,6 +3002,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _puntosDesdeUltimoUpdate = 0;
       _territoriosNotificadosEnSesion.clear();
       _territoriosVisitadosEnSesion.clear();
+      _ultimaNotifRival.clear();
       _hudMinimizado           = true;
       _retoCompletado          = false;
     });
@@ -3500,7 +3502,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } else {
       if (!_territoriosNotificadosEnSesion.contains(t.docId)) {
         _territoriosNotificadosEnSesion.add(t.docId);
-        if (!t.esFantasma) {
+        final ahora   = DateTime.now();
+        final ultima  = _ultimaNotifRival[t.docId];
+        final debounce = ultima == null || ahora.difference(ultima).inMinutes >= 30;
+        if (!t.esFantasma && debounce) {
+          _ultimaNotifRival[t.docId] = ahora;
           TerritoryService.crearNotificacionInvasion(
             toUserId: t.ownerId, fromNickname: _miNickname, territoryId: t.docId,
           );

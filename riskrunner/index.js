@@ -586,17 +586,13 @@ exports.conquistarTerritorio = onCall(async (request) => {
         });
       }
 
-      await batch.commit();
-
       if (resultado.clanId) {
-        try {
-          await db.collection('clans').doc(resultado.clanId).update({
-            puntos: FieldValue.increment(25),
-          });
-        } catch (e) {
-          console.error('Error sumando puntos al clan:', e);
-        }
+        batch.update(db.collection('clans').doc(resultado.clanId), {
+          puntos: FieldValue.increment(25),
+        });
       }
+
+      await batch.commit();
 
       // Notificar a jugadores cercanos activos para que refresquen el globo
       try {
@@ -1005,7 +1001,10 @@ exports.atacarTerritorio = onCall(
     if (!territorioDefensorId || !rutaAtacante || rutaAtacante.length < 3) {
       throw new HttpsError('invalid-argument', 'Parámetros insuficientes.');
     }
-    if (typeof velocidadMediaAtacanteKmh !== 'number' || velocidadMediaAtacanteKmh <= 0) {
+    if (!rutaAtacante.every(p => typeof p.lat === 'number' && isFinite(p.lat) && typeof p.lng === 'number' && isFinite(p.lng))) {
+      throw new HttpsError('invalid-argument', 'Ruta con coordenadas inválidas.');
+    }
+    if (typeof velocidadMediaAtacanteKmh !== 'number' || !isFinite(velocidadMediaAtacanteKmh) || velocidadMediaAtacanteKmh <= 0) {
       throw new HttpsError('invalid-argument', 'Velocidad inválida.');
     }
 
