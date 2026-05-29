@@ -84,10 +84,15 @@ service cloud.firestore {
 
     // ── notifications ─────────────────────────────────────────────────────────
     // El destinatario puede leer. Solo puede marcar como leída (campo 'read').
-    // Cualquier autenticado puede crear (sistema de notificaciones entre usuarios).
+    // Al crear: el remitente debe identificarse con su propio uid.
     match /notifications/{notifId} {
       allow read:   if isAuth() && resource.data.toUserId == request.auth.uid;
-      allow create: if isAuth();
+      allow create: if isAuth()
+        && request.resource.data.toUserId is string
+        && (
+          !('fromUserId' in request.resource.data) ||
+          request.resource.data.fromUserId == request.auth.uid
+        );
       allow update: if isAuth()
         && resource.data.toUserId == request.auth.uid
         && onlyFields(['read']);
@@ -137,8 +142,8 @@ service cloud.firestore {
     // ── clans ─────────────────────────────────────────────────────────────────
     match /clans/{clanId} {
       allow read:   if isAuth();
-      allow create: if isAuth() && request.resource.data.creadorId == request.auth.uid;
-      allow update: if isAuth() && resource.data.creadorId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.leaderId == request.auth.uid;
+      allow update: if isAuth() && resource.data.leaderId == request.auth.uid;
       allow delete: if false;
     }
 
@@ -157,8 +162,15 @@ service cloud.firestore {
     // ── clan_wars ─────────────────────────────────────────────────────────────
     match /clan_wars/{warId} {
       allow read:   if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
+      // Create: quien declara la guerra debe ser miembro de clanA (campo leaderId)
+      allow create: if isAuth() && request.resource.data.get('creatorUid', '') == request.auth.uid;
+      // Update: solo campos de puntuación/estado, y solo si eres participante registrado
+      allow update: if isAuth()
+        && onlyFields(['puntuacion', 'estado', 'ganadorId'])
+        && (
+          resource.data.clanA.id == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.clanId ||
+          resource.data.clanB.id == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.clanId
+        );
       allow delete: if false;
     }
 
@@ -187,8 +199,10 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{msgId} {
-        allow read:   if isAuth();
-        allow create: if isAuth() && request.resource.data.senderId == request.auth.uid;
+        allow read:   if isAuth() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isAuth()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && request.resource.data.senderId == request.auth.uid;
         allow update: if false;
         allow delete: if false;
       }

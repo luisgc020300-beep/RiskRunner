@@ -22,6 +22,14 @@ class _ChatScreenState extends State<ChatScreen> {
   late final DocumentReference _chatRef;
   int _count = 0;
 
+  // 'normal' | 'solicitud' | null (sin chat aún)
+  String? _tipChat;
+  String? _initiatorId;
+  bool    _esMutual = false;
+
+  bool get _esSolicitudRecibida =>
+      _tipChat == 'solicitud' && _initiatorId != null && _initiatorId != widget.currentUserId;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +38,44 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatRef = FirebaseFirestore.instance.collection('chats').doc(_chatId);
     _msgsRef = _chatRef.collection('messages');
     _marcarLeido();
+    _cargarEstadoChat();
+  }
+
+  Future<void> _cargarEstadoChat() async {
+    final chatSnap = await _chatRef.get();
+    if (chatSnap.exists) {
+      final d = chatSnap.data() as Map<String, dynamic>;
+      if (mounted) setState(() {
+        _tipChat     = d['tipo'] as String? ?? 'normal';
+        _initiatorId = d['initiatorId'] as String?;
+      });
+    } else {
+      final db = FirebaseFirestore.instance;
+      final results = await Future.wait([
+        db.collection('follows')
+            .where('followerId',  isEqualTo: widget.currentUserId)
+            .where('followingId', isEqualTo: widget.friendId)
+            .limit(1).get(),
+        db.collection('follows')
+            .where('followerId',  isEqualTo: widget.friendId)
+            .where('followingId', isEqualTo: widget.currentUserId)
+            .limit(1).get(),
+      ]);
+      if (mounted) {
+        setState(() => _esMutual =
+            results[0].docs.isNotEmpty && results[1].docs.isNotEmpty);
+      }
+    }
+  }
+
+  Future<void> _aceptarSolicitud() async {
+    await _chatRef.update({'tipo': 'normal'});
+    if (mounted) setState(() => _tipChat = 'normal');
+  }
+
+  Future<void> _ignorarSolicitud() async {
+    await _chatRef.set({'deleted_${widget.currentUserId}': true}, SetOptions(merge: true));
+    if (mounted) Navigator.pop(context);
   }
   @override void dispose() { _msgCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
@@ -41,17 +87,24 @@ class _ChatScreenState extends State<ChatScreen> {
     if (texto.isEmpty) return;
     _msgCtrl.clear();
     final now = FieldValue.serverTimestamp();
+    final tipo = _tipChat ?? (_esMutual ? 'normal' : 'solicitud');
     await _msgsRef.add({'senderId': widget.currentUserId, 'text': texto, 'timestamp': now});
     await _chatRef.set({
-      'participants': [widget.currentUserId, widget.friendId],
-      'lastMessage': texto, 'lastMessageTime': now,
-      'lastSenderId': widget.currentUserId,
+      'participants':  [widget.currentUserId, widget.friendId],
+      'lastMessage':   texto,
+      'lastMessageTime': now,
+      'lastSenderId':  widget.currentUserId,
+      'tipo':          tipo,
+      'initiatorId':   _initiatorId ?? widget.currentUserId,
       'unread_${widget.currentUserId}': 0,
       'unread_${widget.friendId}': FieldValue.increment(1),
     }, SetOptions(merge: true));
+    if (_tipChat == null) setState(() { _tipChat = tipo; _initiatorId = widget.currentUserId; });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) _scrollCtrl.animateTo(
-        _scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+      }
     });
   }
 
@@ -213,6 +266,35 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ]),
     body: Column(children: [
+      if (_esSolicitudRecibida)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          color: const Color(0xFF1C1C1E),
+          child: Row(children: [
+            Expanded(child: Text(
+              '${widget.friendNickname} quiere enviarte un mensaje',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            )),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _aceptarSolicitud,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(8)),
+                child: const Text('Aceptar', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _ignorarSolicitud,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF3A3A3C)), borderRadius: BorderRadius.circular(8)),
+                child: Text('Ignorar', style: TextStyle(color: _p.dim, fontSize: 12)),
+              ),
+            ),
+          ]),
+        ),
       Expanded(child: StreamBuilder<QuerySnapshot>(
         stream: _msgsRef.orderBy('timestamp', descending: false).snapshots(),
         builder: (ctx, snapshot) {

@@ -815,7 +815,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       builder: (ctx, snapshot) {
         if (snapshot.hasError) return SocialChatErrorState(error: snapshot.error);
         if (!snapshot.hasData) return _genSkels();
-        final chats = snapshot.data!.docs.toList()
+
+        final allDocs = snapshot.data!.docs
+            .where((d) => (d.data() as Map)['deleted_$currentUserId'] != true)
+            .toList()
           ..sort((a, b) {
             final tA = (a.data() as Map)['lastMessageTime'] as Timestamp?;
             final tB = (b.data() as Map)['lastMessageTime'] as Timestamp?;
@@ -823,41 +826,81 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
             if (tA == null) return 1; if (tB == null) return -1;
             return tB.compareTo(tA);
           });
-        if (chats.isEmpty) return const SocialEmptyState(icon: Icons.forum_outlined, titulo: 'Sin mensajes aún', subtitulo: 'Ve a Aliados y abre un chat\ncon tus compañeros de ruta');
+
+        // Separar solicitudes recibidas (tipo=='solicitud' y yo no soy el iniciador)
+        final solicitudes = allDocs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          return data['tipo'] == 'solicitud' && data['initiatorId'] != currentUserId;
+        }).toList();
+        final normales = allDocs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          return !(data['tipo'] == 'solicitud' && data['initiatorId'] != currentUserId);
+        }).toList();
+
+        if (normales.isEmpty && solicitudes.isEmpty) {
+          return const SocialEmptyState(icon: Icons.forum_outlined, titulo: 'Sin mensajes aún', subtitulo: 'Ve a Aliados y abre un chat\ncon tus compañeros de ruta');
+        }
+
+        final items = <QueryDocumentSnapshot>[];
+        if (solicitudes.isNotEmpty) items.addAll(solicitudes);
+        items.addAll(normales);
+        final hasSolicitudes = solicitudes.isNotEmpty;
+
         return RefreshIndicator(
           key: _rkMensajes, color: kSocAccent, backgroundColor: _p.surface2,
           onRefresh: () async { setState(() {}); },
           child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-            itemCount: chats.length,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+            itemCount: items.length + (hasSolicitudes ? 2 : 0),
             itemBuilder: (ctx, i) {
-              final chatData = chats[i].data() as Map<String, dynamic>;
-              final String chatId = chats[i].id;
+              // Cabecera "Solicitudes de mensaje"
+              if (hasSolicitudes && i == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(children: [
+                    Icon(Icons.mark_email_unread_outlined, color: const Color(0xFFFF9F0A), size: 14),
+                    const SizedBox(width: 6),
+                    Text('Solicitudes de mensaje (${solicitudes.length})',
+                        style: TextStyle(color: const Color(0xFFFF9F0A), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                  ]),
+                );
+              }
+              // Separador entre solicitudes y normales
+              if (hasSolicitudes && i == solicitudes.length + 1) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1, color: _p.line),
+                );
+              }
+              final idx = hasSolicitudes ? i - 1 : i;
+              if (idx < 0 || idx >= items.length) return const SizedBox.shrink();
+              final doc      = items[idx];
+              final chatData = doc.data() as Map<String, dynamic>;
+              final String chatId = doc.id;
               final List parts = chatData['participants'] as List? ?? [];
               final String fid = parts.firstWhere((p) => p != currentUserId, orElse: () => '');
               if (fid.isEmpty) return const SizedBox.shrink();
               final int unread = (chatData['unread_$currentUserId'] as num? ?? 0).toInt();
-              if (_perfilesCache.containsKey(fid)) {
-                final fd = _perfilesCache[fid]!;
-                return SocialStagger(index: i, child: SocialChatCard(
+              final bool esSolicitud = chatData['tipo'] == 'solicitud' && chatData['initiatorId'] != currentUserId;
+
+              Widget buildCard(Map<String, dynamic> fd) => SocialStagger(
+                index: idx,
+                child: SocialChatCard(
                   chatId: chatId, nickname: fd['nickname'] ?? '?', fotoBase64: fd['foto_base64'] as String?,
-                  lastMessage: chatData['lastMessage'] as String? ?? '',
+                  lastMessage: esSolicitud ? '${fd['nickname'] ?? '?'} quiere enviarte un mensaje' : chatData['lastMessage'] as String? ?? '',
                   lastTime: chatData['lastMessageTime'] as Timestamp?,
-                  unread: unread, accent: _accent,
+                  unread: unread, accent: esSolicitud ? const Color(0xFFFF9F0A) : _accent,
                   onTap: () => _abrirChat(fid, fd['nickname'] ?? '?', fd['foto_base64'] as String?)));
-              }
+
+              if (_perfilesCache.containsKey(fid)) return buildCard(_perfilesCache[fid]!);
               return FutureBuilder<DocumentSnapshot>(
                 future: FirebaseFirestore.instance.collection('players').doc(fid).get(),
                 builder: (ctx, s) {
                   if (!s.hasData) return const SocialSkel();
                   final fd = s.data!.data() as Map<String, dynamic>? ?? {};
                   _perfilesCache[fid] = fd;
-                  return SocialStagger(index: i, child: SocialChatCard(
-                    chatId: chatId, nickname: fd['nickname'] ?? '?', fotoBase64: fd['foto_base64'] as String?,
-                    lastMessage: chatData['lastMessage'] as String? ?? '',
-                    lastTime: chatData['lastMessageTime'] as Timestamp?,
-                    unread: unread, accent: _accent,
-                    onTap: () => _abrirChat(fid, fd['nickname'] ?? '?', fd['foto_base64'] as String?)));
+                  return buildCard(fd);
                 });
             }));
       });
@@ -889,13 +932,16 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   fotoBase64: data['foto_base64'] as String?,
                   puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
                   onAceptar: () async {
-                    await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
+                    final db = FirebaseFirestore.instance;
+                    final batch = db.batch();
+                    batch.update(db.collection('friendships').doc(doc.id), {'status': 'accepted'});
                     final isFollowReq = (doc['type'] as String?) == 'follow_request';
-                    await FirebaseFirestore.instance.collection('follows').add({
+                    batch.set(db.collection('follows').doc(), {
                       'followerId':  isFollowReq ? senderId       : currentUserId,
                       'followingId': isFollowReq ? currentUserId  : senderId,
                       'timestamp':   FieldValue.serverTimestamp(),
                     });
+                    await batch.commit();
                     _snack('¡${data['nickname']} ahora es tu operativo!');
                   },
                   onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));
@@ -911,13 +957,16 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                     fotoBase64: data['foto_base64'] as String?,
                     puntosLiga: (data['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
                     onAceptar: () async {
-                      await FirebaseFirestore.instance.collection('friendships').doc(doc.id).update({'status': 'accepted'});
+                      final db = FirebaseFirestore.instance;
+                      final batch = db.batch();
+                      batch.update(db.collection('friendships').doc(doc.id), {'status': 'accepted'});
                       final isFollowReq = (doc['type'] as String?) == 'follow_request';
-                      await FirebaseFirestore.instance.collection('follows').add({
+                      batch.set(db.collection('follows').doc(), {
                         'followerId':  isFollowReq ? senderId      : currentUserId,
                         'followingId': isFollowReq ? currentUserId : senderId,
                         'timestamp':   FieldValue.serverTimestamp(),
                       });
+                      await batch.commit();
                       _snack('¡${data['nickname']} ahora es tu aliado!');
                     },
                     onRechazar: () => _confirmarRechazo(context, doc.id, data['nickname'] ?? '?')));

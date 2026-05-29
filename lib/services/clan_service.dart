@@ -401,34 +401,34 @@ class ClanService {
   }) async {
     if (myUid == null) return;
 
-    final clanDoc = await _db.collection('clans').doc(invite.clanId).get();
-    if (!clanDoc.exists) throw Exception('El clan ya no existe');
-    final clan = ClanData.fromDoc(clanDoc);
-    if (clan.estaLleno) throw Exception('El clan está lleno');
-
     final nuevoMiembro = ClanMiembro(
       uid: myUid!, nickname: myNickname,
       rol: ClanRol.miembro, fotoBase64: myFoto,
     );
 
-    final batch = _db.batch();
+    await _db.runTransaction((tx) async {
+      final clanRef = _db.collection('clans').doc(invite.clanId);
+      final clanSnap = await tx.get(clanRef);
+      if (!clanSnap.exists) throw Exception('El clan ya no existe');
 
-    batch.update(_db.collection('clans').doc(invite.clanId), {
-      'miembros': FieldValue.arrayUnion([nuevoMiembro.toMap()]),
+      final data       = clanSnap.data()!;
+      final miembros   = (data['miembros'] as List? ?? []);
+      final maxMiembros = (data['maxMiembros'] as num? ?? 10).toInt();
+      if (miembros.length >= maxMiembros) throw Exception('El clan está lleno');
+
+      tx.update(clanRef, {
+        'miembros': FieldValue.arrayUnion([nuevoMiembro.toMap()]),
+      });
+      tx.update(_db.collection('players').doc(myUid), {
+        'clanId':     invite.clanId,
+        'clanNombre': invite.clanNombre,
+        'clanTag':    invite.clanTag,
+        'clanRol':    'miembro',
+      });
+      tx.update(_db.collection('clan_invites').doc(invite.inviteId), {
+        'estado': 'accepted',
+      });
     });
-
-    batch.update(_db.collection('players').doc(myUid), {
-      'clanId':     invite.clanId,
-      'clanNombre': invite.clanNombre,
-      'clanTag':    invite.clanTag,
-      'clanRol':    'miembro',
-    });
-
-    batch.update(_db.collection('clan_invites').doc(invite.inviteId), {
-      'estado': 'accepted',
-    });
-
-    await batch.commit();
   }
 
   // ── Rechazar invitación ───────────────────────────────────
@@ -582,6 +582,7 @@ class ClanService {
       'tipo':       tipo,
       'puntuacion': {'clanA': 0, 'clanB': 0},
       'ganadorId':  null,
+      'creatorUid': myUid,
       'createdAt':  FieldValue.serverTimestamp(),
     });
 
@@ -606,12 +607,19 @@ class ClanService {
     required String clanId,
   }) async {
     try {
+      if (myUid == null) return;
+      // Verificar que el jugador pertenece al clan antes de sumar puntos
+      final playerDoc = await _db.collection('players').doc(myUid).get();
+      final playerClanId = playerDoc.data()?['clanId'] as String?;
+      if (playerClanId != clanId) return;
+
       final warDoc = await _db.collection('clan_wars').doc(warId).get();
       if (!warDoc.exists) return;
       final war = ClanWar.fromDoc(warDoc);
       if (!war.activa) return;
 
       final esClanA = (war.clanA['id'] as String) == clanId;
+      if (!esClanA && (war.clanB['id'] as String) != clanId) return; // no es participante
       final key     = esClanA ? 'puntuacion.clanA' : 'puntuacion.clanB';
       await _db.collection('clan_wars').doc(warId).update({
         key: FieldValue.increment(1),

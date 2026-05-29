@@ -267,6 +267,19 @@ exports.acumularPuntosDesafio = onCall(
     const puntos = Math.round(territoriosConquistados * 10 + distanciaKm * 5);
     if (puntos === 0) return { puntosAcumulados: 0, desafiosActualizados: 0 };
 
+    // Cooldown global por usuario: máximo una llamada cada 30 s (independiente del desafío)
+    const playerRef      = db.collection('players').doc(uid);
+    const globalCooldownMs = 30 * 1000;
+    await db.runTransaction(async (tx) => {
+      const playerSnap = await tx.get(playerRef);
+      if (!playerSnap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
+      const lastGlobal = playerSnap.data().ultimaLlamadaAcumular?.toMillis?.() ?? 0;
+      if (Date.now() - lastGlobal < globalCooldownMs) {
+        throw new HttpsError('resource-exhausted', 'Espera un momento antes de acumular de nuevo.');
+      }
+      tx.update(playerRef, { ultimaLlamadaAcumular: FieldValue.serverTimestamp() });
+    });
+
     const [snapRetador, snapRetado] = await Promise.all([
       db.collection('desafios')
         .where('retadorId', '==', uid)
@@ -808,6 +821,13 @@ exports.conquistarTerritorioGlobal = onCall(
       anteriorDueno = terData2.ownerUid ?? null;
       nuevoCount    = (terData2.conquestCount ?? 0) + 1;
 
+      // Leer contador del anterior dueño para evitar underflow
+      let anteriorCount = 0;
+      if (anteriorDueno && anteriorDueno !== uid) {
+        const anteriorSnap = await tx.get(db.collection('players').doc(anteriorDueno));
+        anteriorCount = anteriorSnap.exists ? (anteriorSnap.data().global_territories_count ?? 0) : 0;
+      }
+
       tx.update(terRef, {
         ownerUid:          uid,
         ownerNickname,
@@ -824,8 +844,8 @@ exports.conquistarTerritorioGlobal = onCall(
       });
       // Contador atómico en el documento del jugador
       tx.update(playerRef, { global_territories_count: FieldValue.increment(1) });
-      // Decrementar contador del dueño anterior
-      if (anteriorDueno && anteriorDueno !== uid) {
+      // Decrementar contador del dueño anterior solo si tiene al menos 1 (evita underflow)
+      if (anteriorDueno && anteriorDueno !== uid && anteriorCount > 0) {
         tx.update(db.collection('players').doc(anteriorDueno), { global_territories_count: FieldValue.increment(-1) });
       }
     });
