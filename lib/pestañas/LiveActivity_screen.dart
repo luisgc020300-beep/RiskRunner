@@ -353,6 +353,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool   _globalesLayerCreated  = false;
   bool   _globalesSelLayerCreated = false;
   Timer? _globalesPulseTimer;
+  Timer? _timerRefreshGlobo;
   double _globalesPulseT        = 0.0;
   bool   _globalesPulseUpdating = false;
   GlobalTerritory? _terrPreviseleccionado;
@@ -557,6 +558,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _timerResistencia?.cancel();
     _iluminacionTimer?.cancel();
     _globalesPulseTimer?.cancel();
+    _timerRefreshGlobo?.cancel();
     _narrador.resetear();
     _cuentaAtrasAnim.dispose();
     _hudAnim.dispose();
@@ -1305,6 +1307,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _mejorarAgua(),
       _dibujarTerritoriosEnMapa(),
       if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
+      if (_objetivoGlobal != null) Future.sync(() {
+        _timerRefreshGlobo?.cancel();
+        _timerRefreshGlobo = Timer.periodic(const Duration(minutes: 5), (_) {
+          if (!mounted) return;
+          _puntosGloboCargados = false;
+          _cargarYMostrarPuntosGlobo();
+        });
+      }),
       if (_rutaGuiada != null) _dibujarGhostRuta(),
       if (_modoRuta) _cargarYDibujarRutasPreview(),
       if (routePoints.length >= 2) _actualizarRutaEnMapa(),
