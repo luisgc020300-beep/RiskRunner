@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:RiskRunner/pestañas/clan_screen.dart';
 import 'package:RiskRunner/pestañas/settings_screen.dart';
 import '../widgets/custom_navbar.dart';
+import '../shell/app_shell.dart';
 import '../services/league_service.dart';
 import '../services/ranking_service.dart';
 import '../screens/rutas_explorador_screen.dart';
@@ -237,7 +238,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           const ClanScreen(),
         ])),
     ]),
-    bottomNavigationBar: const CustomBottomNavbar(currentIndex: 3),
+    bottomNavigationBar: AppShell.isActive(context) ? null : const CustomBottomNavbar(currentIndex: 3),
   );
 
   // ══════════════════════════════ HEADER ════════════════════════════════════════

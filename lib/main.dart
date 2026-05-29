@@ -32,10 +32,10 @@ import 'package:latlong2/latlong.dart';
 import 'pestañas/clan_screen.dart';
 import 'pestañas/desafios_screen.dart';
 import 'services/desafios_service.dart';
-import 'services/game_state_service.dart';
 import 'widgets/operative_bg.dart';
 import 'widgets/offline_banner.dart';
-import 'services/connectivity_service.dart';
+import 'core/service_locator.dart';
+import 'shell/app_shell.dart';
 
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -63,9 +63,7 @@ void main() async {
   await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!Env.isDebug);
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!Env.isDebug);
 
-  await ThemeNotifier.instance.init();
-  await GameStateService.instance.initAsync();
-  await ConnectivityService.instance.init();
+  await setupLocator();
   mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -268,6 +266,20 @@ class _MyAppState extends State<MyApp> {
                 centroInicial:   args?['centroInicial'] as LatLng?,
                 ruta:            (args?['ruta']         as List?)?.cast() ?? [],
                 mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
+              ),
+            );
+
+          case '/ver-mapa':
+            final verMapaArgs = settings.arguments as Map<String, dynamic>?;
+            return MaterialPageRoute(
+              settings: settings,
+              builder: (_) => FullscreenMapScreen(
+                territorios:     (verMapaArgs?['territorios']     as List?)?.cast() ?? [],
+                colorTerritorio: (verMapaArgs?['colorTerritorio'] as Color?)
+                    ?? const Color(0xFFD4722A),
+                centroInicial:   verMapaArgs?['centroInicial'] as LatLng?,
+                ruta:            (verMapaArgs?['ruta']         as List?)?.cast() ?? [],
+                mostrarRuta:     (verMapaArgs?['mostrarRuta']  as bool?) ?? false,
               ),
             );
 
@@ -483,6 +495,6 @@ class _OnboardingGateState extends State<_OnboardingGate> {
     if (!_state!.slidesVistos) {
       return OnboardingSlidesScreen(onComplete: _onSlidesCompleto);
     }
-    return const HomeScreen();
+    return const AppShell();
   }
 }

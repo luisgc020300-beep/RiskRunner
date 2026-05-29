@@ -15,6 +15,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../widgets/custom_navbar.dart';
+import '../shell/app_shell.dart';
 import 'historial_guerra_screen.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -1159,7 +1160,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(),
       body: isLoading ? _buildLoader() : _buildContent(),
-      bottomNavigationBar: isOwnProfile ? const CustomBottomNavbar(currentIndex: 4) : null,
+      bottomNavigationBar: AppShell.isActive(context) ? null : (isOwnProfile ? const CustomBottomNavbar(currentIndex: 4) : null),
     );
   }
 

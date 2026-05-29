@@ -22,6 +22,7 @@ import '../services/game_state_service.dart';
 import '../services/activity_service.dart';
 import '../services/route_service.dart';
 import '../widgets/custom_navbar.dart';
+import '../shell/app_shell.dart';
 import '../config/env.dart';
 import '../widgets/map/map_theme.dart';
 import '../widgets/map/map_dialogs.dart';
@@ -1628,7 +1629,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           },
         ),
       ]),
-      bottomNavigationBar: const CustomBottomNavbar(currentIndex: 2),
+      bottomNavigationBar: AppShell.isActive(context) ? null : const CustomBottomNavbar(currentIndex: 2),
     );
   }
 

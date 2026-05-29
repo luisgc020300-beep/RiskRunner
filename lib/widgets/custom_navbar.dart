@@ -23,7 +23,10 @@ class _NavBadgeData {
 // =============================================================================
 class CustomBottomNavbar extends StatefulWidget {
   final int currentIndex;
-  const CustomBottomNavbar({super.key, required this.currentIndex});
+  /// Cuando se provee, el tap llama este callback en lugar de hacer
+  /// Navigator.push — usado por AppShell para cambiar el IndexedStack.
+  final void Function(int)? onTabSelected;
+  const CustomBottomNavbar({super.key, required this.currentIndex, this.onTabSelected});
 
   static void abrirCrearPost(BuildContext context) {
     HapticFeedback.mediumImpact();
@@ -181,9 +184,10 @@ class _CustomBottomNavbarState extends State<CustomBottomNavbar> {
   @override
   Widget build(BuildContext context) {
     return _NavbarContent(
-      currentIndex: widget.currentIndex,
-      notifCount:   _badges.notifCount,
-      socialCount:  _badges.socialCount,
+      currentIndex:  widget.currentIndex,
+      notifCount:    _badges.notifCount,
+      socialCount:   _badges.socialCount,
+      onTabSelected: widget.onTabSelected,
     );
   }
 }
@@ -193,49 +197,46 @@ class _NavbarContent extends StatelessWidget {
   final int currentIndex;
   final int notifCount;
   final int socialCount;
+  final void Function(int)? onTabSelected;
 
   const _NavbarContent({
     required this.currentIndex,
     required this.notifCount,
     required this.socialCount,
+    this.onTabSelected,
   });
 
   void _onTap(BuildContext context, int index) {
     HapticFeedback.selectionClick();
+
+    // ── Modo shell: delega al IndexedStack, sin Navigator.push ────────────
+    if (onTabSelected != null) {
+      onTabSelected!(index);
+      return;
+    }
+
+    // ── Modo standalone (pantallas fuera del shell) ────────────────────────
     switch (index) {
-
-      // ── HOME ──────────────────────────────────────────────────────────────
-      // Usamos pushNamedAndRemoveUntil para limpiar toda la pila y llegar a
-      // /home sin importar desde qué pantalla venimos (mapa, social, etc.).
-      // Si ya estamos en /home el Navigator simplemente no apila nada extra
-      // porque la predicada devuelve false para todas las rutas anteriores.
       case 0:
-        if (currentIndex == 0) return; // ya estamos en Home, no hacemos nada
+        if (currentIndex == 0) return;
         Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/home',
-          (route) => false, // elimina toda la pila
-        );
+            context, '/home', (route) => false);
         break;
-
       case 1:
         Navigator.pushNamedAndRemoveUntil(
             context, '/correr', ModalRoute.withName('/home'));
         break;
-
       case 2:
-        if (currentIndex == 2) return; // ya estamos en Mapa
+        if (currentIndex == 2) return;
         Navigator.pushNamed(context, '/mapa');
         break;
-
       case 3:
-        if (currentIndex == 3) return; // ya estamos en Social
+        if (currentIndex == 3) return;
         Navigator.pushNamedAndRemoveUntil(
             context, '/social', ModalRoute.withName('/home'));
         break;
-
       case 4:
-        if (currentIndex == 4) return; // ya estamos en Perfil
+        if (currentIndex == 4) return;
         Navigator.pushNamedAndRemoveUntil(
             context, '/perfil', ModalRoute.withName('/home'));
         break;

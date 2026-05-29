@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/custom_navbar.dart';
+import '../shell/app_shell.dart';
 import '../services/territory_service.dart';
 import '../services/subscription_service.dart';
 import '../services/game_state_service.dart';
@@ -1173,7 +1174,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ]),
             ),
-      bottomNavigationBar: const CustomBottomNavbar(currentIndex: 0),
+      bottomNavigationBar: AppShell.isActive(context) ? null : const CustomBottomNavbar(currentIndex: 0),
     );
   }
 
