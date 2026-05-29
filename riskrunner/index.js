@@ -582,6 +582,51 @@ exports.conquistarTerritorio = onCall(async (request) => {
           console.error('Error sumando puntos al clan:', e);
         }
       }
+
+      // Notificar a jugadores cercanos activos para que refresquen el globo
+      try {
+        const radGrados = 0.09; // ~10 km
+        const latMin    = latUsuario - radGrados;
+        const latMax    = latUsuario + radGrados;
+        const maxAgeMs  = 10 * 60 * 1000; // 10 minutos
+        const now       = Date.now();
+
+        const presenciaSnap = await db.collection('presencia_activa')
+          .where('lat', '>=', latMin)
+          .where('lat', '<=', latMax)
+          .get();
+
+        const nearbyUids = presenciaSnap.docs
+          .filter(doc => {
+            if (doc.id === uid) return false;
+            const ts  = doc.data().timestamp?.toMillis?.() ?? 0;
+            if (now - ts > maxAgeMs) return false;
+            const lng = doc.data().lng ?? 0;
+            return Math.abs(lng - lngUsuario) <= radGrados;
+          })
+          .map(doc => doc.id);
+
+        if (nearbyUids.length > 0) {
+          const playerSnaps = await Promise.all(
+            nearbyUids.map(id => db.collection('players').doc(id).get())
+          );
+          const tokens = playerSnaps
+            .filter(s => s.exists && typeof s.data()?.fcm_token === 'string')
+            .map(s => s.data().fcm_token);
+
+          if (tokens.length > 0) {
+            await getMessaging().sendEachForMulticast({
+              tokens,
+              data: { type: 'territory_refresh' },
+              android: { priority: 'high' },
+              apns:    { payload: { aps: { contentAvailable: true } } },
+            });
+            console.log(`[FCM] territory_refresh enviado a ${tokens.length} jugadores cercanos`);
+          }
+        }
+      } catch (e) {
+        console.error('Error notificando jugadores cercanos:', e);
+      }
     }
 
     return { ok: true, accion: resultado.accion };
