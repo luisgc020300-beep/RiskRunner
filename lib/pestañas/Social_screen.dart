@@ -337,11 +337,11 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     return AnimatedBuilder(
       animation: _tabController,
       builder: (_, __) => Row(children: [
-        _iosTab(0, Icons.emoji_events_outlined,       'LIGAS',       const Color(0xFFFFD60A)),
-        _iosTab(1, Icons.people_outline,              'AMIGOS',      const Color(0xFF30D158)),
-        _iosTab(2, Icons.chat_bubble_outline_rounded, 'CHAT',        const Color(0xFF0A84FF), badge: _mensajesNoLeidos),
-        _iosTab(3, Icons.person_add_outlined,         'SOLICITUDES', const Color(0xFFFF9F0A), badge: _solicitudesPendientes),
-        _iosTab(4, Icons.groups_outlined,             'CLUB',        const Color(0xFF5E5CE6)),
+        _iosTab(0, Icons.emoji_events_outlined,       'LIGAS',       kSocAccent),
+        _iosTab(1, Icons.people_outline,              'AMIGOS',      kSocAccent),
+        _iosTab(2, Icons.chat_bubble_outline_rounded, 'CHAT',        kSocAccent, badge: _mensajesNoLeidos),
+        _iosTab(3, Icons.person_add_outlined,         'SOLICITUDES', kSocAccent, badge: _solicitudesPendientes),
+        _iosTab(4, Icons.groups_outlined,             'CLUB',        kSocAccent),
       ]),
     );
   }
