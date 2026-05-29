@@ -10,6 +10,9 @@
 // main() solo necesita llamar setupLocator() en lugar de inicializar
 // cada servicio por separado.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get_it/get_it.dart';
 
 import '../services/connectivity_service.dart';
@@ -33,4 +36,33 @@ Future<void> setupLocator() async {
   final connectivity = ConnectivityService.instance;
   await connectivity.init();
   sl.registerSingleton<ConnectivityService>(connectivity);
+
+  // ── FCM token ─────────────────────────────────────────────────────────────
+  await _saveFcmToken();
+  FirebaseMessaging.instance.onTokenRefresh.listen(_updateFcmToken);
+}
+
+Future<void> _saveFcmToken() async {
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null) return;
+    await FirebaseFirestore.instance
+        .collection('players')
+        .doc(uid)
+        .set({'fcm_token': token}, SetOptions(merge: true));
+  } catch (_) {}
+}
+
+Future<void> _updateFcmToken(String token) async {
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('players')
+        .doc(uid)
+        .set({'fcm_token': token}, SetOptions(merge: true));
+  } catch (_) {}
 }

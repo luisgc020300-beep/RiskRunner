@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show Factory, kIsWeb;
 import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/cupertino.dart';
@@ -334,6 +335,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _globalKmAlcanzados  = false;
   double? _nuevaClausula;
   StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
+  StreamSubscription<RemoteMessage>?    _fcmSub;
   String? _globalTerritoryLastOwner;
   bool _stopping = false;
 
@@ -559,6 +561,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _iluminacionTimer?.cancel();
     _globalesPulseTimer?.cancel();
     _timerRefreshGlobo?.cancel();
+    _fcmSub?.cancel();
     _narrador.resetear();
     _cuentaAtrasAnim.dispose();
     _hudAnim.dispose();
@@ -1313,6 +1316,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (!mounted) return;
           _puntosGloboCargados = false;
           _cargarYMostrarPuntosGlobo();
+        });
+        _fcmSub?.cancel();
+        _fcmSub = FirebaseMessaging.onMessage.listen((msg) {
+          if (!mounted) return;
+          if (msg.data['type'] == 'territory_refresh') {
+            _puntosGloboCargados = false;
+            _cargarYMostrarPuntosGlobo();
+          }
         });
       }),
       if (_rutaGuiada != null) _dibujarGhostRuta(),
