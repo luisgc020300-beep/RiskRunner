@@ -285,6 +285,7 @@ exports.acumularPuntosDesafio = onCall(
     if (docs.length === 0) return { puntosAcumulados: 0, desafiosActualizados: 0 };
 
     let desafiosActualizados = 0;
+    const cooldownMs = 60 * 1000; // 1 minuto entre acumulaciones del mismo jugador
 
     await Promise.all(docs.map(async (doc) => {
       const data = doc.data();
@@ -295,11 +296,25 @@ exports.acumularPuntosDesafio = onCall(
         return;
       }
 
-      const campo = data.retadorId === uid ? 'puntosRetador' : 'puntosRetado';
-      await db.collection('desafios').doc(doc.id).update({
-        [campo]: FieldValue.increment(puntos),
+      const campo         = data.retadorId === uid ? 'puntosRetador'       : 'puntosRetado';
+      const campoUltimaAc = data.retadorId === uid ? 'ultimaAcumRetador'   : 'ultimaAcumRetado';
+
+      // Transacción atómica: verificar cooldown y acumular en una sola operación
+      await db.runTransaction(async (tx) => {
+        const desafioRef  = db.collection('desafios').doc(doc.id);
+        const freshSnap   = await tx.get(desafioRef);
+        if (!freshSnap.exists) return;
+
+        const freshData   = freshSnap.data();
+        const lastAcum    = freshData[campoUltimaAc]?.toMillis?.() ?? 0;
+        if (Date.now() - lastAcum < cooldownMs) return; // Evita doble envío en retry de red
+
+        tx.update(desafioRef, {
+          [campo]:         FieldValue.increment(puntos),
+          [campoUltimaAc]: FieldValue.serverTimestamp(),
+        });
+        desafiosActualizados++;
       });
-      desafiosActualizados++;
     }));
 
     return { puntosAcumulados: puntos, desafiosActualizados };
@@ -768,36 +783,39 @@ exports.conquistarTerritorioGlobal = onCall(
       throw new HttpsError('failed-precondition', 'Ya eres el dueño de este territorio.');
     }
 
-    const miosSnap = await db.collection('global_territories')
-      .where('ownerUid', '==', uid).count().get();
-    if ((miosSnap.data().count ?? 0) >= 5) {
-      throw new HttpsError('failed-precondition', 'Ya controlas 5 territorios globales (máximo).');
-    }
-
-    const playerSnap = await db.collection('players').doc(uid).get();
-    if (!playerSnap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
-
-    const player        = playerSnap.data();
-    const ownerNickname = player.nickname ?? 'Guerrero';
-    const ownerColor    = player.territorio_color ?? ownerColorReq ?? null;
-    const anteriorDueno = territorio.ownerUid ?? null;
-
-    // Nueva cláusula = km corridos × 1.15 (el conquistador decide lo difícil que lo pone)
+    const playerRef = db.collection('players').doc(uid);
     const nuevaClausula = kmRecorridos * 1.15;
-    const nuevoCount    = (territorio.conquestCount ?? 0) + 1;
+
+    // Variables que se asignan dentro de la transacción para uso posterior
+    let ownerNickname, ownerColor, anteriorDueno, nuevoCount;
 
     await db.runTransaction(async (tx) => {
-      const terRef   = db.collection('global_territories').doc(territorioId);
-      const logRef   = db.collection('activity_logs').doc(activityLogId);
-      const terSnap2 = await tx.get(terRef);
+      const terRef    = db.collection('global_territories').doc(territorioId);
+      const logRef    = db.collection('activity_logs').doc(activityLogId);
+      const [terSnap2, playerSnap2] = await Promise.all([tx.get(terRef), tx.get(playerRef)]);
 
-      if (!terSnap2.exists) throw new HttpsError('not-found', 'Territorio desapareció.');
-      if (terSnap2.data().ownerUid === uid) throw new HttpsError('failed-precondition', 'Ya eres el dueño.');
+      if (!terSnap2.exists)    throw new HttpsError('not-found',          'Territorio desapareció.');
+      if (!playerSnap2.exists) throw new HttpsError('not-found',          'Jugador no encontrado.');
+
+      const terData2    = terSnap2.data();
+      const playerData2 = playerSnap2.data();
+
+      if (terData2.ownerUid === uid) throw new HttpsError('failed-precondition', 'Ya eres el dueño.');
+
+      // Límite de 5 territorios globales validado atómicamente dentro de la transacción
+      if ((playerData2.global_territories_count ?? 0) >= 5) {
+        throw new HttpsError('failed-precondition', 'Ya controlas 5 territorios globales (máximo).');
+      }
+
+      ownerNickname = playerData2.nickname ?? 'Guerrero';
+      ownerColor    = playerData2.territorio_color ?? ownerColorReq ?? null;
+      anteriorDueno = terData2.ownerUid ?? null;
+      nuevoCount    = (terData2.conquestCount ?? 0) + 1;
 
       tx.update(terRef, {
         ownerUid:          uid,
-        ownerNickname:     ownerNickname,
-        ownerColor:        ownerColor,
+        ownerNickname,
+        ownerColor,
         libre:             false,
         clausulaKm:        nuevaClausula,
         conquestCount:     nuevoCount,
@@ -808,6 +826,12 @@ exports.conquistarTerritorioGlobal = onCall(
         usado_conquista_global: true,
         territorio_conquistado: territorioId,
       });
+      // Contador atómico en el documento del jugador
+      tx.update(playerRef, { global_territories_count: FieldValue.increment(1) });
+      // Decrementar contador del dueño anterior
+      if (anteriorDueno && anteriorDueno !== uid) {
+        tx.update(db.collection('players').doc(anteriorDueno), { global_territories_count: FieldValue.increment(-1) });
+      }
     });
 
     // ── Notificaciones ────────────────────────────────────────────────────
@@ -1063,172 +1087,117 @@ exports.atacarTerritorio = onCall(
     const atacanteNick  = atacanteData.nickname || 'Alguien';
     const atacanteColor = atacanteData.territorio_color || null;
 
-    // ── CASO A: CONQUISTA TOTAL ───────────────────────────────────────────
-    if (hpNuevo === 0 && porcentajeArea >= 0.95) {
-      const defensorId   = terData.userId;
-      const defensorNick = terData.nickname || 'Alguien';
-      const batch        = db.batch();
+    // Precomputar datos CASO B fuera de la transacción (puntos del polígono no cambian durante ataques)
+    const puntosRestantesCasoB    = poliDefensor.filter(p => !_puntoEnPoligono(p, poliAtacante));
+    const centroRestanteCasoB     = puntosRestantesCasoB.length >= 3 ? _centroide(puntosRestantesCasoB) : null;
+    const centroInterseccionCasoB = _centroide(interseccion);
+    const nuevoTerRefCasoB        = db.collection('territories').doc();
 
-      batch.update(terRef, {
-        userId:                  atacanteId,
-        nickname:                atacanteNick,
-        color:                   atacanteColor,
-        hp:                      100,
-        hpMax:                   100,
-        velocidadConquistaKmh:   velocidadMediaAtacanteKmh,
-        ultimaActualizacionHp:   FieldValue.serverTimestamp(),
-        ultima_visita:           FieldValue.serverTimestamp(),
-        fecha_desde_dueno:       FieldValue.serverTimestamp(),
-        rey_id:                  null,
-        rey_nickname:            null,
-        rey_desde:               null,
-      });
+    // Transacción atómica: re-leer HP actual y aplicar todos los escritos
+    const txResult = await db.runTransaction(async (tx) => {
+      const txSnap = await tx.get(terRef);
+      if (!txSnap.exists) throw new HttpsError('not-found', 'El territorio desapareció durante el ataque.');
+      const txData = txSnap.data();
 
-      batch.update(db.collection('players').doc(atacanteId), {
-        monedas: FieldValue.increment(monedasBotin),
-      });
-
-      batch.set(db.collection('notifications').doc(), {
-        toUserId:    defensorId,
-        type:        'territory_lost',
-        message:     `😤 ¡${atacanteNick} ha conquistado uno de tus territorios!`,
-        fromNickname: atacanteNick,
-        territoryId: terRef.id,
-        read:        false,
-        timestamp:   FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
-
-      // Puntos de liga
-      await Promise.all([
-        db.collection('players').doc(atacanteId).update({
-          puntos_liga: FieldValue.increment(25),
-        }),
-        db.collection('players').doc(defensorId).update({
-          puntos_liga: FieldValue.increment(-10),
-        }),
-      ]);
-
-      return {
-        ok: true, accion: 'conquista_total',
-        hpAntes: hpActual, hpDespues: 100,
-        danio, monedasBotin,
-        mensaje: `¡Has conquistado el territorio de ${defensorNick}!`,
-        territorioRobadoId: terRef.id,
-      };
-    }
-
-    // ── CASO B: ROBO PARCIAL ─────────────────────────────────────────────
-    if (hpNuevo === 0 && porcentajeArea < 0.95) {
-      const defensorId   = terData.userId;
-      const defensorNick = terData.nickname || 'Alguien';
-      const batch        = db.batch();
-
-      const puntosRestantes = poliDefensor.filter(
-        p => !_puntoEnPoligono(p, poliAtacante)
-      );
-
-      if (puntosRestantes.length >= 3) {
-        const centroRestante = _centroide(puntosRestantes);
-        batch.update(terRef, {
-          puntos:                puntosRestantes.map(p => ({ lat: p.y, lng: p.x })),
-          centro:                { lat: centroRestante.y, lng: centroRestante.x },
-          centroLat:             centroRestante.y,
-          centroLng:             centroRestante.x,
-          hp:                    hpActual,
-          hpMax:                 100,
-          ultimaActualizacionHp: FieldValue.serverTimestamp(),
-        });
-      } else {
-        batch.delete(terRef);
+      // Re-validar escudo (puede haberse activado entre lecturas)
+      if (txData.escudo_activo === true && txData.escudo_expira) {
+        const expira = txData.escudo_expira.toDate();
+        if (expira > new Date()) {
+          const hpE = _hpActual(txData);
+          return { ok: false, accion: 'sin_daño', mensaje: 'Este territorio está blindado. No puedes atacarlo.', hpAntes: hpE, hpDespues: hpE, danio: 0, monedasBotin: 0 };
+        }
+      }
+      // Re-validar propietario (puede haber cambiado entre lecturas)
+      if (txData.userId === atacanteId) {
+        return { ok: false, accion: 'sin_daño', mensaje: 'El territorio ya es tuyo.', hpAntes: 100, hpDespues: 100, danio: 0, monedasBotin: 0 };
       }
 
-      const centroInterseccion = _centroide(interseccion);
-      const nuevoTerRef        = db.collection('territories').doc();
+      const hpTx         = _hpActual(txData);
+      const danioTx      = Math.min(Math.round(factorVelocidad * porcentajeArea * hpTx * 0.8), hpTx);
+      const hpNuevoTx    = Math.max(hpTx - danioTx, 0);
+      const monedasTx    = Math.round(danioTx * 0.5 + areaInterseccionM2 * 0.1);
+      const defensorId   = txData.userId;
+      const defensorNick = txData.nickname || 'Alguien';
 
-      batch.set(nuevoTerRef, {
-        userId:                  atacanteId,
-        nickname:                atacanteNick,
-        color:                   atacanteColor,
-        puntos:                  interseccion.map(p => ({ lat: p.y, lng: p.x })),
-        centro:                  { lat: centroInterseccion.y, lng: centroInterseccion.x },
-        centroLat:               centroInterseccion.y,
-        centroLng:               centroInterseccion.x,
-        hp:                      100,
-        hpMax:                   100,
-        velocidadConquistaKmh:   velocidadMediaAtacanteKmh,
-        ultimaActualizacionHp:   FieldValue.serverTimestamp(),
-        ultima_visita:           FieldValue.serverTimestamp(),
-        fecha_desde_dueno:       FieldValue.serverTimestamp(),
-        modo:                    'competitivo',
-        area_m2:                 areaInterseccionM2,
-        rey_id:                  null,
-        rey_nickname:            null,
-        rey_desde:               null,
-        nombre_territorio:       null,
-      });
+      // ── CASO A: CONQUISTA TOTAL ───────────────────────────────────────────
+      if (hpNuevoTx === 0 && porcentajeArea >= 0.95) {
+        tx.update(terRef, {
+          userId: atacanteId, nickname: atacanteNick, color: atacanteColor,
+          hp: 100, hpMax: 100, velocidadConquistaKmh: velocidadMediaAtacanteKmh,
+          ultimaActualizacionHp: FieldValue.serverTimestamp(),
+          ultima_visita: FieldValue.serverTimestamp(),
+          fecha_desde_dueno: FieldValue.serverTimestamp(),
+          rey_id: null, rey_nickname: null, rey_desde: null,
+        });
+        tx.update(db.collection('players').doc(atacanteId), { monedas: FieldValue.increment(monedasTx) });
+        tx.set(db.collection('notifications').doc(), {
+          toUserId: defensorId, type: 'territory_lost',
+          message: `😤 ¡${atacanteNick} ha conquistado uno de tus territorios!`,
+          fromNickname: atacanteNick, territoryId: terRef.id, read: false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+        return { ok: true, accion: 'conquista_total', hpAntes: hpTx, hpDespues: 100, danio: danioTx, monedasBotin: monedasTx, mensaje: `¡Has conquistado el territorio de ${defensorNick}!`, territorioRobadoId: terRef.id, defensorId };
+      }
 
-      batch.update(db.collection('players').doc(atacanteId), {
-        monedas: FieldValue.increment(monedasBotin),
-      });
+      // ── CASO B: ROBO PARCIAL ─────────────────────────────────────────────
+      if (hpNuevoTx === 0 && porcentajeArea < 0.95) {
+        if (centroRestanteCasoB && puntosRestantesCasoB.length >= 3) {
+          tx.update(terRef, {
+            puntos: puntosRestantesCasoB.map(p => ({ lat: p.y, lng: p.x })),
+            centro: { lat: centroRestanteCasoB.y, lng: centroRestanteCasoB.x },
+            centroLat: centroRestanteCasoB.y, centroLng: centroRestanteCasoB.x,
+            hp: hpTx, hpMax: 100, ultimaActualizacionHp: FieldValue.serverTimestamp(),
+          });
+        } else {
+          tx.delete(terRef);
+        }
+        tx.set(nuevoTerRefCasoB, {
+          userId: atacanteId, nickname: atacanteNick, color: atacanteColor,
+          puntos: interseccion.map(p => ({ lat: p.y, lng: p.x })),
+          centro: { lat: centroInterseccionCasoB.y, lng: centroInterseccionCasoB.x },
+          centroLat: centroInterseccionCasoB.y, centroLng: centroInterseccionCasoB.x,
+          hp: 100, hpMax: 100, velocidadConquistaKmh: velocidadMediaAtacanteKmh,
+          ultimaActualizacionHp: FieldValue.serverTimestamp(),
+          ultima_visita: FieldValue.serverTimestamp(),
+          fecha_desde_dueno: FieldValue.serverTimestamp(),
+          modo: 'competitivo', area_m2: areaInterseccionM2,
+          rey_id: null, rey_nickname: null, rey_desde: null, nombre_territorio: null,
+        });
+        tx.update(db.collection('players').doc(atacanteId), { monedas: FieldValue.increment(monedasTx) });
+        tx.set(db.collection('notifications').doc(), {
+          toUserId: defensorId, type: 'territory_bitten',
+          message: `⚔️ ¡${atacanteNick} te ha robado un trozo de territorio!`,
+          fromNickname: atacanteNick, territoryId: terRef.id, read: false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+        return { ok: true, accion: 'robo_parcial', hpAntes: hpTx, hpDespues: 0, danio: danioTx, monedasBotin: monedasTx, mensaje: `¡Has robado un trozo del territorio de ${defensorNick}!`, territorioRobadoId: nuevoTerRefCasoB.id };
+      }
 
-      batch.set(db.collection('notifications').doc(), {
-        toUserId:    defensorId,
-        type:        'territory_bitten',
-        message:     `⚔️ ¡${atacanteNick} te ha robado un trozo de territorio!`,
-        fromNickname: atacanteNick,
-        territoryId: terRef.id,
-        read:        false,
-        timestamp:   FieldValue.serverTimestamp(),
-      });
-
-      await batch.commit();
-
-      return {
-        ok: true, accion: 'robo_parcial',
-        hpAntes: hpActual, hpDespues: 0,
-        danio, monedasBotin,
-        mensaje: `¡Has robado un trozo del territorio de ${defensorNick}!`,
-        territorioRobadoId: nuevoTerRef.id,
-      };
-    }
-
-    // ── CASO C: DAÑO PARCIAL ─────────────────────────────────────────────
-    const defensorId = terData.userId;
-    const batch      = db.batch();
-
-    batch.update(terRef, {
-      hp:                    hpNuevo,
-      ultimaActualizacionHp: FieldValue.serverTimestamp(),
+      // ── CASO C: DAÑO PARCIAL ─────────────────────────────────────────────
+      tx.update(terRef, { hp: hpNuevoTx, ultimaActualizacionHp: FieldValue.serverTimestamp() });
+      if (monedasTx > 0) {
+        tx.update(db.collection('players').doc(atacanteId), { monedas: FieldValue.increment(monedasTx) });
+      }
+      if (hpNuevoTx <= 30 && hpTx > 30) {
+        tx.set(db.collection('notifications').doc(), {
+          toUserId: defensorId, type: 'territory_under_attack',
+          message: `🔥 ¡${atacanteNick} está asediando tu territorio! HP crítico: ${hpNuevoTx}%`,
+          fromNickname: atacanteNick, territoryId: terRef.id, read: false,
+          timestamp: FieldValue.serverTimestamp(),
+        });
+      }
+      return { ok: true, accion: 'daño', hpAntes: hpTx, hpDespues: hpNuevoTx, danio: danioTx, monedasBotin: monedasTx, mensaje: `Daño causado: ${danioTx} HP. El territorio tiene ${hpNuevoTx}% de salud.` };
     });
 
-    if (monedasBotin > 0) {
-      batch.update(db.collection('players').doc(atacanteId), {
-        monedas: FieldValue.increment(monedasBotin),
-      });
+    // Puntos de liga post-transacción (conquista total)
+    if (txResult.accion === 'conquista_total') {
+      await Promise.all([
+        db.collection('players').doc(atacanteId).update({ puntos_liga: FieldValue.increment(25) }),
+        db.collection('players').doc(txResult.defensorId).update({ puntos_liga: FieldValue.increment(-10) }),
+      ]);
     }
 
-    if (hpNuevo <= 30 && hpActual > 30) {
-      batch.set(db.collection('notifications').doc(), {
-        toUserId:    defensorId,
-        type:        'territory_under_attack',
-        message:     `🔥 ¡${atacanteNick} está asediando tu territorio! HP crítico: ${hpNuevo}%`,
-        fromNickname: atacanteNick,
-        territoryId: terRef.id,
-        read:        false,
-        timestamp:   FieldValue.serverTimestamp(),
-      });
-    }
-
-    await batch.commit();
-
-    return {
-      ok: true, accion: 'daño',
-      hpAntes: hpActual, hpDespues: hpNuevo,
-      danio, monedasBotin,
-      mensaje: `Daño causado: ${danio} HP. El territorio tiene ${hpNuevo}% de salud.`,
-    };
+    return txResult;
   }
 );
 

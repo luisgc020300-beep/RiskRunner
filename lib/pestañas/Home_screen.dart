@@ -1967,7 +1967,8 @@ class _CommentInput extends StatefulWidget {
 
 class _CommentInputState extends State<_CommentInput> {
   final TextEditingController _ctrl = TextEditingController();
-  bool _sending = false;
+  bool      _sending  = false;
+  DateTime? _lastSent;
 
   @override
   void dispose() {
@@ -1978,9 +1979,12 @@ class _CommentInputState extends State<_CommentInput> {
   Future<void> _handleSend() async {
     final texto = _ctrl.text.trim();
     if (texto.isEmpty || _sending) return;
+    if (_lastSent != null &&
+        DateTime.now().difference(_lastSent!) < const Duration(seconds: 3)) { return; }
     setState(() => _sending = true);
     try {
       await widget.onSend(texto);
+      _lastSent = DateTime.now();
       _ctrl.clear();
     } finally {
       if (mounted) setState(() => _sending = false);
