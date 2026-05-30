@@ -100,7 +100,7 @@ exports.liquidarGuerraGlobal = onSchedule(
       batchNotif.set(notifRef, {
         toUserId  : g.uid,
         type      : 'guerra_global_recompensa',
-        message   : `⚔️ Recompensa semanal: +${g.recompensa} 🪙 y +${g.ligaPts} pts de liga por controlar "${g.territorio}"`,
+        message   : `Recompensa semanal: +${g.recompensa} monedas y +${g.ligaPts} pts de liga por controlar "${g.territorio}"`,
         read      : false,
         timestamp : ahora,
         semana    : semanaAnterior,
@@ -462,7 +462,7 @@ exports.cerrarTemporada = onCall(
         zonaNombre        : zona.nombre_corto || zona.nombre,
         temporada         : temporada.numero,
         monedasRecompensa : monedas,
-        message           : `👑 ¡Eres el Rey de ${zona.nombre_corto || zona.nombre} en la T${temporada.numero}! +${monedas} 🪙`,
+        message           : `¡Eres el Rey de ${zona.nombre_corto || zona.nombre} en la T${temporada.numero}! +${monedas} monedas`,
         read              : false,
         timestamp         : FieldValue.serverTimestamp(),
       });
@@ -584,7 +584,7 @@ exports.conquistarTerritorio = onCall(async (request) => {
       batch.set(db.collection('notifications').doc(), {
         toUserId  : resultado.duenoAnteriorId,
         type      : 'territory_lost',
-        message   : `⚔️ ${resultado.nuevoNick} ha conquistado uno de tus territorios.`,
+        message   : `${resultado.nuevoNick} ha conquistado uno de tus territorios.`,
         read      : false,
         timestamp : FieldValue.serverTimestamp(),
       });
@@ -593,7 +593,7 @@ exports.conquistarTerritorio = onCall(async (request) => {
         batch.set(db.collection('notifications').doc(), {
           toUserId  : resultado.reyAnteriorId,
           type      : 'territory_king_lost',
-          message   : `👑💀 ${resultado.nuevoNick} te ha arrebatado el reinado. Ya no eres Rey de ese territorio.`,
+          message   : `${resultado.nuevoNick} te ha arrebatado el reinado. Ya no eres Rey de ese territorio.`,
           read      : false,
           timestamp : FieldValue.serverTimestamp(),
         });
@@ -855,7 +855,7 @@ exports.conquistarTerritorioGlobal = onCall(
     notifBatch.set(db.collection('notifications').doc(), {
       toUserId  : uid,
       type      : 'global_territory_conquered',
-      message   : `⚔️ ¡Conquistaste "${territorio.epicName ?? territorio.nombre}"! ` +
+      message   : `¡Conquistaste "${territorio.epicName ?? territorio.nombre}"! ` +
                   `Tu cláusula: ${nuevaClausula.toFixed(1)} km. Defiéndelo hasta el lunes.`,
       read      : false,
       timestamp : FieldValue.serverTimestamp(),
@@ -864,7 +864,7 @@ exports.conquistarTerritorioGlobal = onCall(
       notifBatch.set(db.collection('notifications').doc(), {
         toUserId  : anteriorDueno,
         type      : 'global_territory_lost',
-        message   : `💀 ${ownerNickname} te ha arrebatado ` +
+        message   : `${ownerNickname} te ha arrebatado ` +
                     `"${territorio.epicName ?? territorio.nombre}" corriendo ${kmRecorridos.toFixed(1)} km.`,
         read      : false,
         timestamp : FieldValue.serverTimestamp(),
@@ -1185,7 +1185,7 @@ exports.atacarTerritorio = onCall(
         tx.update(db.collection('players').doc(atacanteId), { monedas: FieldValue.increment(monedasTx) });
         tx.set(db.collection('notifications').doc(), {
           toUserId: defensorId, type: 'territory_bitten',
-          message: `⚔️ ¡${atacanteNick} te ha robado un trozo de territorio!`,
+          message: `¡${atacanteNick} te ha robado un trozo de territorio!`,
           fromNickname: atacanteNick, territoryId: terRef.id, read: false,
           timestamp: FieldValue.serverTimestamp(),
         });
@@ -1468,7 +1468,7 @@ async function _enviarNotificacionesDesafio({
         type         : 'desafio_ganado',
         fromNickname : perdedorNick,
         desafioId,
-        message      : `🏆 ¡Ganaste el desafío contra ${perdedorNick}! +${premio} 🪙`,
+        message      : `¡Ganaste el desafío contra ${perdedorNick}! +${premio} monedas`,
         read         : false,
         timestamp    : FieldValue.serverTimestamp(),
       }),
@@ -1477,7 +1477,7 @@ async function _enviarNotificacionesDesafio({
         type         : 'desafio_perdido',
         fromNickname : ganadorNick,
         desafioId,
-        message      : `💀 Perdiste el desafío contra ${ganadorNick}. Él se lleva ${premio} 🪙`,
+        message      : `Perdiste el desafío contra ${ganadorNick}. Él se lleva ${premio} monedas`,
         read         : false,
         timestamp    : FieldValue.serverTimestamp(),
       }),
