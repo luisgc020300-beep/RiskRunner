@@ -2,9 +2,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:http/http.dart' as http;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -669,6 +673,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<List<ActivityEntry>>? _feedFuture;
   final Map<String, List<Map<String, dynamic>>> _historialCache = {};
 
+  // ── Modo Ciudad — Mapbox ─────────────────────────────────────────────────
+  mapbox.MapboxMap?              _mapboxCiudadMap;
+  bool                           _ciudadStyleLoaded    = false;
+  bool                           _ciudadLayersCreated  = false;
+  bool                           _ciudadLayersCreating = false;
+  mapbox.PointAnnotationManager? _ciudadAnnManager;
+  final Map<String, mapbox.PointAnnotation> _ciudadJugMarkers = {};
+  LatLng?                        _ciudadLastCenter;
+  Timer?                         _ciudadCamDebounce;
+
   // ── Modo Rutas ────────────────────────────────────────────────────────────
   List<RouteData> _misRutas        = [];
   bool            _cargandoRutas   = false;
@@ -681,6 +695,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.colorJugador = widget.colorTerritorio;
     _state.addListener(_onErrorCheck);
     _state.addListener(_recalcularPorcentajesBarrios);
+    _state.addListener(_onStateChangedForCiudad);
 
     _pulseCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2000))
@@ -764,6 +779,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   void dispose() {
     _state.removeListener(_onErrorCheck);
     _state.removeListener(_recalcularPorcentajesBarrios);
+    _state.removeListener(_onStateChangedForCiudad);
+    _ciudadCamDebounce?.cancel();
+    _mapboxCiudadMap = null;
+    _ciudadAnnManager = null;
     _state.dispose();
     _pulseCtrl.dispose();
     _selCtrl.dispose();
@@ -1096,7 +1115,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } else {
       _toggleCtrl.reverse();
       // FIX: volver al zoom y centro inicial igual al de ciudad
-      _mapController.move(_state.centro, _kInitialZoom);
+      _moverCamara(_state.centro, _kInitialZoom);
     }
   }
 
@@ -1104,7 +1123,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     HapticFeedback.lightImpact();
     _state.seleccionarTerritorio(t);
     _selCtrl.forward(from: 0);
-    _mapController.move(t.centro, 15);
+    _moverCamara(t.centro, 15);
   }
 
   void _onGlobalTerritoryTap(GlobalTerritory t) {
@@ -2399,6 +2418,395 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
+  // MODO CIUDAD — MAPBOX
+  // ==========================================================================
+
+  // IDs de capas y fuentes para el modo Ciudad
+  static const _cidSrc      = 'ters-ciudad-src';
+  static const _cidGlowLine = 'ters-ciudad-glow';
+  static const _cidFill     = 'ters-ciudad-fill';
+  static const _cidLine     = 'ters-ciudad-line';
+  static const _cidLabel    = 'ters-ciudad-label';
+  static const _cidRoute    = 'ters-ciudad-route';
+
+  // Convierte Color a hex string para Mapbox GL expressions
+  static String _hexColor(Color c) =>
+      '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}'
+      '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
+      '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
+
+  // Serializa objetos a JSON manualmente (evita dependencia de jsonEncode en GL expressions)
+  static String _toJson(dynamic o) {
+    if (o is Map)    return '{${o.entries.map((e) => '"${e.key}":${_toJson(e.value)}').join(',')}}';
+    if (o is List)   return '[${o.map(_toJson).join(',')}]';
+    if (o is String) return '"${o.replaceAll('"', '\\"')}"';
+    if (o is bool)   return o.toString();
+    return o.toString();
+  }
+
+  // Llamado desde el listener de _state para actualizar el mapa Ciudad
+  void _onStateChangedForCiudad() {
+    if (!_ciudadStyleLoaded || _state.modoGlobal || _state.modoSolitario || _state.modoRutas) return;
+    _dibujarTerritoriosCiudad();
+    _actualizarJugadoresCiudad();
+  }
+
+  // Camera dispatcher — usa Mapbox flyTo en Ciudad, flutter_map move en el resto
+  void _moverCamara(LatLng centro, double zoom) {
+    final enCiudad = !_state.modoGlobal && !_state.modoSolitario && !_state.modoRutas;
+    if (enCiudad && _mapboxCiudadMap != null) {
+      _mapboxCiudadMap!.flyTo(
+        mapbox.CameraOptions(
+          center: mapbox.Point(
+              coordinates: mapbox.Position(centro.longitude, centro.latitude)),
+          zoom: zoom,
+        ),
+        mapbox.MapAnimationOptions(duration: 500),
+      );
+    } else {
+      _mapController.move(centro, zoom);
+    }
+  }
+
+  void _onCiudadMapCreated(mapbox.MapboxMap map) async {
+    _mapboxCiudadMap = map;
+
+    // Gestos estándar — sin pitch para modo de ciudad
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: false,
+      pitchEnabled:  false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+      doubleTouchToZoomOutEnabled: true,
+    ));
+
+    // Location puck nativo para posición del usuario
+    await map.location.updateSettings(mapbox.LocationComponentSettings(
+      enabled: true,
+      puckBearingEnabled: false,
+      locationPuck: mapbox.LocationPuck(
+        locationPuck2D: mapbox.DefaultLocationPuck2D(),
+      ),
+    ));
+
+    // Annotation manager para jugadores en vivo
+    _ciudadAnnManager = await map.annotations.createPointAnnotationManager();
+
+    // La recarga por desplazamiento se escucha via onScrollListener del MapWidget
+  }
+
+  void _onCiudadStyleLoaded(mapbox.StyleLoadedEventData _) async {
+    _ciudadStyleLoaded   = true;
+    _ciudadLayersCreated = false;
+    _ciudadLayersCreating = false;
+    await _setupCiudadTerrain();
+    await _dibujarTerritoriosCiudad();
+    if (widget.ruta.length > 1 && widget.mostrarRuta) {
+      await _setupCiudadRuta();
+    }
+  }
+
+  Future<void> _setupCiudadTerrain() async {
+    if (_mapboxCiudadMap == null) return;
+    // DEM + terrain exaggeration
+    try {
+      await _mapboxCiudadMap!.style.addSource(mapbox.RasterDemSource(
+        id: 'mapbox-dem-ciudad', url: 'mapbox://mapbox.terrain-dem-v1',
+        tileSize: 512, maxzoom: 14.0,
+      ));
+    } catch (_) {}
+    try {
+      await _mapboxCiudadMap!.style
+          .setStyleTerrain('{"source":"mapbox-dem-ciudad","exaggeration":1.5}');
+    } catch (_) {}
+    // Hillshade
+    try {
+      await _mapboxCiudadMap!.style.addLayer(
+          mapbox.HillshadeLayer(id: 'hillshade-ciudad', sourceId: 'mapbox-dem-ciudad'));
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'hillshade-ciudad', 'hillshade-exaggeration', 0.40);
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'hillshade-ciudad', 'hillshade-highlight-color', '#F5E8C8');
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'hillshade-ciudad', 'hillshade-shadow-color', '#7A5230');
+    } catch (_) {}
+    // Edificios 3D
+    try {
+      await _mapboxCiudadMap!.style.addLayer(mapbox.FillExtrusionLayer(
+          id: 'buildings-ciudad', sourceId: 'composite', sourceLayer: 'building'));
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'buildings-ciudad', 'filter', ['==', ['get', 'extrude'], 'true']);
+      await _mapboxCiudadMap!.style.setStyleLayerProperty('buildings-ciudad',
+          'fill-extrusion-base',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']]);
+      await _mapboxCiudadMap!.style.setStyleLayerProperty('buildings-ciudad',
+          'fill-extrusion-height',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'buildings-ciudad', 'fill-extrusion-color', '#1A1A22');
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          'buildings-ciudad', 'fill-extrusion-opacity', 0.72);
+    } catch (_) {}
+  }
+
+  Future<void> _dibujarTerritoriosCiudad() async {
+    if (_mapboxCiudadMap == null || !_ciudadStyleLoaded) return;
+    if (_ciudadLayersCreating) return;
+    _ciudadLayersCreating = true;
+
+    final territorios = _filteredTerritorios(_state.territorios);
+    final selId = _state.territorioSeleccionado?.docId;
+
+    final features = territorios.map((t) {
+      final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
+        ..add([t.puntos.first.longitude, t.puntos.first.latitude]);
+      final colorHex = _hexColor(t.esMio ? t.color : t.colorEstadoHp);
+      final isSel    = t.docId == selId;
+      final fillAlpha = isSel ? 0.45 : (t.esMio ? 0.28 : t.opacidadRelleno);
+      final lineWidth = isSel ? 4.0 : (t.esMio ? 3.5 :
+          switch (t.estadoHp) {
+            EstadoHp.saludable => 1.6,
+            EstadoHp.danado    => 2.0,
+            EstadoHp.critico   => 2.4,
+          });
+      return _toJson({
+        'type': 'Feature',
+        'properties': {
+          'docId':      t.docId,
+          'color':      colorHex,
+          'fillAlpha':  fillAlpha,
+          'lineWidth':  lineWidth,
+          'esMio':      t.esMio,
+          'isCritico':  t.estadoHp == EstadoHp.critico && !t.esMio,
+          'label':      t.esMio ? 'YO' : t.ownerNickname,
+          'labelColor': t.esMio ? '#FFFFFF' : colorHex,
+          'haloColor':  t.esMio ? colorHex : '#000000',
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      });
+    }).join(',');
+
+    final geojson = '{"type":"FeatureCollection","features":[$features]}';
+
+    try {
+      if (_ciudadLayersCreated) {
+        // Solo actualizar la fuente
+        final src = await _mapboxCiudadMap!.style
+            .getSource(_cidSrc) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+        _ciudadLayersCreating = false;
+        return;
+      }
+
+      // Limpiar capas anteriores si existen
+      for (final id in [_cidLabel, _cidLine, _cidFill, _cidGlowLine]) {
+        try { await _mapboxCiudadMap!.style.removeStyleLayer(id); } catch (_) {}
+      }
+      try { await _mapboxCiudadMap!.style.removeStyleSource(_cidSrc); } catch (_) {}
+
+      await _mapboxCiudadMap!.style
+          .addSource(mapbox.GeoJsonSource(id: _cidSrc, data: geojson));
+
+      // Capa glow exterior (borde ancho semitransparente)
+      await _mapboxCiudadMap!.style.addLayer(
+          mapbox.LineLayer(id: _cidGlowLine, sourceId: _cidSrc, minZoom: 10.0));
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(_cidGlowLine,
+          'line-color', ['case', ['get', 'isCritico'], '#CC2222', ['get', 'color']]);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidGlowLine, 'line-width', 14.0);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidGlowLine, 'line-opacity', 0.22);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidGlowLine, 'line-blur', 8.0);
+
+      // Relleno principal
+      await _mapboxCiudadMap!.style.addLayer(
+          mapbox.FillLayer(id: _cidFill, sourceId: _cidSrc, minZoom: 8.0));
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidFill, 'fill-color', ['get', 'color']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidFill, 'fill-opacity', ['get', 'fillAlpha']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidFill, 'fill-antialias', true);
+
+      // Borde principal
+      await _mapboxCiudadMap!.style.addLayer(
+          mapbox.LineLayer(id: _cidLine, sourceId: _cidSrc, minZoom: 8.0));
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLine, 'line-color', ['get', 'color']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLine, 'line-width', ['get', 'lineWidth']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLine, 'line-join', 'round');
+
+      // Etiquetas de territorio (SymbolLayer)
+      await _mapboxCiudadMap!.style.addLayer(
+          mapbox.SymbolLayer(id: _cidLabel, sourceId: _cidSrc, minZoom: 13.0));
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-field', ['get', 'label']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-size', 11.0);
+      await _mapboxCiudadMap!.style.setStyleLayerProperty(
+          _cidLabel, 'text-font', ['DIN Pro Bold', 'Arial Unicode MS Bold']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-color', ['get', 'labelColor']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-halo-color', ['get', 'haloColor']);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-halo-width', 1.8);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'text-letter-spacing', 0.05);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidLabel, 'symbol-placement', 'point');
+
+      _ciudadLayersCreated = true;
+    } catch (e) {
+      debugPrint('Ciudad layers error: $e');
+    } finally {
+      _ciudadLayersCreating = false;
+    }
+  }
+
+  Future<void> _setupCiudadRuta() async {
+    if (_mapboxCiudadMap == null || widget.ruta.isEmpty) return;
+    final coords = widget.ruta.map((p) => [p.longitude, p.latitude]).toList();
+    final geojson = _toJson({
+      'type': 'FeatureCollection',
+      'features': [{'type': 'Feature', 'properties': {},
+        'geometry': {'type': 'LineString', 'coordinates': coords}}],
+    });
+    try {
+      try { await _mapboxCiudadMap!.style.removeStyleLayer(_cidRoute); } catch (_) {}
+      try { await _mapboxCiudadMap!.style.removeStyleSource('${_cidRoute}-src'); } catch (_) {}
+      await _mapboxCiudadMap!.style
+          .addSource(mapbox.GeoJsonSource(id: '${_cidRoute}-src', data: geojson));
+      await _mapboxCiudadMap!.style
+          .addLayer(mapbox.LineLayer(id: _cidRoute, sourceId: '${_cidRoute}-src'));
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidRoute, 'line-color', _hexColor(_kRed));
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidRoute, 'line-width', 4.0);
+      await _mapboxCiudadMap!.style
+          .setStyleLayerProperty(_cidRoute, 'line-cap', 'round');
+    } catch (_) {}
+  }
+
+  Future<void> _actualizarJugadoresCiudad() async {
+    if (_ciudadAnnManager == null) return;
+    final jugadores = _state.jugadoresEnVivo;
+
+    // Eliminar marcadores de jugadores que ya no están
+    final toRemove =
+        _ciudadJugMarkers.keys.where((k) => !jugadores.containsKey(k)).toList();
+    for (final k in toRemove) {
+      final ann = _ciudadJugMarkers.remove(k);
+      if (ann != null) {
+        try { await _ciudadAnnManager!.delete(ann); } catch (_) {}
+      }
+    }
+
+    // Agregar / actualizar
+    for (final entry in jugadores.entries) {
+      final d   = entry.value;
+      final lat = (d['lat'] as num?)?.toDouble();
+      final lng = (d['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      final color = d['color'] != null ? Color(d['color'] as int) : _kRed;
+
+      if (!_ciudadJugMarkers.containsKey(entry.key)) {
+        final img = await _renderCirclePng(color, 14);
+        final ann = await _ciudadAnnManager!.create(mapbox.PointAnnotationOptions(
+          geometry: mapbox.Point(coordinates: mapbox.Position(lng, lat)),
+          image: img,
+          iconSize: 1.0,
+        ));
+        _ciudadJugMarkers[entry.key] = ann;
+      } else {
+        final ann = _ciudadJugMarkers[entry.key]!;
+        ann.geometry =
+            mapbox.Point(coordinates: mapbox.Position(lng, lat));
+        try { await _ciudadAnnManager!.update(ann); } catch (_) {}
+      }
+    }
+  }
+
+  // Genera un PNG de un círculo de color para usar como marcador Mapbox
+  Future<Uint8List> _renderCirclePng(Color color, int diameter) async {
+    final r = PictureRecorder();
+    final c = Canvas(r);
+    c.drawCircle(
+      Offset(diameter / 2, diameter / 2),
+      diameter / 2,
+      Paint()..color = color,
+    );
+    c.drawCircle(
+      Offset(diameter / 2, diameter / 2),
+      diameter / 2 - 1.5,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    final img = await r.endRecording().toImage(diameter, diameter);
+    final bd  = await img.toByteData(format: ImageByteFormat.png);
+    return bd!.buffer.asUint8List();
+  }
+
+  void _onCiudadTap(mapbox.MapContentGestureContext ctx) {
+    final tapLat = ctx.point.coordinates.lat.toDouble();
+    final tapLng = ctx.point.coordinates.lng.toDouble();
+    final tapLatLng = LatLng(tapLat, tapLng);
+
+    TerritoryData? encontrado;
+    for (final t in _state.territorios) {
+      if (_pointInPolygon(tapLatLng, t.puntos)) {
+        encontrado = t;
+        break;
+      }
+    }
+    if (encontrado == null) {
+      // Buscar por proximidad al centro (hasta ~150 m)
+      double minDist = double.infinity;
+      for (final t in _state.territorios) {
+        final d = Geolocator.distanceBetween(
+            tapLat, tapLng, t.centro.latitude, t.centro.longitude);
+        if (d < minDist && d < 150) { minDist = d; encontrado = t; }
+      }
+    }
+    if (encontrado != null) {
+      _onTerritoryTap(encontrado);
+    } else if (_state.territorioSeleccionado != null) {
+      _cerrarSeleccion();
+    }
+  }
+
+  Future<void> _onCiudadCameraIdle() async {
+    if (_mapboxCiudadMap == null || _state.modoGlobal || _state.modoSolitario) return;
+    try {
+      final cam = await _mapboxCiudadMap!.getCameraState();
+      final lat = cam.center.coordinates.lat.toDouble();
+      final lng = cam.center.coordinates.lng.toDouble();
+      final newCenter = LatLng(lat, lng);
+      if (_ciudadLastCenter != null) {
+        final distM = Geolocator.distanceBetween(
+          _ciudadLastCenter!.latitude, _ciudadLastCenter!.longitude,
+          lat, lng,
+        );
+        if (distM < 3000) return;
+      }
+      _ciudadLastCenter = newCenter;
+      TerritoryService.invalidarCache();
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: newCenter, modo: 'competitivo');
+      if (!mounted || _state.modoSolitario) return;
+      _state.setTerritorios(lista);
+      GameStateService.instance.setCompetitiveTerritories(lista);
+      await _rellenarConFantasmas();
+    } catch (_) {}
+  }
+
+  // ==========================================================================
   // MAPA
   // ==========================================================================
   Widget _buildMapa() {
@@ -2415,257 +2823,30 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Widget _buildMapaCiudad(bool tieneRuta) {
-    final territorios  = _filteredTerritorios(_state.territorios);
-    final seleccionado = _state.territorioSeleccionado;
+    final styleUri = _mapaOscuro
+        ? mapbox.MapboxStyles.DARK
+        : 'mapbox://styles/mapbox/outdoors-v12';
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _state.centro,
-        initialZoom: _kInitialZoom,   // FIX: zoom inicial compartido
-        minZoom: 3, maxZoom: 19,
-        cameraConstraint: CameraConstraint.containCenter(
-          bounds: LatLngBounds(
-            const LatLng(-85.0, -180.0),
-            const LatLng(85.0, 180.0),
-          ),
-        ),
-        onTap: (_, __) { if (seleccionado != null) _cerrarSeleccion(); },
-        onMapReady: () {
-          if (tieneRuta) {
-            try {
-              _mapController.fitCamera(CameraFit.bounds(
-                  bounds: LatLngBounds.fromPoints(widget.ruta),
-                  padding: const EdgeInsets.all(60)));
-            } catch (_) {}
-          }
-        },
+    return mapbox.MapWidget(
+      key: const ValueKey('mapa_ciudad_mapbox'),
+      styleUri: styleUri,
+      cameraOptions: mapbox.CameraOptions(
+        center: mapbox.Point(
+            coordinates: mapbox.Position(
+                _state.centro.longitude, _state.centro.latitude)),
+        zoom: _kInitialZoom,
       ),
-      children: [
-        TileLayer(
-            urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
-            userAgentPackageName: 'com.runner_risk.app',
-            tileDimension: 256,
-            keepBuffer: 8,
-            panBuffer: 4,
-            maxNativeZoom: 19),
-
-        // Halo glow — solo territorios propios
-        if (territorios.any((t) => t.esMio))
-          PolygonLayer(
-            polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
-              points: t.puntos,
-              color: Colors.transparent,
-              borderColor: t.color.withValues(alpha: 0.22),
-              borderStrokeWidth: 14.0,
-            )).toList(),
-          ),
-
-        // Halo rojo — territorios rivales en estado crítico
-        if (territorios.any((t) => !t.esMio && t.estadoHp == EstadoHp.critico))
-          PolygonLayer(
-            polygons: territorios
-                .where((t) => !t.esMio && t.estadoHp == EstadoHp.critico)
-                .map((t) => Polygon(
-                  points: t.puntos,
-                  color: Colors.transparent,
-                  borderColor: const Color(0xFFCC2222).withValues(alpha: 0.22),
-                  borderStrokeWidth: 7.0,
-                )).toList(),
-          ),
-
-        if (territorios.isNotEmpty)
-          GestureDetector(
-            onTapUp: (details) {
-              final tapLatLng =
-                  _mapController.camera.offsetToCrs(details.localPosition);
-              TerritoryData? encontrado;
-              for (final t in territorios) {
-                if (_pointInPolygon(tapLatLng, t.puntos)) {
-                  encontrado = t;
-                  break;
-                }
-              }
-              if (encontrado == null) {
-                double minDist = double.infinity;
-                for (final t in territorios) {
-                  final d = Geolocator.distanceBetween(
-                      tapLatLng.latitude, tapLatLng.longitude,
-                      t.centro.latitude, t.centro.longitude);
-                  if (d < minDist && d < 200) {
-                    minDist = d;
-                    encontrado = t;
-                  }
-                }
-              }
-              if (encontrado != null) _onTerritoryTap(encontrado);
-            },
-            child: PolygonLayer(
-              polygons: territorios.map((t) {
-                final bool sel = seleccionado?.docId == t.docId;
-                final double bWidth = sel
-                    ? 4.0
-                    : t.esMio
-                        ? 3.5
-                        : switch (t.estadoHp) {
-                            EstadoHp.saludable => 1.6,
-                            EstadoHp.danado    => 2.0,
-                            EstadoHp.critico   => 2.4,
-                          };
-                return Polygon(
-                  points: t.puntos,
-                  color: sel
-                      ? t.color.withValues(alpha: 0.45)
-                      : t.esMio
-                          ? t.color.withValues(alpha: 0.28)
-                          : t.color.withValues(alpha: t.opacidadRelleno),
-                  borderColor: sel
-                      ? t.color
-                      : t.color.withValues(alpha: t.opacidadBorde),
-                  borderStrokeWidth: bWidth,
-                );
-              }).toList(),
-            ),
-          ),
-
-        if (tieneRuta)
-          PolylineLayer(polylines: [
-            Polyline(points: widget.ruta, strokeWidth: 4, color: _kRed),
-          ]),
-
-        MarkerLayer(markers: [
-          Marker(
-            point: _state.centro, width: 40, height: 40,
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kRed.withValues(alpha: 0.12),
-                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
-              ),
-              child: Center(
-                child: Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: _kRed, width: 2.5),
-                    boxShadow: [BoxShadow(
-                        color: _kRed.withValues(alpha: 0.55),
-                        blurRadius: 10, spreadRadius: 1)],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ]),
-
-        if (territorios.isNotEmpty)
-          MarkerLayer(
-            markers: territorios.map((t) {
-              final sel = seleccionado?.docId == t.docId;
-              return Marker(
-                point: t.centro, width: 80, height: 26,
-                child: GestureDetector(
-                  onTap: () => _onTerritoryTap(t),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: t.esMio
-                          ? t.color.withValues(alpha: 0.88)
-                          : Colors.black.withValues(alpha: 0.78),
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: sel ? Colors.white : t.color.withValues(alpha: t.esMio ? 0.0 : 0.6),
-                        width: sel ? 1.5 : 1,
-                      ),
-                      boxShadow: [BoxShadow(
-                        color: t.color.withValues(alpha: t.esMio ? 0.45 : 0.25),
-                        blurRadius: t.esMio ? 10 : 5, spreadRadius: 0,
-                      )],
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (t.esMio) ...[
-                        Icon(Icons.shield_rounded, size: 9, color: Colors.white),
-                        const SizedBox(width: 3),
-                      ],
-                      Flexible(
-                        child: Text(
-                          t.esMio ? 'YO' : t.ownerNickname,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: t.esMio ? Colors.white : t.color,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-
-        if (_state.jugadoresEnVivo.isNotEmpty)
-          MarkerLayer(
-            markers: _state.jugadoresEnVivo.entries.map((e) {
-              final d = e.value;
-              final lat = (d['lat'] as num?)?.toDouble();
-              final lng = (d['lng'] as num?)?.toDouble();
-              final color = d['color'] != null
-                  ? Color(d['color'] as int)
-                  : _kRed;
-              final nick = d['nickname'] as String? ?? '';
-              if (lat == null || lng == null) return null;
-              return Marker(
-                point: LatLng(lat, lng), width: 56, height: 60,
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      border: Border.all(color: color.withValues(alpha: 0.7)),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      nick.length > 6
-                          ? '${nick.substring(0, 6)}..'
-                          : nick,
-                      style: TextStyle(
-                          color: color,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  Container(
-                      width: 1.5,
-                      height: 6,
-                      color: color.withValues(alpha: 0.6)),
-                  AnimatedBuilder(
-                    animation: _pulseCtrl,
-                    builder: (_, __) => Container(
-                      width: 10 + 4 * _pulse.value,
-                      height: 10 + 4 * _pulse.value,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.8),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.5 * _pulse.value),
-                            blurRadius: 12, spreadRadius: 3)
-                        ],
-                      ),
-                    ),
-                  ),
-                ]),
-              );
-            }).whereType<Marker>().toList(),
-          ),
-      ],
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
+      onMapCreated:        _onCiudadMapCreated,
+      onStyleLoadedListener: _onCiudadStyleLoaded,
+      onTapListener:       _onCiudadTap,
+      onScrollListener: (_) {
+        _ciudadCamDebounce?.cancel();
+        _ciudadCamDebounce =
+            Timer(const Duration(milliseconds: 800), _onCiudadCameraIdle);
+      },
     );
   }
 
@@ -3205,7 +3386,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
       if (_fabCentradoEnUsuario) {
         // Segunda pulsación: volver a vista amplia
-        _mapController.move(_state.centro, _kInitialZoom);
+        _moverCamara(_state.centro, _kInitialZoom);
         setState(() => _fabCentradoEnUsuario = false);
       } else {
         // Primera pulsación: ir a mi posición actual con zoom cercano
@@ -3217,12 +3398,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 locationSettings: const LocationSettings(
                     accuracy: LocationAccuracy.low));
             if (!mounted) return;
-            _mapController.move(
-                LatLng(pos.latitude, pos.longitude), _kLocateZoom);
+            _moverCamara(LatLng(pos.latitude, pos.longitude), _kLocateZoom);
             setState(() => _fabCentradoEnUsuario = true);
           }
         } catch (_) {
-          _mapController.move(_state.centro, _kLocateZoom);
+          _moverCamara(_state.centro, _kLocateZoom);
           setState(() => _fabCentradoEnUsuario = true);
         }
       }
@@ -3378,7 +3558,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     : GestureDetector(
                         onTap: () {
                           _cerrarSeleccion();
-                          _mapController.move(t.centro, 16);
+                          _moverCamara(t.centro, 16);
                         },
                         child: _cardStat(Icons.visibility_rounded, 'OBSERVAR', _kSub),
                       ),
