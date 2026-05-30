@@ -2333,18 +2333,34 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         ? _kSafe : pct > 0 ? _kWarn : _kDim;
                     return Marker(
                       point: b.centro,
-                      width: 120, height: 40,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+                      width: 120, height: 44,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: color.withValues(alpha: 0.55), width: 1),
+                        ),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
                           Text(b.nombre,
                             textAlign: TextAlign.center,
-                            style: _raj(9, FontWeight.w700, color, spacing: 0.5),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _raj(8, FontWeight.w700, color, spacing: 0.3),
                           ),
-                          if (pct > 0)
-                            Text('${(pct * 100).toInt()}%',
-                              style: _raj(8, FontWeight.w600, color)),
-                        ],
+                          if (pct > 0) ...[
+                            const SizedBox(height: 3),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(2),
+                              child: LinearProgressIndicator(
+                                value: pct,
+                                minHeight: 2.5,
+                                backgroundColor: Colors.white12,
+                                valueColor: AlwaysStoppedAnimation(color),
+                              ),
+                            ),
+                          ],
+                        ]),
                       ),
                     );
                   }).toList(),
@@ -2434,14 +2450,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             panBuffer: 4,
             maxNativeZoom: 19),
 
-        // Halo táctico mínimo — solo territorios propios
+        // Halo glow — solo territorios propios
         if (territorios.any((t) => t.esMio))
           PolygonLayer(
             polygons: territorios.where((t) => t.esMio).map((t) => Polygon(
               points: t.puntos,
               color: Colors.transparent,
-              borderColor: t.color.withValues(alpha: 0.08),
-              borderStrokeWidth: 6.0,
+              borderColor: t.color.withValues(alpha: 0.22),
+              borderStrokeWidth: 14.0,
             )).toList(),
           ),
 
@@ -2488,9 +2504,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               polygons: territorios.map((t) {
                 final bool sel = seleccionado?.docId == t.docId;
                 final double bWidth = sel
-                    ? 3.0
+                    ? 4.0
                     : t.esMio
-                        ? 2.8
+                        ? 3.5
                         : switch (t.estadoHp) {
                             EstadoHp.saludable => 1.6,
                             EstadoHp.danado    => 2.0,
@@ -2499,8 +2515,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 return Polygon(
                   points: t.puntos,
                   color: sel
-                      ? t.color.withValues(alpha: 0.40)
-                      : t.color.withValues(alpha: t.opacidadRelleno),
+                      ? t.color.withValues(alpha: 0.45)
+                      : t.esMio
+                          ? t.color.withValues(alpha: 0.28)
+                          : t.color.withValues(alpha: t.opacidadRelleno),
                   borderColor: sel
                       ? t.color
                       : t.color.withValues(alpha: t.opacidadBorde),
@@ -2544,35 +2562,51 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         if (territorios.isNotEmpty)
           MarkerLayer(
-            markers: territorios.map((t) => Marker(
-              point: t.centro, width: 72, height: 22,
-              child: GestureDetector(
-                onTap: () => _onTerritoryTap(t),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: seleccionado?.docId == t.docId
-                          ? t.color
-                          : t.color.withValues(alpha: 0.5),
-                      width: seleccionado?.docId == t.docId ? 1.5 : 1,
+            markers: territorios.map((t) {
+              final sel = seleccionado?.docId == t.docId;
+              return Marker(
+                point: t.centro, width: 80, height: 26,
+                child: GestureDetector(
+                  onTap: () => _onTerritoryTap(t),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: t.esMio
+                          ? t.color.withValues(alpha: 0.88)
+                          : Colors.black.withValues(alpha: 0.78),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: sel ? Colors.white : t.color.withValues(alpha: t.esMio ? 0.0 : 0.6),
+                        width: sel ? 1.5 : 1,
+                      ),
+                      boxShadow: [BoxShadow(
+                        color: t.color.withValues(alpha: t.esMio ? 0.45 : 0.25),
+                        blurRadius: t.esMio ? 10 : 5, spreadRadius: 0,
+                      )],
                     ),
-                  ),
-                  child: Text(
-                    t.esMio ? '[ YO ]' : t.ownerNickname,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: t.color, fontSize: 8,
-                      fontWeight: FontWeight.w800, letterSpacing: 0.5,
-                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (t.esMio) ...[
+                        Icon(Icons.shield_rounded, size: 9, color: Colors.white),
+                        const SizedBox(width: 3),
+                      ],
+                      Flexible(
+                        child: Text(
+                          t.esMio ? 'YO' : t.ownerNickname,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: t.esMio ? Colors.white : t.color,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
-              ),
-            )).toList(),
+              );
+            }).toList(),
           ),
 
         if (_state.jugadoresEnVivo.isNotEmpty)
@@ -2952,6 +2986,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Stack(alignment: Alignment.center, children: [
+                            // Anillo exterior extra solo para legendarios
+                            if (isLegend)
+                              Container(
+                                width: sz + glowR * 2 + 10 + 10 * _pulse.value,
+                                height: sz + glowR * 2 + 10 + 10 * _pulse.value,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: baseColor.withValues(alpha: 0.12 + 0.13 * _pulse.value),
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
                             Container(
                               width: sz + glowR * 2,
                               height: sz + glowR * 2,
