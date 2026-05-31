@@ -1176,6 +1176,7 @@ class TerritoryService {
     const double radioBase  = 0.00055; // ~61 m → ~9 000 m² de media
     const double margen     = 0.0016; // si hay algo a <178 m, no crear
 
+    final batch = _db.batch();
     int created = 0;
     for (int row = -7; row <= 7 && created < max; row++) {
       for (int col = -7; col <= 7 && created < max; col++) {
@@ -1198,8 +1199,7 @@ class TerritoryService {
             .map((p) => {'lat': p.latitude, 'lng': p.longitude})
             .toList();
 
-        try {
-          await _db.collection('territories').add({
+        batch.set(_db.collection('territories').doc(), {
             'userId':                kGhostUserId,
             'nickname':              nick,
             'puntos':                puntosList,
@@ -1223,13 +1223,18 @@ class TerritoryService {
             'nombre_territorio':     null,
           });
           created++;
-        } catch (e) {
-          debugPrint('Error creando fantasma: $e');
-        }
       }
     }
-    debugPrint('👻 Creados $created fantasmas en Firestore');
-    if (created > 0) invalidarCache();
+
+    if (created > 0) {
+      try {
+        await batch.commit();
+        invalidarCache();
+      } catch (e) {
+        debugPrint('Error creando fantasmas (batch): $e');
+      }
+    }
+    debugPrint('👻 Creados $created fantasmas en Firestore (batch)');
   }
 
   // ══════════════════════════════════════════════════════════════════════════

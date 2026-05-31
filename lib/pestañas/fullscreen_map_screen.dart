@@ -684,6 +684,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   final Map<String, mapbox.PointAnnotation> _ciudadJugMarkers = {};
   LatLng?                        _ciudadLastCenter;
   Timer?                         _ciudadCamDebounce;
+  Timer?                         _streamTerritoriDebounce;
 
   // ── Modo Solitario — Mapbox ──────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxSolMap;
@@ -804,6 +805,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.removeListener(_onStateChangedForSolitario);
     _state.removeListener(_onStateChangedForGlobal);
     _ciudadCamDebounce?.cancel();
+    _streamTerritoriDebounce?.cancel();
     _mapboxCiudadMap  = null;
     _ciudadAnnManager = null;
     _mapboxSolMap     = null;
@@ -869,10 +871,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   void _suscribirStreamTerritorios() {
     _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
       if (!mounted) return;
-      // Siempre actualizar caché para que el retorno a competitivo sea inmediato
       GameStateService.instance.setCompetitiveTerritories(list);
       if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
-      _state.setTerritorios(list);
+      // Debounce: evita redraws múltiples cuando Firestore emite ráfagas
+      // (p.ej. creación de territorios fantasma uno a uno)
+      _streamTerritoriDebounce?.cancel();
+      _streamTerritoriDebounce = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _state.setTerritorios(list);
+      });
     });
     _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
       if (!mounted) return;
