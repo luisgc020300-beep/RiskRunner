@@ -878,6 +878,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _streamTerritoriDebounce?.cancel();
       _streamTerritoriDebounce = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
+        if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
         _state.setTerritorios(list);
       });
     });
