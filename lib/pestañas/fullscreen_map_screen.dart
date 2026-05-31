@@ -683,6 +683,24 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   LatLng?                        _ciudadLastCenter;
   Timer?                         _ciudadCamDebounce;
 
+  // ── Modo Solitario — Mapbox ──────────────────────────────────────────────
+  mapbox.MapboxMap?              _mapboxSolMap;
+  bool                           _solStyleLoaded    = false;
+  bool                           _solLayersCreated  = false;
+  bool                           _solLayersCreating = false;
+
+  // ── Modo Rutas — Mapbox ──────────────────────────────────────────────────
+  mapbox.MapboxMap?              _mapboxRutasMap;
+  bool                           _rutasStyleLoaded   = false;
+  bool                           _rutasLayersCreated = false;
+  mapbox.PointAnnotationManager? _rutasAnnManager;
+
+  // ── Modo Global — Mapbox ─────────────────────────────────────────────────
+  mapbox.MapboxMap?              _mapboxGlobalMap;
+  bool                           _globalMbxStyleLoaded    = false;
+  bool                           _globalMbxLayersCreated  = false;
+  bool                           _globalMbxLayersCreating = false;
+
   // ── Modo Rutas ────────────────────────────────────────────────────────────
   List<RouteData> _misRutas        = [];
   bool            _cargandoRutas   = false;
@@ -696,6 +714,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.addListener(_onErrorCheck);
     _state.addListener(_recalcularPorcentajesBarrios);
     _state.addListener(_onStateChangedForCiudad);
+    _state.addListener(_onStateChangedForSolitario);
+    _state.addListener(_onStateChangedForGlobal);
 
     _pulseCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2000))
@@ -780,9 +800,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.removeListener(_onErrorCheck);
     _state.removeListener(_recalcularPorcentajesBarrios);
     _state.removeListener(_onStateChangedForCiudad);
+    _state.removeListener(_onStateChangedForSolitario);
+    _state.removeListener(_onStateChangedForGlobal);
     _ciudadCamDebounce?.cancel();
-    _mapboxCiudadMap = null;
+    _mapboxCiudadMap  = null;
     _ciudadAnnManager = null;
+    _mapboxSolMap     = null;
+    _mapboxRutasMap   = null;
+    _rutasAnnManager  = null;
+    _mapboxGlobalMap  = null;
     _state.dispose();
     _pulseCtrl.dispose();
     _selCtrl.dispose();
@@ -1103,7 +1129,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_state.modoGlobal) {
       _toggleCtrl.forward();
       _globalEntryCtrl.forward(from: 0);
-      _mapController.move(_kGlobalCenter, 2.5);
       setState(() => _zoomGlobal = 2.5);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_sheetCtrl.isAttached) {
@@ -1130,7 +1155,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     HapticFeedback.lightImpact();
     _state.seleccionarTerritoryGlobal(t);
     _selCtrl.forward(from: 0);
-    _mapController.move(t.center, 5);
+    _moverCamara(t.center, 5);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_sheetCtrl.isAttached) {
         _sheetCtrl.animateTo(0.08,
@@ -1919,7 +1944,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     _state.setModoSolitario(false);
                     await _cargarTerritorios();
                   }
-                  _mapController.move(_state.centro, _kInitialZoom);
+                  _moverCamara(_state.centro, _kInitialZoom);
                 },
               ),
               const SizedBox(width: 5),
@@ -1981,7 +2006,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _activarModoSolitario() async {
     await _centroListo; // garantiza GPS real antes de consultar Overpass
     _state.setModoSolitario(true);
-    _mapController.move(_state.centro, _kInitialZoom);
+    _moverCamara(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
     // Resetear si la carga anterior no encontró resultados
@@ -2158,7 +2183,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoRutas() async {
     _state.setModoRutas(true);
-    _mapController.move(_state.centro, _kInitialZoom);
+    _moverCamara(_state.centro, _kInitialZoom);
     await _cargarMisRutas();
   }
 
@@ -2204,1134 +2229,895 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return false;
   }
 
-  // FIX: el mapa solitario ahora usa el mismo MapController y mismo zoom inicial
-  Widget _buildMapaSolitario() {
-    return ListenableBuilder(
-      listenable: _state,
-      builder: (_, __) {
-        final territorios = _filteredTerritorios(_state.territorios);
-        return Stack(children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _state.centro,
-              initialZoom: _kInitialZoom,   // FIX: mismo zoom que ciudad
-              minZoom: 3, maxZoom: 19,
-              cameraConstraint: CameraConstraint.containCenter(
-                bounds: LatLngBounds(
-                  const LatLng(-85.0, -180.0),
-                  const LatLng(85.0, 180.0),
-                ),
-              ),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
-                userAgentPackageName: 'com.runner_risk.app',
-                tileDimension: 256,
-                keepBuffer: 8,
-                panBuffer: 4,
-                maxNativeZoom: 19,
-              ),
-
-              // Polígonos de barrios OSM
-              if (_barriosCercanos.isNotEmpty)
-                PolygonLayer(
-                  polygons: _barriosCercanos.map((b) {
-                    final pct = b.porcentajeCubierto;
-                    final Color color = pct >= 1.0
-                        ? _kSafe
-                        : pct > 0 ? _kWarn : _kDim;
-                    return Polygon(
-                      points: b.puntos,
-                      color: color.withValues(alpha: pct > 0 ? 0.16 : 0.06),
-                      borderColor: _mapaOscuro
-                          ? Colors.white.withValues(alpha: 0.45)
-                          : const Color(0xFF888888).withValues(alpha: 0.55),
-                      borderStrokeWidth: 1.5,
-                    );
-                  }).toList(),
-                ),
-
-              // Zonas objetivo solitario (todas, no conquistadas aún)
-              if (_state.modoSolitario && territorios.any((t) => !t.esMio))
-                PolygonLayer(
-                  polygons: territorios.where((t) => !t.esMio).map((t) => Polygon(
-                    points: t.puntos,
-                    color: Colors.white.withValues(alpha: 0.04),
-                    borderColor: Colors.white.withValues(alpha: 0.35),
-                    borderStrokeWidth: 1.5,
-                  )).toList(),
-                ),
-
-              // Halo táctico mínimo — propios
-              if (territorios.any((t) => t.esMio))
-                PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) {
-                    final decay = _decayFactor(t);
-                    return Polygon(
-                      points: t.puntos,
-                      color: Colors.transparent,
-                      borderColor: t.color.withValues(alpha: 0.08 * decay),
-                      borderStrokeWidth: 6.0,
-                    );
-                  }).toList(),
-                ),
-
-              // Territorios propios encima
-              if (territorios.isNotEmpty)
-                PolygonLayer(
-                  polygons: territorios.where((t) => t.esMio).map((t) {
-                    final decay = _decayFactor(t);
-                    final frio  = !_state.modoSolitario &&
-                        t.ultimaVisita != null &&
-                        DateTime.now().difference(t.ultimaVisita!).inDays >= 7;
-                    return Polygon(
-                      points: t.puntos,
-                      color: frio
-                          ? Colors.grey.withValues(alpha: 0.14)
-                          : t.color.withValues(alpha: 0.30 * decay),
-                      borderColor: frio
-                          ? Colors.grey.withValues(alpha: 0.60)
-                          : t.color.withValues(alpha: (0.90 * decay).clamp(0.0, 1.0)),
-                      borderStrokeWidth: 2.8,
-                    );
-                  }).toList(),
-                ),
-
-              // Marcadores de alerta en territorios fríos — solo modo competitivo
-              if (!_state.modoSolitario &&
-                  territorios.any((t) => t.esMio && t.ultimaVisita != null &&
-                  DateTime.now().difference(t.ultimaVisita!).inDays >= 7))
-                MarkerLayer(
-                  markers: territorios.where((t) => t.esMio &&
-                      t.ultimaVisita != null &&
-                      DateTime.now().difference(t.ultimaVisita!).inDays >= 7)
-                    .map((t) => Marker(
-                      point: t.centro,
-                      width: 22, height: 22,
-                      child: Container(
-                        width: 22, height: 22,
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.85),
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(
-                            color: Colors.orange.withValues(alpha: 0.4),
-                            blurRadius: 6)],
-                        ),
-                        child: const Icon(Icons.warning_amber_rounded,
-                            color: Colors.white, size: 13),
-                      ),
-                    )).toList(),
-                ),
-
-              // Marcador de posición del usuario
-              MarkerLayer(markers: [
-                Marker(
-                  point: _state.centro, width: 22, height: 22,
-                  child: Container(
-                    width: 22, height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      border: Border.all(color: _kRed, width: 2),
-                      boxShadow: [BoxShadow(
-                          color: _kRed.withValues(alpha: 0.50),
-                          blurRadius: 8, spreadRadius: 1)],
-                    ),
-                  ),
-                ),
-              ]),
-
-              // Etiquetas de barrios
-              if (_barriosCercanos.isNotEmpty)
-                MarkerLayer(
-                  markers: _barriosCercanos.map((b) {
-                    final pct = b.porcentajeCubierto;
-                    final Color color = pct >= 1.0
-                        ? _kSafe : pct > 0 ? _kWarn : _kDim;
-                    return Marker(
-                      point: b.centro,
-                      width: 120, height: 44,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.62),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: color.withValues(alpha: 0.55), width: 1),
-                        ),
-                        child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          Text(b.nombre,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _raj(8, FontWeight.w700, color, spacing: 0.3),
-                          ),
-                          if (pct > 0) ...[
-                            const SizedBox(height: 3),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(2),
-                              child: LinearProgressIndicator(
-                                value: pct,
-                                minHeight: 2.5,
-                                backgroundColor: Colors.white12,
-                                valueColor: AlwaysStoppedAnimation(color),
-                              ),
-                            ),
-                          ],
-                        ]),
-                      ),
-                    );
-                  }).toList(),
-                ),
-            ],
-          ),
-
-          // Indicador de carga de barrios
-          if (_cargandoBarrios)
-            Positioned(
-              top: 90, left: 0, right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _kSurface.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kBorder),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const SizedBox(
-                      width: 12, height: 12,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 1.5, color: _kSub),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Cargando barrios…',
-                        style: _raj(10, FontWeight.w600, _kSub)),
-                  ]),
-                ),
-              ),
-            ),
-        ]);
-      },
-    );
+  // ==========================================================================
+  // BUILD MAPA — dispatcher
+  // ==========================================================================
+  Widget _buildMapa() {
+    if (_state.modoGlobal)    return _buildMapaGlobal();
+    if (_state.modoSolitario) return _buildMapaSolitario();
+    if (_state.modoRutas)     return _buildMapaRutas();
+    return _buildMapaCiudad(widget.mostrarRuta && widget.ruta.isNotEmpty);
   }
+
+  // ==========================================================================
+  // CONSTANTES — layer IDs Mapbox
+  // ==========================================================================
+  static const String _cidSrc      = 'cid-territories-src';
+  static const String _cidGlowLine = 'cid-glow-line';
+  static const String _cidFill     = 'cid-fill';
+  static const String _cidLine     = 'cid-line';
+  static const String _cidLabel    = 'cid-label';
+  static const String _cidRoute    = 'cid-route-line';
+  static const String _cidRouteSrc = 'cid-route-src';
+
+  static const String _solBarSrc   = 'sol-bar-src';
+  static const String _solBarFill  = 'sol-bar-fill';
+  static const String _solBarLine  = 'sol-bar-line';
+  static const String _solBarLabel = 'sol-bar-label';
+  static const String _solTerSrc   = 'sol-ter-src';
+  static const String _solTerGlow  = 'sol-ter-glow';
+  static const String _solTerFill  = 'sol-ter-fill';
+  static const String _solTerLine  = 'sol-ter-line';
+
+  static const String _rutSrc      = 'rut-src';
+  static const String _rutLine     = 'rut-line';
+
+  static const String _glbSrc      = 'glb-src';
+  static const String _glbGlow     = 'glb-glow';
+  static const String _glbFill     = 'glb-fill';
+  static const String _glbLine     = 'glb-line';
+  static const String _glbLabel    = 'glb-label';
+
+  // ==========================================================================
+  // HELPERS — GeoJSON
+  // ==========================================================================
+  static String _hexColor(Color c) {
+    final r = (c.r * 255).round();
+    final g = (c.g * 255).round();
+    final b = (c.b * 255).round();
+    final a = (c.a * 255).round();
+    return 'rgba($r,$g,$b,${(a / 255).toStringAsFixed(3)})';
+  }
+
+  static String _toJson(dynamic o) => jsonEncode(o);
 
   // ==========================================================================
   // MODO CIUDAD — MAPBOX
   // ==========================================================================
 
-  // IDs de capas y fuentes para el modo Ciudad
-  static const _cidSrc      = 'ters-ciudad-src';
-  static const _cidGlowLine = 'ters-ciudad-glow';
-  static const _cidFill     = 'ters-ciudad-fill';
-  static const _cidLine     = 'ters-ciudad-line';
-  static const _cidLabel    = 'ters-ciudad-label';
-  static const _cidRoute    = 'ters-ciudad-route';
-
-  // Convierte Color a hex string para Mapbox GL expressions
-  static String _hexColor(Color c) =>
-      '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}'
-      '${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}'
-      '${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
-
-  // Serializa objetos a JSON manualmente (evita dependencia de jsonEncode en GL expressions)
-  static String _toJson(dynamic o) {
-    if (o is Map)    return '{${o.entries.map((e) => '"${e.key}":${_toJson(e.value)}').join(',')}}';
-    if (o is List)   return '[${o.map(_toJson).join(',')}]';
-    if (o is String) return '"${o.replaceAll('"', '\\"')}"';
-    if (o is bool)   return o.toString();
-    return o.toString();
-  }
-
-  // Llamado desde el listener de _state para actualizar el mapa Ciudad
   void _onStateChangedForCiudad() {
-    if (!_ciudadStyleLoaded || _state.modoGlobal || _state.modoSolitario || _state.modoRutas) return;
+    if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
+    if (!_ciudadStyleLoaded) return;
     _dibujarTerritoriosCiudad();
     _actualizarJugadoresCiudad();
   }
 
-  // Camera dispatcher — usa Mapbox flyTo en Ciudad, flutter_map move en el resto
-  void _moverCamara(LatLng centro, double zoom) {
-    final enCiudad = !_state.modoGlobal && !_state.modoSolitario && !_state.modoRutas;
-    if (enCiudad && _mapboxCiudadMap != null) {
-      _mapboxCiudadMap!.flyTo(
-        mapbox.CameraOptions(
-          center: mapbox.Point(
-              coordinates: mapbox.Position(centro.longitude, centro.latitude)),
-          zoom: zoom,
-        ),
-        mapbox.MapAnimationOptions(duration: 500),
-      );
-    } else {
-      _mapController.move(centro, zoom);
-    }
-  }
-
   void _onCiudadMapCreated(mapbox.MapboxMap map) async {
     _mapboxCiudadMap = map;
-
-    // Gestos estándar — sin pitch para modo de ciudad
+    await map.style.setProjection(
+        mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
     await map.gestures.updateSettings(mapbox.GesturesSettings(
       rotateEnabled: false,
-      pitchEnabled:  false,
+      pitchEnabled: false,
       scrollEnabled: true,
       pinchToZoomEnabled: true,
       doubleTapToZoomInEnabled: true,
       doubleTouchToZoomOutEnabled: true,
     ));
-
-    // Location puck nativo para posición del usuario
     await map.location.updateSettings(mapbox.LocationComponentSettings(
       enabled: true,
       puckBearingEnabled: false,
       locationPuck: mapbox.LocationPuck(
-        locationPuck2D: mapbox.DefaultLocationPuck2D(),
-      ),
+          locationPuck2D: mapbox.DefaultLocationPuck2D()),
     ));
-
-    // Annotation manager para jugadores en vivo
     _ciudadAnnManager = await map.annotations.createPointAnnotationManager();
-
-    // La recarga por desplazamiento se escucha via onScrollListener del MapWidget
   }
 
   void _onCiudadStyleLoaded(mapbox.StyleLoadedEventData _) async {
-    _ciudadStyleLoaded   = true;
-    _ciudadLayersCreated = false;
+    _ciudadStyleLoaded    = true;
+    _ciudadLayersCreated  = false;
     _ciudadLayersCreating = false;
     await _setupCiudadTerrain();
     await _dibujarTerritoriosCiudad();
-    if (widget.ruta.length > 1 && widget.mostrarRuta) {
+    if (widget.mostrarRuta && widget.ruta.isNotEmpty) {
       await _setupCiudadRuta();
     }
+    _actualizarJugadoresCiudad();
   }
 
   Future<void> _setupCiudadTerrain() async {
-    if (_mapboxCiudadMap == null) return;
-    // DEM + terrain exaggeration
+    final map = _mapboxCiudadMap;
+    if (map == null) return;
     try {
-      await _mapboxCiudadMap!.style.addSource(mapbox.RasterDemSource(
-        id: 'mapbox-dem-ciudad', url: 'mapbox://mapbox.terrain-dem-v1',
-        tileSize: 512, maxzoom: 14.0,
-      ));
-    } catch (_) {}
-    try {
-      await _mapboxCiudadMap!.style
-          .setStyleTerrain('{"source":"mapbox-dem-ciudad","exaggeration":1.5}');
-    } catch (_) {}
-    // Hillshade
-    try {
-      await _mapboxCiudadMap!.style.addLayer(
-          mapbox.HillshadeLayer(id: 'hillshade-ciudad', sourceId: 'mapbox-dem-ciudad'));
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'hillshade-ciudad', 'hillshade-exaggeration', 0.40);
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'hillshade-ciudad', 'hillshade-highlight-color', '#F5E8C8');
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'hillshade-ciudad', 'hillshade-shadow-color', '#7A5230');
-    } catch (_) {}
-    // Edificios 3D
-    try {
-      await _mapboxCiudadMap!.style.addLayer(mapbox.FillExtrusionLayer(
-          id: 'buildings-ciudad', sourceId: 'composite', sourceLayer: 'building'));
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'buildings-ciudad', 'filter', ['==', ['get', 'extrude'], 'true']);
-      await _mapboxCiudadMap!.style.setStyleLayerProperty('buildings-ciudad',
-          'fill-extrusion-base',
-          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']]);
-      await _mapboxCiudadMap!.style.setStyleLayerProperty('buildings-ciudad',
-          'fill-extrusion-height',
-          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'buildings-ciudad', 'fill-extrusion-color', '#1A1A22');
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          'buildings-ciudad', 'fill-extrusion-opacity', 0.72);
+      await map.style.addSource(mapbox.RasterDemSource(
+          id: 'cid-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 512, maxzoom: 14.0));
+      await map.style.setStyleTerrain(
+          '{"source":"cid-dem","exaggeration":1.2}');
+      await map.style.addLayer(mapbox.HillshadeLayer(
+          id: 'cid-hillshade', sourceId: 'cid-dem',
+          hillshadeIlluminationDirection: 335,
+          hillshadeExaggeration: 0.35,
+          hillshadeShadowColor: 0xFF101828,
+          hillshadeHighlightColor: 0xFFFFFFFF));
     } catch (_) {}
   }
 
   Future<void> _dibujarTerritoriosCiudad() async {
-    if (_mapboxCiudadMap == null || !_ciudadStyleLoaded) return;
-    if (_ciudadLayersCreating) return;
-    _ciudadLayersCreating = true;
-
+    final map = _mapboxCiudadMap;
+    if (map == null || !_ciudadStyleLoaded) return;
     final territorios = _filteredTerritorios(_state.territorios);
-    final selId = _state.territorioSeleccionado?.docId;
+    if (territorios.isEmpty) return;
 
     final features = territorios.map((t) {
-      final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
+      final decay      = _decayFactor(t);
+      final sel        = _state.territorioSeleccionado?.docId == t.docId;
+      final fillAlpha  = sel ? 0.50 : (t.esMio ? 0.30 * decay : 0.20);
+      final lineAlpha  = t.esMio ? (0.90 * decay).clamp(0.0, 1.0) : 0.70;
+      final glowAlpha  = t.esMio ? 0.10 * decay : 0.06;
+      final lineWidth  = sel ? 3.5 : (t.esMio ? 2.5 : 1.8);
+      final glowWidth  = sel ? 14.0 : (t.esMio ? 10.0 : 6.0);
+      final label      = t.ownerNickname ?? (t.esMio ? 'TÚ' : '?');
+      final labelColor = t.esMio ? _kGoldLight : Colors.white;
+      final coords     = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
         ..add([t.puntos.first.longitude, t.puntos.first.latitude]);
-      final colorHex = _hexColor(t.esMio ? t.color : t.colorEstadoHp);
-      final isSel    = t.docId == selId;
-      final fillAlpha = isSel ? 0.45 : (t.esMio ? 0.28 : t.opacidadRelleno);
-      final lineWidth = isSel ? 4.0 : (t.esMio ? 3.5 :
-          switch (t.estadoHp) {
-            EstadoHp.saludable => 1.6,
-            EstadoHp.danado    => 2.0,
-            EstadoHp.critico   => 2.4,
-          });
-      return _toJson({
+      return {
         'type': 'Feature',
         'properties': {
-          'docId':      t.docId,
-          'color':      colorHex,
-          'fillAlpha':  fillAlpha,
+          'fillColor':  _hexColor(t.color.withValues(alpha: fillAlpha)),
+          'lineColor':  _hexColor(t.color.withValues(alpha: lineAlpha)),
+          'glowColor':  _hexColor(t.color.withValues(alpha: glowAlpha)),
           'lineWidth':  lineWidth,
-          'esMio':      t.esMio,
-          'isCritico':  t.estadoHp == EstadoHp.critico && !t.esMio,
-          'label':      t.esMio ? 'YO' : t.ownerNickname,
-          'labelColor': t.esMio ? '#FFFFFF' : colorHex,
-          'haloColor':  t.esMio ? colorHex : '#000000',
+          'glowWidth':  glowWidth,
+          'label':      label,
+          'labelColor': _hexColor(labelColor),
         },
         'geometry': {'type': 'Polygon', 'coordinates': [coords]},
-      });
-    }).join(',');
+      };
+    }).toList();
 
-    final geojson = '{"type":"FeatureCollection","features":[$features]}';
+    final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
     try {
       if (_ciudadLayersCreated) {
-        // Solo actualizar la fuente
-        final src = await _mapboxCiudadMap!.style
-            .getSource(_cidSrc) as mapbox.GeoJsonSource?;
-        await src?.updateGeoJSON(geojson);
-        _ciudadLayersCreating = false;
+        await (await _mapboxCiudadMap!.style.getSource(_cidSrc)
+            as mapbox.GeoJsonSource).updateGeoJSON(geojson);
         return;
       }
+      if (_ciudadLayersCreating) return;
+      _ciudadLayersCreating = true;
 
-      // Limpiar capas anteriores si existen
-      for (final id in [_cidLabel, _cidLine, _cidFill, _cidGlowLine]) {
-        try { await _mapboxCiudadMap!.style.removeStyleLayer(id); } catch (_) {}
-      }
-      try { await _mapboxCiudadMap!.style.removeStyleSource(_cidSrc); } catch (_) {}
+      await map.style.addSource(mapbox.GeoJsonSource(
+          id: _cidSrc, data: geojson, tolerance: 0.5));
 
-      await _mapboxCiudadMap!.style
-          .addSource(mapbox.GeoJsonSource(id: _cidSrc, data: geojson));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _cidGlowLine, sourceId: _cidSrc,
+        lineColorExpression: ['get', 'glowColor'],
+        lineWidthExpression: ['get', 'glowWidth'],
+        lineBlur: 6.0,
+      ));
+      await map.style.addLayer(mapbox.FillLayer(
+        id: _cidFill, sourceId: _cidSrc,
+        fillColorExpression: ['get', 'fillColor'],
+      ));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _cidLine, sourceId: _cidSrc,
+        lineColorExpression: ['get', 'lineColor'],
+        lineWidthExpression: ['get', 'lineWidth'],
+      ));
+      await map.style.addLayer(mapbox.SymbolLayer(
+        id: _cidLabel, sourceId: _cidSrc,
+        textFieldExpression: ['get', 'label'],
+        textColorExpression: ['get', 'labelColor'],
+        textSize: 9,
+        textHaloColor: 0xFF000000,
+        textHaloWidth: 1.5,
+        textMaxWidth: 8,
+        textAnchor: mapbox.TextAnchor.CENTER,
+      ));
 
-      // Capa glow exterior (borde ancho semitransparente)
-      await _mapboxCiudadMap!.style.addLayer(
-          mapbox.LineLayer(id: _cidGlowLine, sourceId: _cidSrc, minZoom: 10.0));
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(_cidGlowLine,
-          'line-color', ['case', ['get', 'isCritico'], '#CC2222', ['get', 'color']]);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidGlowLine, 'line-width', 14.0);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidGlowLine, 'line-opacity', 0.22);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidGlowLine, 'line-blur', 8.0);
-
-      // Relleno principal
-      await _mapboxCiudadMap!.style.addLayer(
-          mapbox.FillLayer(id: _cidFill, sourceId: _cidSrc, minZoom: 8.0));
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidFill, 'fill-color', ['get', 'color']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidFill, 'fill-opacity', ['get', 'fillAlpha']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidFill, 'fill-antialias', true);
-
-      // Borde principal
-      await _mapboxCiudadMap!.style.addLayer(
-          mapbox.LineLayer(id: _cidLine, sourceId: _cidSrc, minZoom: 8.0));
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLine, 'line-color', ['get', 'color']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLine, 'line-width', ['get', 'lineWidth']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLine, 'line-join', 'round');
-
-      // Etiquetas de territorio (SymbolLayer)
-      await _mapboxCiudadMap!.style.addLayer(
-          mapbox.SymbolLayer(id: _cidLabel, sourceId: _cidSrc, minZoom: 13.0));
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-field', ['get', 'label']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-size', 11.0);
-      await _mapboxCiudadMap!.style.setStyleLayerProperty(
-          _cidLabel, 'text-font', ['DIN Pro Bold', 'Arial Unicode MS Bold']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-color', ['get', 'labelColor']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-halo-color', ['get', 'haloColor']);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-halo-width', 1.8);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'text-letter-spacing', 0.05);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidLabel, 'symbol-placement', 'point');
-
-      _ciudadLayersCreated = true;
-    } catch (e) {
-      debugPrint('Ciudad layers error: $e');
-    } finally {
+      _ciudadLayersCreated  = true;
+      _ciudadLayersCreating = false;
+    } catch (_) {
       _ciudadLayersCreating = false;
     }
   }
 
   Future<void> _setupCiudadRuta() async {
-    if (_mapboxCiudadMap == null || widget.ruta.isEmpty) return;
-    final coords = widget.ruta.map((p) => [p.longitude, p.latitude]).toList();
-    final geojson = _toJson({
-      'type': 'FeatureCollection',
-      'features': [{'type': 'Feature', 'properties': {},
-        'geometry': {'type': 'LineString', 'coordinates': coords}}],
-    });
+    final map = _mapboxCiudadMap;
+    if (map == null || widget.ruta.isEmpty) return;
     try {
-      try { await _mapboxCiudadMap!.style.removeStyleLayer(_cidRoute); } catch (_) {}
-      try { await _mapboxCiudadMap!.style.removeStyleSource('${_cidRoute}-src'); } catch (_) {}
-      await _mapboxCiudadMap!.style
-          .addSource(mapbox.GeoJsonSource(id: '${_cidRoute}-src', data: geojson));
-      await _mapboxCiudadMap!.style
-          .addLayer(mapbox.LineLayer(id: _cidRoute, sourceId: '${_cidRoute}-src'));
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidRoute, 'line-color', _hexColor(_kRed));
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidRoute, 'line-width', 4.0);
-      await _mapboxCiudadMap!.style
-          .setStyleLayerProperty(_cidRoute, 'line-cap', 'round');
+      final coords = widget.ruta.map((p) => [p.longitude, p.latitude]).toList();
+      final geojson = _toJson({
+        'type': 'Feature',
+        'properties': {},
+        'geometry': {'type': 'LineString', 'coordinates': coords},
+      });
+      final srcExists = await map.style.styleSourceExists(_cidRouteSrc);
+      if (!srcExists) {
+        await map.style.addSource(mapbox.GeoJsonSource(id: _cidRouteSrc, data: geojson));
+        await map.style.addLayer(mapbox.LineLayer(
+          id: _cidRoute, sourceId: _cidRouteSrc,
+          lineColor: _kBlue.toARGB32(),
+          lineWidth: 3.5,
+          lineOpacity: 0.85,
+        ));
+      }
     } catch (_) {}
   }
 
   Future<void> _actualizarJugadoresCiudad() async {
-    if (_ciudadAnnManager == null) return;
-    final jugadores = _state.jugadoresEnVivo;
+    final mgr = _ciudadAnnManager;
+    if (mgr == null) return;
+    final jugadores = Map<String, Map<String, dynamic>>.from(_state.jugadoresEnVivo);
 
-    // Eliminar marcadores de jugadores que ya no están
-    final toRemove =
-        _ciudadJugMarkers.keys.where((k) => !jugadores.containsKey(k)).toList();
-    for (final k in toRemove) {
-      final ann = _ciudadJugMarkers.remove(k);
-      if (ann != null) {
-        try { await _ciudadAnnManager!.delete(ann); } catch (_) {}
-      }
+    final toAdd    = jugadores.keys.where((id) => !_ciudadJugMarkers.containsKey(id)).toList();
+    final toRemove = _ciudadJugMarkers.keys.where((id) => !jugadores.containsKey(id)).toList();
+
+    for (final id in toRemove) {
+      final ann = _ciudadJugMarkers.remove(id);
+      if (ann != null) await mgr.delete(ann);
     }
 
-    // Agregar / actualizar
-    for (final entry in jugadores.entries) {
-      final d   = entry.value;
+    for (final id in toAdd) {
+      final d   = jugadores[id]!;
       final lat = (d['lat'] as num?)?.toDouble();
       final lng = (d['lng'] as num?)?.toDouble();
       if (lat == null || lng == null) continue;
-      final color = d['color'] != null ? Color(d['color'] as int) : _kRed;
-
-      if (!_ciudadJugMarkers.containsKey(entry.key)) {
-        final img = await _renderCirclePng(color, 14);
-        final ann = await _ciudadAnnManager!.create(mapbox.PointAnnotationOptions(
+      try {
+        final img = await _renderCirclePng();
+        final ann = await mgr.create(mapbox.PointAnnotationOptions(
           geometry: mapbox.Point(coordinates: mapbox.Position(lng, lat)),
           image: img,
-          iconSize: 1.0,
+          iconSize: 0.6,
         ));
-        _ciudadJugMarkers[entry.key] = ann;
-      } else {
-        final ann = _ciudadJugMarkers[entry.key]!;
-        ann.geometry =
-            mapbox.Point(coordinates: mapbox.Position(lng, lat));
-        try { await _ciudadAnnManager!.update(ann); } catch (_) {}
-      }
+        _ciudadJugMarkers[id] = ann;
+      } catch (_) {}
     }
   }
 
-  // Genera un PNG de un círculo de color para usar como marcador Mapbox
-  Future<Uint8List> _renderCirclePng(Color color, int diameter) async {
-    final r = PictureRecorder();
-    final c = Canvas(r);
-    c.drawCircle(
-      Offset(diameter / 2, diameter / 2),
-      diameter / 2,
-      Paint()..color = color,
-    );
-    c.drawCircle(
-      Offset(diameter / 2, diameter / 2),
-      diameter / 2 - 1.5,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    final img = await r.endRecording().toImage(diameter, diameter);
-    final bd  = await img.toByteData(format: ImageByteFormat.png);
-    return bd!.buffer.asUint8List();
+  Future<Uint8List> _renderCirclePng() async {
+    const size = 32.0;
+    final recorder = PictureRecorder();
+    final canvas   = Canvas(recorder);
+    final paint    = Paint()..color = _kBlue;
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2 - 2, paint);
+    final picture = recorder.endRecording();
+    final img     = await picture.toImage(size.toInt(), size.toInt());
+    final bytes   = await img.toByteData(format: ImageByteFormat.png);
+    return bytes!.buffer.asUint8List();
   }
 
   void _onCiudadTap(mapbox.MapContentGestureContext ctx) {
     final tapLat = ctx.point.coordinates.lat.toDouble();
     final tapLng = ctx.point.coordinates.lng.toDouble();
-    final tapLatLng = LatLng(tapLat, tapLng);
+    final tapLL  = LatLng(tapLat, tapLng);
 
     TerritoryData? encontrado;
     for (final t in _state.territorios) {
-      if (_pointInPolygon(tapLatLng, t.puntos)) {
-        encontrado = t;
-        break;
-      }
-    }
-    if (encontrado == null) {
-      // Buscar por proximidad al centro (hasta ~150 m)
-      double minDist = double.infinity;
-      for (final t in _state.territorios) {
-        final d = Geolocator.distanceBetween(
-            tapLat, tapLng, t.centro.latitude, t.centro.longitude);
-        if (d < minDist && d < 150) { minDist = d; encontrado = t; }
-      }
+      if (_pointInPolygon(tapLL, t.puntos)) { encontrado = t; break; }
     }
     if (encontrado != null) {
       _onTerritoryTap(encontrado);
     } else if (_state.territorioSeleccionado != null) {
       _cerrarSeleccion();
     }
+    _dibujarTerritoriosCiudad();
   }
 
-  Future<void> _onCiudadCameraIdle() async {
-    if (_mapboxCiudadMap == null || _state.modoGlobal || _state.modoSolitario) return;
-    try {
-      final cam = await _mapboxCiudadMap!.getCameraState();
-      final lat = cam.center.coordinates.lat.toDouble();
-      final lng = cam.center.coordinates.lng.toDouble();
-      final newCenter = LatLng(lat, lng);
+  void _onCiudadCameraIdle(mapbox.MapContentGestureContext _) {
+    _ciudadCamDebounce?.cancel();
+    _ciudadCamDebounce = Timer(const Duration(milliseconds: 600), () async {
+      final map = _mapboxCiudadMap;
+      if (map == null || !mounted) return;
+      final cam = await map.getCameraState();
+      final newCenter = LatLng(
+        cam.center.coordinates.lat.toDouble(),
+        cam.center.coordinates.lng.toDouble(),
+      );
       if (_ciudadLastCenter != null) {
         final distM = Geolocator.distanceBetween(
           _ciudadLastCenter!.latitude, _ciudadLastCenter!.longitude,
-          lat, lng,
+          newCenter.latitude, newCenter.longitude,
         );
         if (distM < 3000) return;
       }
       _ciudadLastCenter = newCenter;
+      _state.setCentro(newCenter);
       TerritoryService.invalidarCache();
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: newCenter, modo: 'competitivo');
-      if (!mounted || _state.modoSolitario) return;
+      if (!mounted) return;
       _state.setTerritorios(lista);
       GameStateService.instance.setCompetitiveTerritories(lista);
       await _rellenarConFantasmas();
-    } catch (_) {}
-  }
-
-  // ==========================================================================
-  // MAPA
-  // ==========================================================================
-  Widget _buildMapa() {
-    final tieneRuta = widget.ruta.length > 1 && widget.mostrarRuta;
-    return ListenableBuilder(
-      listenable: _state,
-      builder: (_, __) {
-        if (_state.modoGlobal)    return _buildMapaGlobal();
-        if (_state.modoSolitario) return _buildMapaSolitario();
-        if (_state.modoRutas)     return _buildMapaRutas();
-        return _buildMapaCiudad(tieneRuta);
-      },
-    );
+      _dibujarTerritoriosCiudad();
+    });
   }
 
   Widget _buildMapaCiudad(bool tieneRuta) {
     final styleUri = _mapaOscuro
         ? mapbox.MapboxStyles.DARK
         : 'mapbox://styles/mapbox/outdoors-v12';
-
     return mapbox.MapWidget(
       key: const ValueKey('mapa_ciudad_mapbox'),
       styleUri: styleUri,
       cameraOptions: mapbox.CameraOptions(
-        center: mapbox.Point(
-            coordinates: mapbox.Position(
-                _state.centro.longitude, _state.centro.latitude)),
+        center: mapbox.Point(coordinates: mapbox.Position(
+            _state.centro.longitude, _state.centro.latitude)),
         zoom: _kInitialZoom,
       ),
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
         Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
       },
-      onMapCreated:        _onCiudadMapCreated,
+      onMapCreated:          _onCiudadMapCreated,
       onStyleLoadedListener: _onCiudadStyleLoaded,
-      onTapListener:       _onCiudadTap,
-      onScrollListener: (_) {
-        _ciudadCamDebounce?.cancel();
-        _ciudadCamDebounce =
-            Timer(const Duration(milliseconds: 800), _onCiudadCameraIdle);
-      },
+      onTapListener:         _onCiudadTap,
+      onScrollListener:      _onCiudadCameraIdle,
     );
   }
+
+  // ==========================================================================
+  // MODO RUTAS — MAPBOX lifecycle
+  // ==========================================================================
+
+  void _onRutasMapCreated(mapbox.MapboxMap map) async {
+    _mapboxRutasMap = map;
+    await map.style.setProjection(
+        mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: false,
+      pitchEnabled: false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+      doubleTouchToZoomOutEnabled: true,
+    ));
+    await map.location.updateSettings(mapbox.LocationComponentSettings(
+      enabled: true,
+      puckBearingEnabled: false,
+      locationPuck: mapbox.LocationPuck(
+          locationPuck2D: mapbox.DefaultLocationPuck2D()),
+    ));
+    _rutasAnnManager = await map.annotations.createPointAnnotationManager();
+  }
+
+  void _onRutasStyleLoaded(mapbox.StyleLoadedEventData _) async {
+    _rutasStyleLoaded   = true;
+    _rutasLayersCreated = false;
+    await _dibujarRutas();
+  }
+
+  Future<void> _dibujarRutas() async {
+    final map = _mapboxRutasMap;
+    if (map == null || !_rutasStyleLoaded) return;
+    final rutas = _misRutas;
+    if (rutas.isEmpty) return;
+
+    final selected = _rutaSeleccionada;
+    final features = rutas.map((r) {
+      final isSel = selected?.id == r.id;
+      final color = isSel ? _kGoldLight : const Color(0xFF9B72CF);
+      final width = isSel ? 5.0 : 3.0;
+      final coords = r.coords.map((p) => [p.longitude, p.latitude]).toList();
+      return {
+        'type': 'Feature',
+        'properties': {
+          'routeId':   r.id,
+          'lineColor': _hexColor(color),
+          'lineWidth': width,
+        },
+        'geometry': {'type': 'LineString', 'coordinates': coords},
+      };
+    }).toList();
+
+    final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
+
+    try {
+      if (_rutasLayersCreated) {
+        await (await map.style.getSource(_rutSrc)
+            as mapbox.GeoJsonSource).updateGeoJSON(geojson);
+        return;
+      }
+
+      await map.style.addSource(mapbox.GeoJsonSource(
+          id: _rutSrc, data: geojson, tolerance: 0.5));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _rutLine, sourceId: _rutSrc,
+        lineColorExpression: ['get', 'lineColor'],
+        lineWidthExpression: ['get', 'lineWidth'],
+        lineCap: mapbox.LineCap.ROUND,
+        lineJoin: mapbox.LineJoin.ROUND,
+      ));
+      _rutasLayersCreated = true;
+    } catch (_) {}
+  }
+
+  void _onRutasTap(mapbox.MapContentGestureContext ctx) {
+    // Tap en modo rutas: buscar la ruta más cercana al punto pulsado
+    final tapLat = ctx.point.coordinates.lat.toDouble();
+    final tapLng = ctx.point.coordinates.lng.toDouble();
+    final tapLL  = LatLng(tapLat, tapLng);
+    RouteData? closest;
+    double minDist = double.infinity;
+    for (final r in _misRutas) {
+      for (final p in r.coords) {
+        final d = Geolocator.distanceBetween(
+            tapLL.latitude, tapLL.longitude, p.latitude, p.longitude);
+        if (d < minDist) { minDist = d; closest = r; }
+      }
+    }
+    if (closest != null && minDist < 200) {
+      setState(() => _rutaSeleccionada = closest);
+      _dibujarRutas();
+    }
+  }
+
+  // ==========================================================================
+  // MODO SOLITARIO — MAPBOX
+  // ==========================================================================
+
+  void _onStateChangedForSolitario() {
+    if (!_solStyleLoaded || !_state.modoSolitario) return;
+    _dibujarBarriosSolitario();
+    _dibujarTerritoriosSolitario();
+  }
+
+  void _onSolMapCreated(mapbox.MapboxMap map) async {
+    _mapboxSolMap = map;
+    await map.style.setProjection(
+        mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: false,
+      pitchEnabled: false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+      doubleTouchToZoomOutEnabled: true,
+    ));
+    await map.location.updateSettings(mapbox.LocationComponentSettings(
+      enabled: true,
+      puckBearingEnabled: false,
+      locationPuck: mapbox.LocationPuck(
+          locationPuck2D: mapbox.DefaultLocationPuck2D()),
+    ));
+  }
+
+  void _onSolStyleLoaded(mapbox.StyleLoadedEventData _) async {
+    _solStyleLoaded    = true;
+    _solLayersCreated  = false;
+    _solLayersCreating = false;
+    await _setupSolTerrain();
+    await _dibujarBarriosSolitario();
+    await _dibujarTerritoriosSolitario();
+  }
+
+  Future<void> _setupSolTerrain() async {
+    final map = _mapboxSolMap;
+    if (map == null) return;
+    try {
+      await map.style.addSource(mapbox.RasterDemSource(
+          id: 'sol-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 512, maxzoom: 14.0));
+      await map.style.setStyleTerrain(
+          '{"source":"sol-dem","exaggeration":1.2}');
+      await map.style.addLayer(mapbox.HillshadeLayer(
+          id: 'sol-hillshade', sourceId: 'sol-dem',
+          hillshadeIlluminationDirection: 335,
+          hillshadeExaggeration: 0.35,
+          hillshadeShadowColor: 0xFF101828,
+          hillshadeHighlightColor: 0xFFFFFFFF));
+    } catch (_) {}
+  }
+
+  Future<void> _dibujarBarriosSolitario() async {
+    final map = _mapboxSolMap;
+    if (map == null || !_solStyleLoaded) return;
+    final barrios = _barriosCercanos;
+
+    final features = barrios.map((b) {
+      final pct   = b.porcentajeCubierto.clamp(0.0, 1.0);
+      final color = pct >= 1.0 ? _kSafe : pct > 0 ? _kWarn : _kDim;
+      final coords = b.puntos.map((p) => [p.longitude, p.latitude]).toList()
+        ..add([b.puntos.first.longitude, b.puntos.first.latitude]);
+      return {
+        'type': 'Feature',
+        'properties': {
+          'nombre': b.nombre,
+          'pct': pct,
+          'pctPct': '${(pct * 100).round()}%',
+          'fillColor': _hexColor(color),
+          'fillOpacity': pct > 0 ? 0.16 : 0.06,
+          'lineColor': _hexColor(_mapaOscuro
+              ? Colors.white.withValues(alpha: 0.45)
+              : const Color(0xFF888888)),
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      };
+    }).toList();
+
+    final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
+
+    try {
+      if (_solLayersCreated) {
+        await map.style.updateGeoJSONSourceFeatures(
+            _solBarSrc, 'sol-bar-update', features.cast());
+        return;
+      }
+      if (_solLayersCreating) return;
+      _solLayersCreating = true;
+
+      await map.style.addSource(mapbox.GeoJsonSource(
+          id: _solBarSrc, data: geojson, tolerance: 0.5));
+
+      await map.style.addLayer(mapbox.FillLayer(
+        id: _solBarFill, sourceId: _solBarSrc,
+        fillColorExpression: ['get', 'fillColor'],
+        fillOpacityExpression: ['get', 'fillOpacity'],
+      ));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _solBarLine, sourceId: _solBarSrc,
+        lineColorExpression: ['get', 'lineColor'],
+        lineWidth: 1.5,
+      ));
+      await map.style.addLayer(mapbox.SymbolLayer(
+        id: _solBarLabel, sourceId: _solBarSrc,
+        textFieldExpression: [
+          'format',
+          ['get', 'nombre'], {},
+          '\n', {},
+          ['get', 'pctPct'], {'text-color': ['get', 'fillColor']},
+        ],
+        textSize: 9,
+        textColor: 0xFFFFFFFF,
+        textHaloColor: 0xFF000000,
+        textHaloWidth: 1.5,
+        textMaxWidth: 10,
+        textAnchor: mapbox.TextAnchor.CENTER,
+      ));
+
+      _solLayersCreated  = true;
+      _solLayersCreating = false;
+    } catch (_) {
+      _solLayersCreating = false;
+    }
+  }
+
+  Future<void> _dibujarTerritoriosSolitario() async {
+    final map = _mapboxSolMap;
+    if (map == null || !_solStyleLoaded) return;
+    final territorios = _filteredTerritorios(_state.territorios);
+    final propios = territorios.where((t) => t.esMio).toList();
+
+    final features = propios.map((t) {
+      final decay = _decayFactor(t);
+      final frio  = t.ultimaVisita != null &&
+          DateTime.now().difference(t.ultimaVisita!).inDays >= 7;
+      final fillColor   = frio ? Colors.grey : t.color;
+      final fillAlpha   = frio ? 0.14 : 0.30 * decay;
+      final borderColor = frio ? Colors.grey : t.color;
+      final borderAlpha = frio ? 0.60 : (0.90 * decay).clamp(0.0, 1.0);
+      final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
+        ..add([t.puntos.first.longitude, t.puntos.first.latitude]);
+      return {
+        'type': 'Feature',
+        'properties': {
+          'fillColor':   _hexColor(fillColor.withValues(alpha: fillAlpha)),
+          'lineColor':   _hexColor(borderColor.withValues(alpha: borderAlpha)),
+          'glowColor':   _hexColor(t.color.withValues(alpha: 0.08 * decay)),
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      };
+    }).toList();
+
+    final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
+
+    try {
+      final srcExists = await map.style.styleSourceExists(_solTerSrc);
+      if (srcExists) {
+        await (await map.style.getSource(_solTerSrc)
+            as mapbox.GeoJsonSource).updateGeoJSON(geojson);
+        return;
+      }
+
+      await map.style.addSource(mapbox.GeoJsonSource(
+          id: _solTerSrc, data: geojson));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _solTerGlow, sourceId: _solTerSrc,
+        lineColorExpression: ['get', 'glowColor'],
+        lineWidth: 7.0, lineBlur: 4.0,
+      ));
+      await map.style.addLayer(mapbox.FillLayer(
+        id: _solTerFill, sourceId: _solTerSrc,
+        fillColorExpression: ['get', 'fillColor'],
+      ));
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _solTerLine, sourceId: _solTerSrc,
+        lineColorExpression: ['get', 'lineColor'],
+        lineWidth: 2.8,
+      ));
+    } catch (_) {}
+  }
+
+  void _moverCamara(LatLng centro, double zoom) {
+    mapbox.CameraOptions opts(LatLng ll, double z) => mapbox.CameraOptions(
+      center: mapbox.Point(
+          coordinates: mapbox.Position(ll.longitude, ll.latitude)),
+      zoom: z,
+    );
+    final anim = mapbox.MapAnimationOptions(duration: 500);
+
+    if (_state.modoSolitario && _mapboxSolMap != null) {
+      _mapboxSolMap!.flyTo(opts(centro, zoom), anim);
+    } else if (_state.modoRutas && _mapboxRutasMap != null) {
+      _mapboxRutasMap!.flyTo(opts(centro, zoom), anim);
+    } else if (_state.modoGlobal && _mapboxGlobalMap != null) {
+      _mapboxGlobalMap!.flyTo(opts(centro, zoom), anim);
+    } else if (_mapboxCiudadMap != null) {
+      _mapboxCiudadMap!.flyTo(opts(centro, zoom), anim);
+    }
+  }
+
+  Widget _buildMapaSolitario() {
+    final styleUri = _mapaOscuro
+        ? mapbox.MapboxStyles.DARK
+        : 'mapbox://styles/mapbox/outdoors-v12';
+    return Stack(children: [
+      mapbox.MapWidget(
+        key: const ValueKey('mapa_solitario_mapbox'),
+        styleUri: styleUri,
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _state.centro.longitude, _state.centro.latitude)),
+          zoom: _kInitialZoom,
+        ),
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onMapCreated:          _onSolMapCreated,
+        onStyleLoadedListener: _onSolStyleLoaded,
+      ),
+      if (_cargandoBarrios)
+        Positioned(
+          top: 90, left: 0, right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kSurface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _kBorder),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(
+                  width: 12, height: 12,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: _kSub),
+                ),
+                const SizedBox(width: 8),
+                Text('Cargando barrios…',
+                    style: _raj(10, FontWeight.w600, _kSub)),
+              ]),
+            ),
+          ),
+        ),
+    ]);
+  }
+
 
   // ==========================================================================
   // MAPA RUTAS
   // ==========================================================================
   Widget _buildMapaRutas() {
-    final selId = _rutaSeleccionada?.id;
-
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _state.centro,
-        initialZoom:   _kInitialZoom,
-        minZoom: 3, maxZoom: 19,
-        cameraConstraint: CameraConstraint.containCenter(
-          bounds: LatLngBounds(
-            const LatLng(-85.0, -180.0),
-            const LatLng(85.0, 180.0),
-          ),
-        ),
-        onTap: (_, __) => setState(() => _rutaSeleccionada = null),
+    final styleUri = _mapaOscuro
+        ? mapbox.MapboxStyles.DARK
+        : 'mapbox://styles/mapbox/outdoors-v12';
+    return mapbox.MapWidget(
+      key: const ValueKey('mapa_rutas_mapbox'),
+      styleUri: styleUri,
+      cameraOptions: mapbox.CameraOptions(
+        center: mapbox.Point(coordinates: mapbox.Position(
+            _state.centro.longitude, _state.centro.latitude)),
+        zoom: _kInitialZoom,
       ),
-      children: [
-        TileLayer(
-          urlTemplate:          _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
-          userAgentPackageName: 'com.runner_risk.app',
-          tileDimension: 256,
-          keepBuffer: 8,
-          panBuffer:  4,
-          maxNativeZoom: 19,
-        ),
-        if (_misRutas.isNotEmpty)
-          PolylineLayer(
-            polylines: _misRutas.map((r) {
-              final selected = r.id == selId;
-              return Polyline(
-                points:       r.coords,
-                color:        r.color.withValues(alpha: selected ? 1.0 : 0.65),
-                strokeWidth:  selected ? 5.0 : 3.0,
-              );
-            }).toList(),
-          ),
-        // Marcador de inicio de cada ruta
-        MarkerLayer(
-          markers: _misRutas
-              .where((r) => r.coords.isNotEmpty)
-              .map((r) => Marker(
-                    point:  r.coords.first,
-                    width:  28,
-                    height: 28,
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _rutaSeleccionada = r);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color:  r.color,
-                          shape:  BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
-                        ),
-                        child: const Icon(Icons.route_rounded, color: Colors.white, size: 13),
-                      ),
-                    ),
-                  ))
-              .toList(),
-        ),
-
-        // Posición del usuario
-        MarkerLayer(markers: [
-          Marker(
-            point: _state.centro, width: 40, height: 40,
-            child: Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kRed.withValues(alpha: 0.12),
-                border: Border.all(color: _kRed.withValues(alpha: 0.35), width: 1.5),
-              ),
-              child: Center(
-                child: Container(
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: _kRed, width: 2.5),
-                    boxShadow: [BoxShadow(
-                        color: _kRed.withValues(alpha: 0.55),
-                        blurRadius: 10, spreadRadius: 1)],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ]),
-      ],
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
+      onMapCreated:          _onRutasMapCreated,
+      onStyleLoadedListener: _onRutasStyleLoaded,
+      onTapListener:         _onRutasTap,
     );
+  }
+
+
+  // ==========================================================================
+  // MODO GLOBAL — MAPBOX
+  // ==========================================================================
+
+  void _onStateChangedForGlobal() {
+    if (!_globalMbxStyleLoaded || !_state.modoGlobal) return;
+    _dibujarTerritoriosGlobal();
+  }
+
+  void _onGlobalMapCreated(mapbox.MapboxMap map) async {
+    _mapboxGlobalMap = map;
+    await map.style.setProjection(
+        mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await map.gestures.updateSettings(mapbox.GesturesSettings(
+      rotateEnabled: true,
+      pitchEnabled: false,
+      scrollEnabled: true,
+      pinchToZoomEnabled: true,
+      doubleTapToZoomInEnabled: true,
+      doubleTouchToZoomOutEnabled: true,
+      simultaneousRotateAndPinchToZoomEnabled: true,
+    ));
+  }
+
+  void _onGlobalStyleLoaded(mapbox.StyleLoadedEventData _) async {
+    _globalMbxStyleLoaded    = true;
+    _globalMbxLayersCreated  = false;
+    _globalMbxLayersCreating = false;
+    await _dibujarTerritoriosGlobal();
+  }
+
+  Future<void> _dibujarTerritoriosGlobal() async {
+    final map = _mapboxGlobalMap;
+    if (map == null || !_globalMbxStyleLoaded) return;
+    final sel      = _state.territorioGlobalSeleccionado;
+    final globales = _state.territoriosGlobales;
+    if (globales.isEmpty) return;
+
+    final features = globales.map((t) {
+      final isSel     = sel?.id == t.id;
+      final isMine    = t.isMine;
+      final baseColor = isMine ? _kGold
+          : t.isOwned ? t.displayColor : t.tierColor;
+
+      final fillAlpha = isSel ? 0.65
+          : isMine ? 0.55 : (t.isOwned ? 0.38 : 0.45);
+      final lineAlpha = isMine ? 1.0 : (t.isOwned ? 0.92 : 0.90);
+      final lineWidth = isSel ? 4.0 : isMine ? 3.0
+          : (t.tier == TerritoryTier.legendario ? 2.5 : 2.0);
+      final glowWidth = isMine ? 12.0 : (t.isOwned ? 8.0 : 6.0);
+      final glowAlpha = isMine ? 0.30 : (t.isOwned ? 0.18 : 0.22);
+
+      final owner = isMine ? 'TÚ'
+          : t.isOwned ? (t.ownerNickname ?? '?') : 'LIBRE';
+      final label = '${t.epicName}\n$owner';
+
+      final coords = t.points.map((p) => [p.longitude, p.latitude]).toList()
+        ..add([t.points.first.longitude, t.points.first.latitude]);
+      return {
+        'type': 'Feature',
+        'properties': {
+          'fillColor': _hexColor(baseColor.withValues(alpha: fillAlpha)),
+          'lineColor': _hexColor(baseColor.withValues(alpha: lineAlpha)),
+          'glowColor': _hexColor(baseColor.withValues(alpha: glowAlpha)),
+          'lineWidth': lineWidth,
+          'glowWidth': glowWidth,
+          'label':     label,
+          'labelColor': _hexColor(isMine ? _kGoldLight
+              : t.isOwned ? Colors.white : _kSub),
+        },
+        'geometry': {'type': 'Polygon', 'coordinates': [coords]},
+      };
+    }).toList();
+
+    final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
+
+    try {
+      if (_globalMbxLayersCreated) {
+        await (await map.style.getSource(_glbSrc)
+            as mapbox.GeoJsonSource).updateGeoJSON(geojson);
+        return;
+      }
+      if (_globalMbxLayersCreating) return;
+      _globalMbxLayersCreating = true;
+
+      await map.style.addSource(mapbox.GeoJsonSource(
+          id: _glbSrc, data: geojson, tolerance: 0.5));
+
+      // Glow exterior
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _glbGlow, sourceId: _glbSrc,
+        lineColorExpression: ['get', 'glowColor'],
+        lineWidthExpression: ['get', 'glowWidth'],
+        lineBlur: 6.0,
+      ));
+      // Relleno
+      await map.style.addLayer(mapbox.FillLayer(
+        id: _glbFill, sourceId: _glbSrc,
+        fillColorExpression: ['get', 'fillColor'],
+      ));
+      // Borde
+      await map.style.addLayer(mapbox.LineLayer(
+        id: _glbLine, sourceId: _glbSrc,
+        lineColorExpression: ['get', 'lineColor'],
+        lineWidthExpression: ['get', 'lineWidth'],
+      ));
+      // Etiqueta
+      await map.style.addLayer(mapbox.SymbolLayer(
+        id: _glbLabel, sourceId: _glbSrc,
+        textFieldExpression: ['get', 'label'],
+        textColorExpression: ['get', 'labelColor'],
+        textSize: 9,
+        textHaloColor: 0xFF000000,
+        textHaloWidth: 1.5,
+        textMaxWidth: 10,
+        textAnchor: mapbox.TextAnchor.CENTER,
+      ));
+
+      _globalMbxLayersCreated  = true;
+      _globalMbxLayersCreating = false;
+    } catch (_) {
+      _globalMbxLayersCreating = false;
+    }
+  }
+
+  void _onGlobalTapMapbox(mapbox.MapContentGestureContext ctx) {
+    final tapLat = ctx.point.coordinates.lat.toDouble();
+    final tapLng = ctx.point.coordinates.lng.toDouble();
+    final tapLL  = LatLng(tapLat, tapLng);
+    GlobalTerritory? encontrado;
+    for (final t in _state.territoriosGlobales) {
+      if (_pointInPolygon(tapLL, t.points)) { encontrado = t; break; }
+    }
+    if (encontrado != null) {
+      _onGlobalTerritoryTap(encontrado);
+    } else if (_state.territorioGlobalSeleccionado != null) {
+      _cerrarSeleccion();
+    }
+    _dibujarTerritoriosGlobal();
   }
 
   // ==========================================================================
   // MAPA GLOBAL
   // ==========================================================================
   Widget _buildMapaGlobal() {
-    final sel = _state.territorioGlobalSeleccionado;
+    final styleUri = _mapaOscuro
+        ? mapbox.MapboxStyles.DARK
+        : 'mapbox://styles/mapbox/outdoors-v12';
     return FadeTransition(
       opacity: _globalEntryAnim,
-      child: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: _kGlobalCenter,
-          initialZoom: 2.5,
-          minZoom: 1.5, maxZoom: 8,
-          onTap: (_, __) { if (sel != null) _cerrarSeleccion(); },
-          onPositionChanged: (position, hasGesture) {
-            final newZoom = position.zoom;
-            if ((newZoom - _zoomGlobal).abs() > 0.3) {
-              setState(() => _zoomGlobal = newZoom);
-            }
+      child: Stack(children: [
+        mapbox.MapWidget(
+          key: const ValueKey('mapa_global_mapbox'),
+          styleUri: styleUri,
+          cameraOptions: mapbox.CameraOptions(
+            center: mapbox.Point(coordinates: mapbox.Position(0, 20)),
+            zoom: 2.5,
+          ),
+          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+            Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
           },
+          onMapCreated:          _onGlobalMapCreated,
+          onStyleLoadedListener: _onGlobalStyleLoaded,
+          onTapListener:         _onGlobalTapMapbox,
         ),
-        children: [
-          TileLayer(
-              urlTemplate: _mapaOscuro ? _kMapboxDarkUrl : _kMapboxUrl,
-              userAgentPackageName: 'com.runner_risk.app',
-              tileDimension: 256,
-              keepBuffer: 8,
-              panBuffer: 4,
-              maxNativeZoom: 8),
-
-          // Campo de estrellas + overlay atmosférico — solo en modo oscuro
-          if (_mapaOscuro) ...[
-            SizedBox.expand(
+        // Campo de estrellas en modo oscuro — overlay Flutter puro
+        if (_mapaOscuro) ...[
+          IgnorePointer(
+            child: SizedBox.expand(
               child: CustomPaint(painter: _StarfieldPainter(_starfield)),
             ),
-            const ColorFiltered(
+          ),
+          const IgnorePointer(
+            child: ColorFiltered(
               colorFilter: ColorFilter.mode(Color(0x33000B28), BlendMode.srcOver),
               child: SizedBox.expand(),
             ),
-          ],
-
-          if (_state.loadingGlobal)
-            const ColorFiltered(
-              colorFilter:
-                  ColorFilter.mode(Colors.black45, BlendMode.srcOver),
-              child: SizedBox.expand(),
-            ),
-
-          if (!_state.loadingGlobal &&
-              _state.territoriosGlobales.isNotEmpty) ...[
-
-            // Capa de glow exterior — bloom neon sobre los bordes
-            PolygonLayer(
-              polygons: _state.territoriosGlobales.map((t) {
-                final isMine = t.isMine;
-                final baseColor = isMine
-                    ? _kGold
-                    : t.isOwned
-                        ? t.displayColor
-                        : t.tierColor;
-                return Polygon(
-                  points: t.points,
-                  color: Colors.transparent,
-                  borderColor: baseColor.withValues(
-                      alpha: isMine ? 0.30 : (t.isOwned ? 0.18 : 0.22)),
-                  borderStrokeWidth: isMine ? 12.0 : (t.isOwned ? 8.0 : 6.0),
-                );
-              }).toList(),
-            ),
-
-            GestureDetector(
-              onTapUp: (details) {
-                final tapLatLng = _mapController.camera
-                    .offsetToCrs(details.localPosition);
-                GlobalTerritory? encontrado;
-                for (final t in _state.territoriosGlobales) {
-                  if (_pointInPolygon(tapLatLng, t.points)) {
-                    encontrado = t;
-                    break;
-                  }
-                }
-                if (encontrado != null) _onGlobalTerritoryTap(encontrado);
-              },
-              child: PolygonLayer(
-                polygons: _state.territoriosGlobales.map((t) {
-                  final isSel  = sel?.id == t.id;
-                  final isMine = t.isMine;
-                  final baseColor = isMine
-                      ? _kGold
-                      : t.isOwned
-                          ? t.displayColor
-                          : t.tierColor;
-
-                  return Polygon(
-                    points: t.points,
-                    color: isSel
-                        ? baseColor.withValues(alpha: 0.65)
-                        : baseColor.withValues(alpha: isMine
-                            ? 0.55
-                            : (t.isOwned ? 0.38 : 0.45)),
-                    borderColor: isSel
-                        ? baseColor
-                        : baseColor.withValues(alpha: isMine
-                            ? 1.0
-                            : (t.isOwned ? 0.92 : 0.90)),
-                    borderStrokeWidth: isSel
-                        ? 4.0
-                        : isMine
-                            ? 3.0
-                            : (t.tier == TerritoryTier.legendario
-                                ? 2.5
-                                : 2.0),
-                  );
-                }).toList(),
-              ),
-            ),
-
-            AnimatedBuilder(
-              animation: _pulseCtrl,
-              builder: (_, __) => MarkerLayer(
-                markers: _state.territoriosGlobales.map((t) {
-                  final isSel  = sel?.id == t.id;
-                  final isMine = t.isMine;
-                  final Color baseColor = isMine
-                      ? _kGold
-                      : t.isOwned
-                          ? (t.ownerColor ?? t.tierColor)
-                          : t.tierColor;
-                  final bool isLegend = t.tier == TerritoryTier.legendario;
-
-                  final double glowR = isMine
-                      ? 9.0 + 5.0 * _pulse.value
-                      : (t.isOwned ? 5.0 : 3.0);
-                  final double glowA = isMine
-                      ? 0.30 + 0.18 * _pulse.value
-                      : (t.isOwned ? 0.18 : 0.12);
-
-                  // ── Modo lejano (zoom < 4) — anillo compacto ───────────
-                  if (_zoomGlobal < 4.0) {
-                    final double sz    = isSel ? 24.0 : (isLegend ? 22.0 : 19.0);
-                    final double dotSz = isMine ? 7.0 : (t.isOwned ? 5.0 : 3.0);
-                    return Marker(
-                      point: t.center,
-                      width: sz + glowR * 2 + 4,
-                      height: sz + glowR * 2 + 4,
-                      child: GestureDetector(
-                        onTap: () => _onGlobalTerritoryTap(t),
-                        child: Stack(alignment: Alignment.center, children: [
-                          Container(
-                            width: sz + glowR * 2,
-                            height: sz + glowR * 2,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(
-                                color: baseColor.withValues(alpha: glowA),
-                                blurRadius: glowR * 2,
-                              )],
-                            ),
-                          ),
-                          Container(
-                            width: sz,
-                            height: sz,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF08080B).withValues(alpha: 0.92),
-                              border: Border.all(
-                                color: isSel
-                                    ? baseColor
-                                    : baseColor.withValues(alpha:
-                                        isMine ? 0.92 : (t.isOwned ? 0.80 : 0.78)),
-                                width: isSel ? 2.0 : (isMine ? 1.8 : 1.2),
-                              ),
-                            ),
-                            child: Center(
-                              child: Container(
-                                width: dotSz, height: dotSz,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: baseColor.withValues(
-                                      alpha: t.isOwned ? 1.0 : 0.82),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (isMine)
-                            Positioned(
-                              top: 1, right: 1,
-                              child: Container(
-                                width: 7, height: 7,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _kGold,
-                                  boxShadow: [BoxShadow(
-                                    color: _kGold.withValues(alpha: 0.70),
-                                    blurRadius: 4,
-                                  )],
-                                ),
-                              ),
-                            ),
-                        ]),
-                      ),
-                    );
-                  }
-
-                  // ── Modo cercano (zoom >= 4) — anillo + etiqueta mínima ─
-                  final double sz    = isSel ? (isLegend ? 30.0 : 26.0) : (isLegend ? 26.0 : 22.0);
-                  final double dotSz = isMine ? 9.0 : (t.isOwned ? 6.0 : 3.0);
-                  final double fs    = isLegend ? 8.0 : 7.0;
-
-                  return Marker(
-                    point: t.center,
-                    width: isLegend ? 108.0 : 96.0,
-                    height: isLegend ? 88.0 : 74.0,
-                    child: GestureDetector(
-                      onTap: () => _onGlobalTerritoryTap(t),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Stack(alignment: Alignment.center, children: [
-                            // Anillo exterior extra solo para legendarios
-                            if (isLegend)
-                              Container(
-                                width: sz + glowR * 2 + 10 + 10 * _pulse.value,
-                                height: sz + glowR * 2 + 10 + 10 * _pulse.value,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: baseColor.withValues(alpha: 0.12 + 0.13 * _pulse.value),
-                                    width: 1.5,
-                                  ),
-                                ),
-                              ),
-                            Container(
-                              width: sz + glowR * 2,
-                              height: sz + glowR * 2,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(
-                                  color: baseColor.withValues(alpha: glowA),
-                                  blurRadius: glowR * 2,
-                                )],
-                              ),
-                            ),
-                            Container(
-                              width: sz,
-                              height: sz,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: const Color(0xFF08080B).withValues(alpha: 0.92),
-                                border: Border.all(
-                                  color: isSel
-                                      ? baseColor
-                                      : baseColor.withValues(alpha:
-                                          isMine ? 0.92 : (t.isOwned ? 0.80 : 0.78)),
-                                  width: isSel ? 2.0 : (isMine ? 1.8 : (isLegend ? 1.5 : 1.2)),
-                                ),
-                              ),
-                              child: Center(
-                                child: Container(
-                                  width: dotSz, height: dotSz,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: baseColor.withValues(
-                                        alpha: t.isOwned ? 1.0 : 0.82),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (isMine)
-                              Positioned(
-                                top: 1, right: 1,
-                                child: Container(
-                                  width: 8, height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _kGold,
-                                    boxShadow: [BoxShadow(
-                                      color: _kGold.withValues(alpha: 0.70),
-                                      blurRadius: 4,
-                                    )],
-                                  ),
-                                ),
-                              ),
-                          ]),
-                          const SizedBox(height: 3),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF08080B).withValues(alpha: 0.88),
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: isMine
-                                    ? _kGold.withValues(alpha: 0.55)
-                                    : t.isOwned
-                                        ? baseColor.withValues(alpha: 0.38)
-                                        : Colors.white.withValues(alpha: 0.08),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  t.epicName.length > 13
-                                      ? '${t.epicName.substring(0, 12)}…'
-                                      : t.epicName,
-                                  style: GoogleFonts.rajdhani(
-                                    color: isMine
-                                        ? _kGoldLight
-                                        : (t.isOwned ? Colors.white : _kSub),
-                                    fontSize: fs,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.6,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  isMine
-                                      ? 'TÚ'
-                                      : t.isOwned
-                                          ? (t.ownerNickname ?? '?')
-                                          : 'LIBRE',
-                                  style: GoogleFonts.rajdhani(
-                                    color: isMine
-                                        ? _kGold
-                                        : t.isOwned
-                                            ? baseColor.withValues(alpha: 0.85)
-                                            : _kDim,
-                                    fontSize: 6.5,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.8,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (_zoomGlobal >= 5.0) ...[
-                                  const SizedBox(height: 1),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '${t.difficultyLevel}/10  ',
-                                        style: TextStyle(
-                                          color: _dificultadColor(t.difficultyLevel),
-                                          fontSize: fs - 2,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${t.kmRequired.toStringAsFixed(1)}km',
-                                        style: TextStyle(
-                                          color: _kSub,
-                                          fontSize: fs - 2,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-
-          if (_state.loadingGlobal)
-            MarkerLayer(markers: [
-              Marker(
-                point: _kGlobalCenter, width: 80, height: 80,
-                child: const Center(
-                    child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: _kGold)),
-              ),
-            ]),
+          ),
         ],
-      ),
+        if (_state.loadingGlobal)
+          const ColorFiltered(
+            colorFilter: ColorFilter.mode(Colors.black45, BlendMode.srcOver),
+            child: SizedBox.expand(),
+          ),
+      ]),
     );
   }
+
 
   // ==========================================================================
   // TOGGLE MAPA CLARO / OSCURO
@@ -3379,7 +3165,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
       if (_state.modoGlobal) {
         // En modo global siempre centra el mapa global
-        _mapController.move(_kGlobalCenter, 2.5);
+        _moverCamara(_kGlobalCenter, 2.5);
         setState(() => _zoomGlobal = 2.5);
         return;
       }
@@ -4567,7 +4353,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         HapticFeedback.selectionClick();
         setState(() => _rutaSeleccionada = isSelected ? null : r);
         if (!isSelected && r.coords.isNotEmpty) {
-          _mapController.move(r.coords.first, 14.5);
+          _moverCamara(r.coords.first, 14.5);
         }
       },
       child: AnimatedContainer(
@@ -4819,7 +4605,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
-        _mapController.move(b.centro, 13.5);
+        _moverCamara(b.centro, 13.5);
         if (_sheetCtrl.isAttached) {
           _sheetCtrl.animateTo(0.13,
               duration: const Duration(milliseconds: 300),
