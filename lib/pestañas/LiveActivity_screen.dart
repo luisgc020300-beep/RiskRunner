@@ -104,12 +104,12 @@ const double _kZoomGlobo   = 5;
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
 const _kGpsMovimiento = LocationSettings(
-  accuracy: LocationAccuracy.bestForNavigation,
+  accuracy: LocationAccuracy.high,
   distanceFilter: 8,
 );
 
-const _kPresenciaMovimientoSeg = 10;
-const _kPresenciaPausadoSeg    = 30;
+const _kPresenciaMovimientoSeg = 15;
+const _kPresenciaPausadoSeg    = 45;
 
 final Map<int, Uint8List> _avatarCache = {};
 const int _kAvatarCacheMax = 50;
@@ -161,7 +161,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     begin: const Duration(),
     end: const Duration(hours: 24),
     initialState: CustomTimerState.reset,
-    interval: CustomTimerInterval.milliseconds,
+    interval: CustomTimerInterval.seconds,
   );
   final Stopwatch _stopwatch = Stopwatch();
 
@@ -695,8 +695,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       return;
     }
 
-    _puckAnimTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      if (!mounted) return;
+    _puckAnimTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+      if (!mounted || !isTracking || isPaused) return;
       _puckFrameIdx = (_puckFrameIdx + 1) % _puckFrames.length;
       _applyPuckFrame(_puckFrames[_puckFrameIdx]);
     });
@@ -2115,13 +2115,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _crearCentrosLayer();
       }
 
-      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
+      _pulsoTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
         if (!mounted || _mapboxMap == null) return;
         if (_pulsoUp) {
-          _pulsoOpacity += 0.02;
+          _pulsoOpacity += 0.03;
           if (_pulsoOpacity >= 0.13) _pulsoUp = false;
         } else {
-          _pulsoOpacity -= 0.02;
+          _pulsoOpacity -= 0.03;
           if (_pulsoOpacity <= 0.04) _pulsoUp = true;
         }
         try {
@@ -5431,10 +5431,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     // Pulse animation via periodic timer
     _globalesPulseT = 0.0;
-    _globalesPulseTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+    _globalesPulseTimer = Timer.periodic(const Duration(milliseconds: 200), (_) async {
       if (!mounted || _mapboxMap == null || _globalesPulseUpdating) return;
       _globalesPulseUpdating = true;
-      _globalesPulseT += 0.22;
+      _globalesPulseT += 0.44;
       final r  = 14.0 + 6.0 * math.sin(_globalesPulseT);
       final op = 0.50 + 0.40 * math.sin(_globalesPulseT);
       try {
