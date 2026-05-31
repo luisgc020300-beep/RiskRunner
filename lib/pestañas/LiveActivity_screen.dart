@@ -822,6 +822,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } catch (e) {
       debugPrint('Error datos iniciales: $e');
     }
+
+    // Precargar territorios globales desde cache para que el botón Global sea instantáneo.
+    // Se ejecuta después de la carga principal para no bloquear el arranque.
+    final cachedGlobal = GameStateService.instance.getGlobalTerritories();
+    if (cachedGlobal != null && mounted && _terrGlobales.isEmpty) {
+      setState(() { _terrGlobales = List<GlobalTerritory>.from(cachedGlobal); });
+    }
   }
 
   // ==========================================================================
@@ -3420,20 +3427,43 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         });
       }
     } else if (_objetivoGlobal == null && distanciaFinal >= 0.3) {
-      conquistados =
-          await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
+      final double velMedia = _velocidadActualKmh > 0
+          ? _velocidadActualKmh
+          : (distanciaFinal > 0 && tiempoFinal.inSeconds > 0
+              ? distanciaFinal / (tiempoFinal.inSeconds / 3600)
+              : 5.0);
+
+      // Crear territorio propio desde el convex hull de la ruta
+      final territorioId = await TerritoryService.crearTerritorioCompetitivo(
+        ruta:               rutaFinal,
+        colorTerritorio:    _colorTerritorio,
+        nickname:           _miNickname,
+        velocidadMediaKmh:  velMedia,
+      );
+      if (territorioId != null) {
+        conquistados = 1;
+        if (logId != null) {
+          FirebaseFirestore.instance
+              .collection('activity_logs')
+              .doc(logId)
+              .update({'territorio_id': territorioId});
+        }
+        final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+            centro: _currentPosition != null
+                ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                : null,
+            modo: 'competitivo');
+        GameStateService.instance.setCompetitiveTerritories(nuevos);
+        if (mounted) setState(() => _territorios = nuevos);
+      } else {
+        // Área insuficiente — intentar conquistas sobre territorios existentes
+        conquistados =
+            await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
+      }
+
       await _actualizarPuntosDesafio(conquistados, distanciaFinal);
       if (mounted && distanciaFinal > 0) {
-        String? nombreRival;
-        if (conquistados > 0) {
-          final rivalT = _territorios
-              .where((t) => !t.esMio)
-              .cast<TerritoryData?>()
-              .firstWhere((_) => true, orElse: () => null);
-          nombreRival = rivalT?.ownerNickname;
-        }
-        await ConquistaOverlay.mostrar(context,
-            esInvasion: conquistados > 0, nombreTerritorio: nombreRival);
+        await ConquistaOverlay.mostrar(context, esInvasion: false);
       }
     }
 

@@ -1918,10 +1918,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 color: _kBlue,
                 onTap: isCiudad ? null : () async {
                   if (isGlobal) _toggleModo();
-                  if (isSolitario) {
-                    _state.setModoSolitario(false);
-                    await _cargarTerritorios();
-                  }
+                  if (isSolitario) _state.setModoSolitario(false);
+                  if (isRutas) _state.setModoRutas(false);
+                  await _cargarTerritorios();
                   _moverCamara(_state.centro, 13.0);
                 },
               ),
@@ -2100,7 +2099,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         return dA.compareTo(dB);
       });
 
-      if (!mounted) return;
+      if (!mounted) {
+        _cargandoBarrios = false;
+        return;
+      }
       setState(() {
         _barriosCercanos = barrios;
         _barriosCargados = true;
@@ -2111,10 +2113,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final msg = e.toString().contains('TimeoutException')
           ? 'Tiempo agotado · Reintenta'
           : 'Sin conexión · Reintenta';
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
+          _cargandoBarrios = false;
+          _errorBarrios = msg;
+        });
+      } else {
         _cargandoBarrios = false;
-        _errorBarrios = msg;
-      });
+      }
     }
   }
 
@@ -2168,6 +2174,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Future<void> _cargarMisRutas() async {
     if (_cargandoRutas) return;
+    // Si ya tenemos datos sólo redibujar (el mapa puede ser una nueva instancia)
+    if (_misRutas.isNotEmpty) {
+      await _dibujarRutas();
+      return;
+    }
     if (mounted) setState(() => _cargandoRutas = true);
     try {
       final rutas = await RouteService.cargarMisRutas();
@@ -2176,6 +2187,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _misRutas      = rutas;
         _cargandoRutas = false;
       });
+      await _dibujarRutas();
     } catch (e) {
       debugPrint('FullscreenMap rutas error: $e');
       if (mounted) setState(() => _cargandoRutas = false);
@@ -2552,22 +2564,48 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final styleUri = _mapaOscuro
         ? mapbox.MapboxStyles.DARK
         : 'mapbox://styles/mapbox/outdoors-v12';
-    return mapbox.MapWidget(
-      key: const ValueKey('mapa_ciudad_mapbox'),
-      styleUri: styleUri,
-      cameraOptions: mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(
-            _state.centro.longitude, _state.centro.latitude)),
-        zoom: 13.0,
+    return Stack(children: [
+      mapbox.MapWidget(
+        key: const ValueKey('mapa_ciudad_mapbox'),
+        styleUri: styleUri,
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _state.centro.longitude, _state.centro.latitude)),
+          zoom: 13.0,
+        ),
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onMapCreated:          _onCiudadMapCreated,
+        onStyleLoadedListener: _onCiudadStyleLoaded,
+        onTapListener:         _onCiudadTap,
+        onScrollListener:      _onCiudadCameraIdle,
       ),
-      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
-      },
-      onMapCreated:          _onCiudadMapCreated,
-      onStyleLoadedListener: _onCiudadStyleLoaded,
-      onTapListener:         _onCiudadTap,
-      onScrollListener:      _onCiudadCameraIdle,
-    );
+      if (_state.loadingTerritorios)
+        Positioned(
+          top: 90, left: 0, right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kSurface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _kBorder),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(
+                  width: 12, height: 12,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: _kSub),
+                ),
+                const SizedBox(width: 8),
+                Text('Cargando territorios…',
+                    style: _raj(10, FontWeight.w600, _kSub)),
+              ]),
+            ),
+          ),
+        ),
+    ]);
   }
 
   // ==========================================================================
@@ -2940,7 +2978,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         onStyleLoadedListener: _onSolStyleLoaded,
         onScrollListener:      _onSolCameraIdle,
       ),
-      if (_cargandoBarrios)
+      if (_state.loadingTerritorios || _cargandoBarrios)
         Positioned(
           top: 90, left: 0, right: 0,
           child: Center(
@@ -2958,8 +2996,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       strokeWidth: 1.5, color: _kSub),
                 ),
                 const SizedBox(width: 8),
-                Text('Cargando barrios…',
-                    style: _raj(10, FontWeight.w600, _kSub)),
+                Text(
+                  _state.loadingTerritorios
+                      ? 'Cargando territorios…'
+                      : 'Cargando barrios…',
+                  style: _raj(10, FontWeight.w600, _kSub),
+                ),
               ]),
             ),
           ),
@@ -2975,21 +3017,47 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final styleUri = _mapaOscuro
         ? mapbox.MapboxStyles.DARK
         : 'mapbox://styles/mapbox/outdoors-v12';
-    return mapbox.MapWidget(
-      key: const ValueKey('mapa_rutas_mapbox'),
-      styleUri: styleUri,
-      cameraOptions: mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(
-            _state.centro.longitude, _state.centro.latitude)),
-        zoom: _kInitialZoom,
+    return Stack(children: [
+      mapbox.MapWidget(
+        key: const ValueKey('mapa_rutas_mapbox'),
+        styleUri: styleUri,
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _state.centro.longitude, _state.centro.latitude)),
+          zoom: _kInitialZoom,
+        ),
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onMapCreated:          _onRutasMapCreated,
+        onStyleLoadedListener: _onRutasStyleLoaded,
+        onTapListener:         _onRutasTap,
       ),
-      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
-      },
-      onMapCreated:          _onRutasMapCreated,
-      onStyleLoadedListener: _onRutasStyleLoaded,
-      onTapListener:         _onRutasTap,
-    );
+      if (_cargandoRutas)
+        Positioned(
+          top: 90, left: 0, right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kSurface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _kBorder),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(
+                  width: 12, height: 12,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: _kSub),
+                ),
+                const SizedBox(width: 8),
+                Text('Cargando rutas…',
+                    style: _raj(10, FontWeight.w600, _kSub)),
+              ]),
+            ),
+          ),
+        ),
+    ]);
   }
 
 
@@ -3172,11 +3240,32 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ),
           ),
         ],
-        if (_state.loadingGlobal)
+        if (_state.loadingGlobal) ...[
           const ColorFiltered(
             colorFilter: ColorFilter.mode(Colors.black45, BlendMode.srcOver),
             child: SizedBox.expand(),
           ),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _kGold.withValues(alpha: 0.35)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(
+                  width: 14, height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: _kGold),
+                ),
+                const SizedBox(width: 10),
+                Text('Cargando territorios…',
+                    style: _raj(11, FontWeight.w600, _kGold)),
+              ]),
+            ),
+          ),
+        ],
       ]),
     );
   }

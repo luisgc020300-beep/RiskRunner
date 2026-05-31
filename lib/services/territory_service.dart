@@ -535,6 +535,60 @@ class TerritoryService {
     }
   }
 
+  // ── Crear territorio competitivo ─────────────────────────────────────────
+  static Future<String?> crearTerritorioCompetitivo({
+    required List<LatLng> ruta,
+    required Color colorTerritorio,
+    required String nickname,
+    double velocidadMediaKmh = 5.0,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || ruta.length < 3) return null;
+
+    final areaM2 = calcularAreaM2(ruta);
+    if (areaM2 < kAreaMinimaM2) {
+      debugPrint('Área insuficiente (competitivo): ${areaM2.toStringAsFixed(0)} m²');
+      return null;
+    }
+
+    try {
+      final puntosList = ruta
+          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+          .toList();
+      final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
+      final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
+
+      final ref = await _db.collection('territories').add({
+        'userId':                  user.uid,
+        'nickname':                nickname,
+        'puntos':                  puntosList,
+        'centro':                  {'lat': latC, 'lng': lngC},
+        'color':                   colorTerritorio.toARGB32(),
+        'ultima_visita':           FieldValue.serverTimestamp(),
+        'fecha_creacion':          FieldValue.serverTimestamp(),
+        'fecha_desde_dueno':       FieldValue.serverTimestamp(),
+        'modo':                    'competitivo',
+        'area_m2':                 areaM2,
+        'hp':                      kHpMax,
+        'hpMax':                   kHpMax,
+        'velocidadConquistaKmh':   velocidadMediaKmh,
+        'ultimaActualizacionHp':   FieldValue.serverTimestamp(),
+        'rey_id':                  null,
+        'rey_nickname':            null,
+        'rey_desde':               null,
+        'nombre_territorio':       null,
+        'centroLat':               latC,
+        'centroLng':               lngC,
+      });
+
+      invalidarCache();
+      return ref.id;
+    } catch (e) {
+      debugPrint('❌ Error creando territorio competitivo: $e');
+      return null;
+    }
+  }
+
   // ── Cargar todos los territorios (globales por posición GPS) ─────────────
   //
   // Carga TODOS los territorios dentro del radio geográfico, sin filtrar por
