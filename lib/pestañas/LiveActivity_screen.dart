@@ -241,6 +241,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   final Map<String, DateTime>  _ultimaNotifRival               = {};
 
   StreamSubscription? _jugadoresStream;
+  StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
+  StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
   final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
 
   Timer? _timerPublicarPosicion;
@@ -410,6 +412,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     else if (savedMode == 'solitario') { _modoSolitario = true; }
     _cargarDatosIniciales();
     _escucharJugadoresActivos();
+    _suscribirStreamTerritorios();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkPendingSession();
     });
@@ -553,6 +556,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _timerCuentaAtras?.cancel();
     _positionStream?.cancel();
     _jugadoresStream?.cancel();
+    _competitiveStreamSub?.cancel();
+    _solitarioStreamSub?.cancel();
+    TerritoryService.stopRealtimeListener();
     _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
     _timerCheckRuta?.cancel();
@@ -766,6 +772,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (last != null) centro = LatLng(last.latitude, last.longitude);
         } catch (_) {}
       }
+      // Arrancar listener en tiempo real en cuanto tenemos posición
+      if (centro != null) TerritoryService.startRealtimeListener(centro: centro);
 
       if (!_modoRuta) {
         final modo = _modoSolitario ? 'solitario' : 'competitivo';
@@ -2304,6 +2312,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   // ==========================================================================
+  // ── Streams de territorios en tiempo real ─────────────────────────────────
+  void _suscribirStreamTerritorios() {
+    _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
+      if (!mounted) return;
+      GameStateService.instance.setCompetitiveTerritories(list);
+      if (!_territoriosCargados || _modoSolitario || _modoRuta) return;
+      setState(() => _territorios = list);
+      _dibujarTerritoriosEnMapa();
+    });
+    _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
+      if (!mounted) return;
+      GameStateService.instance.setSolitarioTerritories(list);
+      if (!_territoriosCargados || !_modoSolitario) return;
+      setState(() => _territorios = list);
+      _dibujarTerritoriosEnMapa();
+    });
+  }
+
   // JUGADORES ACTIVOS
   // ==========================================================================
   void _escucharJugadoresActivos() {

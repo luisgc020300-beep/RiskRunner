@@ -18,7 +18,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../services/territory_service.dart';
@@ -40,9 +39,6 @@ const String _kMapboxUrl =
     'https://api.mapbox.com/styles/v1/mapbox/outdoors-v12'
     '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
-const String _kMapboxDarkUrl =
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
-    '/tiles/256/{z}/{x}/{y}@2x?access_token=$_kMapboxToken';
 
 // =============================================================================
 // PALETA — aliases privados sobre las constantes públicas de map_theme.dart
@@ -377,6 +373,7 @@ class _MapState extends ChangeNotifier {
         .limit(500)
         .snapshots()
         .listen((snap) {
+      if (!modoGlobal) return;
       if (territoriosGlobales.isEmpty) return;
 
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -602,7 +599,7 @@ class FullscreenMapScreen extends StatefulWidget {
 class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     with TickerProviderStateMixin {
 
-  final MapController                 _mapController = MapController();
+  // flutter_map MapController eliminado — todos los mapas usan Mapbox
   final DraggableScrollableController _sheetCtrl     = DraggableScrollableController();
   late final _MapState                _state;
 
@@ -617,6 +614,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   StreamSubscription? _presenciaStream;
   StreamSubscription? _desafioStreamRetador;
   StreamSubscription? _desafioStreamRetado;
+  StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
+  StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
 
   // Últimos datos de cada query — se mezclan en _mergeDesafio()
   Map<String, dynamic>? _desafioComoRetador;
@@ -634,12 +633,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   late Animation<double>   _globalEntryAnim;
 
   bool _refreshing = false;
-  double _zoomGlobal = 2.5;
 
   // ── Recarga automática al desplazar el mapa ───────────────────────────────
-  Timer? _cameraDebounce;
-  StreamSubscription<MapEvent>? _cameraStream;
-  LatLng? _lastLoadedCenter;
+  Timer?  _cameraDebounce;
+
+  // ── Solitario — scroll reload ─────────────────────────────────────────────
+  Timer?  _solCamDebounce;
+  LatLng? _solLastCenter;
 
   // ── Campo de estrellas para el mapa global oscuro ─────────────────────────
   late final List<_Star> _starfield;
@@ -661,12 +661,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
   String? _errorBarrios;
+  LatLng? _barriosCentro; // centro donde se cargaron los barrios actuales
   final TextEditingController _barriosSearchCtrl = TextEditingController();
   String _barriosBusqueda = '';
   // Future que completa cuando _resolverCentro() termina de obtener el GPS real.
   // _activarModoSolitario() lo espera para no consultar Overpass con coords por defecto.
   Future<void>? _centroListo;
-  bool _gpsResuelto = false;
+  bool _gpsResuelto         = false;
+  bool _recargandoSilencioso = false;
 
   // ── Filtro de mapa + actividad ────────────────────────────────────────────
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
@@ -693,7 +695,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   mapbox.MapboxMap?              _mapboxRutasMap;
   bool                           _rutasStyleLoaded   = false;
   bool                           _rutasLayersCreated = false;
-  mapbox.PointAnnotationManager? _rutasAnnManager;
 
   // ── Modo Global — Mapbox ─────────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxGlobalMap;
@@ -742,7 +743,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     _starfield = _StarfieldPainter.generate();
     _initData();
-    _escucharCamara();
+    // scroll reload via onScrollListener en cada MapWidget Mapbox
     _feedFuture = ActivityService.obtenerFeedReciente();
 
     if (widget.selectionMode) {
@@ -807,7 +808,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _ciudadAnnManager = null;
     _mapboxSolMap     = null;
     _mapboxRutasMap   = null;
-    _rutasAnnManager  = null;
     _mapboxGlobalMap  = null;
     _state.dispose();
     _pulseCtrl.dispose();
@@ -818,8 +818,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _presenciaStream?.cancel();
     _desafioStreamRetador?.cancel();
     _desafioStreamRetado?.cancel();
+    _competitiveStreamSub?.cancel();
+    _solitarioStreamSub?.cancel();
+    TerritoryService.stopRealtimeListener();
     _cameraDebounce?.cancel();
-    _cameraStream?.cancel();
+    _solCamDebounce?.cancel();
     _sheetCtrl.dispose();
     _barriosSearchCtrl.dispose();
     super.dispose();
@@ -863,9 +866,29 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     ));
   }
 
+  void _suscribirStreamTerritorios() {
+    _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
+      if (!mounted) return;
+      // Siempre actualizar caché para que el retorno a competitivo sea inmediato
+      GameStateService.instance.setCompetitiveTerritories(list);
+      if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
+      _state.setTerritorios(list);
+    });
+    _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
+      if (!mounted) return;
+      // Siempre actualizar caché para que el retorno a solitario sea inmediato
+      GameStateService.instance.setSolitarioTerritories(list);
+      if (!_state.modoSolitario) return;
+      _state.setTerritorios(list);
+    });
+  }
+
   Future<void> _initData() async {
     _centroListo = _resolverCentro();
     await _centroListo;
+    // Arrancar listener en tiempo real y suscribirse a los streams
+    TerritoryService.startRealtimeListener(centro: _state.centro);
+    _suscribirStreamTerritorios();
     // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
     _escucharJugadores();
     _escucharDesafio();
@@ -906,7 +929,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _cargarTerritorios() async {
     if (widget.territorios.isNotEmpty) {
       _state.setTerritorios(widget.territorios);
-      _lastLoadedCenter = _state.centro;
       return;
     }
     // Pre-leer el modo guardado evita la race condition entre _initData()
@@ -920,7 +942,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         : GameStateService.instance.getCompetitiveTerritories();
     if (cached != null) {
       _state.setTerritorios(List<TerritoryData>.from(cached));
-      _lastLoadedCenter = _state.centro;
       return;
     }
 
@@ -930,7 +951,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         : GameStateService.instance.getStaleCompetitiveTerritories();
     if (stale != null) {
       _state.setTerritorios(List<TerritoryData>.from(stale));
-      _lastLoadedCenter = _state.centro;
       _recargarSilencioso(modo);
       return;
     }
@@ -953,7 +973,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         return;
       }
       _state.setTerritorios(lista);
-      _lastLoadedCenter = _state.centro;
       if (modo == 'solitario') {
         GameStateService.instance.setSolitarioTerritories(lista);
       } else {
@@ -966,18 +985,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Future<void> _recargarSilencioso(String modo) async {
+    if (_recargandoSilencioso) return;
+    _recargandoSilencioso = true;
     try {
-      // No invalidamos caché aquí: el TTL ya expiró (por eso estamos en el path stale),
-      // así que cargarTodosLosTerritorios irá a Firestore igualmente.
-      // Invalidar antes de tener éxito dejaría la caché vacía si la red falla.
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
-      // Verificar que el modo no cambió mientras esperábamos
       final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
       if (modoActual != modo) return;
       _state.setTerritorios(lista);
-      _lastLoadedCenter = _state.centro;
       if (modo == 'solitario') {
         GameStateService.instance.setSolitarioTerritories(lista);
       } else {
@@ -985,6 +1001,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
     } catch (e) {
       debugPrint('FullscreenMap recargarSilencioso: $e');
+    } finally {
+      _recargandoSilencioso = false;
     }
   }
 
@@ -999,46 +1017,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (mounted) setState(() => _refreshing = false);
   }
 
-  // ── Escucha movimientos de cámara y recarga si el usuario se desplaza >3 km ─
-  void _escucharCamara() {
-    _cameraStream = _mapController.mapEventStream.listen((event) {
-      if (event is MapEventMoveEnd &&
-          event.source != MapEventSource.mapController) {
-        _cameraDebounce?.cancel();
-        _cameraDebounce = Timer(
-          const Duration(milliseconds: 700),
-          _onCameraIdle,
-        );
-      }
-    });
-  }
 
-  Future<void> _onCameraIdle() async {
-    if (_state.modoGlobal) return;
-    final newCenter = _mapController.camera.center;
-    if (_lastLoadedCenter != null) {
-      final distM = Geolocator.distanceBetween(
-        _lastLoadedCenter!.latitude, _lastLoadedCenter!.longitude,
-        newCenter.latitude, newCenter.longitude,
-      );
-      if (distM < 3000) return;
-    }
-    _lastLoadedCenter = newCenter;
-    final modo = _state.modoSolitario ? 'solitario' : 'competitivo';
-    TerritoryService.invalidarCache();
-    final lista = await TerritoryService.cargarTodosLosTerritorios(
-        centro: newCenter, modo: modo);
-    if (!mounted) return;
-    final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
-    if (modoActual != modo) return;
-    _state.setTerritorios(lista);
-    if (modo == 'solitario') {
-      GameStateService.instance.setSolitarioTerritories(lista);
-    } else {
-      GameStateService.instance.setCompetitiveTerritories(lista);
-      await _rellenarConFantasmas();
-    }
-  }
+
 
   Future<void> _rellenarConFantasmas() async {
     if (_state.modoSolitario) return;
@@ -1129,7 +1109,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_state.modoGlobal) {
       _toggleCtrl.forward();
       _globalEntryCtrl.forward(from: 0);
-      setState(() => _zoomGlobal = 2.5);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_sheetCtrl.isAttached) {
           _sheetCtrl.animateTo(0.35,
@@ -1139,8 +1118,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       });
     } else {
       _toggleCtrl.reverse();
-      // FIX: volver al zoom y centro inicial igual al de ciudad
-      _moverCamara(_state.centro, _kInitialZoom);
+      _moverCamara(_state.centro, 13.0);
     }
   }
 
@@ -1944,7 +1922,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     _state.setModoSolitario(false);
                     await _cargarTerritorios();
                   }
-                  _moverCamara(_state.centro, _kInitialZoom);
+                  _moverCamara(_state.centro, 13.0);
                 },
               ),
               const SizedBox(width: 5),
@@ -2127,6 +2105,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _barriosCercanos = barrios;
         _barriosCargados = true;
         _cargandoBarrios = false;
+        _barriosCentro   = pos;
       });
     } catch (e) {
       final msg = e.toString().contains('TimeoutException')
@@ -2341,6 +2320,34 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           hillshadeShadowColor: 0xFF101828,
           hillshadeHighlightColor: 0xFFFFFFFF));
     } catch (_) {}
+
+    try {
+      try { await map.style.removeStyleLayer('cid-buildings'); } catch (_) {}
+      await map.style.addLayer(mapbox.FillExtrusionLayer(
+          id: 'cid-buildings', sourceId: 'composite', sourceLayer: 'building'));
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'filter', ['==', ['get', 'extrude'], 'true']);
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-base',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']]);
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-height',
+          ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
+      final night = _mapaOscuro;
+      final List<Object> bColors = night
+          ? ['interpolate', ['linear'], ['get', 'height'],
+              0, '#9C8060', 8, '#B09070', 25, '#C4A878', 60, '#D4B880', 120, '#C09858']
+          : ['interpolate', ['linear'], ['get', 'height'],
+              0, '#F2EAD6', 8, '#E8D4A8', 25, '#D4B878', 60, '#B89048', 120, '#906830'];
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-color', bColors);
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-opacity', 0.90);
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-ambient-occlusion-intensity', 0.25);
+      await map.style.setStyleLayerProperty(
+          'cid-buildings', 'fill-extrusion-ambient-occlusion-radius', 3.0);
+    } catch (_) {}
   }
 
   Future<void> _dibujarTerritoriosCiudad() async {
@@ -2351,22 +2358,23 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final features = territorios.map((t) {
       final decay      = _decayFactor(t);
+      final tColor     = t.esMio ? _state.colorJugador : t.color;
       final sel        = _state.territorioSeleccionado?.docId == t.docId;
       final fillAlpha  = sel ? 0.50 : (t.esMio ? 0.30 * decay : 0.20);
       final lineAlpha  = t.esMio ? (0.90 * decay).clamp(0.0, 1.0) : 0.70;
       final glowAlpha  = t.esMio ? 0.10 * decay : 0.06;
       final lineWidth  = sel ? 3.5 : (t.esMio ? 2.5 : 1.8);
       final glowWidth  = sel ? 14.0 : (t.esMio ? 10.0 : 6.0);
-      final label      = t.ownerNickname ?? (t.esMio ? 'TÚ' : '?');
+      final label      = t.ownerNickname;
       final labelColor = t.esMio ? _kGoldLight : Colors.white;
       final coords     = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
         ..add([t.puntos.first.longitude, t.puntos.first.latitude]);
       return {
         'type': 'Feature',
         'properties': {
-          'fillColor':  _hexColor(t.color.withValues(alpha: fillAlpha)),
-          'lineColor':  _hexColor(t.color.withValues(alpha: lineAlpha)),
-          'glowColor':  _hexColor(t.color.withValues(alpha: glowAlpha)),
+          'fillColor':  _hexColor(tColor.withValues(alpha: fillAlpha)),
+          'lineColor':  _hexColor(tColor.withValues(alpha: lineAlpha)),
+          'glowColor':  _hexColor(tColor.withValues(alpha: glowAlpha)),
           'lineWidth':  lineWidth,
           'glowWidth':  glowWidth,
           'label':      label,
@@ -2525,9 +2533,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _ciudadLastCenter = newCenter;
       _state.setCentro(newCenter);
       TerritoryService.invalidarCache();
+      TerritoryService.startRealtimeListener(centro: newCenter);
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: newCenter, modo: 'competitivo');
-      if (!mounted) return;
+      // El usuario pudo cambiar de modo mientras esperábamos Firestore
+      if (!mounted || _state.modoSolitario || _state.modoRutas || _state.modoGlobal) {
+        GameStateService.instance.setCompetitiveTerritories(lista);
+        return;
+      }
       _state.setTerritorios(lista);
       GameStateService.instance.setCompetitiveTerritories(lista);
       await _rellenarConFantasmas();
@@ -2545,7 +2558,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       cameraOptions: mapbox.CameraOptions(
         center: mapbox.Point(coordinates: mapbox.Position(
             _state.centro.longitude, _state.centro.latitude)),
-        zoom: _kInitialZoom,
+        zoom: 13.0,
       ),
       gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
         Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
@@ -2579,7 +2592,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       locationPuck: mapbox.LocationPuck(
           locationPuck2D: mapbox.DefaultLocationPuck2D()),
     ));
-    _rutasAnnManager = await map.annotations.createPointAnnotationManager();
   }
 
   void _onRutasStyleLoaded(mapbox.StyleLoadedEventData _) async {
@@ -2597,7 +2609,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final selected = _rutaSeleccionada;
     final features = rutas.map((r) {
       final isSel = selected?.id == r.id;
-      final color = isSel ? _kGoldLight : const Color(0xFF9B72CF);
+      final color = isSel
+          ? Color.lerp(_state.colorJugador, Colors.white, 0.25)!
+          : _state.colorJugador;
       final width = isSel ? 5.0 : 3.0;
       final coords = r.coords.map((p) => [p.longitude, p.latitude]).toList();
       return {
@@ -2717,7 +2731,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final features = barrios.map((b) {
       final pct   = b.porcentajeCubierto.clamp(0.0, 1.0);
-      final color = pct >= 1.0 ? _kSafe : pct > 0 ? _kWarn : _kDim;
+      final color = pct > 0 ? _state.colorJugador : _kDim;
+      final fillOpacity = pct > 0 ? (0.08 + 0.20 * pct) : 0.06;
       final coords = b.puntos.map((p) => [p.longitude, p.latitude]).toList()
         ..add([b.puntos.first.longitude, b.puntos.first.latitude]);
       return {
@@ -2727,7 +2742,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           'pct': pct,
           'pctPct': '${(pct * 100).round()}%',
           'fillColor': _hexColor(color),
-          'fillOpacity': pct > 0 ? 0.16 : 0.06,
+          'fillOpacity': fillOpacity,
           'lineColor': _hexColor(_mapaOscuro
               ? Colors.white.withValues(alpha: 0.45)
               : const Color(0xFF888888)),
@@ -2790,21 +2805,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final propios = territorios.where((t) => t.esMio).toList();
 
     final features = propios.map((t) {
-      final decay = _decayFactor(t);
-      final frio  = t.ultimaVisita != null &&
-          DateTime.now().difference(t.ultimaVisita!).inDays >= 7;
-      final fillColor   = frio ? Colors.grey : t.color;
-      final fillAlpha   = frio ? 0.14 : 0.30 * decay;
-      final borderColor = frio ? Colors.grey : t.color;
-      final borderAlpha = frio ? 0.60 : (0.90 * decay).clamp(0.0, 1.0);
+      final userColor = _state.colorJugador;
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList()
         ..add([t.puntos.first.longitude, t.puntos.first.latitude]);
       return {
         'type': 'Feature',
         'properties': {
-          'fillColor':   _hexColor(fillColor.withValues(alpha: fillAlpha)),
-          'lineColor':   _hexColor(borderColor.withValues(alpha: borderAlpha)),
-          'glowColor':   _hexColor(t.color.withValues(alpha: 0.08 * decay)),
+          'fillColor':   _hexColor(userColor.withValues(alpha: 0.32)),
+          'lineColor':   _hexColor(userColor.withValues(alpha: 0.90)),
+          'glowColor':   _hexColor(userColor.withValues(alpha: 0.10)),
         },
         'geometry': {'type': 'Polygon', 'coordinates': [coords]},
       };
@@ -2837,6 +2846,59 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineWidth: 2.8,
       ));
     } catch (_) {}
+  }
+
+  void _onSolCameraIdle(mapbox.MapContentGestureContext _) {
+    _solCamDebounce?.cancel();
+    _solCamDebounce = Timer(const Duration(milliseconds: 700), () async {
+      final map = _mapboxSolMap;
+      if (map == null || !mounted) return;
+      final cam = await map.getCameraState();
+      final newCenter = LatLng(
+        cam.center.coordinates.lat.toDouble(),
+        cam.center.coordinates.lng.toDouble(),
+      );
+      if (_solLastCenter != null) {
+        final distM = Geolocator.distanceBetween(
+          _solLastCenter!.latitude, _solLastCenter!.longitude,
+          newCenter.latitude, newCenter.longitude,
+        );
+        if (distM < 3000) return;
+      }
+      _solLastCenter = newCenter;
+      _state.setCentro(newCenter);
+      TerritoryService.invalidarCache();
+      TerritoryService.startRealtimeListener(centro: newCenter);
+
+      // Si el nuevo centro está >8 km del centro original de los barrios,
+      // invalidar para que se recarguen los barrios de la nueva zona.
+      if (_barriosCentro != null) {
+        final distBarrios = Geolocator.distanceBetween(
+          _barriosCentro!.latitude, _barriosCentro!.longitude,
+          newCenter.latitude,       newCenter.longitude,
+        );
+        if (distBarrios > 8000) {
+          setState(() {
+            _barriosCargados = false;
+            _barriosCercanos = [];
+            _barriosCentro   = null;
+          });
+        }
+      }
+
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+          centro: newCenter, modo: 'solitario');
+      if (!mounted || !_state.modoSolitario) return;
+      _state.setTerritorios(lista);
+      GameStateService.instance.setSolitarioTerritories(lista);
+      _recalcularPorcentajesBarrios();
+      _dibujarTerritoriosSolitario();
+      // Recargar barrios si fueron invalidados
+      if (!_barriosCargados && !_cargandoBarrios) {
+        await _cargarBarriosSolitario(newCenter);
+        _recalcularPorcentajesBarrios();
+      }
+    });
   }
 
   void _moverCamara(LatLng centro, double zoom) {
@@ -2876,6 +2938,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         },
         onMapCreated:          _onSolMapCreated,
         onStyleLoadedListener: _onSolStyleLoaded,
+        onScrollListener:      _onSolCameraIdle,
       ),
       if (_cargandoBarrios)
         Positioned(
@@ -3166,13 +3229,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (_state.modoGlobal) {
         // En modo global siempre centra el mapa global
         _moverCamara(_kGlobalCenter, 2.5);
-        setState(() => _zoomGlobal = 2.5);
         return;
       }
 
       if (_fabCentradoEnUsuario) {
-        // Segunda pulsación: volver a vista amplia
-        _moverCamara(_state.centro, _kInitialZoom);
+        // Segunda pulsación: volver a vista de barrio (ciudad) o amplia (otros modos)
+        final zoomOut = (_state.modoSolitario || _state.modoRutas)
+            ? _kInitialZoom
+            : 13.0;
+        _moverCamara(_state.centro, zoomOut);
         setState(() => _fabCentradoEnUsuario = false);
       } else {
         // Primera pulsación: ir a mi posición actual con zoom cercano

@@ -16,6 +16,8 @@
 //    • cargarTodosLosTerritorios con filtro geográfico opcional
 // ─────────────────────────────────────────────────────────────────────────────
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -226,6 +228,127 @@ class TerritoryService {
   static List<TerritoryData>? _cachedTerritorios;
   static DateTime? _cacheTimestamp;
   static const Duration _cacheTTL = Duration(minutes: 2);
+
+  // ── Streams en tiempo real ────────────────────────────────────────────────
+  static final StreamController<List<TerritoryData>> _competitiveCtrl =
+      StreamController<List<TerritoryData>>.broadcast();
+  static final StreamController<List<TerritoryData>> _solitarioCtrl =
+      StreamController<List<TerritoryData>>.broadcast();
+
+  /// Emite cada vez que Firestore cambia territorios competitivos en el radio activo.
+  static Stream<List<TerritoryData>> get competitiveStream => _competitiveCtrl.stream;
+
+  /// Emite cada vez que Firestore cambia territorios solitario en el radio activo.
+  static Stream<List<TerritoryData>> get solitarioStream => _solitarioCtrl.stream;
+
+  // ── Listener en tiempo real ───────────────────────────────────────────────
+  static StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _realtimeListener;
+  static LatLng? _realtimeCenter;
+  static int _listenerRefCount = 0;
+  static final Map<String, Map<String, dynamic>> _playerDataCache = {};
+  static final Map<String, DateTime> _playerCacheTs = {};
+  static const Duration _kPlayerCacheTTL = Duration(minutes: 30);
+
+  /// Inicia el listener Firestore en tiempo real alrededor de [centro].
+  /// Si ya existe un listener y el centro no cambió >3 km, no reinicia.
+  /// Usar conteo de referencias: llamar [stopRealtimeListener] por cada llamada.
+  static Future<void> startRealtimeListener({required LatLng centro}) async {
+    _listenerRefCount++;
+    if (_realtimeListener != null && _realtimeCenter != null) {
+      final dLat = (centro.latitude  - _realtimeCenter!.latitude).abs();
+      final dLng = (centro.longitude - _realtimeCenter!.longitude).abs();
+      if (dLat < 0.027 && dLng < 0.027) return;
+    }
+    await _reiniciarRealtimeListener(centro);
+  }
+
+  static Future<void> _reiniciarRealtimeListener(LatLng centro) async {
+    _realtimeListener?.cancel();
+    _realtimeCenter = centro;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    const double kRad = 0.09;
+
+    _realtimeListener = _db
+        .collection('territories')
+        .where('centroLat', isGreaterThan: centro.latitude - kRad)
+        .where('centroLat', isLessThan:    centro.latitude + kRad)
+        .limit(500)
+        .snapshots()
+        .listen((snap) async {
+          final myUid = user.uid;
+
+          final docs = snap.docs.where((doc) {
+            final cLng = (doc.data()['centroLng'] as num?)?.toDouble();
+            if (cLng == null) return true;
+            return (cLng - centro.longitude).abs() <= kRad;
+          }).toList();
+
+          // Fetch datos de jugadores ausentes o con caché expirada (>30 min)
+          final now = DateTime.now();
+          final missingUids = <String>{};
+          for (final doc in docs) {
+            final uid = doc.data()['userId'] as String?;
+            if (uid == null || uid == kGhostUserId) continue;
+            final ts = _playerCacheTs[uid];
+            if (ts == null || now.difference(ts) > _kPlayerCacheTTL) {
+              missingUids.add(uid);
+            }
+          }
+          if (missingUids.isNotEmpty) {
+            final uidList = missingUids.toList();
+            final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
+            for (int i = 0; i < uidList.length; i += 30) {
+              final chunk = uidList.sublist(i, math.min(i + 30, uidList.length));
+              futures.add(_db
+                  .collection('players')
+                  .where(FieldPath.documentId, whereIn: chunk)
+                  .get());
+            }
+            try {
+              final results = await Future.wait(futures);
+              for (final r in results) {
+                for (final d in r.docs) {
+                  _playerDataCache[d.id] = d.data();
+                  _playerCacheTs[d.id]   = now;
+                }
+              }
+            } catch (e) {
+              debugPrint('Territory stream — player fetch error: $e');
+            }
+          }
+
+          final all = _parsearDocs(docs, myUid, _playerDataCache);
+
+          // Actualizar caché TTL
+          _cachedTerritorios = all;
+          _cacheTimestamp    = DateTime.now();
+
+          // Emitir por modo
+          if (!_competitiveCtrl.isClosed) {
+            _competitiveCtrl.add(_filtrarPorModo(all, 'competitivo', myUid));
+          }
+          if (!_solitarioCtrl.isClosed) {
+            _solitarioCtrl.add(_filtrarPorModo(all, 'solitario', myUid));
+          }
+
+          debugPrint(
+              '🔴 LIVE ${all.length} territories @ ${centro.latitude.toStringAsFixed(3)}');
+        },
+        onError: (e) => debugPrint('Territory realtime error: $e'));
+  }
+
+  /// Decrementa el conteo de referencias. Cancela el listener al llegar a 0.
+  static void stopRealtimeListener() {
+    _listenerRefCount = math.max(0, _listenerRefCount - 1);
+    if (_listenerRefCount == 0) {
+      _realtimeListener?.cancel();
+      _realtimeListener = null;
+      _realtimeCenter   = null;
+    }
+  }
 
   static void invalidarCache() {
     _cachedTerritorios = null;
