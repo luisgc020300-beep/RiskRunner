@@ -834,10 +834,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _aplicarTerritoriosFantasma();
           }
         }
-        // Pre-fetch barrios OSM en background si ya estamos en solitario
-        if (_modoSolitario && centro != null && !_barriosCargados) {
-          _cargarBarriosOSM(centro);
-        }
       }
     } catch (e) {
       debugPrint('Error datos iniciales: $e');
@@ -1035,104 +1031,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ==========================================================================
   // BARRIOS OSM — modo solitario
-  // ==========================================================================
-  Future<void> _cargarBarriosOSM(LatLng pos) async {
-    if (_cargandoBarrios || _barriosCargados) return;
-    _cargandoBarrios = true;
-
-    try {
-      final lat   = pos.latitude;
-      final lng   = pos.longitude;
-      const delta = 0.12;
-
-      final url = Uri.parse(
-        'https://overpass-api.de/api/interpreter?data='
-        '[out:json][timeout:25];'
-        '('
-        '  relation["boundary"="administrative"]["admin_level"="8"]'
-        '    (${lat - delta},${lng - delta},${lat + delta},${lng + delta});'
-        ');'
-        'out geom;',
-      );
-
-      final response = await http.get(url).timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200) return;
-
-      final jsonData  = jsonDecode(response.body) as Map<String, dynamic>;
-      final elements  = (jsonData['elements'] as List<dynamic>? ?? []);
-      final List<_BarrioData> barrios = [];
-
-      for (final el in elements) {
-        final tags   = el['tags'] as Map<String, dynamic>? ?? {};
-        final nombre = (tags['name'] as String?)?.trim() ?? '';
-        if (nombre.isEmpty) continue;
-
-        List<LatLng> puntos = [];
-
-        if (el['type'] == 'way') {
-          final geometry = el['geometry'] as List<dynamic>? ?? [];
-          puntos = geometry.map((g) {
-            final m = g as Map<String, dynamic>;
-            return LatLng(
-              (m['lat'] as num).toDouble(),
-              (m['lon'] as num).toDouble(),
-            );
-          }).toList();
-        } else if (el['type'] == 'relation') {
-          final members = el['members'] as List<dynamic>? ?? [];
-          for (final member in members) {
-            final m = member as Map<String, dynamic>;
-            if (m['role'] == 'outer' && m['geometry'] != null) {
-              final geom = m['geometry'] as List<dynamic>;
-              puntos = geom.map((g) {
-                final gm = g as Map<String, dynamic>;
-                return LatLng(
-                  (gm['lat'] as num).toDouble(),
-                  (gm['lon'] as num).toDouble(),
-                );
-              }).toList();
-              break;
-            }
-          }
-        }
-
-        if (puntos.length < 4) continue;
-        final area = TerritoryService.calcularAreaM2(puntos);
-        if (area < 10000) continue;
-
-        barrios.add(_BarrioData(nombre: nombre, puntos: puntos, areaM2: area));
-      }
-
-      if (!mounted) return;
-
-      final misTerritorios = _territorios.where((t) => t.esMio).toList();
-      for (final barrio in barrios) {
-        barrio.porcentajeCubierto =
-            _calcularPorcentajeBarrio(barrio, misTerritorios);
-      }
-
-      barrios.sort((a, b) {
-        final dA = Geolocator.distanceBetween(
-            lat, lng, a.centro.latitude, a.centro.longitude);
-        final dB = Geolocator.distanceBetween(
-            lat, lng, b.centro.latitude, b.centro.longitude);
-        return dA.compareTo(dB);
-      });
-
-      setState(() {
-        _barriosCercanos = barrios;
-        _barrioActual    = barrios.isNotEmpty ? barrios.first : null;
-        _barriosCargados = true;
-      });
-
-      await _dibujarBarriosEnMapa();
-
-    } catch (e) {
-      debugPrint('Error cargando barrios OSM: $e');
-    } finally {
-      _cargandoBarrios = false;
-    }
-  }
 
   double _calcularPorcentajeBarrio(
       _BarrioData barrio, List<TerritoryData> misTerritorios) {
@@ -3291,12 +3189,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
     }
 
-    if (_modoSolitario && _currentPosition != null) {
-      _cargarBarriosOSM(LatLng(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      ));
-    }
 
     _positionStream = _crearStreamGPS();
 
@@ -5968,7 +5860,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
           const SizedBox(width: 7),
           Text(
-            _modoSolitario ? 'Cargando barrios...' : 'Cargando territorios...',
+            'Cargando territorios...',
             style: GoogleFonts.inter(color: Colors.white54, fontSize: 11,
                 fontWeight: FontWeight.w500),
           ),
@@ -5997,7 +5889,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'competitivo');
             if (!mounted || GameStateService.instance.currentMode != 'competitivo') return;
-            setState(() => _territorios = lista);
+            setState(() => _modeCtrl.onTerritoriosCargados(lista));
             GameStateService.instance.setCompetitiveTerritories(lista);
             _dibujarTerritoriosEnMapa();
             _aplicarTerritoriosFantasma();
@@ -6024,10 +5916,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final lista = await TerritoryService.cargarTodosLosTerritorios(
                 centro: centro, modo: 'solitario');
             if (!mounted || GameStateService.instance.currentMode != 'solitario') return;
-            setState(() => _territorios = lista);
+            setState(() => _modeCtrl.onTerritoriosCargados(lista));
             GameStateService.instance.setSolitarioTerritories(lista);
             _dibujarTerritoriosEnMapa();
-            if (centro != null) _cargarBarriosOSM(centro);
           },
         ),
         const SizedBox(width: 8),
