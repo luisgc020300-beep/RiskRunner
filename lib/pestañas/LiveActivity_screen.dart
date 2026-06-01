@@ -820,7 +820,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           }
           final lista = await TerritoryService.cargarTodosLosTerritorios(
               centro: centro, modo: modo);
-          if (mounted) {
+          if (mounted && !_modoRuta) {
             setState(() { _territorios = lista; _territoriosCargados = true; });
             if (_modoSolitario) {
               GameStateService.instance.setSolitarioTerritories(lista);
@@ -1530,7 +1530,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: centro, modo: 'competitivo');
-      if (mounted) {
+      if (mounted && !_modoRuta) {
         setState(() => _territorios = lista);
         GameStateService.instance.setCompetitiveTerritories(lista);
         _dibujarTerritoriosEnMapa();
@@ -1931,6 +1931,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
         return;
       }
+
+      // Si el modo cambió a ruta mientras este dibujo estaba en progreso, abortamos.
+      // Evita que un dibujo concurrente cree capas de territorio sobre las rutas.
+      if (_modoRuta) return;
 
       _pulsoTimer?.cancel();
       for (final id in [
