@@ -42,6 +42,7 @@ import '../config/env.dart';
 import '../widgets/live_activity/live_starfield.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_painter.dart';
+import '../controllers/game_mode_controller.dart';
 
 // =============================================================================
 // PALETA
@@ -213,8 +214,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const _kMinMsCamara = 800;
 
   // ── Modo de juego
-  bool _modoSolitario = false;
-  bool _modoRuta      = false;
+  final _modeCtrl = GameModeController();
+  bool get _modoSolitario => _modeCtrl.modoSolitario;
+  set _modoSolitario(bool v) => _modeCtrl.modoSolitario = v;
+  bool get _modoRuta => _modeCtrl.modoRuta;
+  set _modoRuta(bool v) => _modeCtrl.modoRuta = v;
 
   // ── Ruta guiada (cargada desde RutasExploradorScreen)
   RouteData? _rutaGuiada;
@@ -230,8 +234,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── Jugador
   Color  _colorTerritorio      = const Color(0xFF636366);
-  List<TerritoryData> _territorios     = [];
-  bool   _territoriosCargados  = false;
+  List<TerritoryData> get _territorios => _modeCtrl.territorios;
+  set _territorios(List<TerritoryData> v) => _modeCtrl.territorios = v;
+  bool get _territoriosCargados => _modeCtrl.territoriosCargados;
+  set _territoriosCargados(bool v) => _modeCtrl.territoriosCargados = v;
   bool   _fantasmasCargando    = false;
   String _miNickname           = 'Alguien';
   bool   _boostXpActivo        = false;
@@ -339,7 +345,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _retoCompletado = false;
 
   // ── GUERRA GLOBAL
-  Map<String, dynamic>? _objetivoGlobal;
+  Map<String, dynamic>? get _objetivoGlobal => _modeCtrl.objetivoGlobal;
+  set _objetivoGlobal(Map<String, dynamic>? v) => _modeCtrl.objetivoGlobal = v;
   bool _globalConquistado   = false;
   bool _globalConquistando  = false;
   bool _globalKmAlcanzados  = false;
@@ -358,7 +365,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
 
   // ── SELECCIÓN GLOBAL EN GLOBO
-  bool _seleccionandoGlobal  = false;
+  bool get _seleccionandoGlobal => _modeCtrl.seleccionandoGlobal;
+  set _seleccionandoGlobal(bool v) => _modeCtrl.seleccionandoGlobal = v;
   bool _mostrarSituacion     = false;
   List<GlobalTerritory> _terrGlobales = [];
   bool   _cargandoGlobales      = false;
@@ -5555,7 +5563,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     HapticFeedback.mediumImpact();
     _limpiarRutasPreview();
     _limpiarCapasBarrios();
-    setState(() { _seleccionandoGlobal = true; _modoRuta = false; _modoSolitario = false; _territoriosCargados = false; });
+    setState(() => _modeCtrl.switchToGlobal());
     if (_terrGlobales.isEmpty && !_cargandoGlobales) {
       await _cargarGlobales();
     }
@@ -5977,7 +5985,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Competitivo')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
-            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
+            setState(() => _modeCtrl.switchToCompetitivo());
             _limpiarCapasBarrios();
             _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
@@ -6005,7 +6013,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Solitario')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
-            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
+            setState(() => _modeCtrl.switchToSolitario());
             _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
             TerritoryService.invalidarCache();
@@ -6031,7 +6039,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
-            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
+            setState(() => _modeCtrl.switchToRuta());
             _limpiarCapasBarrios();
             _dibujarTerritoriosEnMapa();
             _cargarYDibujarRutasPreview();
