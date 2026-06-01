@@ -5554,7 +5554,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _elegirTerritorioGlobal() async {
     HapticFeedback.mediumImpact();
     _limpiarRutasPreview();
-    setState(() { _seleccionandoGlobal = true; _modoRuta = false; _modoSolitario = false; });
+    _limpiarCapasBarrios();
+    setState(() { _seleccionandoGlobal = true; _modoRuta = false; _modoSolitario = false; _territoriosCargados = false; });
     if (_terrGlobales.isEmpty && !_cargandoGlobales) {
       await _cargarGlobales();
     }
@@ -5976,7 +5977,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Competitivo')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
-            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; _territorios = []; });
+            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
+            _limpiarCapasBarrios();
             _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
             TerritoryService.invalidarCache();
@@ -6003,7 +6005,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Solitario')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
-            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; _territorios = []; });
+            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
             _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
             TerritoryService.invalidarCache();
@@ -6029,7 +6031,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
-            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; _territorios = []; });
+            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; _territorios = []; _territoriosCargados = false; });
+            _limpiarCapasBarrios();
             _dibujarTerritoriosEnMapa();
             _cargarYDibujarRutasPreview();
           },

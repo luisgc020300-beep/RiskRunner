@@ -656,6 +656,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // Toggle mapa claro/oscuro
   bool _mapaOscuro = false;
 
+  // Caché de widgets de mapa — se crea una vez por modo y se reutiliza para
+  // evitar recrear el MapWidget (y su contexto Metal/GL nativo) en cada build().
+  Widget? _cachedMapaCiudad;
+  Widget? _cachedMapaSolitario;
+  Widget? _cachedMapaRutas;
+  Widget? _cachedMapaGlobal;
+
   // ── Modo solitario — barrios OSM ──────────────────────────────────────────
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
@@ -2239,18 +2246,32 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   // BUILD MAPA — dispatcher
   // ==========================================================================
+  void _invalidarCacheMapa() {
+    _cachedMapaCiudad   = null;
+    _cachedMapaSolitario = null;
+    _cachedMapaRutas    = null;
+    _cachedMapaGlobal   = null;
+  }
+
   Widget _buildMapa() {
     final int idx = _state.modoGlobal    ? 3
         : _state.modoSolitario ? 1
         : _state.modoRutas     ? 2
         : 0;
+    // Cachear cada widget de mapa para que Flutter reutilice el elemento
+    // nativo (Metal/GL) en lugar de recrearlo en cada setState.
+    // Se invalida solo al cambiar estilo (claro/oscuro).
+    _cachedMapaCiudad    ??= _buildMapaCiudad(widget.mostrarRuta && widget.ruta.isNotEmpty);
+    _cachedMapaSolitario ??= _buildMapaSolitario();
+    _cachedMapaRutas     ??= _buildMapaRutas();
+    _cachedMapaGlobal    ??= _buildMapaGlobal();
     return IndexedStack(
       index: idx,
       children: [
-        _buildMapaCiudad(widget.mostrarRuta && widget.ruta.isNotEmpty),
-        _buildMapaSolitario(),
-        _buildMapaRutas(),
-        _buildMapaGlobal(),
+        _cachedMapaCiudad!,
+        _cachedMapaSolitario!,
+        _cachedMapaRutas!,
+        _cachedMapaGlobal!,
       ],
     );
   }
@@ -3287,6 +3308,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
+        _invalidarCacheMapa();
         setState(() => _mapaOscuro = !_mapaOscuro);
       },
       child: ClipRRect(
