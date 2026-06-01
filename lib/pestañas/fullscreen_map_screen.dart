@@ -2380,6 +2380,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       await _setupCiudadRuta();
     }
     _actualizarJugadoresCiudad();
+    if (_gpsResuelto && !_state.modoSolitario && !_state.modoRutas && !_state.modoGlobal) {
+      _mapboxCiudadMap?.flyTo(
+        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: 13.0),
+        mapbox.MapAnimationOptions(duration: 400),
+      );
+    }
   }
 
   Future<void> _setupCiudadTerrain() async {
@@ -2704,6 +2710,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _rutasStyleLoaded   = true;
     _rutasLayersCreated = false;
     await _dibujarRutas();
+    if (_gpsResuelto) {
+      _mapboxRutasMap?.flyTo(
+        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
+        mapbox.MapAnimationOptions(duration: 400),
+      );
+    }
   }
 
   Future<void> _dibujarRutas() async {
@@ -2809,6 +2821,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _solLayersCreating = false;
     await _dibujarBarriosSolitario();
     await _dibujarTerritoriosSolitario();
+    if (_gpsResuelto) {
+      _mapboxSolMap?.flyTo(
+        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
+        mapbox.MapAnimationOptions(duration: 400),
+      );
+    }
   }
 
   Future<void> _dibujarBarriosSolitario() async {
@@ -2990,23 +3008,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   void _moverCamara(LatLng centro, double zoom) {
-    mapbox.CameraOptions opts(LatLng ll, double z) => mapbox.CameraOptions(
-      center: mapbox.Point(
-          coordinates: mapbox.Position(ll.longitude, ll.latitude)),
-      zoom: z,
-    );
-    final anim = mapbox.MapAnimationOptions(duration: 500);
+    final mapbox.MapboxMap? target;
+    if (_state.modoSolitario)        { target = _mapboxSolMap; }
+    else if (_state.modoRutas)       { target = _mapboxRutasMap; }
+    else if (_state.modoGlobal)      { target = _mapboxGlobalMap; }
+    else                             { target = _mapboxCiudadMap; }
+    if (target == null) return;
 
-    if (_state.modoSolitario && _mapboxSolMap != null) {
-      _mapboxSolMap!.flyTo(opts(centro, zoom), anim);
-    } else if (_state.modoRutas && _mapboxRutasMap != null) {
-      _mapboxRutasMap!.flyTo(opts(centro, zoom), anim);
-    } else if (_state.modoGlobal && _mapboxGlobalMap != null) {
-      _mapboxGlobalMap!.flyTo(opts(centro, zoom), anim);
-    } else if (_mapboxCiudadMap != null) {
-      _mapboxCiudadMap!.flyTo(opts(centro, zoom), anim);
-    }
+    final opts = mapbox.CameraOptions(
+      center: mapbox.Point(
+          coordinates: mapbox.Position(centro.longitude, centro.latitude)),
+      zoom: zoom,
+    );
+    target.flyTo(opts, mapbox.MapAnimationOptions(duration: 500));
   }
+
 
   Widget _buildMapaSolitario() {
     final styleUri = _mapaOscuro
