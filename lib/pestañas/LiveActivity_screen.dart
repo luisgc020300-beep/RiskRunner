@@ -366,6 +366,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _mostrarSituacion     = false;
   List<GlobalTerritory> _terrGlobales = [];
   bool   _cargandoGlobales      = false;
+  String _modoAnteriorGlobal    = 'competitivo';
   bool   _globalesLayerCreated  = false;
   bool   _globalesSelLayerCreated = false;
   Timer? _globalesPulseTimer;
@@ -5460,6 +5461,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _elegirTerritorioGlobal() async {
     HapticFeedback.mediumImpact();
+    _modoAnteriorGlobal = _modoSolitario ? 'solitario' : 'competitivo';
     _limpiarRutasPreview();
     _limpiarCapasBarrios();
     setState(() => _modeCtrl.switchToGlobal());
@@ -5658,6 +5660,38 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _terrPreviseleccionado = null;
     });
     _actualizarGlobalesEnGlobo(visible: false);
+    _restaurarModoAnteriorGlobal();
+  }
+
+  Future<void> _restaurarModoAnteriorGlobal() async {
+    final modo = _modoAnteriorGlobal;
+    GameStateService.instance.currentMode = modo;
+    if (modo == 'solitario') {
+      setState(() => _modeCtrl.switchToSolitario());
+    } else {
+      setState(() => _modeCtrl.switchToCompetitivo());
+    }
+    _dibujarTerritoriosEnMapa();
+    final centro = _currentPosition != null
+        ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+        : null;
+    try {
+      final lista = await TerritoryService.cargarTodosLosTerritorios(
+              centro: centro, modo: modo)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted || GameStateService.instance.currentMode != modo) return;
+      setState(() => _modeCtrl.onTerritoriosCargados(lista));
+      if (modo == 'solitario') {
+        GameStateService.instance.setSolitarioTerritories(lista);
+      } else {
+        GameStateService.instance.setCompetitiveTerritories(lista);
+      }
+      _dibujarTerritoriosEnMapa();
+    } catch (_) {
+      if (mounted && GameStateService.instance.currentMode == modo) {
+        setState(() => _modeCtrl.onTerritoriosCargados([]));
+      }
+    }
   }
 
   Widget _buildSelectorModo() {
