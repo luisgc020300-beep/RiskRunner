@@ -685,6 +685,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   LatLng?                        _ciudadLastCenter;
   Timer?                         _ciudadCamDebounce;
   Timer?                         _streamTerritoriDebounce;
+  Timer?                         _barrioPctDebounce;
 
   // ── Modo Solitario — Mapbox ──────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxSolMap;
@@ -779,22 +780,26 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   void _recalcularPorcentajesBarrios() {
     if (!_state.modoSolitario || _barriosCercanos.isEmpty) return;
-    final misTers = _state.territorios.where((t) => t.esMio).toList();
-    bool changed = false;
-    for (final barrio in _barriosCercanos) {
-      double areaCubierta = 0.0;
-      for (final ter in misTers) {
-        if (_territorioEnBarrio(ter, barrio.puntos)) {
-          areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
+    _barrioPctDebounce?.cancel();
+    _barrioPctDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      final misTers = _state.territorios.where((t) => t.esMio).toList();
+      bool changed = false;
+      for (final barrio in _barriosCercanos) {
+        double areaCubierta = 0.0;
+        for (final ter in misTers) {
+          if (_territorioEnBarrio(ter, barrio.puntos)) {
+            areaCubierta += TerritoryService.calcularAreaM2(ter.puntos);
+          }
+        }
+        final newPct = (areaCubierta / barrio.areaM2).clamp(0.0, 1.0);
+        if ((newPct - barrio.porcentajeCubierto).abs() > 0.001) {
+          barrio.porcentajeCubierto = newPct;
+          changed = true;
         }
       }
-      final newPct = (areaCubierta / barrio.areaM2).clamp(0.0, 1.0);
-      if ((newPct - barrio.porcentajeCubierto).abs() > 0.001) {
-        barrio.porcentajeCubierto = newPct;
-        changed = true;
-      }
-    }
-    if (changed && mounted) setState(() {});
+      if (changed && mounted) setState(() {});
+    });
   }
 
   @override
@@ -806,6 +811,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.removeListener(_onStateChangedForGlobal);
     _ciudadCamDebounce?.cancel();
     _streamTerritoriDebounce?.cancel();
+    _barrioPctDebounce?.cancel();
     _mapboxCiudadMap  = null;
     _ciudadAnnManager = null;
     _mapboxSolMap     = null;
@@ -2751,27 +2757,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _solStyleLoaded    = true;
     _solLayersCreated  = false;
     _solLayersCreating = false;
-    await _setupSolTerrain();
     await _dibujarBarriosSolitario();
     await _dibujarTerritoriosSolitario();
-  }
-
-  Future<void> _setupSolTerrain() async {
-    final map = _mapboxSolMap;
-    if (map == null) return;
-    try {
-      await map.style.addSource(mapbox.RasterDemSource(
-          id: 'sol-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-          tileSize: 512, maxzoom: 14.0));
-      await map.style.setStyleTerrain(
-          '{"source":"sol-dem","exaggeration":1.2}');
-      await map.style.addLayer(mapbox.HillshadeLayer(
-          id: 'sol-hillshade', sourceId: 'sol-dem',
-          hillshadeIlluminationDirection: 335,
-          hillshadeExaggeration: 0.35,
-          hillshadeShadowColor: 0xFF101828,
-          hillshadeHighlightColor: 0xFFFFFFFF));
-    } catch (_) {}
   }
 
   Future<void> _dibujarBarriosSolitario() async {
