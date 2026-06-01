@@ -906,7 +906,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Future<void> _initData() async {
     _centroListo = _resolverCentro();
+    // Cargar color del jugador en paralelo con el GPS
+    final colorFuture = _cargarColorJugador();
     await _centroListo;
+    await colorFuture;
     // Arrancar listener en tiempo real y suscribirse a los streams
     TerritoryService.startRealtimeListener(centro: _state.centro);
     _suscribirStreamTerritorios();
@@ -917,6 +920,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _rellenarConFantasmas();
     if (!mounted) return;
     _sheetEntryCtrl.forward();
+  }
+
+  Future<void> _cargarColorJugador() async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('players').doc(uid).get();
+      final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
+      if (colorInt != null) _state.colorJugador = Color(colorInt);
+    } catch (_) {}
   }
 
   Future<void> _resolverCentro() async {
@@ -1584,7 +1598,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(children: [
 
-        Positioned.fill(child: _buildMapa()),
+        Positioned.fill(
+          child: ListenableBuilder(
+            listenable: _state,
+            builder: (_, __) => _buildMapa(),
+          ),
+        ),
 
         Positioned(
           top: 0, left: 0, right: 0,
