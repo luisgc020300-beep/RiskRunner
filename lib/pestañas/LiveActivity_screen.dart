@@ -315,6 +315,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _previewBorderLayerId = 'territory-preview-border';
   bool _centrosLayerCreated      = false;
   bool _styleLoaded              = false;
+  int  _dibujadosGen             = 0;
   bool _rutasPreviewLayerCreated = false;
   List<RouteData> _rutasPreview  = [];
 
@@ -1861,6 +1862,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || !_styleLoaded) return;
 
+    final gen = _dibujadosGen;
+
     if (_territorios.isEmpty) {
       _dibujandoTerritorios = false;
       if (_territoriosLayersCreated) {
@@ -1932,10 +1935,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         return;
       }
 
-      // Si el modo cambió a ruta mientras este dibujo estaba en progreso, abortamos.
-      // Evita que un dibujo concurrente cree capas de territorio sobre las rutas.
-      if (_modoRuta) return;
-
       _pulsoTimer?.cancel();
       for (final id in [
         _borderOuterGlowId, _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
@@ -1943,6 +1942,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
       }
       try { await _mapboxMap!.style.removeStyleSource(_sourceId); } catch (_) {}
+
+      // Check AFTER the awaited removes — if the mode changed (gen incremented)
+      // while those were in flight, abort before adding any territory layers.
+      if (gen != _dibujadosGen) return;
 
       await _mapboxMap!.style
           .addSource(mapbox.GeoJsonSource(id: _sourceId, data: geojson));
@@ -5990,6 +5993,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
             setState(() => _modeCtrl.switchToRuta());
+            _dibujadosGen++;
+            _dibujandoDebounce?.cancel();
             _limpiarCapasBarrios();
             await _dibujarTerritoriosEnMapa();
             _cargarYDibujarRutasPreview();
