@@ -1859,6 +1859,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
 
+  /// Elimina TODAS las capas de territorio incondicionalmente.
+  /// No depende de _territoriosLayersCreated — cubre el caso donde el flag
+  /// está desincronizado con el estado real del mapa.
+  Future<void> _limpiarCapasTerritoriosForzado() async {
+    _dibujandoDebounce?.cancel();
+    _dibujadosGen++;
+    _territoriosLayersCreated = false;
+    _centrosLayerCreated = false;
+    _pulsoTimer?.cancel();
+    if (_mapboxMap == null) return;
+    for (final id in [
+      _centrosLayerId,
+      _borderOuterGlowId, _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId,
+    ]) {
+      try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+    }
+    try { await _mapboxMap!.style.removeStyleSource(_centrosSourceId); } catch (_) {}
+    try { await _mapboxMap!.style.removeStyleSource(_sourceId); } catch (_) {}
+  }
+
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || !_styleLoaded) return;
 
@@ -2040,6 +2060,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style
           .setStyleLayerProperty(_borderPulseLayerId, 'line-join', 'miter');
 
+      // Second gen check: if mode changed WHILE we were adding layers, undo
+      // everything we just created before the next draw sees _territoriosLayersCreated.
+      if (gen != _dibujadosGen) {
+        for (final id in [
+          _borderOuterGlowId, _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
+        ]) {
+          try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+        }
+        try { await _mapboxMap!.style.removeStyleSource(_sourceId); } catch (_) {}
+        return;
+      }
       _territoriosLayersCreated = true;
       _actualizarCoronesMapa();
 
@@ -5993,10 +6024,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
             setState(() => _modeCtrl.switchToRuta());
-            _dibujadosGen++;
-            _dibujandoDebounce?.cancel();
             _limpiarCapasBarrios();
-            await _dibujarTerritoriosEnMapa();
+            await _limpiarCapasTerritoriosForzado();
             _cargarYDibujarRutasPreview();
           },
         ),
