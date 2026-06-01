@@ -1005,6 +1005,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         } else {
           GameStateService.instance.setCompetitiveTerritories(lista);
         }
+        if (mounted) _state.setLoadingTerritorios(false);
         return;
       }
       _state.setTerritorios(lista);
@@ -2833,6 +2834,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final map = _mapboxSolMap;
     if (map == null || !_solStyleLoaded) return;
     final barrios = _barriosCercanos;
+    if (barrios.isEmpty) return;
 
     final features = barrios.map((b) {
       final pct   = b.porcentajeCubierto.clamp(0.0, 1.0);
@@ -2860,8 +2862,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     try {
       if (_solLayersCreated) {
-        await map.style.updateGeoJSONSourceFeatures(
-            _solBarSrc, 'sol-bar-update', features.cast());
+        final src = await map.style.getSource(_solBarSrc) as mapbox.GeoJsonSource;
+        await src.updateGeoJSON(geojson);
         return;
       }
       if (_solLayersCreating) return;
