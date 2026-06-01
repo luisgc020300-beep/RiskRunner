@@ -5729,7 +5729,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Competitivo')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'competitivo';
-            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; });
+            setState(() { _modoSolitario = false; _modoRuta = false; _objetivoGlobal = null; _territorios = []; });
+            _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateSolitario();
@@ -5755,7 +5756,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             if (!await _confirmarCancelacionReto('Solitario')) return;
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'solitario';
-            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; });
+            setState(() { _modoSolitario = true; _modoRuta = false; _objetivoGlobal = null; _territorios = []; });
+            _dibujarTerritoriosEnMapa();
             _limpiarRutasPreview();
             TerritoryService.invalidarCache();
             GameStateService.instance.invalidateCompetitive();
@@ -5780,12 +5782,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
-            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; });
-            // En modo ruta no hay territorios — limpiar los existentes del mapa
-            if (_territorios.isNotEmpty) {
-              setState(() => _territorios = []);
-              _dibujarTerritoriosEnMapa();
-            }
+            setState(() { _modoRuta = true; _modoSolitario = false; _objetivoGlobal = null; _territorios = []; });
+            _dibujarTerritoriosEnMapa();
             _cargarYDibujarRutasPreview();
           },
         ),
