@@ -314,6 +314,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   MapController? _webMapCtrl;
 
   Timer? _pulsoTimer;
+  Timer? _dibujandoDebounce;
   TerritoryData? _territorioInfo;
   Timer? _infoTimer;
   double _pulsoOpacity = 0.9;
@@ -563,6 +564,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _timerPublicarPosicion?.cancel();
     _timerCheckRuta?.cancel();
     _pulsoTimer?.cancel();
+    _dibujandoDebounce?.cancel();
     _infoTimer?.cancel();
     _timerResistencia?.cancel();
     _iluminacionTimer?.cancel();
@@ -817,6 +819,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _dibujarTerritoriosEnMapa();
             _aplicarTerritoriosFantasma();
           }
+        }
+        // Pre-fetch barrios OSM en background si ya estamos en solitario
+        if (_modoSolitario && centro != null && !_barriosCargados) {
+          _cargarBarriosOSM(centro);
         }
       }
     } catch (e) {
@@ -2326,14 +2332,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       GameStateService.instance.setCompetitiveTerritories(list);
       if (!_territoriosCargados || _modoSolitario || _modoRuta) return;
       setState(() => _territorios = list);
-      _dibujarTerritoriosEnMapa();
+      _dibujandoDebounce?.cancel();
+      _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) _dibujarTerritoriosEnMapa();
+      });
     });
     _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
       if (!mounted) return;
       GameStateService.instance.setSolitarioTerritories(list);
       if (!_territoriosCargados || !_modoSolitario) return;
       setState(() => _territorios = list);
-      _dibujarTerritoriosEnMapa();
+      _dibujandoDebounce?.cancel();
+      _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) _dibujarTerritoriosEnMapa();
+      });
     });
   }
 
@@ -3495,7 +3507,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         GameStateService.instance.setSolitarioTerritories(nuevosTerritorios);
         if (mounted) setState(() => _territorios = nuevosTerritorios);
         await _verificarBarriosCompletados();
-        if (mounted) await ConquistaOverlay.mostrar(context, esInvasion: false);
+        if (mounted) {
+          HapticFeedback.heavyImpact();
+          Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
+          Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+          await ConquistaOverlay.mostrar(context, esInvasion: false);
+        }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -3569,6 +3586,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       await _actualizarPuntosDesafio(conquistados, distanciaFinal);
       if (mounted && distanciaFinal > 0) {
+        HapticFeedback.heavyImpact();
+        Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
+        Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
         await ConquistaOverlay.mostrar(context, esInvasion: false);
       }
     }
@@ -5137,7 +5157,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   _rutaCompletada ? _kVerde : _kWaterLight),
             ] else if (_modoSolitario) ...[
               _hudDivider(),
-              _hudStat('MODO', 'SOLO', _kVerde),
+              _hudStat(
+                'ZONA',
+                _barrioActual != null
+                    ? '${(_barrioActual!.porcentajeCubierto * 100).toInt()}%'
+                    : '--',
+                _kVerde,
+              ),
+            ] else if (!_modoRuta) ...[
+              _hudDivider(),
+              _hudStat('ZONAS', '${_territoriosVisitadosEnSesion.length}', _kWaterLight),
             ],
             if (_boostXpActivo) ...[
               _hudDivider(),
@@ -5189,8 +5218,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                           fontWeight: FontWeight.w300, fontSize: 15)),
                 ] else if (_modoSolitario) ...[
                   Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  const Text('SOLO', style: TextStyle(color: Color(0xFF30D158),
-                      fontWeight: FontWeight.w500, fontSize: 11, letterSpacing: 0.8)),
+                  Text(
+                    _barrioActual != null
+                        ? '${(_barrioActual!.porcentajeCubierto * 100).toInt()}%'
+                        : 'SOLO',
+                    style: const TextStyle(color: Color(0xFF30D158),
+                        fontWeight: FontWeight.w500, fontSize: 11, letterSpacing: 0.8)),
+                ] else if (!_modoRuta) ...[
+                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
+                  Text('${_territoriosVisitadosEnSesion.length}',
+                      style: const TextStyle(color: _kWaterLight,
+                          fontWeight: FontWeight.w300, fontSize: 15)),
                 ],
                 Icon(CupertinoIcons.chevron_down, color: Colors.white.withValues(alpha: 0.35), size: 14),
               ],
@@ -5825,6 +5863,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final bool isGlobal      = _objetivoGlobal != null;
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (!_territoriosCargados && !_modoRuta) ...[
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const SizedBox(
+            width: 11, height: 11,
+            child: CircularProgressIndicator(strokeWidth: 1.5, color: _kGold),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            _modoSolitario ? 'Cargando barrios...' : 'Cargando territorios...',
+            style: GoogleFonts.inter(color: Colors.white54, fontSize: 11,
+                fontWeight: FontWeight.w500),
+          ),
+        ]),
+        const SizedBox(height: 10),
+      ],
       Row(children: [
         _modeButton(
           icon: CupertinoIcons.person_2_fill,
