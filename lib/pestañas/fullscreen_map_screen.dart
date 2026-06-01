@@ -1925,6 +1925,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 isActive: isCiudad,
                 color: _kBlue,
                 onTap: isCiudad ? null : () async {
+                  _state.setTerritorios([]);  // vaciar antes de cambiar modo
                   if (isGlobal) _toggleModo();
                   if (isSolitario) _state.setModoSolitario(false);
                   if (isRutas) _state.setModoRutas(false);
@@ -1990,6 +1991,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
     await _centroListo; // garantiza GPS real antes de consultar Overpass
+    _state.setTerritorios([]);  // vaciar antes de cambiar modo → sin flash de datos del modo anterior
     _state.setModoSolitario(true);
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
@@ -2373,7 +2375,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void> _dibujarTerritoriosCiudad() async {
     final map = _mapboxCiudadMap;
     if (map == null || !_ciudadStyleLoaded) return;
-    final territorios = _filteredTerritorios(_state.territorios);
+    final territorios = _filteredTerritorios(
+      _state.territorios.where((t) => t.modo != 'solitario').toList(),
+    );
     if (territorios.isEmpty) return;
 
     final features = territorios.map((t) {
@@ -2848,7 +2852,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final map = _mapboxSolMap;
     if (map == null || !_solStyleLoaded) return;
     final territorios = _filteredTerritorios(_state.territorios);
-    final propios = territorios.where((t) => t.esMio).toList();
+    final propios = territorios.where((t) => t.esMio && t.modo == 'solitario').toList();
 
     final features = propios.map((t) {
       final userColor = _state.colorJugador;
