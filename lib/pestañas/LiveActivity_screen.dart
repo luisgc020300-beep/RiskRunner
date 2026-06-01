@@ -2062,6 +2062,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       debugPrint('Error territorios: $e');
     } finally {
       _dibujandoTerritorios = false;
+      // Race condition guard: if territories were cleared while this draw was
+      // in progress (e.g. user switched to ruta mode before layers were created),
+      // _territoriosLayersCreated was false so the empty-check branch skipped
+      // cleanup. Trigger it now that the draw has finished and layers exist.
+      if (_territorios.isEmpty && _territoriosLayersCreated) {
+        _dibujarTerritoriosEnMapa();
+      }
     }
   }
 
@@ -5941,12 +5948,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           label: 'Ruta',
           active: _modoRuta,
           activeColor: const Color(0xFF6A4A9B),
-          onTap: () {
+          onTap: () async {
             HapticFeedback.selectionClick();
             GameStateService.instance.currentMode = 'ruta';
             setState(() => _modeCtrl.switchToRuta());
             _limpiarCapasBarrios();
-            _dibujarTerritoriosEnMapa();
+            await _dibujarTerritoriosEnMapa();
             _cargarYDibujarRutasPreview();
           },
         ),
