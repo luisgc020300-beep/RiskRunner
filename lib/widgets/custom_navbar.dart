@@ -39,61 +39,6 @@ class CustomBottomNavbar extends StatefulWidget {
     );
   }
 
-  static void confirmarInicioCarrera(BuildContext context) {
-    HapticFeedback.lightImpact();
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFFFFFFFF),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: AppColors.red.withValues(alpha: 0.6)),
-        ),
-        title: const Row(children: [
-          Icon(Icons.directions_run_rounded, color: AppColors.red, size: 22),
-          SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              '¿Listo para correr?',
-              style: TextStyle(
-                  color: Color(0xFF1C1C1E),
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold),
-            ),
-          ),
-        ]),
-        content: const Text(
-          'Vas a iniciar una nueva carrera. ¿Estás seguro?',
-          style: TextStyle(color: Color(0xFF636366), fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF8E8E93)),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pushNamedAndRemoveUntil(
-                  context, '/correr', ModalRoute.withName('/home'));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.red,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('¡Vamos!',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
   static void iniciarCarreraConReto(
       BuildContext context, Map<String, dynamic> retoActivo) {
     HapticFeedback.mediumImpact();

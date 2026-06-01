@@ -2969,32 +2969,138 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   void _confirmarYComenzar() {
     HapticFeedback.lightImpact();
-    showCupertinoDialog(
+
+    final titulo = _modoRuta
+        ? 'Iniciar carrera'
+        : _modoSolitario
+            ? 'Iniciar exploración'
+            : 'Iniciar conquista';
+
+    final subtitulo = _modoRuta
+        ? 'Se registrará tu recorrido completo.'
+        : _modoSolitario
+            ? 'Modo solitario — explora los barrios de tu ciudad.'
+            : 'Modo competitivo — conquista territorio para tu ciudad.';
+
+    final iconData = _modoRuta
+        ? Icons.route_rounded
+        : _modoSolitario
+            ? Icons.explore_rounded
+            : Icons.flag_rounded;
+
+    final actionLabel = _modoRuta
+        ? 'Correr'
+        : _modoSolitario
+            ? 'Explorar'
+            : 'Conquistar';
+
+    showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: Text(_modoRuta
-            ? '¿Listo para correr?'
-            : _modoSolitario ? '¿Listo para explorar?' : '¿Listo para conquistar?'),
-        content: Text(_modoRuta
-            ? 'Vas a iniciar una ruta libre. Se guardará tu recorrido.'
-            : _modoSolitario
-                ? 'Vas a iniciar una sesión en modo solitario.'
-                : 'Vas a iniciar una conquista de territorio.'),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      builder: (ctx) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF3A3A3C), width: 0.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  child: Column(children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCC2222).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(iconData, color: const Color(0xFFCC2222), size: 26),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      titulo,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitulo,
+                      style: const TextStyle(
+                        color: Color(0xFF8E8E93),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ]),
+                ),
+                Container(height: 0.5, color: const Color(0xFF3A3A3C)),
+                IntrinsicHeight(
+                  child: Row(children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: const BoxDecoration(
+                            borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(16)),
+                          ),
+                          child: const Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              color: Color(0xFF8E8E93),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(width: 0.5, color: const Color(0xFF3A3A3C)),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _iniciarCuentaAtras();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: const BoxDecoration(
+                            borderRadius: BorderRadius.only(
+                                bottomRight: Radius.circular(16)),
+                          ),
+                          child: Text(
+                            actionLabel,
+                            style: const TextStyle(
+                              color: Color(0xFFCC2222),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
           ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () {
-              Navigator.pop(ctx);
-              _iniciarCuentaAtras();
-            },
-            child: Text(_modoRuta ? '¡Correr!' : _modoSolitario ? '¡Explorar!' : '¡Conquistar!'),
-          ),
-        ],
+        ),
       ),
     );
   }

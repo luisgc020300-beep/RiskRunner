@@ -52,8 +52,8 @@ class _AppShellState extends State<AppShell> {
 
   void _selectTab(int navIndex) {
     if (navIndex == 1) {
-      // Correr — delega al diálogo de confirmación existente
-      CustomBottomNavbar.confirmarInicioCarrera(context);
+      Navigator.pushNamedAndRemoveUntil(
+          context, '/correr', ModalRoute.withName('/home'));
       return;
     }
     if (navIndex == _navIndex) return;
