@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -17,7 +16,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:custom_timer/custom_timer.dart';
-import 'package:http/http.dart' as http;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
 import '../services/territory_service.dart';
@@ -200,8 +198,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ── Barrios OSM (modo solitario)
   List<_BarrioData> _barriosCercanos   = [];
   _BarrioData?      _barrioActual;
-  bool              _cargandoBarrios   = false;
-  bool              _barriosCargados   = false;
   static const String _barrioSourceId     = 'barrios-source';
   static const String _barrioFillLayerId  = 'barrios-fill';
   static const String _barrioLineLayerId  = 'barrios-line';
@@ -1863,21 +1859,28 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _dibujarTerritoriosEnMapa() async {
     if (_mapboxMap == null || !_styleLoaded) return;
+
+    if (_territorios.isEmpty) {
+      _dibujandoTerritorios = false;
+      if (_territoriosLayersCreated) {
+        _territoriosLayersCreated = false;
+        _centrosLayerCreated = false;
+        _pulsoTimer?.cancel();
+        try { await _mapboxMap!.style.removeStyleLayer(_centrosLayerId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleSource(_centrosSourceId); } catch (_) {}
+        for (final id in [
+          _borderOuterGlowId, _borderPulseLayerId, _borderLayerId, _fillInnerLayerId, _fillLayerId
+        ]) {
+          try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+        }
+        try { await _mapboxMap!.style.removeStyleSource(_sourceId); } catch (_) {}
+      }
+      return;
+    }
+
     // Evitar creación concurrente de capas (zoom rápido puede disparar esto varias veces)
     if (_dibujandoTerritorios && !_territoriosLayersCreated) return;
     _dibujandoTerritorios = true;
-
-    if (_territorios.isEmpty) {
-      if (_territoriosLayersCreated) {
-        try {
-          final src = await _mapboxMap!.style
-              .getSource(_sourceId) as mapbox.GeoJsonSource?;
-          await src?.updateGeoJSON('{"type":"FeatureCollection","features":[]}');
-        } catch (_) {}
-      }
-      _dibujandoTerritorios = false;
-      return;
-    }
 
     final features = _territorios.map((t) {
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
@@ -2233,11 +2236,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _limpiarRutasPreview() async {
     if (!_rutasPreviewLayerCreated || _mapboxMap == null) return;
-    try {
-      final src = await _mapboxMap!.style
-          .getSource(_rutasPreviewSrcId) as mapbox.GeoJsonSource?;
-      await src?.updateGeoJSON('{"type":"FeatureCollection","features":[]}');
-    } catch (_) {}
+    _rutasPreviewLayerCreated = false;
+    try { await _mapboxMap!.style.removeStyleLayer(_rutasPreviewLayerId); } catch (_) {}
+    try { await _mapboxMap!.style.removeStyleSource(_rutasPreviewSrcId); } catch (_) {}
     if (mounted) setState(() => _rutasPreview = []);
   }
 
@@ -3524,7 +3525,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         setState(() {
           _barriosCercanos = [];
           _barrioActual    = null;
-          _barriosCargados = false;
         });
       }
     } else if (_objetivoGlobal == null && distanciaFinal >= 0.3) {
@@ -5886,13 +5886,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final centro = _currentPosition != null
                 ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
                 : null;
-            final lista = await TerritoryService.cargarTodosLosTerritorios(
-                centro: centro, modo: 'competitivo');
-            if (!mounted || GameStateService.instance.currentMode != 'competitivo') return;
-            setState(() => _modeCtrl.onTerritoriosCargados(lista));
-            GameStateService.instance.setCompetitiveTerritories(lista);
-            _dibujarTerritoriosEnMapa();
-            _aplicarTerritoriosFantasma();
+            try {
+              final lista = await TerritoryService.cargarTodosLosTerritorios(
+                  centro: centro, modo: 'competitivo')
+                  .timeout(const Duration(seconds: 20));
+              if (!mounted || GameStateService.instance.currentMode != 'competitivo') return;
+              setState(() => _modeCtrl.onTerritoriosCargados(lista));
+              GameStateService.instance.setCompetitiveTerritories(lista);
+              _dibujarTerritoriosEnMapa();
+              _aplicarTerritoriosFantasma();
+            } catch (_) {
+              if (mounted && GameStateService.instance.currentMode == 'competitivo') {
+                setState(() => _modeCtrl.onTerritoriosCargados([]));
+              }
+            }
           },
         ),
         const SizedBox(width: 8),
@@ -5913,12 +5920,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final centro = _currentPosition != null
                 ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
                 : null;
-            final lista = await TerritoryService.cargarTodosLosTerritorios(
-                centro: centro, modo: 'solitario');
-            if (!mounted || GameStateService.instance.currentMode != 'solitario') return;
-            setState(() => _modeCtrl.onTerritoriosCargados(lista));
-            GameStateService.instance.setSolitarioTerritories(lista);
-            _dibujarTerritoriosEnMapa();
+            try {
+              final lista = await TerritoryService.cargarTodosLosTerritorios(
+                  centro: centro, modo: 'solitario')
+                  .timeout(const Duration(seconds: 20));
+              if (!mounted || GameStateService.instance.currentMode != 'solitario') return;
+              setState(() => _modeCtrl.onTerritoriosCargados(lista));
+              GameStateService.instance.setSolitarioTerritories(lista);
+              _dibujarTerritoriosEnMapa();
+            } catch (_) {
+              if (mounted && GameStateService.instance.currentMode == 'solitario') {
+                setState(() => _modeCtrl.onTerritoriosCargados([]));
+              }
+            }
           },
         ),
         const SizedBox(width: 8),

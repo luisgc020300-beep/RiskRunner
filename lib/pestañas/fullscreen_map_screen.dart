@@ -2015,7 +2015,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
-      _recalcularPorcentajesBarrios(); // recalcular tras cargar barrios por primera vez
+      _recalcularPorcentajesBarrios();
+      _dibujarBarriosSolitario();
     }
   }
 
@@ -2964,6 +2965,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (!_barriosCargados && !_cargandoBarrios) {
         await _cargarBarriosSolitario(newCenter);
         _recalcularPorcentajesBarrios();
+        _dibujarBarriosSolitario();
       }
     });
   }
