@@ -305,6 +305,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _routeLayerCreated        = false;
   bool _buildings3dCreated       = false;
   bool _territoriosLayersCreated = false;
+  bool _previewLayerCreated      = false;
+  bool _zonaValida               = false;
+
+  static const String _previewSourceId     = 'territory-preview-src';
+  static const String _previewLayerId      = 'territory-preview-layer';
+  static const String _previewBorderLayerId = 'territory-preview-border';
   bool _centrosLayerCreated      = false;
   bool _styleLoaded              = false;
   bool _rutasPreviewLayerCreated = false;
@@ -2181,6 +2187,74 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   // ==========================================================================
+  // PREVIEW DE TERRITORIO EN TIEMPO REAL
+  // ==========================================================================
+  Future<void> _actualizarPreviewTerritorio() async {
+    if (!isTracking || isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
+    if (routePoints.length < 3) return;
+
+    final area   = TerritoryService.calcularAreaM2(routePoints);
+    final valida = area >= kAreaMinimaM2;
+    if (valida != _zonaValida) setState(() => _zonaValida = valida);
+
+    final coords  = routePoints.map((p) => [p.longitude, p.latitude]).toList();
+    coords.add(coords.first);
+    final colorHex = _colorToHex(_colorTerritorio);
+    final geojson  =
+        '{"type":"FeatureCollection","features":[{"type":"Feature",'
+        '"properties":{"color":"$colorHex"},'
+        '"geometry":{"type":"Polygon","coordinates":[${_encodeJson(coords)}]}}]}';
+
+    try {
+      if (_previewLayerCreated) {
+        final src = await _mapboxMap!.style
+            .getSource(_previewSourceId) as mapbox.GeoJsonSource?;
+        await src?.updateGeoJSON(geojson);
+        return;
+      }
+      for (final id in [_previewBorderLayerId, _previewLayerId]) {
+        try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+      }
+      try { await _mapboxMap!.style.removeStyleSource(_previewSourceId); } catch (_) {}
+
+      await _mapboxMap!.style.addSource(
+          mapbox.GeoJsonSource(id: _previewSourceId, data: geojson));
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.FillLayer(id: _previewLayerId, sourceId: _previewSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewLayerId, 'fill-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewLayerId, 'fill-opacity', 0.18);
+
+      await _mapboxMap!.style.addLayer(
+          mapbox.LineLayer(id: _previewBorderLayerId, sourceId: _previewSourceId));
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewBorderLayerId, 'line-color', ['get', 'color']);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewBorderLayerId, 'line-width', 2.0);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewBorderLayerId, 'line-opacity', 0.7);
+      await _mapboxMap!.style.setStyleLayerProperty(
+          _previewBorderLayerId, 'line-dasharray', [4.0, 2.5]);
+
+      _previewLayerCreated = true;
+    } catch (e) {
+      debugPrint('Preview territorio: $e');
+    }
+  }
+
+  Future<void> _limpiarPreviewTerritorio() async {
+    if (!_previewLayerCreated || _mapboxMap == null) return;
+    for (final id in [_previewBorderLayerId, _previewLayerId]) {
+      try { await _mapboxMap!.style.removeStyleLayer(id); } catch (_) {}
+    }
+    try { await _mapboxMap!.style.removeStyleSource(_previewSourceId); } catch (_) {}
+    _previewLayerCreated = false;
+    if (mounted) setState(() => _zonaValida = false);
+  }
+
+  // ==========================================================================
   // RUTA GUIADA
   // ==========================================================================
 
@@ -2885,6 +2959,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
           _puntosDesdeUltimoUpdate = 0;
           _actualizarRutaEnMapa();
+          if (!_modoRuta) _actualizarPreviewTerritorio();
         }
 
         if (_retoActivo != null && !_retoCompletado) {
@@ -3156,7 +3231,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _ultimaNotifRival.clear();
       _hudMinimizado           = true;
       _retoCompletado          = false;
+      _zonaValida              = false;
     });
+    _limpiarPreviewTerritorio();
     _antiCheat.resetear();
     _sesionInvalidadaPorCheat = false;
     _stopping = false;
@@ -3323,6 +3400,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _timerPublicarPosicion?.cancel();
     _pulsoTimer?.cancel();
     await _limpiarPresenciaFirestore();
+    await _limpiarPreviewTerritorio();
 
     if (_modoSolitario) {
       await _limpiarCapasBarrios();
@@ -5306,6 +5384,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ]);
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (!_modoRuta && routePoints.length >= 3) ...[
+        _chip(
+          _zonaValida ? 'Zona válida' : 'Zona pequeña',
+          _zonaValida ? _kVerde : const Color(0xFF636366),
+          _zonaValida ? Icons.check_circle_outline_rounded : Icons.radio_button_unchecked_rounded,
+        ),
+        const SizedBox(height: 8),
+      ],
       if (_territoriosCargados)
         _chip('${_territorios.length} territorios', _kGold, Icons.map_rounded),
       if (!_modoSolitario && _jugadoresActivos.isNotEmpty) ...[

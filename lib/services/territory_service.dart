@@ -620,6 +620,19 @@ class TerritoryService {
       return modo != null ? _filtrarPorModo(cached, modo, user.uid) : cached;
     }
 
+    // ── Solitario: query directa al propietario — sin filtro geo innecesario
+    if (modo == 'solitario') {
+      final snap = await _db
+          .collection('territories')
+          .where('userId', isEqualTo: user.uid)
+          .where('modo', isEqualTo: 'solitario')
+          .get()
+          .timeout(const Duration(seconds: 10));
+      final propios = _parsearDocs(snap.docs, user.uid, {});
+      debugPrint('🗺️ TerritoryService solitario: ${propios.length} territorios propios');
+      return propios;
+    }
+
     // ── Sin posición: solo territorios propios (arranque rápido) ─────────
     if (centro == null) {
       final snap = await _db
@@ -632,9 +645,9 @@ class TerritoryService {
       return modo != null ? _filtrarPorModo(propios, modo, user.uid) : propios;
     }
 
-    // ── Con posición: query geográfica sin filtro de amistad ─────────────
-    const double kRadGrados = 0.09; // ~10 km (se filtra lng en cliente)
-    const int    kLimit     = 500;  // cap de seguridad
+    // ── Con posición: query geográfica para competitivo ───────────────────
+    const double kRadGrados = 0.05; // ~5.5 km — radio de carrera realista
+    const int    kLimit     = 300;  // cap de seguridad
 
     final territoriosSnap = await _db
         .collection('territories')
