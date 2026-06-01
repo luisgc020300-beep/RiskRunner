@@ -223,18 +223,16 @@ class _MapDataService {
         if (docModo == 'solitario') continue;
       }
       final rawPts = data['puntos'] as List<dynamic>?;
-      List<LatLng> pts = [];
-      double dist = 0;
-      if (rawPts != null && rawPts.isNotEmpty) {
-        pts = _parsePuntos(rawPts);
-        final c = _centroide(pts);
-        dist = Geolocator.distanceBetween(
-            centro.latitude, centro.longitude, c.latitude, c.longitude) / 1000;
-      }
+      if (rawPts == null || rawPts.isEmpty) continue;
+      final pts = _parsePuntos(rawPts);
+      final c = _centroide(pts);
+      final distM = Geolocator.distanceBetween(
+          centro.latitude, centro.longitude, c.latitude, c.longitude);
+      if (distM > 5000) continue;
       final tsV = data['ultima_visita'] as Timestamp?;
       final dias = tsV == null ? 0 : DateTime.now().difference(tsV.toDate()).inDays;
       dets.add(_TerDet(
-        docId: doc.id, dist: dist, diasSinVisitar: dias,
+        docId: doc.id, dist: distM / 1000, diasSinVisitar: dias,
         puntos: pts, ownerId: ownerId,
         nombreTerritorio: data['nombre_territorio'] as String?,
       ));
