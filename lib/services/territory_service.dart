@@ -628,7 +628,19 @@ class TerritoryService {
           .where('modo', isEqualTo: 'solitario')
           .get()
           .timeout(const Duration(seconds: 10));
-      final propios = _parsearDocs(snap.docs, user.uid, {});
+      // Asegurar datos del jugador para obtener su color configurado
+      final playerDataMap = Map<String, Map<String, dynamic>>.from(_playerDataCache);
+      if (!playerDataMap.containsKey(user.uid)) {
+        try {
+          final playerDoc = await _db.collection('players').doc(user.uid).get();
+          if (playerDoc.exists) {
+            playerDataMap[user.uid] = playerDoc.data()!;
+            _playerDataCache[user.uid] = playerDoc.data()!;
+            _playerCacheTs[user.uid] = DateTime.now();
+          }
+        } catch (_) {}
+      }
+      final propios = _parsearDocs(snap.docs, user.uid, playerDataMap);
       debugPrint('🗺️ TerritoryService solitario: ${propios.length} territorios propios');
       return propios;
     }

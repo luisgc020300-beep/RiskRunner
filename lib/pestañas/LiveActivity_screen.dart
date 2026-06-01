@@ -5065,7 +5065,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           onTap: () => setState(() => _mostrarSituacion = !_mostrarSituacion),
           child: _globoChip(
             _mostrarSituacion ? CupertinoIcons.chevron_up : CupertinoIcons.map,
-            '${_territorios.length} territorios',
+            _territoriosCargados
+                ? '${_territorios.length} territorios'
+                : 'Cargando...',
             _mostrarSituacion ? _kGoldLight : Colors.white70,
           ),
         ),
@@ -5552,7 +5554,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _elegirTerritorioGlobal() async {
     HapticFeedback.mediumImpact();
     _limpiarRutasPreview();
-    setState(() { _seleccionandoGlobal = true; });
+    setState(() { _seleccionandoGlobal = true; _modoRuta = false; _modoSolitario = false; });
     if (_terrGlobales.isEmpty && !_cargandoGlobales) {
       await _cargarGlobales();
     }

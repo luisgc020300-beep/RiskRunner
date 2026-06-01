@@ -2240,10 +2240,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // BUILD MAPA — dispatcher
   // ==========================================================================
   Widget _buildMapa() {
-    if (_state.modoGlobal)    return _buildMapaGlobal();
-    if (_state.modoSolitario) return _buildMapaSolitario();
-    if (_state.modoRutas)     return _buildMapaRutas();
-    return _buildMapaCiudad(widget.mostrarRuta && widget.ruta.isNotEmpty);
+    final int idx = _state.modoGlobal    ? 3
+        : _state.modoSolitario ? 1
+        : _state.modoRutas     ? 2
+        : 0;
+    return IndexedStack(
+      index: idx,
+      children: [
+        _buildMapaCiudad(widget.mostrarRuta && widget.ruta.isNotEmpty),
+        _buildMapaSolitario(),
+        _buildMapaRutas(),
+        _buildMapaGlobal(),
+      ],
+    );
   }
 
   // ==========================================================================
