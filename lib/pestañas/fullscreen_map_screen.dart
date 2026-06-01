@@ -2381,7 +2381,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       await _setupCiudadRuta();
     }
     _actualizarJugadoresCiudad();
-    if (_gpsResuelto && !_state.modoSolitario && !_state.modoRutas && !_state.modoGlobal) {
+    await (_centroListo ?? Future.value());
+    if (mounted) {
       _mapboxCiudadMap?.flyTo(
         mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: 13.0),
         mapbox.MapAnimationOptions(duration: 400),
@@ -2711,7 +2712,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _rutasStyleLoaded   = true;
     _rutasLayersCreated = false;
     await _dibujarRutas();
-    if (_gpsResuelto) {
+    await (_centroListo ?? Future.value());
+    if (mounted) {
       _mapboxRutasMap?.flyTo(
         mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
         mapbox.MapAnimationOptions(duration: 400),
@@ -2822,7 +2824,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _solLayersCreating = false;
     await _dibujarBarriosSolitario();
     await _dibujarTerritoriosSolitario();
-    if (_gpsResuelto) {
+    await (_centroListo ?? Future.value());
+    if (mounted) {
       _mapboxSolMap?.flyTo(
         mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
         mapbox.MapAnimationOptions(duration: 400),
