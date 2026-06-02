@@ -2292,15 +2292,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _cachedMapaSolitario ??= _buildMapaSolitario();
     _cachedMapaRutas     ??= _buildMapaRutas();
     _cachedMapaGlobal    ??= _buildMapaGlobal();
-    return IndexedStack(
-      index: idx,
-      children: [
-        _cachedMapaCiudad!,
-        _cachedMapaSolitario!,
-        _cachedMapaRutas!,
-        _cachedMapaGlobal!,
-      ],
-    );
+    // Stack con Opacity en vez de IndexedStack: los mapas inactivos se quedan
+    // renderizando en background (GL nunca se suspende) → sin blank al cambiar modo.
+    return Stack(children: [
+      IgnorePointer(ignoring: idx != 0, child: Opacity(opacity: idx == 0 ? 1.0 : 0.0, child: _cachedMapaCiudad!)),
+      IgnorePointer(ignoring: idx != 1, child: Opacity(opacity: idx == 1 ? 1.0 : 0.0, child: _cachedMapaSolitario!)),
+      IgnorePointer(ignoring: idx != 2, child: Opacity(opacity: idx == 2 ? 1.0 : 0.0, child: _cachedMapaRutas!)),
+      IgnorePointer(ignoring: idx != 3, child: Opacity(opacity: idx == 3 ? 1.0 : 0.0, child: _cachedMapaGlobal!)),
+    ]);
   }
 
   // ==========================================================================
