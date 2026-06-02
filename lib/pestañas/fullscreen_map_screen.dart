@@ -1154,7 +1154,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       });
     } else {
       _toggleCtrl.reverse();
-      _moverCamara(_state.centro, 13.0);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _moverCamara(_state.centro, 13.0);
+      });
     }
   }
 
