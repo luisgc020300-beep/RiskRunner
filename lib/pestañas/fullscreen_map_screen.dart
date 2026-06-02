@@ -1960,6 +1960,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   if (isGlobal) _toggleModo();
                   if (isSolitario) _state.setModoSolitario(false);
                   if (isRutas) _state.setModoRutas(false);
+                  await WidgetsBinding.instance.endOfFrame;
                   await _cargarTerritorios();
                   _moverCamara(_state.centro, 13.0);
                 },
@@ -2024,6 +2025,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _centroListo; // garantiza GPS real antes de consultar Overpass
     _state.setTerritorios([]);  // vaciar antes de cambiar modo → sin flash de datos del modo anterior
     _state.setModoSolitario(true);
+    await WidgetsBinding.instance.endOfFrame;
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
@@ -2210,6 +2212,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   Future<void> _activarModoRutas() async {
     _state.setModoRutas(true);
+    await WidgetsBinding.instance.endOfFrame;
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarMisRutas();
   }
