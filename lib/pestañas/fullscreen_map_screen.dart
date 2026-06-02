@@ -1144,11 +1144,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _toggleCtrl.forward();
       _globalEntryCtrl.forward(from: 0);
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         if (_sheetCtrl.isAttached) {
           _sheetCtrl.animateTo(0.35,
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut);
         }
+        _moverCamara(_kGlobalCenter, 2.5);
       });
     } else {
       _toggleCtrl.reverse();
@@ -3162,6 +3164,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _globalMbxLayersCreated  = false;
     _globalMbxLayersCreating = false;
     await _dibujarTerritoriosGlobal();
+    if (mounted) {
+      _mapboxGlobalMap?.flyTo(
+        mapbox.CameraOptions(
+          center: mapbox.Point(
+              coordinates: mapbox.Position(
+                  _kGlobalCenter.longitude, _kGlobalCenter.latitude)),
+          zoom: 2.5,
+        ),
+        mapbox.MapAnimationOptions(duration: 400),
+      );
+    }
   }
 
   Future<void> _dibujarTerritoriosGlobal() async {
