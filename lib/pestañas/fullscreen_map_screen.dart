@@ -3297,65 +3297,68 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final styleUri = _mapaOscuro
         ? mapbox.MapboxStyles.DARK
         : 'mapbox://styles/mapbox/outdoors-v12';
-    return FadeTransition(
-      opacity: _globalEntryAnim,
-      child: Stack(children: [
-        mapbox.MapWidget(
-          key: const ValueKey('mapa_global_mapbox'),
-          styleUri: styleUri,
-          cameraOptions: mapbox.CameraOptions(
-            center: mapbox.Point(coordinates: mapbox.Position(0, 20)),
-            zoom: 2.5,
-          ),
-          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-            Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
-          },
-          onMapCreated:          _onGlobalMapCreated,
-          onStyleLoadedListener: _onGlobalStyleLoaded,
-          onTapListener:         _onGlobalTapMapbox,
+    return Stack(children: [
+      mapbox.MapWidget(
+        key: const ValueKey('mapa_global_mapbox'),
+        styleUri: styleUri,
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(0, 20)),
+          zoom: 2.5,
         ),
-        // Campo de estrellas en modo oscuro — overlay Flutter puro
-        if (_mapaOscuro) ...[
-          IgnorePointer(
-            child: SizedBox.expand(
-              child: CustomPaint(painter: _StarfieldPainter(_starfield)),
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onMapCreated:          _onGlobalMapCreated,
+        onStyleLoadedListener: _onGlobalStyleLoaded,
+        onTapListener:         _onGlobalTapMapbox,
+      ),
+      // Overlays Flutter — el fade solo aplica aquí, no al MapWidget nativo
+      FadeTransition(
+        opacity: _globalEntryAnim,
+        child: Stack(children: [
+          // Campo de estrellas en modo oscuro
+          if (_mapaOscuro) ...[
+            IgnorePointer(
+              child: SizedBox.expand(
+                child: CustomPaint(painter: _StarfieldPainter(_starfield)),
+              ),
             ),
-          ),
-          const IgnorePointer(
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(Color(0x33000B28), BlendMode.srcOver),
+            const IgnorePointer(
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(Color(0x33000B28), BlendMode.srcOver),
+                child: SizedBox.expand(),
+              ),
+            ),
+          ],
+          if (_state.loadingGlobal) ...[
+            const ColorFiltered(
+              colorFilter: ColorFilter.mode(Colors.black45, BlendMode.srcOver),
               child: SizedBox.expand(),
             ),
-          ),
-        ],
-        if (_state.loadingGlobal) ...[
-          const ColorFiltered(
-            colorFilter: ColorFilter.mode(Colors.black45, BlendMode.srcOver),
-            child: SizedBox.expand(),
-          ),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kGold.withValues(alpha: 0.35)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                SizedBox(
-                  width: 14, height: 14,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: _kGold),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.35)),
                 ),
-                const SizedBox(width: 10),
-                Text('Cargando territorios…',
-                    style: _raj(11, FontWeight.w600, _kGold)),
-              ]),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 1.5, color: _kGold),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Cargando territorios…',
+                      style: _raj(11, FontWeight.w600, _kGold)),
+                ]),
+              ),
             ),
-          ),
-        ],
-      ]),
-    );
+          ],
+        ]),
+      ),
+    ]);
   }
 
 
