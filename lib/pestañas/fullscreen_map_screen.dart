@@ -142,14 +142,10 @@ class _MapDataService {
     final latMin = centro.latitude  - _kRadGrados;
     final latMax = centro.latitude  + _kRadGrados;
     QuerySnapshot snap;
-    try {
-      snap = await _db.collection('territories')
-          .where('centroLat', isGreaterThan: latMin)
-          .where('centroLat', isLessThan:    latMax)
-          .get();
-    } catch (e) {
-      snap = await _db.collection('territories').get();
-    }
+    snap = await _db.collection('territories')
+        .where('centroLat', isGreaterThan: latMin)
+        .where('centroLat', isLessThan:    latMax)
+        .get();
     final Map<String, List<_TerDet>> tersPorOwner = {};
     for (final doc in snap.docs) {
       final data = (doc.data() ?? {}) as Map<String, dynamic>;
@@ -699,7 +695,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Modo Rutas — Mapbox ──────────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxRutasMap;
   bool                           _rutasStyleLoaded   = false;
-  bool                           _rutasLayersCreated = false;
+  bool                           _rutasLayersCreating = false;
 
   // ── Modo Global — Mapbox ─────────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxGlobalMap;
@@ -1642,7 +1638,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             builder: (_, __) {
               final isGlobal = _state.modoGlobal;
               return DraggableScrollableSheet(
-                key: ValueKey('${_state.modoGlobal}_${_state.modoSolitario}_${_state.modoRutas}'),
+                key: const ValueKey('main-sheet'),
                 controller: _sheetCtrl,
                 initialChildSize: 0.13,
                 minChildSize: 0.08,
@@ -2045,7 +2041,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.setModoSolitario(true);
     await WidgetsBinding.instance.endOfFrame;
     setState(() => _fabCentradoEnUsuario = false);
-    _moverCamara(_state.centro, _kInitialZoom);
+    _moverCamara(_state.centro, 13.0);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
     // Resetear si la carga anterior no encontró resultados
@@ -2732,8 +2728,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   void _onRutasStyleLoaded(mapbox.StyleLoadedEventData _) async {
-    _rutasStyleLoaded   = true;
-    _rutasLayersCreated = false;
+    _rutasStyleLoaded    = true;
+    _rutasLayersCreating = false;
     await _dibujarRutas();
     await (_centroListo ?? Future.value());
     if (mounted) {
@@ -2771,8 +2767,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
+    if (_rutasLayersCreating) return;
+    _rutasLayersCreating = true;
+
     try {
-      if (_rutasLayersCreated) {
+      final srcExists = await map.style.styleSourceExists(_rutSrc);
+      if (srcExists) {
         await (await map.style.getSource(_rutSrc)
             as mapbox.GeoJsonSource).updateGeoJSON(geojson);
         return;
@@ -2787,8 +2787,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineCap: mapbox.LineCap.ROUND,
         lineJoin: mapbox.LineJoin.ROUND,
       ));
-      _rutasLayersCreated = true;
-    } catch (_) {}
+    } catch (_) {
+      // swallow
+    } finally {
+      _rutasLayersCreating = false;
+    }
   }
 
   void _onRutasTap(mapbox.MapContentGestureContext ctx) {
