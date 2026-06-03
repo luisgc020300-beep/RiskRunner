@@ -3389,7 +3389,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ));
-      Navigator.of(context).pop();
+      // Solo popear si hay una ruta a la que volver; si estamos embebidos en
+      // el IndexedStack no hay nada que popear y la pantalla ya muestra idle.
+      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
       return;
     }
 
