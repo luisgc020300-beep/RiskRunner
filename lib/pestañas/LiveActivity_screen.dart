@@ -203,6 +203,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const String _barrioLineLayerId  = 'barrios-line';
   static const String _barrioLabelLayerId = 'barrios-label';
   bool _barriosLayerCreated            = false;
+  bool _barriosCargando                = false;
 
   int _puntosDesdeUltimoUpdate       = 0;
   static const int _kActualizarMapaCadaN = 3;
@@ -1044,6 +1045,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _dibujarBarriosEnMapa() async {
     if (_mapboxMap == null || _barriosCercanos.isEmpty) return;
+    if (_barriosCargando && !_barriosLayerCreated) return;
+    _barriosCargando = true;
     if (!_modoSolitario) return;
 
     final features = _barriosCercanos.map((b) {
@@ -1134,6 +1137,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _barriosLayerCreated = true;
     } catch (e) {
       debugPrint('Error dibujando barrios: $e');
+    } finally {
+      _barriosCargando = false;
     }
   }
 
@@ -3172,6 +3177,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
     setState(() {
       _globalKmAlcanzados = false;
+      _globalConquistado       = false;
+      _globalConquistando      = false;
+      _nuevaClausula           = null;
       isTracking               = true;
       isPaused                 = false;
       _distanciaTotal          = 0;
@@ -3244,6 +3252,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (tId != null) {
         _globalTerritoryLastOwner =
             _objetivoGlobal!['ownerUid'] as String?;
+        _globalTerritoryStream?.cancel();
         _globalTerritoryStream = FirebaseFirestore.instance
             .collection('global_territories')
             .doc(tId)

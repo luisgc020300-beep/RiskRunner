@@ -426,6 +426,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (!doc.exists || !mounted) return;
     final data           = doc.data()!;
     final territoriosSnap = await FirebaseFirestore.instance.collection('territories').where('userId', isEqualTo: viewedUserId).get();
+    if (!mounted) return;
     final colorInt       = (data['territorio_color'] as num?)?.toInt();
     final pts            = (data['puntos_liga'] as num? ?? 0).toInt();
     final liga           = LeagueHelper.getLeague(pts);
@@ -698,6 +699,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         final colorVal = (data['color'] as num?)?.toInt();
         lista.add({'puntos': pts, 'userId': data['userId'] ?? '', 'color': colorVal != null ? Color(colorVal) : const Color(0xFF2EAAAA)});
       }
+      setState(() => _territoriosDelUsuario = lista);
     });
     final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
     _runnersStream = FirebaseFirestore.instance
