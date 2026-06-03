@@ -5135,7 +5135,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         color: _shSurf,
         border: Border.all(
             color: _state.cercanosVisible
-                ? _kRed.withValues(alpha: 0.3)
+                ? _kBlue.withValues(alpha: 0.3)
                 : _shBorder),
         borderRadius: BorderRadius.circular(6),
       ),
@@ -5145,7 +5145,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             builder: (_, __) => Container(
               width: 6, height: 6,
               decoration: BoxDecoration(
-                  color: _kSafe.withValues(alpha: 0.4 + 0.6 * _pulse.value),
+                  color: _kBlue.withValues(alpha: 0.4 + 0.6 * _pulse.value),
                   shape: BoxShape.circle),
             )),
         const SizedBox(width: 10),
@@ -5219,11 +5219,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Container(
                     width: 8, height: 8,
                     decoration: BoxDecoration(
-                      color: g.esMio ? _kRed : _kSub,
+                      color: g.esMio ? _kBlue : _kSub,
                       shape: BoxShape.circle,
                       boxShadow: g.esMio
                           ? [BoxShadow(
-                              color: _kRed.withValues(alpha: 0.5),
+                              color: _kBlue.withValues(alpha: 0.5),
                               blurRadius: 6)]
                           : null,
                     )),
@@ -5242,7 +5242,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         borderRadius: BorderRadius.circular(3)),
                     child: Text('NIV.${g.nivel}',
                         style: _raj(8, FontWeight.w900,
-                            g.esMio ? _kRed : _kSub))),
+                            g.esMio ? _kBlue : _kSub))),
                   const SizedBox(width: 8),
                   Text('${g.territorios.length}',
                       style: _raj(11, FontWeight.w600, _kDim)),
