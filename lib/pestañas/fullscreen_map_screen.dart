@@ -1808,37 +1808,49 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             const Spacer(),
 
             if (!_state.modoGlobal && !_state.modoSolitario && !_state.modoRutas && (det > 0 || pel > 0)) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _kBg.withValues(alpha: 0.72),
-                      border: Border.all(
-                          color: (pel > 0 ? _kRed : _kWarn)
-                              .withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(4),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  final myTers = _state.territorios.where((t) => t.esMio).toList();
+                  final critical = myTers.where((t) => t.estadoHp == EstadoHp.critico);
+                  final degraded = myTers.where((t) => t.estaDeterirado);
+                  final target = critical.isNotEmpty ? critical.first
+                      : degraded.isNotEmpty ? degraded.first
+                      : null;
+                  if (target != null) _onTerritoryTap(target);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _kBg.withValues(alpha: 0.72),
+                        border: Border.all(
+                            color: (pel > 0 ? _kRed : _kWarn)
+                                .withValues(alpha: 0.4)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (pel > 0) ...[
+                          const Icon(Icons.dangerous_rounded,
+                              color: _kRed, size: 12),
+                          const SizedBox(width: 4),
+                          Text('$pel',
+                              style: _raj(11, FontWeight.w900, _kRed)),
+                          const SizedBox(width: 8),
+                        ],
+                        if (det > 0) ...[
+                          const Icon(Icons.warning_amber_rounded,
+                              color: _kWarn, size: 12),
+                          const SizedBox(width: 4),
+                          Text('$det',
+                              style: _raj(11, FontWeight.w900, _kWarn)),
+                        ],
+                      ]),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      if (pel > 0) ...[
-                        const Icon(Icons.dangerous_rounded,
-                            color: _kRed, size: 12),
-                        const SizedBox(width: 4),
-                        Text('$pel',
-                            style: _raj(11, FontWeight.w900, _kRed)),
-                        const SizedBox(width: 8),
-                      ],
-                      if (det > 0) ...[
-                        const Icon(Icons.warning_amber_rounded,
-                            color: _kWarn, size: 12),
-                        const SizedBox(width: 4),
-                        Text('$det',
-                            style: _raj(11, FontWeight.w900, _kWarn)),
-                      ],
-                    ]),
                   ),
                 ),
               ),
