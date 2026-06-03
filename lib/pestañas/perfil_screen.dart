@@ -1167,10 +1167,16 @@ class _PerfilScreenState extends State<PerfilScreen>
   AppBar _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       toolbarHeight: 44,
+      flexibleSpace: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        color: _showNickInAppBar ? bgColor : Colors.transparent,
+      ),
       leading: !isOwnProfile
           ? IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
