@@ -1426,12 +1426,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                   Text('Cargando rutas...', style: _rajdhani(11, FontWeight.w400, _p.dim)),
                 ])
               : _rutasTotal == 0
-                  ? Row(children: [
-                      Icon(Icons.route_rounded, size: 18, color: _p.muted),
-                      const SizedBox(width: 8),
-                      Text('Sin rutas libres aún',
-                          style: _rajdhani(12, FontWeight.w500, _p.sub)),
-                    ])
+                  ? const SizedBox.shrink()
                   : Wrap(
                       spacing: 12,
                       runSpacing: 10,
