@@ -4100,19 +4100,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color:   activo ? _kRed.withValues(alpha: 0.10) : _shSurf,
+          color:   activo ? _kBlue.withValues(alpha: 0.10) : _shSurf,
           border:  Border.all(
-              color: activo ? _kRed.withValues(alpha: 0.45) : _shBorder),
+              color: activo ? _kBlue.withValues(alpha: 0.45) : _shBorder),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 11,
-              color: activo ? _kRed : _kSub),
+              color: activo ? _kBlue : _kSub),
           const SizedBox(width: 4),
           Text(label,
               style: _raj(10,
                   activo ? FontWeight.w800 : FontWeight.w600,
-                  activo ? _kRed : _kSub,
+                  activo ? _kBlue : _kSub,
                   spacing: 0.3)),
         ]),
       ),
