@@ -3446,7 +3446,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   ? 'Exploración Solitaria'
                   : _objetivoGlobal != null
                       ? 'Guerra Global · ${_objetivoGlobal!['territorioNombre']}'
-                      : 'Carrera Libre',
+                      : 'Carrera Competitiva',
           'modo': _modoRuta
               ? 'ruta'
               : _modoSolitario
