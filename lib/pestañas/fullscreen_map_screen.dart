@@ -2343,6 +2343,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static const String _glbFill     = 'glb-fill';
   static const String _glbLine     = 'glb-line';
   static const String _glbLabel    = 'glb-label';
+  static const String _glbSelSrc   = 'glb-sel-src';
+  static const String _glbSelGlow  = 'glb-sel-glow';
+  static const String _glbSelDot   = 'glb-sel-dot';
 
   // ==========================================================================
   // HELPERS — GeoJSON
@@ -3245,6 +3248,23 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
+    // Punto marcador del territorio seleccionado
+    final selColor = sel == null ? _kWhite
+        : sel.isMine ? _kGold
+        : sel.isOwned ? sel.displayColor
+        : sel.tierColor;
+    final selFeatures = sel == null ? <Map<String, dynamic>>[] : [
+      {
+        'type': 'Feature',
+        'properties': {'dotColor': _hexColor(selColor)},
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [sel.center.longitude, sel.center.latitude],
+        },
+      }
+    ];
+    final selGeojson = _toJson({'type': 'FeatureCollection', 'features': selFeatures});
+
     if (_globalMbxLayersCreating) return;
     _globalMbxLayersCreating = true;
 
@@ -3256,6 +3276,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (srcExists) {
         await (await map.style.getSource(_glbSrc)
             as mapbox.GeoJsonSource).updateGeoJSON(geojson);
+        final selExists = await map.style.styleSourceExists(_glbSelSrc);
+        if (selExists) {
+          await (await map.style.getSource(_glbSelSrc)
+              as mapbox.GeoJsonSource).updateGeoJSON(selGeojson);
+        }
         return;
       }
 
@@ -3280,7 +3305,25 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineColorExpression: ['get', 'lineColor'],
         lineWidthExpression: ['get', 'lineWidth'],
       ));
-      // Etiqueta
+
+      // Marcador de selección — anillo exterior + punto central (bajo la etiqueta)
+      await map.style.addSource(mapbox.GeoJsonSource(id: _glbSelSrc, data: selGeojson));
+      await map.style.addLayer(mapbox.CircleLayer(
+        id: _glbSelGlow, sourceId: _glbSelSrc,
+        circleRadius: 15.0,
+        circleOpacity: 0.22,
+        circleColorExpression: ['get', 'dotColor'],
+        circleStrokeWidth: 2.0,
+        circleStrokeOpacity: 0.60,
+        circleStrokeColorExpression: ['get', 'dotColor'],
+      ));
+      await map.style.addLayer(mapbox.CircleLayer(
+        id: _glbSelDot, sourceId: _glbSelSrc,
+        circleRadius: 5.5,
+        circleColorExpression: ['get', 'dotColor'],
+      ));
+
+      // Etiqueta encima de los círculos
       await map.style.addLayer(mapbox.SymbolLayer(
         id: _glbLabel, sourceId: _glbSrc,
         textFieldExpression: ['get', 'label'],
