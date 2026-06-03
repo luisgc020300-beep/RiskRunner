@@ -27,6 +27,7 @@ class ResumenMapSection extends StatelessWidget {
   final Animation<double>   rutaProgress;
   final int                 territoriosConquistados;
   final String              sectionLabel;
+  final String              modoInicial;
 
   const ResumenMapSection({
     super.key,
@@ -40,6 +41,7 @@ class ResumenMapSection extends StatelessWidget {
     required this.rutaProgress,
     required this.territoriosConquistados,
     required this.sectionLabel,
+    this.modoInicial = 'competitivo',
   });
 
   @override
@@ -59,6 +61,7 @@ class ResumenMapSection extends StatelessWidget {
                 centroInicial:   centroMapa,
                 ruta:            ruta,
                 mostrarRuta:     esDesdeCarrera,
+                modoInicial:     modoInicial,
               )));
         },
         child: Container(

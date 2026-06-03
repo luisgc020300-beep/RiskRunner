@@ -55,9 +55,12 @@ class ResumenScreen extends StatefulWidget {
   final bool   globalConquistado;
   final double? nuevaClausula;
 
-  final bool modoRuta;
-  final int  monedasRuta;
-  final bool esDetalle;
+  final bool   modoRuta;
+  final int    monedasRuta;
+  final bool   esDetalle;
+  /// Modo con el que se abrirá el FullscreenMap: 'competitivo', 'solitario',
+  /// 'ruta', 'global'. Null → usa el último modo guardado.
+  final String? modoInicial;
 
   const ResumenScreen({
     super.key,
@@ -77,6 +80,7 @@ class ResumenScreen extends StatefulWidget {
     this.modoRuta                = false,
     this.monedasRuta             = 0,
     this.esDetalle               = false,
+    this.modoInicial,
   });
 
   @override
@@ -595,6 +599,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         esDetalle      : true,
         timestamp      : tsMs,
         modoRuta       : (d['modo'] as String? ?? '') == 'ruta',
+        modoInicial    : d['modo'] as String? ?? 'competitivo',
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen desde logro: $e');
@@ -816,6 +821,8 @@ class _ResumenScreenState extends State<ResumenScreen>
                       mapController:           _mapController,
                       rutaProgress:            _rutaProgress,
                       territoriosConquistados: _territoriosConquistados,
+                      modoInicial:             widget.modoInicial
+                          ?? (widget.modoRuta ? 'ruta' : 'competitivo'),
                       sectionLabel:            widget.modoRuta
                           ? 'TU RUTA'
                           : _territoriosConquistados > 0

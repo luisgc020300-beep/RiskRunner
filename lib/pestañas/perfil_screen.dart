@@ -1961,6 +1961,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         esDetalle      : true,
         timestamp      : tsMs,
         modoRuta       : (data['modo'] as String? ?? '') == 'ruta',
+        modoInicial    : data['modo'] as String? ?? 'competitivo',
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen: $e');

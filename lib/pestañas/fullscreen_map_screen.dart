@@ -575,6 +575,9 @@ class FullscreenMapScreen extends StatefulWidget {
   /// El botón "INICIAR CONQUISTA" devuelve los datos del territorio vía
   /// Navigator.pop en lugar de navegar a /correr.
   final bool selectionMode;
+  /// Fuerza el modo inicial: 'competitivo', 'solitario', 'ruta', 'global'.
+  /// Si es null, se usa GameStateService.currentMode (comportamiento normal).
+  final String? modoInicial;
 
   const FullscreenMapScreen({
     super.key,
@@ -584,6 +587,7 @@ class FullscreenMapScreen extends StatefulWidget {
     this.ruta            = const [],
     this.mostrarRuta     = false,
     this.selectionMode   = false,
+    this.modoInicial,
   });
 
   @override
@@ -751,7 +755,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         if (mounted && !_state.modoGlobal) _toggleModo();
       });
     } else {
-      final savedMode = GameStateService.instance.currentMode;
+      final savedMode = widget.modoInicial ?? GameStateService.instance.currentMode;
       if (savedMode == 'global') {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !_state.modoGlobal) _toggleModo();
