@@ -2410,17 +2410,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
-  Future<void> _setupCiudadTerrain() async {
-    final map = _mapboxCiudadMap;
+  Future<void> _setupCiudadTerrain() => _setupTerrain(_mapboxCiudadMap, 'cid');
+
+  Future<void> _setupTerrain(mapbox.MapboxMap? map, String prefix) async {
     if (map == null) return;
     try {
       await map.style.addSource(mapbox.RasterDemSource(
-          id: 'cid-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          id: '$prefix-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
           tileSize: 512, maxzoom: 14.0));
       await map.style.setStyleTerrain(
-          '{"source":"cid-dem","exaggeration":1.2}');
+          '{"source":"$prefix-dem","exaggeration":1.2}');
       await map.style.addLayer(mapbox.HillshadeLayer(
-          id: 'cid-hillshade', sourceId: 'cid-dem',
+          id: '$prefix-hillshade', sourceId: '$prefix-dem',
           hillshadeIlluminationDirection: 335,
           hillshadeExaggeration: 0.35,
           hillshadeShadowColor: 0xFF101828,
@@ -2428,31 +2429,30 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (_) {}
 
     try {
-      try { await map.style.removeStyleLayer('cid-buildings'); } catch (_) {}
+      try { await map.style.removeStyleLayer('$prefix-buildings'); } catch (_) {}
       await map.style.addLayer(mapbox.FillExtrusionLayer(
-          id: 'cid-buildings', sourceId: 'composite', sourceLayer: 'building'));
+          id: '$prefix-buildings', sourceId: 'composite', sourceLayer: 'building'));
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'filter', ['==', ['get', 'extrude'], 'true']);
+          '$prefix-buildings', 'filter', ['==', ['get', 'extrude'], 'true']);
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-base',
+          '$prefix-buildings', 'fill-extrusion-base',
           ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'min_height']]);
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-height',
+          '$prefix-buildings', 'fill-extrusion-height',
           ['interpolate', ['linear'], ['zoom'], 15, 0, 15.05, ['get', 'height']]);
-      final night = _mapaOscuro;
-      final List<Object> bColors = night
+      final List<Object> bColors = _mapaOscuro
           ? ['interpolate', ['linear'], ['get', 'height'],
               0, '#9C8060', 8, '#B09070', 25, '#C4A878', 60, '#D4B880', 120, '#C09858']
           : ['interpolate', ['linear'], ['get', 'height'],
               0, '#F2EAD6', 8, '#E8D4A8', 25, '#D4B878', 60, '#B89048', 120, '#906830'];
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-color', bColors);
+          '$prefix-buildings', 'fill-extrusion-color', bColors);
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-opacity', 0.90);
+          '$prefix-buildings', 'fill-extrusion-opacity', 0.90);
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-ambient-occlusion-intensity', 0.25);
+          '$prefix-buildings', 'fill-extrusion-ambient-occlusion-intensity', 0.25);
       await map.style.setStyleLayerProperty(
-          'cid-buildings', 'fill-extrusion-ambient-occlusion-radius', 3.0);
+          '$prefix-buildings', 'fill-extrusion-ambient-occlusion-radius', 3.0);
     } catch (_) {}
   }
 
@@ -2733,6 +2733,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   void _onRutasStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _rutasStyleLoaded    = true;
     _rutasLayersCreating = false;
+    await _setupTerrain(_mapboxRutasMap, 'rut');
     await _dibujarRutas();
     await (_centroListo ?? Future.value());
     if (mounted) {
@@ -2850,6 +2851,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   void _onSolStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _solStyleLoaded    = true;
     _solLayersCreating = false;
+    await _setupTerrain(_mapboxSolMap, 'sol');
     await _dibujarBarriosSolitario();
     await _dibujarTerritoriosSolitario();
     await (_centroListo ?? Future.value());
