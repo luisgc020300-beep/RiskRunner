@@ -931,6 +931,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (_) {}
   }
 
+  // Refresca _state.centro con la última posición GPS conocida (instantáneo).
+  // Llamar antes de _moverCamara en cualquier cambio de modo para evitar Madrid.
+  Future<void> _refrescarCentroGps() async {
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        _state.setCentro(LatLng(last.latitude, last.longitude));
+        _gpsResuelto = true;
+      }
+    } catch (_) {}
+  }
+
   Future<void> _resolverCentro() async {
     if (widget.centroInicial != null) {
       _state.setCentro(widget.centroInicial!);
@@ -1961,14 +1973,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 isActive: isCiudad,
                 color: _kBlue,
                 onTap: isCiudad ? null : () async {
-                  _state.setTerritorios([]);  // vaciar antes de cambiar modo
+                  _state.setTerritorios([]);
                   if (isGlobal) _toggleModo();
                   if (isSolitario) _state.setModoSolitario(false);
                   if (isRutas) _state.setModoRutas(false);
                   await WidgetsBinding.instance.endOfFrame;
                   await (_centroListo ?? Future.value());
-                  await _cargarTerritorios();
+                  await _refrescarCentroGps();
+                  setState(() => _fabCentradoEnUsuario = false);
                   _moverCamara(_state.centro, 13.0);
+                  await _cargarTerritorios();
                 },
               ),
               const SizedBox(width: 5),
@@ -2028,10 +2042,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // MODO SOLITARIO — barrios OSM
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
-    await _centroListo; // garantiza GPS real antes de consultar Overpass
-    _state.setTerritorios([]);  // vaciar antes de cambiar modo → sin flash de datos del modo anterior
+    await _centroListo;
+    await _refrescarCentroGps();
+    _state.setTerritorios([]);
     _state.setModoSolitario(true);
     await WidgetsBinding.instance.endOfFrame;
+    setState(() => _fabCentradoEnUsuario = false);
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
@@ -2220,6 +2236,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.setModoRutas(true);
     await WidgetsBinding.instance.endOfFrame;
     await (_centroListo ?? Future.value());
+    await _refrescarCentroGps();
+    setState(() => _fabCentradoEnUsuario = false);
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarMisRutas();
   }
@@ -3435,6 +3453,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             setState(() => _fabCentradoEnUsuario = true);
           }
         } catch (_) {
+          await _refrescarCentroGps();
           _moverCamara(_state.centro, _kLocateZoom);
           setState(() => _fabCentradoEnUsuario = true);
         }
