@@ -603,6 +603,11 @@ class _ResumenScreenState extends State<ResumenScreen>
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen desde logro: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo abrir el resumen de esta sesión.'),
+        ));
+      }
     }
   }
 

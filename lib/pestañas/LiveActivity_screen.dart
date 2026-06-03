@@ -3501,7 +3501,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (mounted) {
           await AntiCheatWarningOverlay.mostrar(
               context, motivo: sesionCheck.motivo ?? 'Sesión inválida');
-          if (mounted) Navigator.of(context).pop();
+          if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
         }
         _stopping = false;
         return;
@@ -3664,6 +3664,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'objetivoGlobal':          _objetivoGlobal,
       'globalConquistado':       _globalConquistado,
       'nuevaClausula':           _nuevaClausula,
+      'modoInicial':             _modoSolitario ? 'solitario'
+                                     : _objetivoGlobal != null ? 'global'
+                                     : 'competitivo',
     });
   }
 
@@ -4348,7 +4351,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       List<LatLng> ruta, Duration tiempo, double distanciaKm) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || distanciaKm <= 0) {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Sesión no guardada: inicia sesión para registrar tu actividad.'),
+          backgroundColor: Colors.red,
+        ));
+        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+      }
       return;
     }
 
@@ -4468,6 +4477,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         'territoriosConquistados': 0,
         'puntosLigaGanados':    recompensa.puntosLiga,
         'modoRuta':             true,
+        'modoInicial':          'ruta',
         'routeId':              routeId,
         'monedasRuta':          recompensa.monedas,
       });

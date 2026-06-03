@@ -252,6 +252,7 @@ class _MyAppState extends State<MyApp> {
                 nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
                 modoRuta:               (args?['modoRuta']      as bool?)     ?? false,
                 monedasRuta:            (args?['monedasRuta']   as int?)      ?? 0,
+                modoInicial:            args?['modoInicial']    as String?,
               ),
             );
 
