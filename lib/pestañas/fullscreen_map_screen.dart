@@ -683,7 +683,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Modo Ciudad — Mapbox ─────────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxCiudadMap;
   bool                           _ciudadStyleLoaded    = false;
-  bool                           _ciudadLayersCreated  = false;
   bool                           _ciudadLayersCreating = false;
   mapbox.PointAnnotationManager? _ciudadAnnManager;
   final Map<String, mapbox.PointAnnotation> _ciudadJugMarkers = {};
@@ -695,7 +694,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Modo Solitario — Mapbox ──────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxSolMap;
   bool                           _solStyleLoaded    = false;
-  bool                           _solLayersCreated  = false;
   bool                           _solLayersCreating = false;
 
   // ── Modo Rutas — Mapbox ──────────────────────────────────────────────────
@@ -706,7 +704,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ── Modo Global — Mapbox ─────────────────────────────────────────────────
   mapbox.MapboxMap?              _mapboxGlobalMap;
   bool                           _globalMbxStyleLoaded    = false;
-  bool                           _globalMbxLayersCreated  = false;
   bool                           _globalMbxLayersCreating = false;
 
   // ── Modo Rutas ────────────────────────────────────────────────────────────
@@ -2398,7 +2395,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   void _onCiudadStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _ciudadStyleLoaded    = true;
-    _ciudadLayersCreated  = false;
     _ciudadLayersCreating = false;
     await _setupCiudadTerrain();
     await _dibujarTerritoriosCiudad();
@@ -2499,14 +2495,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
+    if (_ciudadLayersCreating) return;
+    _ciudadLayersCreating = true;
+
     try {
-      if (_ciudadLayersCreated) {
-        await (await _mapboxCiudadMap!.style.getSource(_cidSrc)
+      final srcExists = await map.style.styleSourceExists(_cidSrc);
+      if (srcExists) {
+        await (await map.style.getSource(_cidSrc)
             as mapbox.GeoJsonSource).updateGeoJSON(geojson);
         return;
       }
-      if (_ciudadLayersCreating) return;
-      _ciudadLayersCreating = true;
 
       await map.style.addSource(mapbox.GeoJsonSource(
           id: _cidSrc, data: geojson, tolerance: 0.5));
@@ -2537,9 +2535,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-      _ciudadLayersCreated  = true;
-      _ciudadLayersCreating = false;
     } catch (_) {
+      // swallow
+    } finally {
       _ciudadLayersCreating = false;
     }
   }
@@ -2845,7 +2843,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   void _onSolStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _solStyleLoaded    = true;
-    _solLayersCreated  = false;
     _solLayersCreating = false;
     await _dibujarBarriosSolitario();
     await _dibujarTerritoriosSolitario();
@@ -2888,14 +2885,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
+    if (_solLayersCreating) return;
+    _solLayersCreating = true;
+
     try {
-      if (_solLayersCreated) {
-        final src = await map.style.getSource(_solBarSrc) as mapbox.GeoJsonSource;
-        await src.updateGeoJSON(geojson);
+      final srcExists = await map.style.styleSourceExists(_solBarSrc);
+      if (srcExists) {
+        await (await map.style.getSource(_solBarSrc)
+            as mapbox.GeoJsonSource).updateGeoJSON(geojson);
         return;
       }
-      if (_solLayersCreating) return;
-      _solLayersCreating = true;
 
       await map.style.addSource(mapbox.GeoJsonSource(
           id: _solBarSrc, data: geojson, tolerance: 0.5));
@@ -2926,9 +2925,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-      _solLayersCreated  = true;
-      _solLayersCreating = false;
     } catch (_) {
+      // swallow
+    } finally {
       _solLayersCreating = false;
     }
   }
@@ -3183,7 +3182,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   void _onGlobalStyleLoaded(mapbox.StyleLoadedEventData _) async {
     _globalMbxStyleLoaded    = true;
-    _globalMbxLayersCreated  = false;
     _globalMbxLayersCreating = false;
     await _dibujarTerritoriosGlobal();
     if (mounted) {
@@ -3244,14 +3242,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
     final geojson = _toJson({'type': 'FeatureCollection', 'features': features});
 
+    if (_globalMbxLayersCreating) return;
+    _globalMbxLayersCreating = true;
+
     try {
-      if (_globalMbxLayersCreated) {
+      // Consultar Mapbox directamente en vez de usar el flag en memoria,
+      // que puede desincronizarse si _onGlobalStyleLoaded lo resetea mientras
+      // un addSource anterior ya completó parcialmente.
+      final srcExists = await map.style.styleSourceExists(_glbSrc);
+      if (srcExists) {
         await (await map.style.getSource(_glbSrc)
             as mapbox.GeoJsonSource).updateGeoJSON(geojson);
         return;
       }
-      if (_globalMbxLayersCreating) return;
-      _globalMbxLayersCreating = true;
 
       await map.style.addSource(mapbox.GeoJsonSource(
           id: _glbSrc, data: geojson, tolerance: 0.5));
@@ -3286,9 +3289,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-      _globalMbxLayersCreated  = true;
-      _globalMbxLayersCreating = false;
     } catch (_) {
+      // swallow
+    } finally {
       _globalMbxLayersCreating = false;
     }
   }
