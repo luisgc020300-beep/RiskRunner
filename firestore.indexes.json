@@ -98,6 +98,14 @@
       ]
     },
     {
+      "collectionGroup": "territories",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "centroLat", "order": "ASCENDING" },
+        { "fieldPath": "centroLng", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "posts",
       "queryScope": "COLLECTION",
       "fields": [

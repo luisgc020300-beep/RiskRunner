@@ -13,34 +13,36 @@ import 'package:latlong2/latlong.dart';
 
 class AntiCheatConfig {
   /// Velocidad máxima permitida en km/h.
-  /// Un runner élite hace ~22 km/h. 35 km/h es imposible a pie.
-  static const double velocidadMaxKmh = 35.0;
+  /// Récord mundial de maratón ~21 km/h. 22 km/h deja margen razonable.
+  static const double velocidadMaxKmh = 22.0;
 
   /// Distancia máxima entre dos puntos consecutivos en metros.
-  /// Si el usuario "salta" más de esto instantáneamente = teletransporte.
-  /// A 35 km/h en 3 segundos (máx entre eventos GPS) = ~29m. Ponemos 150m de margen.
-  static const double distanciaMaxEntreEventosM = 150.0;
+  /// A 22 km/h en 3 segundos = ~18m. 80m es un margen generoso para GPS urbano.
+  static const double distanciaMaxEntreEventosM = 80.0;
+
+  /// Cap absoluto de distancia — nunca válido aunque el chip diga velocidad 0.
+  /// Bloquea el bypass de teleport con speed spoofed a 0.
+  static const double distanciaAbsolutaMaxM = 250.0;
 
   /// Precisión mínima aceptable del GPS en metros.
-  /// Precisión > 50m suele indicar señal muy débil o GPS falseado.
-  static const double precisionMinM = 50.0;
+  /// GPS urbano típico: 5-15m. 35m es tolerante con señal degradada.
+  static const double precisionMinM = 35.0;
 
-  /// Número de infracciones consecutivas antes de cancelar la sesión.
-  static const int infraccionesParaCancelar = 4;
+  /// Infracciones consecutivas (duras) antes de cancelar la sesión.
+  /// 6 permite absorber rachas de GPS flojo sin castigar usuarios legítimos.
+  static const int infraccionesParaCancelar = 6;
 
-  /// Número de infracciones totales en la sesión antes de cancelar.
-  static const int infraccionesTotalesParaCancelar = 8;
+  /// Infracciones totales en la sesión antes de cancelar.
+  static const int infraccionesTotalesParaCancelar = 15;
 
-  /// Altitud máxima razonable para una carrera urbana (metros sobre el mar).
-  /// Filtra altitudes absurdas que algunos spoofers generan.
+  /// Altitud máxima razonable para una carrera (metros sobre el mar).
   static const double altitudMaxM = 5000.0;
 
   /// Aceleración máxima posible entre dos puntos (km/h por segundo).
-  /// Un humano puede acelerar ~3 km/h/s como máximo.
-  static const double aceleracionMaxKmhS = 5.0;
+  /// Es una violación blanda — se loguea pero no cancela sesión directamente.
+  static const double aceleracionMaxKmhS = 3.0;
 
-  /// Puntos GPS iniciales ignorados para dar tiempo al chip a estabilizarse.
-  /// A ~1 Hz son ~8 segundos de warmup.
+  /// Puntos GPS iniciales que se validan de forma laxa (GPS estabilizándose).
   static const int kWarmupPuntos = 8;
 }
 
@@ -139,11 +141,28 @@ class AntiCheatService {
       return AntiCheatResultado.valido;
     }
 
-    // ── 4. Warmup — los primeros puntos se descartan sin penalizar ──────────
+    // ── 4. Warmup — primeros puntos con validación laxa ────────────────────
     // El GPS tarda unos segundos en estabilizarse al arrancar o al recuperar
-    // señal, lo que puede producir saltos posicionales falsos.
+    // señal, lo que puede producir saltos posicionales falsos. Durante warmup
+    // se descartan saltos extremos silenciosamente (sin contar como infracción)
+    // para evitar que puntos espúreos contaminen routePoints.
     _puntosProcesados++;
     if (_puntosProcesados <= AntiCheatConfig.kWarmupPuntos) {
+      if (_ultimaPosicion != null) {
+        final distWarmup = Geolocator.distanceBetween(
+          _ultimaPosicion!.latitude, _ultimaPosicion!.longitude,
+          pos.latitude,             pos.longitude,
+        );
+        if (distWarmup > AntiCheatConfig.distanciaAbsolutaMaxM) {
+          // Punto descartado silenciosamente — GPS aún estabilizándose
+          return AntiCheatResultado(
+            veredicto:      AntiCheatVeredicto.teletransporte,
+            esValido:       false,
+            detalle:        'Warmup: salto GPS de ${distWarmup.toStringAsFixed(0)}m descartado',
+            valorDetectado: distWarmup,
+          );
+        }
+      }
       _actualizarEstado(pos);
       return AntiCheatResultado.valido;
     }
@@ -178,10 +197,15 @@ class AntiCheatService {
         return _registrarInfraccion(velResult, pos);
       }
 
-      // ── 8. Aceleración imposible ──────────────────────────────────────────
+      // ── 8. Aceleración imposible (violación blanda) ───────────────────────
+      // GPS posicional es ruidoso — picos de aceleración falsos son comunes en
+      // zonas con señal débil. Solo logueamos sin cancelar la sesión.
       final accelResult = _checkAceleracion(velKmh, dtSeg);
       if (!accelResult.esValido) {
-        return _registrarInfraccion(accelResult, pos);
+        _infraccionesTotales++;
+        _guardarLogFirestore(accelResult, pos);
+        debugPrint('⚠️ AntiCheat [aceleracion-soft]: ${accelResult.detalle} '
+            '(totales: $_infraccionesTotales)');
       }
 
       _ultimaVelocidadKmh = velKmh;
@@ -224,15 +248,26 @@ class AntiCheatService {
   }
 
   AntiCheatResultado _checkTeletransporte(double distM, double dtSeg, double? gpsChipKmh) {
+    // Cap absoluto: ningún salto de este tamaño es válido, aunque el chip
+    // reporte velocidad baja (bloquea bypass con speed spoofed a 0).
+    if (distM > AntiCheatConfig.distanciaAbsolutaMaxM) {
+      return AntiCheatResultado(
+        veredicto:      AntiCheatVeredicto.teletransporte,
+        esValido:       false,
+        detalle:        'Salto de ${distM.toStringAsFixed(0)}m (cap absoluto)',
+        valorDetectado: distM,
+      );
+    }
     if (distM > AntiCheatConfig.distanciaMaxEntreEventosM) {
-      // Si el chip GPS reporta velocidad baja, es un salto posicional (error GPS), no teletransporte.
+      // Si el chip GPS (Doppler) reporta velocidad baja, es un spike posicional,
+      // no teletransporte real.
       if (gpsChipKmh != null && gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
         return AntiCheatResultado.valido;
       }
       return AntiCheatResultado(
-        veredicto: AntiCheatVeredicto.teletransporte,
-        esValido: false,
-        detalle: 'Salto de ${distM.toStringAsFixed(0)}m en ${dtSeg.toStringAsFixed(1)}s',
+        veredicto:      AntiCheatVeredicto.teletransporte,
+        esValido:       false,
+        detalle:        'Salto de ${distM.toStringAsFixed(0)}m en ${dtSeg.toStringAsFixed(1)}s',
         valorDetectado: distM,
       );
     }

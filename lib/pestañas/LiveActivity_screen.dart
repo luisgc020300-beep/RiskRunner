@@ -1212,6 +1212,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   void _onMapCreated(mapbox.MapboxMap map) async {
     _mapboxMap = map;
+    // El annotation manager se va a recrear — limpiar referencias huérfanas
+    _anotacionesJugadores.clear();
+    _anotacionesReyes.clear();
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
     await map.gestures.updateSettings(mapbox.GesturesSettings(
@@ -1931,8 +1934,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       return;
     }
 
-    // Evitar creación concurrente de capas (zoom rápido puede disparar esto varias veces)
-    if (_dibujandoTerritorios && !_territoriosLayersCreated) return;
+    // Evitar dibujos concurrentes — el anterior ya está actualizando las capas
+    if (_dibujandoTerritorios) return;
     _dibujandoTerritorios = true;
 
     final features = _territorios.map((t) {
@@ -2971,8 +2974,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _narrador.anunciarReto(
                 '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
             HapticFeedback.heavyImpact();
-            Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
-            Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+            Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
+            Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
           }
         }
 
@@ -3576,8 +3579,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _verificarBarriosCompletados();
         if (mounted) {
           HapticFeedback.heavyImpact();
-          Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
-          Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+          Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
+          Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
           await ConquistaOverlay.mostrar(context, esInvasion: false);
         }
       } else {
@@ -3653,8 +3656,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _actualizarPuntosDesafio(conquistados, distanciaFinal);
       if (mounted && distanciaFinal > 0) {
         HapticFeedback.heavyImpact();
-        Future.delayed(const Duration(milliseconds: 150), HapticFeedback.heavyImpact);
-        Future.delayed(const Duration(milliseconds: 300), HapticFeedback.heavyImpact);
+        Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
+        Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
         await ConquistaOverlay.mostrar(context, esInvasion: false);
       }
     }
@@ -3908,8 +3911,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _mostrarNotificacionRetoCompletado() {
     if (!mounted || _retoActivo == null) return;
     HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
+    Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
     final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 7),
@@ -4204,9 +4207,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _mostrarNotificacionBarrioCompletado(_BarrioData barrio, int bonusMonedas) {
     if (!mounted) return;
     HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 150), () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 300), () => HapticFeedback.heavyImpact());
-    Future.delayed(const Duration(milliseconds: 450), () => HapticFeedback.heavyImpact());
+    Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
+    Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
+    Future.delayed(const Duration(milliseconds: 450), () { if (mounted) HapticFeedback.heavyImpact(); });
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 10),
@@ -4390,6 +4393,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       List<LatLng> ruta, Duration tiempo, double distanciaKm) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || distanciaKm <= 0) {
+      _stopping = false;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Sesión no guardada: inicia sesión para registrar tu actividad.'),
