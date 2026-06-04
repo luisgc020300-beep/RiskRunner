@@ -711,6 +711,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool            _cargandoRutas   = false;
   RouteData?      _rutaSeleccionada;
 
+  // Modo guardado antes de abrir una vista histórica (modoInicial != null).
+  // Se restaura en dispose para que el mapa live no herede el modo histórico.
+  String? _prevGameStateMode;
+
   @override
   void initState() {
     super.initState();
@@ -748,8 +752,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _starfield = _StarfieldPainter.generate();
 
     // Pre-set mode BEFORE _initData() so streams and territory loading
-    // start in the correct mode from the very beginning
+    // start in the correct mode from the very beginning.
+    // Also save + restore GameStateService.currentMode so browsing historical
+    // maps does not contaminate the mode used by subsequent live sessions.
     if (!widget.selectionMode && widget.modoInicial != null) {
+      _prevGameStateMode = GameStateService.instance.currentMode;
       final m = widget.modoInicial!;
       if (m == 'solitario') {
         _state.modoSolitario = true;
@@ -757,6 +764,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       } else if (m == 'ruta') {
         _state.modoRutas = true;
         GameStateService.instance.currentMode = 'ruta';
+      } else if (m == 'competitivo') {
+        GameStateService.instance.currentMode = 'competitivo';
       }
       // 'global' mode needs maps ready — handled in postFrameCallback below
     }
@@ -859,6 +868,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _solCamDebounce?.cancel();
     _sheetCtrl.dispose();
     _barriosSearchCtrl.dispose();
+    // Restore the mode that was active before this historical view opened
+    // so that subsequent live sessions or map tabs inherit the correct mode.
+    if (_prevGameStateMode != null) {
+      GameStateService.instance.currentMode = _prevGameStateMode!;
+    }
     super.dispose();
   }
 
