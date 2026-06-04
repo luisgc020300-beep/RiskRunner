@@ -1,6 +1,7 @@
 // lib/main.dart
 import 'package:RiskRunner/pesta%C3%B1as/coin_shop_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/fullscreen_map_screen.dart';
+import 'package:RiskRunner/services/territory_service.dart' show TerritoryData;
 import 'package:RiskRunner/pesta%C3%B1as/onboarding_slides_screen.dart';
 import 'package:RiskRunner/services/notification_service.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
@@ -261,11 +262,11 @@ class _MyAppState extends State<MyApp> {
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => FullscreenMapScreen(
-                territorios:     (args?['territorios']     as List?)?.cast() ?? [],
+                territorios:     (args?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
                 colorTerritorio: (args?['colorTerritorio'] as Color?)
                     ?? const Color(0xFFD4722A),
                 centroInicial:   args?['centroInicial'] as LatLng?,
-                ruta:            (args?['ruta']         as List?)?.cast() ?? [],
+                ruta:            (args?['ruta']         as List?)?.cast<LatLng>() ?? [],
                 mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
               ),
             );
@@ -275,11 +276,11 @@ class _MyAppState extends State<MyApp> {
             return MaterialPageRoute(
               settings: settings,
               builder: (_) => FullscreenMapScreen(
-                territorios:     (verMapaArgs?['territorios']     as List?)?.cast() ?? [],
+                territorios:     (verMapaArgs?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
                 colorTerritorio: (verMapaArgs?['colorTerritorio'] as Color?)
                     ?? const Color(0xFFD4722A),
                 centroInicial:   verMapaArgs?['centroInicial'] as LatLng?,
-                ruta:            (verMapaArgs?['ruta']         as List?)?.cast() ?? [],
+                ruta:            (verMapaArgs?['ruta']         as List?)?.cast<LatLng>() ?? [],
                 mostrarRuta:     (verMapaArgs?['mostrarRuta']  as bool?) ?? false,
               ),
             );
