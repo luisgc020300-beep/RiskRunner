@@ -746,6 +746,21 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
     _starfield = _StarfieldPainter.generate();
+
+    // Pre-set mode BEFORE _initData() so streams and territory loading
+    // start in the correct mode from the very beginning
+    if (!widget.selectionMode && widget.modoInicial != null) {
+      final m = widget.modoInicial!;
+      if (m == 'solitario') {
+        _state.modoSolitario = true;
+        GameStateService.instance.currentMode = 'solitario';
+      } else if (m == 'ruta') {
+        _state.modoRutas = true;
+        GameStateService.instance.currentMode = 'ruta';
+      }
+      // 'global' mode needs maps ready — handled in postFrameCallback below
+    }
+
     _initData();
     // scroll reload via onScrollListener en cada MapWidget Mapbox
     _feedFuture = ActivityService.obtenerFeedReciente();
@@ -761,22 +776,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           if (mounted && !_state.modoGlobal) _toggleModo();
         });
       } else if (savedMode == 'solitario') {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (widget.modoInicial != null) {
-            // Vista histórica: activar modo directamente sin GPS ni carga de barrios
-            _state.setModoSolitario(true);
-            if (widget.territorios.isNotEmpty) {
-              _state.setTerritorios(widget.territorios);
-            }
-          } else if (!_state.modoSolitario) {
-            _activarModoSolitario();
-          }
-        });
+        // Historical view: mode already set above; live view: needs full GPS activation
+        if (widget.modoInicial == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_state.modoSolitario) _activarModoSolitario();
+          });
+        }
       } else if (savedMode == 'ruta') {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_state.modoRutas) _activarModoRutas();
-        });
+        // Historical view: mode already set above; live view: needs full activation
+        if (widget.modoInicial == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_state.modoRutas) _activarModoRutas();
+          });
+        }
       }
     }
   }
