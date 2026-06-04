@@ -762,7 +762,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         });
       } else if (savedMode == 'solitario') {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_state.modoSolitario) _activarModoSolitario();
+          if (!mounted) return;
+          if (widget.modoInicial != null) {
+            // Vista histórica: activar modo directamente sin GPS ni carga de barrios
+            _state.setModoSolitario(true);
+            if (widget.territorios.isNotEmpty) {
+              _state.setTerritorios(widget.territorios);
+            }
+          } else if (!_state.modoSolitario) {
+            _activarModoSolitario();
+          }
         });
       } else if (savedMode == 'ruta') {
         WidgetsBinding.instance.addPostFrameCallback((_) {
