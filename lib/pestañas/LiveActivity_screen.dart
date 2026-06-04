@@ -191,6 +191,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   double _distanciaTotal             = 0.0;
   double _velocidadActualKmh         = 0.0;
   double _bearing                    = 0.0;
+  // Bearing re-lock: user rotated the map manually; GPS heading resumes after _kRelockMs
+  bool  _userRotatedMap        = false;
+  Timer? _relockTimer;
+  bool  _movingProgrammatically = false;
+  Timer? _progMoveTimer;
+  static const int _kRelockMs = 5000;
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
   Position? _ultimaPosicionVelocidad;
@@ -583,6 +589,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _iluminacionTimer?.cancel();
     _globalesPulseTimer?.cancel();
     _timerRefreshGlobo?.cancel();
+    _relockTimer?.cancel();
+    _progMoveTimer?.cancel();
     _fcmSub?.cancel();
     _narrador.resetear();
     _cuentaAtrasAnim.dispose();
@@ -1313,14 +1321,30 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       bearing: bearing,
       pitch: pitch,
     );
+    _movingProgrammatically = true;
+    _progMoveTimer?.cancel();
     if (animated) {
+      // Keep flag true until 100 ms after the animation ends
+      _progMoveTimer = Timer(Duration(milliseconds: duracion + 100), () {
+        _movingProgrammatically = false;
+      });
       await _mapboxMap!.flyTo(
           cam, mapbox.MapAnimationOptions(duration: duracion));
     } else {
       await _mapboxMap!.setCamera(cam);
+      _movingProgrammatically = false;
     }
   }
 
+
+  void _onCameraChanged(mapbox.CameraChangedEventData _) {
+    if (_movingProgrammatically || !isTracking || isPaused) return;
+    if (!_userRotatedMap) setState(() => _userRotatedMap = true);
+    _relockTimer?.cancel();
+    _relockTimer = Timer(const Duration(milliseconds: _kRelockMs), () {
+      if (mounted) setState(() => _userRotatedMap = false);
+    });
+  }
 
   Future<void> _configurarAtmosfera() async {
     if (_mapboxMap == null) return;
@@ -2913,7 +2937,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         });
 
         _moverCamara(lat: pos.latitude, lng: pos.longitude,
-            zoom: _kZoomCorrer, bearing: _bearing, pitch: _kPitchCorrer);
+            zoom: _kZoomCorrer,
+            bearing: _userRotatedMap ? null : _bearing,
+            pitch: _kPitchCorrer);
         if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
           _puntosDesdeUltimoUpdate = 0;
           _actualizarRutaEnMapa();
@@ -3329,6 +3355,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
       _hudAnim.forward();
     } else {
+      _userRotatedMap = false;
+      _relockTimer?.cancel();
       _timerController.start();
       _stopwatch.start();
       WakelockPlus.enable();
@@ -5107,6 +5135,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       },
       onMapCreated: _onMapCreated,
       onStyleLoadedListener: _onStyleLoaded,
+      onCameraChangeListener: _onCameraChanged,
       onTapListener: _onMapTap,
     );
   }
