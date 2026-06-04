@@ -786,11 +786,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           if (widget.modoInicial != null) {
-            // Vista histórica: cargar rutas y centrar en la zona de la sesión
+            // Vista histórica: cargar rutas (_onRutasStyleLoaded centra con zoom 13)
             _cargarMisRutas();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _moverCamara(_state.centro, 13.0);
-            });
           } else if (!_state.modoRutas) {
             _activarModoRutas();
           }
@@ -2780,8 +2777,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _dibujarRutas();
     await (_centroListo ?? Future.value());
     if (mounted) {
+      final zoom = widget.centroInicial != null ? 13.0 : _kInitialZoom;
       _mapboxRutasMap?.flyTo(
-        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
+        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: zoom),
         mapbox.MapAnimationOptions(duration: 400),
       );
     }
@@ -2899,8 +2897,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await _dibujarTerritoriosSolitario();
     await (_centroListo ?? Future.value());
     if (mounted) {
+      final zoom = widget.centroInicial != null ? 13.0 : _kInitialZoom;
       _mapboxSolMap?.flyTo(
-        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: _kInitialZoom),
+        mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: zoom),
         mapbox.MapAnimationOptions(duration: 400),
       );
     }
