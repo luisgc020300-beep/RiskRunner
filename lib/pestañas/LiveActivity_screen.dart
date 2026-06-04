@@ -3211,6 +3211,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _distanciaTotal          = 0;
       _velocidadActualKmh      = 0;
       _bearing                 = 0;
+      _userRotatedMap          = false;
       routePoints.clear();
       _puntosDesdeUltimoUpdate = 0;
       _territoriosNotificadosEnSesion.clear();
@@ -3375,6 +3376,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> stopTracking() async {
     if (_stopping) return;
     _stopping = true;
+    _userRotatedMap = false;
+    _relockTimer?.cancel();
     _timerSesion?.cancel();
     GameStateService.instance.clearSession();
 
@@ -5427,11 +5430,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
 
   Widget _buildBotonesMapa() => Column(children: [
-        _botonMapa(_modoNoche ? '🌙' : '☀️',
+        _botonMapa(_modoNoche ? Icons.dark_mode_rounded : Icons.wb_sunny_rounded,
             _modoNoche ? _kGoldLight : _kGold, _toggleModoNoche),
         if (isTracking) ...[
           const SizedBox(height: 10),
-          _botonMapa('🎯', _p.terracotta, () {
+          _botonMapa(Icons.my_location_rounded, _p.terracotta, () {
             if (_currentPosition != null) {
               _moverCamara(lat: _currentPosition!.latitude,
                   lng: _currentPosition!.longitude,
@@ -5443,7 +5446,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ],
       ]);
 
-  Widget _botonMapa(String emoji, Color color, VoidCallback onTap) =>
+  Widget _botonMapa(IconData icon, Color color, VoidCallback onTap) =>
       GestureDetector(
         onTap: onTap,
         child: Container(
@@ -5457,7 +5460,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
             ],
           ),
-          child: Center(child: Text(emoji, style: const TextStyle(fontSize: 19))),
+          child: Center(child: Icon(icon, color: color, size: 20)),
         ),
       );
 
