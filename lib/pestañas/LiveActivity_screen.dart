@@ -2826,7 +2826,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           boxShadow: [BoxShadow(color: _kGold.withValues(alpha: 0.55), blurRadius: 28)],
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('⚔️', style: TextStyle(fontSize: 38)),
+          const Icon(Icons.flag_rounded, color: _kGoldLight, size: 38),
           const SizedBox(height: 8),
           Text('¡TERRITORIO CONQUISTADO!', textAlign: TextAlign.center,
               style: GoogleFonts.cinzel(color: _kGoldLight, fontSize: 16,
@@ -2843,7 +2843,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               border: Border.all(color: _p.goldDim.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text('+$recompensa 🪙 el lunes si sigues siendo dueño  ·  +50 pts de liga',
+            child: Text('+$recompensa pts el lunes si sigues siendo dueño  ·  +50 pts de liga',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(color: _kGoldLight.withValues(alpha: 0.9),
                     fontSize: 12, fontWeight: FontWeight.w700)),
@@ -3311,7 +3311,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                         color: const Color(0xFFCC2222).withValues(alpha: 0.7)),
                   ),
                   child: Row(children: [
-                    const Text('⚔️', style: TextStyle(fontSize: 20)),
+                    const Icon(Icons.flash_on_rounded, color: Color(0xFFFF5252), size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -3594,7 +3594,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 border: Border.all(color: _p.goldDim),
               ),
               child: Row(children: [
-                const Text('🗺️', style: TextStyle(fontSize: 20)),
+                Icon(Icons.map_rounded, color: _p.goldDim, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -3854,7 +3854,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                         colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
                     shadow: _p.terracotta,
                     child: Row(children: [
-                      const Text('⚔️', style: TextStyle(fontSize: 20)),
+                      const Icon(Icons.flash_on_rounded, color: Color(0xFFFFE8C0), size: 20),
                       const SizedBox(width: 10),
                       Expanded(child: Text(mensaje,
                           style: const TextStyle(color: Color(0xFFFFE8C0),
@@ -3958,18 +3958,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (!mounted) return;
     final String estadoLabel;
     final Color  estadoColor;
-    final String emoji;
     final String consejo;
     switch (t.estadoHp) {
       case EstadoHp.saludable:
         estadoLabel = 'FUERTE'; estadoColor = _kVerde;
-        emoji = '🟢'; consejo = 'Necesitas >7 km/h para dañarlo';
+        consejo = 'Necesitas >7 km/h para dañarlo';
       case EstadoHp.danado:
         estadoLabel = 'MEDIO'; estadoColor = _kGold;
-        emoji = '🟡'; consejo = 'Necesitas >5 km/h';
+        consejo = 'Necesitas >5 km/h';
       case EstadoHp.critico:
         estadoLabel = '¡LEVE!'; estadoColor = _p.globalRed;
-        emoji = '🔴'; consejo = '¡Cualquier paso lo conquista!';
+        consejo = '¡Cualquier paso lo conquista!';
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 4),
@@ -3994,7 +3993,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               shape:  BoxShape.circle,
               border: Border.all(color: estadoColor.withValues(alpha: 0.5)),
             ),
-            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
+            child: Center(child: Icon(Icons.circle_rounded, color: estadoColor, size: 18)),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -4003,7 +4002,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(children: [
-                  const Text('⚔️ ', style: TextStyle(fontSize: 12)),
+                  const Icon(Icons.flash_on_rounded, color: _kGoldLight, size: 12),
+                  const SizedBox(width: 3),
                   Expanded(child: Text(t.ownerNickname,
                       style: GoogleFonts.inter(color: _kGoldLight,
                           fontSize: 13, fontWeight: FontWeight.w900),
@@ -4066,15 +4066,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       children: todos.map((t) {
         final bool bajoPie = t.docId == _territorioActualBajoPie?.docId;
         final Color estadoColor;
-        final String estadoEmoji;
         final String estadoLabel;
         switch (t.estadoHp) {
           case EstadoHp.saludable:
-            estadoColor = _kVerde; estadoEmoji = '🟢'; estadoLabel = 'FUERTE';
+            estadoColor = _kVerde; estadoLabel = 'FUERTE';
           case EstadoHp.danado:
-            estadoColor = _kGold; estadoEmoji = '🟡'; estadoLabel = 'MEDIO';
+            estadoColor = _kGold; estadoLabel = 'MEDIO';
           case EstadoHp.critico:
-            estadoColor = _p.globalRed; estadoEmoji = '🔴'; estadoLabel = 'LEVE';
+            estadoColor = _p.globalRed; estadoLabel = 'LEVE';
         }
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -4093,7 +4092,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 : [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 6)],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(estadoEmoji, style: const TextStyle(fontSize: 11)),
+            Icon(Icons.circle_rounded, color: estadoColor, size: 11),
             const SizedBox(width: 6),
             Column(crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min, children: [
@@ -4104,11 +4103,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                       letterSpacing: 1.5)),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 if (t.tieneRey) ...[
-                  const Text('👑', style: TextStyle(fontSize: 9)),
+                  const Icon(Icons.workspace_premium_rounded, color: _kGoldLight, size: 9),
                   const SizedBox(width: 3),
                 ],
                 if (t.escudoVigente) ...[
-                  const Text('🛡️', style: TextStyle(fontSize: 9)),
+                  const Icon(Icons.security_rounded, color: Colors.lightBlueAccent, size: 9),
                   const SizedBox(width: 3),
                 ],
                 Text(t.ownerNickname.length > 10
@@ -4158,11 +4157,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final pct    = barrio.porcentajeCubierto;
     final pctInt = (pct * 100).toInt();
     final Color color;
-    final String emoji;
-    if (pct >= 1.0)      { color = _kVerde;     emoji = '🏆'; }
-    else if (pct >= 0.5) { color = _kGold;       emoji = '🗺️'; }
-    else if (pct > 0)    { color = _p.terracotta; emoji = '📍'; }
-    else                 { color = _p.goldDim;    emoji = '🗺️'; }
+    final IconData icon;
+    if (pct >= 1.0)      { color = _kVerde;      icon = Icons.emoji_events_rounded; }
+    else if (pct >= 0.5) { color = _kGold;        icon = Icons.explore_rounded; }
+    else if (pct > 0)    { color = _p.terracotta; icon = Icons.location_on_rounded; }
+    else                 { color = _p.goldDim;    icon = Icons.explore_rounded; }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -4173,7 +4172,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 12)],
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(emoji, style: const TextStyle(fontSize: 13)),
+        Icon(icon, color: color, size: 13),
         const SizedBox(width: 8),
         Column(crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min, children: [
@@ -4249,7 +4248,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Text('🪙', style: TextStyle(fontSize: 20)),
+              const Icon(Icons.monetization_on_rounded, color: _kGoldLight, size: 20),
               const SizedBox(width: 8),
               Text('+$bonusMonedas BONUS',
                   style: GoogleFonts.orbitron(color: _kGoldLight,
@@ -4268,14 +4267,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _mostrarSnackRefuerzo(TerritoryData territorio) {
     if (!mounted) return;
     final String mensaje;
-    final String emoji;
+    final IconData icono;
     switch (territorio.estadoHp) {
       case EstadoHp.critico:
-        mensaje = '¡Territorio estabilizado a estado Medio!'; emoji = '🔧';
+        mensaje = '¡Territorio estabilizado a estado Medio!'; icono = Icons.build_rounded;
       case EstadoHp.danado:
-        mensaje = '¡Territorio reforzado a estado Fuerte!'; emoji = '🛡️';
+        mensaje = '¡Territorio reforzado a estado Fuerte!'; icono = Icons.security_rounded;
       case EstadoHp.saludable:
-        mensaje = '¡Territorio en perfecto estado!'; emoji = '⚔️';
+        mensaje = '¡Territorio en perfecto estado!'; icono = Icons.check_circle_rounded;
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: Duration(seconds: territorio.escudoVigente ? 2 : 5),
@@ -4286,13 +4285,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         border: Border.all(color: _kGold.withValues(alpha: 0.55)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 18)),
+            Icon(icono, color: _kGoldLight, size: 18),
             const SizedBox(width: 10),
             Expanded(child: Text(mensaje,
                 style: const TextStyle(color: _kGoldLight,
                     fontWeight: FontWeight.bold, fontSize: 13))),
             if (territorio.escudoVigente && territorio.escudoExpira != null) ...[
-              const Text('🛡️', style: TextStyle(fontSize: 14)),
+              const Icon(Icons.security_rounded, color: Colors.lightBlueAccent, size: 14),
               const SizedBox(width: 4),
               Text('${_horasRestantes(territorio.escudoExpira!)}h',
                   style: const TextStyle(
@@ -4303,7 +4302,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           if (!territorio.escudoVigente) ...[
             const SizedBox(height: 8),
             Row(children: [
-              const Text('🛡️', style: TextStyle(fontSize: 12)),
+              const Icon(Icons.security_rounded, color: Colors.lightBlueAccent, size: 12),
               const SizedBox(width: 6),
               Text('Proteger con escudo:',
                   style: GoogleFonts.inter(
@@ -4326,7 +4325,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                         border: Border.all(
                             color: _kGold.withValues(alpha: 0.5)),
                       ),
-                      child: Text('${e.key}h · ${e.value}🪙',
+                      child: Text('${e.key}h · ${e.value} pts',
                           style: GoogleFonts.inter(
                               color: _kGold,
                               fontSize: 9,
@@ -4368,9 +4367,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           border: Border.all(
               color: Colors.lightBlueAccent.withValues(alpha: 0.6)),
           child: Row(children: [
-            const Text('🛡️', style: TextStyle(fontSize: 18)),
+            const Icon(Icons.security_rounded, color: Colors.lightBlueAccent, size: 18),
             const SizedBox(width: 10),
-            Text('¡Escudo activado $horas horas por $precio 🪙!',
+            Text('¡Escudo activado $horas horas por $precio pts!',
                 style: const TextStyle(
                     color: Colors.lightBlueAccent,
                     fontWeight: FontWeight.bold,
@@ -4752,7 +4751,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         boxShadow: [BoxShadow(color: _p.globalRed.withValues(alpha: 0.25), blurRadius: 14)],
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('⚔️', style: TextStyle(fontSize: 13)),
+        Icon(Icons.flash_on_rounded, color: _p.globalRed, size: 13),
         const SizedBox(width: 8),
         Column(crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min, children: [
@@ -5937,7 +5936,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               Text('+${(_objetivoGlobal!['recompensa'] as num?)?.toInt() ?? 0}',
                   style: GoogleFonts.orbitron(color: _kGold, fontSize: 16,
                       fontWeight: FontWeight.w900)),
-              Text('🪙 el lunes',
+              Text('pts el lunes',
                   style: GoogleFonts.inter(color: _p.goldDim, fontSize: 10)),
             ]),
           ]),
@@ -6181,15 +6180,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Widget _buildSelectorEstiloMapa() {
     final estilos = [
-      {'id': 'normal',   'emoji': '🗺️', 'label': 'Normal'},
-      {'id': 'satelite', 'emoji': '🛰️', 'label': 'Satélite'},
-      {'id': 'militar',  'emoji': '🎖️', 'label': 'Militar'},
+      {'id': 'normal',   'icon': Icons.map_rounded,           'label': 'Normal'},
+      {'id': 'satelite', 'icon': Icons.satellite_alt_rounded, 'label': 'Satélite'},
+      {'id': 'militar',  'icon': Icons.military_tech_rounded, 'label': 'Militar'},
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.only(left: 2, bottom: 6),
         child: Row(children: [
-          const Text('👑', style: TextStyle(fontSize: 10)),
+          Icon(Icons.layers_rounded, color: _p.goldDim, size: 10),
           const SizedBox(width: 5),
           Text('ESTILO DE MAPA', style: GoogleFonts.inter(color: _p.goldDim,
               fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 2)),
@@ -6228,7 +6227,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(e['emoji'] as String, style: const TextStyle(fontSize: 16)),
+                    Icon(e['icon'] as IconData, size: 16,
+                        color: selected ? _kGoldLight : _p.goldDim),
                     const SizedBox(height: 2),
                     Text(e['label'] as String,
                         style: GoogleFonts.inter(fontSize: 9,
@@ -6267,8 +6267,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               ],
             ),
             child: Center(
-                child: Text(isPaused ? '▶️' : '⏸️',
-                    style: const TextStyle(fontSize: 26))),
+                child: Icon(
+                  isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  color: _p.ink, size: 28)),
           ),
         ),
         const SizedBox(width: 14),
