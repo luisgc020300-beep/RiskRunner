@@ -783,12 +783,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           });
         }
       } else if (savedMode == 'ruta') {
-        // Historical view: mode already set above; live view: needs full activation
-        if (widget.modoInicial == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && !_state.modoRutas) _activarModoRutas();
-          });
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (widget.modoInicial != null) {
+            // Vista histórica: cargar rutas y centrar en la zona de la sesión
+            _cargarMisRutas();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _moverCamara(_state.centro, 13.0);
+            });
+          } else if (!_state.modoRutas) {
+            _activarModoRutas();
+          }
+        });
       }
     }
   }
