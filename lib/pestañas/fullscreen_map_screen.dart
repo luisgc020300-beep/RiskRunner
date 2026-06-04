@@ -1969,117 +1969,123 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final isGlobal    = _state.modoGlobal;
     final isRutas     = _state.modoRutas;
 
-    Widget pill({
+    Widget modeBtn({
       required String label,
       required IconData icon,
       required bool isActive,
       required Color color,
       required VoidCallback? onTap,
-      Widget? extra,
+      Widget? badge,
     }) {
-      return GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: isActive ? color.withValues(alpha: 0.18) : _kBg.withValues(alpha: 0.78),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isActive ? color.withValues(alpha: 0.6) : _kBorder2,
-              width: 1,
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? color.withValues(alpha: 0.14)
+                  : _kSurface.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isActive ? color.withValues(alpha: 0.55) : _kBorder2,
+                width: isActive ? 1.5 : 1.0,
+              ),
+              boxShadow: isActive
+                  ? [BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 10)]
+                  : null,
             ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 17, color: isActive ? color : _kSub),
+              const SizedBox(height: 4),
+              if (badge != null) ...[badge, const SizedBox(height: 2)],
+              Text(label,
+                  style: _raj(9, isActive ? FontWeight.w700 : FontWeight.w500,
+                      isActive ? color : _kSub)),
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon, size: 11, color: isActive ? color : _kSub),
-            const SizedBox(width: 4),
-            Text(label, style: _raj(9, FontWeight.w900,
-                isActive ? color : _kSub, spacing: 0.8)),
-            if (extra != null) ...[const SizedBox(width: 4), extra],
-          ]),
         ),
       );
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: _kBg.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(24),
+            color: _kBg.withValues(alpha: 0.40),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kBorder2),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              pill(
-                label: 'COMPETITIVO',
-                icon: Icons.location_on_rounded,
-                isActive: isCiudad,
-                color: _kBlue,
-                onTap: isCiudad ? null : () async {
-                  _state.setTerritorios([]);
-                  if (isGlobal) _toggleModo();
-                  if (isSolitario) _state.setModoSolitario(false);
-                  if (isRutas) _state.setModoRutas(false);
-                  await WidgetsBinding.instance.endOfFrame;
-                  await (_centroListo ?? Future.value());
-                  await _refrescarCentroGps();
-                  setState(() => _fabCentradoEnUsuario = false);
-                  _moverCamara(_state.centro, 13.0);
-                  await _cargarTerritorios();
-                },
-              ),
-              const SizedBox(width: 5),
-              pill(
-                label: 'SOLITARIO',
-                icon: Icons.explore_rounded,
-                isActive: isSolitario,
-                color: _kSafe,
-                onTap: isSolitario ? null : () async {
-                  if (isGlobal) _toggleModo();
-                  await _activarModoSolitario();
-                },
-              ),
-              const SizedBox(width: 5),
-              pill(
-                label: 'RUTAS',
-                icon: Icons.route_rounded,
-                isActive: isRutas,
-                color: const Color(0xFF9B72CF),
-                onTap: isRutas ? null : () async {
-                  if (isGlobal) _toggleModo();
-                  if (isSolitario) _state.setModoSolitario(false);
-                  await _activarModoRutas();
-                },
-              ),
-              const SizedBox(width: 5),
-              pill(
-                label: 'GLOBAL',
-                icon: Icons.public_rounded,
-                isActive: isGlobal,
-                color: _kGoldLight,
-                onTap: isGlobal ? null : () {
-                  if (isSolitario) _state.setModoSolitario(false);
-                  if (isRutas) _state.setModoRutas(false);
-                  _toggleModo();
-                },
-                extra: isGlobal && _state.territoriosMios > 0
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: _kGold.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text('${_state.territoriosMios}/5',
-                            style: _raj(8, FontWeight.w900, _kGold)),
-                      )
-                    : null,
-              ),
-            ]),
-          ),
+          child: Row(children: [
+            modeBtn(
+              label: 'Competitivo',
+              icon: Icons.location_on_rounded,
+              isActive: isCiudad,
+              color: _kBlue,
+              onTap: isCiudad ? null : () async {
+                _state.setTerritorios([]);
+                if (isGlobal) _toggleModo();
+                if (isSolitario) _state.setModoSolitario(false);
+                if (isRutas) _state.setModoRutas(false);
+                await WidgetsBinding.instance.endOfFrame;
+                await (_centroListo ?? Future.value());
+                await _refrescarCentroGps();
+                setState(() => _fabCentradoEnUsuario = false);
+                _moverCamara(_state.centro, 13.0);
+                await _cargarTerritorios();
+              },
+            ),
+            const SizedBox(width: 4),
+            modeBtn(
+              label: 'Solitario',
+              icon: Icons.explore_rounded,
+              isActive: isSolitario,
+              color: _kSafe,
+              onTap: isSolitario ? null : () async {
+                if (isGlobal) _toggleModo();
+                await _activarModoSolitario();
+              },
+            ),
+            const SizedBox(width: 4),
+            modeBtn(
+              label: 'Rutas',
+              icon: Icons.route_rounded,
+              isActive: isRutas,
+              color: const Color(0xFF9B72CF),
+              onTap: isRutas ? null : () async {
+                if (isGlobal) _toggleModo();
+                if (isSolitario) _state.setModoSolitario(false);
+                await _activarModoRutas();
+              },
+            ),
+            const SizedBox(width: 4),
+            modeBtn(
+              label: 'Global',
+              icon: Icons.public_rounded,
+              isActive: isGlobal,
+              color: _kGoldLight,
+              onTap: isGlobal ? null : () {
+                if (isSolitario) _state.setModoSolitario(false);
+                if (isRutas) _state.setModoRutas(false);
+                _toggleModo();
+              },
+              badge: isGlobal && _state.territoriosMios > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: _kGold.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text('${_state.territoriosMios}/5',
+                          style: _raj(7, FontWeight.w900, _kGold)),
+                    )
+                  : null,
+            ),
+          ]),
         ),
       ),
     );
