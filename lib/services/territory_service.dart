@@ -410,34 +410,50 @@ class TerritoryService {
       );
     }
 
-    try {
-      final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('atacarTerritorio');
+    const noReintentar = {'permission-denied', 'not-found', 'invalid-argument', 'unauthenticated'};
+    FirebaseFunctionsException? lastFcnError;
 
-      final result = await callable.call<Map<String, dynamic>>({
-        'territorioDefensorId': territorioDefensorId,
-        'rutaAtacante': rutaAtacante
-            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-            .toList(),
-        'velocidadMediaAtacanteKmh': velocidadMediaKmh,
-      });
+    for (int intento = 1; intento <= 3; intento++) {
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('atacarTerritorio');
 
-      final ataque = AtaqueResult.fromMap(
-          Map<String, dynamic>.from(result.data as Map));
+        final result = await callable.call<Map<String, dynamic>>({
+          'territorioDefensorId': territorioDefensorId,
+          'rutaAtacante': rutaAtacante
+              .map((p) => {'lat': p.latitude, 'lng': p.longitude})
+              .toList(),
+          'velocidadMediaAtacanteKmh': velocidadMediaKmh,
+        });
 
-      if (ataque.conquistoAlgo) invalidarCache();
-      return ataque;
+        final ataque = AtaqueResult.fromMap(
+            Map<String, dynamic>.from(result.data as Map));
 
-    } on FirebaseFunctionsException catch (e) {
-      debugPrint('❌ atacarTerritorio [${e.code}]: ${e.message}');
-      rethrow;
-    } catch (e) {
-      debugPrint('❌ Error inesperado en atacarTerritorio: $e');
-      return AtaqueResult(
-        ok: false, accion: 'sin_daño', hpAntes: 0, hpDespues: 0,
-        danio: 0, monedasBotin: 0, mensaje: 'Error: $e',
-      );
+        if (ataque.conquistoAlgo) invalidarCache();
+        return ataque;
+
+      } on FirebaseFunctionsException catch (e) {
+        if (noReintentar.contains(e.code)) {
+          debugPrint('❌ atacarTerritorio [${e.code}]: ${e.message}');
+          rethrow;
+        }
+        lastFcnError = e;
+        debugPrint('⚠️ atacarTerritorio intento $intento [${e.code}], reintentando...');
+      } catch (e) {
+        debugPrint('❌ Error inesperado en atacarTerritorio: $e');
+        return AtaqueResult(
+          ok: false, accion: 'sin_daño', hpAntes: 0, hpDespues: 0,
+          danio: 0, monedasBotin: 0, mensaje: 'Error: $e',
+        );
+      }
+      if (intento < 3) await Future.delayed(Duration(seconds: intento * 2));
     }
+
+    if (lastFcnError != null) throw lastFcnError;
+    return const AtaqueResult(
+      ok: false, accion: 'sin_daño', hpAntes: 0, hpDespues: 0,
+      danio: 0, monedasBotin: 0, mensaje: 'Sin respuesta del servidor.',
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════

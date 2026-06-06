@@ -32,6 +32,7 @@ import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
 import '../services/health_service.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/ranking_service.dart';
 import '../services/onboarding_service.dart';
@@ -200,6 +201,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
   Position? _ultimaPosicionVelocidad;
+  ScaffoldFeatureController? _gpsSnackBar;
 
   // ── Barrios OSM (modo solitario)
   List<_BarrioData> _barriosCercanos   = [];
@@ -2885,6 +2887,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       (Position pos) async {
         if (isPaused || !mounted) return;
 
+        _gpsSnackBar?.close();
+        _gpsSnackBar = null;
+
         final acResultado = _antiCheat.analizarPunto(pos);
         if (!acResultado.esValido) {
           if (_antiCheat.sesionCancelada && !_sesionInvalidadaPorCheat) {
@@ -3230,6 +3235,35 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _stopping = false;
     _stopwatch.reset();
     _stopwatch.start();
+
+    if (_currentPosition == null && mounted) {
+      _gpsSnackBar = ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 15),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF3A3A3C)),
+          ),
+          child: Row(children: [
+            const SizedBox(
+              width: 14, height: 14,
+              child: CircularProgressIndicator(
+                  strokeWidth: 1.5, color: Color(0xFF636366)),
+            ),
+            const SizedBox(width: 12),
+            const Text('Buscando señal GPS...', style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            )),
+          ]),
+        ),
+      ));
+    }
     WakelockPlus.enable();
     _iniciarTimerSesion();
     _timerController.start();
@@ -3265,7 +3299,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     });
 
     await _mapboxMap?.gestures.updateSettings(
-        mapbox.GesturesSettings(rotateEnabled: false, pitchEnabled: false));
+        mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
     if (_currentPosition != null) {
       await _moverCamara(
         lat: _currentPosition!.latitude, lng: _currentPosition!.longitude,
@@ -3776,19 +3810,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || ruta.isEmpty || _territorios.isEmpty) return 0;
 
-    final rutaParaCloud = ruta
-        .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-        .toList();
-
     final double velocidadMedia = _velocidadActualKmh > 0
         ? _velocidadActualKmh
         : (distancia > 0 && tiempo.inSeconds > 0
             ? distancia / (tiempo.inSeconds / 3600)
             : 5.0);
-
-    final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
-        .httpsCallable('atacarTerritorio',
-            options: HttpsCallableOptions(timeout: const Duration(seconds: 30)));
 
     final territoriosObjetivo = _territorios.where((t) {
       if (t.esMio) return false;
@@ -3800,87 +3826,100 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (territoriosObjetivo.isEmpty) return 0;
 
+    bool huboError = false;
+
     final resultados = await Future.wait(
       territoriosObjetivo.map((t) async {
         try {
-          final result = await callable.call({
-            'territorioDefensorId':      t.docId,
-            'rutaAtacante':              rutaParaCloud,
-            'velocidadMediaAtacanteKmh': velocidadMedia,
-          });
-          final data   = result.data as Map<String, dynamic>;
-          final accion = data['accion'] as String?;
-          if (data['ok'] == true) {
-            if (accion == 'conquista_total' || accion == 'robo_parcial') {
-              _narrador.eventoConquista(t.ownerNickname);
-              if (accion == 'conquista_total') {
-                _escribirActivityFeed(
-                  territoryName:     t.nombreTerritorio ?? t.ownerNickname,
-                  territoryId:       t.docId,
-                  mode:              _modoSolitario ? 'solitario' : 'competitivo',
-                  previousOwnerNick: t.ownerNickname,
-                  fromColorValue:    t.color.toARGB32(),
-                );
-              }
-              TerritoryService.invalidarCache();
-              GameStateService.instance.invalidateTerritories();
-              _puntosGloboCargados = false;
-              final nuevos = await TerritoryService.cargarTodosLosTerritorios(
-                  centro: _currentPosition != null
-                      ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-                      : null,
-                  modo: _modoSolitario ? 'solitario' : 'competitivo');
-                if (_modoSolitario) {
-                  GameStateService.instance.setSolitarioTerritories(nuevos);
-                } else {
-                  GameStateService.instance.setCompetitiveTerritories(nuevos);
-                }
-                if (mounted) {
-                  setState(() => _territorios = nuevos);
-                  await _dibujarTerritoriosEnMapa();
-                }
-              return 1;
-            } else if (accion == 'daño') {
-              final hpDespues     = data['hpDespues'] as int? ?? 0;
-              final bajoDeEstado  = data['bajoDeEstado'] as bool? ?? false;
-              final estadoDespues = data['estadoDespues'] as String? ?? '';
-              if (mounted) {
-                final mensaje = bajoDeEstado
-                    ? '⚠️ Territorio debilitado a estado ${estadoDespues.toUpperCase()}'
-                    : '⚔️ Daño causado. HP rival: $hpDespues%';
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  duration: const Duration(seconds: 3),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  content: _snackWrap(
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
-                    shadow: _p.terracotta,
-                    child: Row(children: [
-                      const Icon(Icons.flash_on_rounded, color: Color(0xFFFFE8C0), size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(mensaje,
-                          style: const TextStyle(color: Color(0xFFFFE8C0),
-                              fontWeight: FontWeight.bold, fontSize: 13))),
-                    ]),
-                  ),
-                ));
-              }
+          final ataque = await TerritoryService.atacarTerritorio(
+            territorioDefensorId: t.docId,
+            rutaAtacante:         ruta,
+            velocidadMediaKmh:    velocidadMedia,
+          );
+
+          if (ataque.conquistoAlgo) {
+            _narrador.eventoConquista(t.ownerNickname);
+            if (ataque.accion == 'conquista_total') {
+              _escribirActivityFeed(
+                territoryName:     t.nombreTerritorio ?? t.ownerNickname,
+                territoryId:       t.docId,
+                mode:              _modoSolitario ? 'solitario' : 'competitivo',
+                previousOwnerNick: t.ownerNickname,
+                fromColorValue:    t.color.toARGB32(),
+              );
             }
+            _puntosGloboCargados = false;
+            final nuevos = await TerritoryService.cargarTodosLosTerritorios(
+                centro: _currentPosition != null
+                    ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                    : null,
+                modo: _modoSolitario ? 'solitario' : 'competitivo');
+            if (_modoSolitario) {
+              GameStateService.instance.setSolitarioTerritories(nuevos);
+            } else {
+              GameStateService.instance.setCompetitiveTerritories(nuevos);
+            }
+            if (mounted) {
+              setState(() => _territorios = nuevos);
+              await _dibujarTerritoriosEnMapa();
+            }
+            return 1;
+          } else if (ataque.accion == 'daño' && ataque.ok && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              duration: const Duration(seconds: 3),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              content: _snackWrap(
+                gradient: const LinearGradient(
+                    colors: [Color(0xFF6B1500), Color(0xFFD4520A)]),
+                shadow: _p.terracotta,
+                child: Row(children: [
+                  const Icon(Icons.flash_on_rounded,
+                      color: Color(0xFFFFE8C0), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                    'Daño causado. HP rival: ${ataque.hpDespues}%',
+                    style: const TextStyle(color: Color(0xFFFFE8C0),
+                        fontWeight: FontWeight.bold, fontSize: 13),
+                  )),
+                ]),
+              ),
+            ));
           }
           return 0;
-        } on FirebaseFunctionsException catch (e) {
-          debugPrint('Error atacarTerritorio [${t.docId}]: ${e.message}');
-          return 0;
         } catch (e) {
-          debugPrint('Error atacarTerritorio: $e');
+          debugPrint('Error atacarTerritorio [${t.docId}]: $e');
+          huboError = true;
           return 0;
         }
       }),
       eagerError: false,
     );
 
-    return resultados.fold<int>(0, (sum, val) => sum + val);
+    final total = resultados.fold<int>(0, (acc, val) => acc + val);
+
+    if (huboError && total == 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 4),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        content: _snackWrap(
+          gradient: const LinearGradient(
+              colors: [Color(0xFF1C1C1E), Color(0xFF2C2C2E)]),
+          shadow: Colors.black54,
+          child: const Row(children: [
+            Icon(Icons.wifi_off_rounded, color: Color(0xFF636366), size: 18),
+            SizedBox(width: 10),
+            Expanded(child: Text(
+              'No se pudo procesar la conquista — comprueba tu conexión',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            )),
+          ]),
+        ),
+      ));
+    }
+
+    return total;
   }
 
   bool _rutaPasaPorPoligono(List<LatLng> ruta, List<LatLng> pol) =>
@@ -5988,18 +6027,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     return Column(mainAxisSize: MainAxisSize.min, children: [
       if (!_territoriosCargados && !_modoRuta) ...[
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const SizedBox(
-            width: 11, height: 11,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: _kGold),
+        Shimmer.fromColors(
+          baseColor: const Color(0xFF2C2C2E),
+          highlightColor: const Color(0xFF48484A),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _shimmerBar(width: 130),
+              const SizedBox(height: 6),
+              _shimmerBar(width: 96),
+              const SizedBox(height: 6),
+              _shimmerBar(width: 112),
+            ],
           ),
-          const SizedBox(width: 7),
-          Text(
-            'Cargando territorios...',
-            style: GoogleFonts.inter(color: Colors.white54, fontSize: 11,
-                fontWeight: FontWeight.w500),
-          ),
-        ]),
+        ),
         const SizedBox(height: 10),
       ],
       Row(children: [
@@ -6131,6 +6172,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ),
     ]);
   }
+
+  Widget _shimmerBar({double width = double.infinity}) => Container(
+    height: 11,
+    width: width,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(4),
+    ),
+  );
 
   Widget _modeButton({
     required IconData icon,

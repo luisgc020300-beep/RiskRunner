@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territory_service.dart';
@@ -259,31 +262,193 @@ class _ResumenScreenState extends State<ResumenScreen>
   // ── Compartir resumen ────────────────────────────────────────────────────
   Future<void> _compartirResumen() async {
     HapticFeedback.mediumImpact();
-    final km      = widget.distancia.toStringAsFixed(2);
-    final min     = widget.tiempo.inMinutes.toString().padLeft(2, '0');
-    final seg     = (widget.tiempo.inSeconds % 60).toString().padLeft(2, '0');
-    final ritmo   = widget.tiempo.inSeconds > 0 && widget.distancia > 0
-        ? () {
-            final ritmoTotal = widget.tiempo.inSeconds / 60.0 / widget.distancia;
-            final ritmoMin   = ritmoTotal.floor();
-            final ritmoSeg   = ((ritmoTotal - ritmoMin) * 60).round();
-            return "${ritmoMin}'${ritmoSeg.toString().padLeft(2, '0')}\"";
-          }()
-        : null;
+    final cardKey = GlobalKey();
 
-    final buffer = StringBuffer();
-    buffer.writeln('Acabo de correr $km km con Runner Risk');
-    buffer.writeln('$min:$seg${ritmo != null ? ' · $ritmo/km' : ''}');
-    if (_territoriosConquistados > 0) {
-      buffer.writeln('$_territoriosConquistados territorios conquistados · +$_puntosLigaSesion pts de liga');
-    }
-    if (_rachaActual > 1) {
-      buffer.writeln('Racha de $_rachaActual días consecutivos');
-    }
-    buffer.writeln('Conquista tu ciudad con Runner Risk');
-
-    await SharePlus.instance.share(ShareParams(text: buffer.toString().trim()));
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        bool compartiendo = false;
+        return StatefulBuilder(builder: (ctx, setS) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 32, height: 3,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              RepaintBoundary(key: cardKey, child: _buildShareCard()),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: compartiendo ? null : () async {
+                  setS(() => compartiendo = true);
+                  try {
+                    final boundary = cardKey.currentContext
+                        ?.findRenderObject() as RenderRepaintBoundary?;
+                    if (boundary == null) { if (ctx.mounted) Navigator.pop(ctx); return; }
+                    final image = await boundary.toImage(pixelRatio: 3.0);
+                    final byteData = await image.toByteData(
+                        format: ui.ImageByteFormat.png);
+                    final bytes = byteData?.buffer.asUint8List();
+                    if (bytes == null) { if (ctx.mounted) Navigator.pop(ctx); return; }
+                    final dir  = await getTemporaryDirectory();
+                    final file = File(
+                        '${dir.path}/riskrunner_${DateTime.now().millisecondsSinceEpoch}.png');
+                    await file.writeAsBytes(bytes);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    await SharePlus.instance.share(ShareParams(
+                      files: [XFile(file.path, mimeType: 'image/png')],
+                    ));
+                  } catch (e) {
+                    debugPrint('Share image error: $e');
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    final km  = widget.distancia.toStringAsFixed(2);
+                    final min = widget.tiempo.inMinutes.toString().padLeft(2, '0');
+                    final seg = (widget.tiempo.inSeconds % 60).toString().padLeft(2, '0');
+                    await SharePlus.instance.share(ShareParams(
+                      text: 'Acabo de correr ${km}km en $min:$seg con RiskRunner',
+                    ));
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 17),
+                  decoration: BoxDecoration(
+                    color: _kWhite,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: compartiendo
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Text('COMPARTIR', style: TextStyle(
+                            color: Color(0xFFE8E8ED),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.5)),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ));
+      },
+    );
   }
+
+  Widget _buildShareCard() {
+    final km  = widget.distancia.toStringAsFixed(2);
+    final min = widget.tiempo.inMinutes.toString().padLeft(2, '0');
+    final seg = (widget.tiempo.inSeconds % 60).toString().padLeft(2, '0');
+
+    String ritmo = '--';
+    if (widget.tiempo.inSeconds > 0 && widget.distancia > 0) {
+      final rTotal = widget.tiempo.inSeconds / 60.0 / widget.distancia;
+      final rMin   = rTotal.floor();
+      final rSeg   = ((rTotal - rMin) * 60).round();
+      ritmo = "$rMin'${rSeg.toString().padLeft(2, '0')}\"";
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C0C0C),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Container(
+              width: 4, height: 14,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE63030),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('RISKRUNNER', style: TextStyle(
+              color: Color(0xFFE63030),
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 4,
+            )),
+          ]),
+          const SizedBox(height: 20),
+          Text(km, style: const TextStyle(
+            color: Colors.white,
+            fontSize: 72,
+            fontWeight: FontWeight.w900,
+            height: 0.9,
+            letterSpacing: -2,
+          )),
+          const Text('KM', style: TextStyle(
+            color: Color(0xFF636366),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 3,
+          )),
+          const SizedBox(height: 20),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _shareStatCell('$min:$seg', 'TIEMPO'),
+            const SizedBox(width: 24),
+            _shareStatCell(ritmo, 'MIN/KM'),
+            if (_territoriosConquistados > 0) ...[
+              const SizedBox(width: 24),
+              _shareStatCell('$_territoriosConquistados', 'ZONAS'),
+            ],
+          ]),
+          if (_rachaActual > 1) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD60A).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text('$_rachaActual días de racha', style: const TextStyle(
+                color: Color(0xFFFFD60A),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              )),
+            ),
+          ],
+          const SizedBox(height: 20),
+          const Text('Conquista tu ciudad', style: TextStyle(
+            color: Color(0xFF2C2C2E),
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _shareStatCell(String v, String l) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(v, style: const TextStyle(
+        color: Colors.white,
+        fontSize: 22,
+        fontWeight: FontWeight.w900,
+      )),
+      Text(l, style: const TextStyle(
+        color: Color(0xFF636366),
+        fontSize: 8,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.5,
+      )),
+    ],
+  );
 
   // ── Solicitar valoracion App Store ───────────────────────────────────────
   Future<void> _verificarSolicitudResena() async {
