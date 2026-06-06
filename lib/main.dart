@@ -254,6 +254,7 @@ class _MyAppState extends State<MyApp> {
                 modoRuta:               (args?['modoRuta']      as bool?)     ?? false,
                 monedasRuta:            (args?['monedasRuta']   as int?)      ?? 0,
                 modoInicial:            args?['modoInicial']    as String?,
+                splitsPorKm:            (args?['splitsPorKm']   as List?)?.cast<double>(),
               ),
             );
 

@@ -203,6 +203,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Position? _ultimaPosicionVelocidad;
   ScaffoldFeatureController? _gpsSnackBar;
 
+  // ── Splits por km (ritmo real en min/km por cada km completado)
+  final List<double> _splitsPorKm  = [];
+  int    _kmUltimoSplit             = 0;
+  double _tiempoUltimoSplitSeg      = 0;
+
   // ── Barrios OSM (modo solitario)
   List<_BarrioData> _barriosCercanos   = [];
   _BarrioData?      _barrioActual;
@@ -2993,6 +2998,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
         final kmActual = _distanciaTotal.floor();
         if (kmActual > 0) _narrador.eventoKilometro(kmActual);
+
+        if (kmActual > _kmUltimoSplit) {
+          final t = _stopwatch.elapsed.inSeconds.toDouble();
+          final dt = t - _tiempoUltimoSplitSeg;
+          if (dt > 0) _splitsPorKm.add(dt / 60.0);
+          _tiempoUltimoSplitSeg = t;
+          _kmUltimoSplit = kmActual;
+        }
+
         if (_distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
           _distanciaUltimoAnalisisRitmo = _distanciaTotal;
           _narrador.analizarRitmo(_velocidadActualKmh);
@@ -3233,6 +3247,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _antiCheat.resetear();
     _sesionInvalidadaPorCheat = false;
     _stopping = false;
+    _splitsPorKm.clear();
+    _kmUltimoSplit        = 0;
+    _tiempoUltimoSplitSeg = 0;
     _stopwatch.reset();
     _stopwatch.start();
 
@@ -3741,6 +3758,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'objetivoGlobal':          _objetivoGlobal,
       'globalConquistado':       _globalConquistado,
       'nuevaClausula':           _nuevaClausula,
+      'splitsPorKm':             List<double>.from(_splitsPorKm),
       'modoInicial':             _modoSolitario ? 'solitario'
                                      : _objetivoGlobal != null ? 'global'
                                      : 'competitivo',
@@ -4562,6 +4580,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         'modoInicial':          'ruta',
         'routeId':              routeId,
         'monedasRuta':          recompensa.monedas,
+        'splitsPorKm':          List<double>.from(_splitsPorKm),
       });
     }
   }

@@ -65,6 +65,8 @@ class ResumenScreen extends StatefulWidget {
   /// Modo con el que se abrirá el FullscreenMap: 'competitivo', 'solitario',
   /// 'ruta', 'global'. Null → usa el último modo guardado.
   final String? modoInicial;
+  /// Ritmo real (min/km) por cada km completado durante la carrera.
+  final List<double>? splitsPorKm;
 
   const ResumenScreen({
     super.key,
@@ -85,6 +87,7 @@ class ResumenScreen extends StatefulWidget {
     this.monedasRuta             = 0,
     this.esDetalle               = false,
     this.modoInicial,
+    this.splitsPorKm,
   });
 
   @override
@@ -978,7 +981,17 @@ class _ResumenScreenState extends State<ResumenScreen>
                   const SizedBox(height: 10),
 
                   Reveal(anim: _heroReveal, child: _buildSecondaryMetrics()),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+
+                  if (widget.splitsPorKm != null && widget.splitsPorKm!.length >= 2)
+                    Reveal(
+                      anim: _statsReveal,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildPaceChart(),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
 
                   Reveal(
                     anim: _mapReveal,
@@ -1388,4 +1401,202 @@ class _ResumenScreenState extends State<ResumenScreen>
         color: _kGrey, fontSize: 8,
         fontWeight: FontWeight.w900, letterSpacing: 3)),
   ]);
+
+  // ── Gráfica de ritmo por km ──────────────────────────────────────────────
+  Widget _buildPaceChart() {
+    final splits = widget.splitsPorKm!;
+    final avg    = splits.reduce((a, b) => a + b) / splits.length;
+    final best   = splits.reduce((a, b) => a < b ? a : b);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _sectionLabel('RITMO POR KM'),
+              const Spacer(),
+              Text(_fmtPace(best), style: const TextStyle(
+                  color: _kWhite, fontSize: 13, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 3),
+              const Text('mejor', style: TextStyle(
+                  color: _kGreyDim, fontSize: 9, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 10),
+              Text(_fmtPace(avg), style: const TextStyle(
+                  color: _kGrey, fontSize: 13, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 3),
+              const Text('media', style: TextStyle(
+                  color: _kGreyDim, fontSize: 9, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 110,
+            child: CustomPaint(
+              painter: _PaceBarPainter(splits: splits),
+              size: Size.infinite,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            _legendDot(const Color(0xFFE63030), '<4\'30\"'),
+            const SizedBox(width: 10),
+            _legendDot(const Color(0xFFFF9500), '<5\'30\"'),
+            const SizedBox(width: 10),
+            _legendDot(const Color(0xFFFFD60A), '<6\'30\"'),
+            const SizedBox(width: 10),
+            _legendDot(const Color(0xFF30D158), '<7\'30\"'),
+            const SizedBox(width: 10),
+            _legendDot(const Color(0xFF636366), 'lento'),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  static String _fmtPace(double minKm) {
+    final m = minKm.floor();
+    final s = ((minKm - m) * 60).round();
+    return "$m'${s.toString().padLeft(2, '0')}\"";
+  }
+
+  Widget _legendDot(Color color, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 6, height: 6,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(
+          color: _kGreyDim, fontSize: 8, fontWeight: FontWeight.w600)),
+    ],
+  );
+}
+
+// =============================================================================
+// PACE BAR PAINTER
+// =============================================================================
+class _PaceBarPainter extends CustomPainter {
+  final List<double> splits;
+  const _PaceBarPainter({required this.splits});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (splits.isEmpty) return;
+
+    const labelAreaLeft = 30.0;
+    const labelAreaBottom = 18.0;
+    final chartW = size.width - labelAreaLeft;
+    final chartH = size.height - labelAreaBottom;
+
+    final minP = splits.reduce((a, b) => a < b ? a : b);
+    final maxP = splits.reduce((a, b) => a > b ? a : b);
+    final range = (maxP - minP).clamp(0.2, double.infinity);
+    final avg   = splits.reduce((a, b) => a + b) / splits.length;
+
+    final n      = splits.length;
+    final gap    = 3.0;
+    final barW   = (chartW - gap * (n - 1)) / n;
+
+    for (int i = 0; i < n; i++) {
+      final pace = splits[i];
+      // Taller bar = faster pace
+      final norm    = 0.15 + 0.85 * (1 - (pace - minP) / range);
+      final barH    = chartH * norm;
+      final x       = labelAreaLeft + i * (barW + gap);
+      final y       = chartH - barH;
+
+      final paint = Paint()
+        ..color = _zoneColor(pace)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(x, y, barW, barH),
+          topLeft: const Radius.circular(3),
+          topRight: const Radius.circular(3),
+        ),
+        paint,
+      );
+
+      // Pace label above bar (only if wide enough)
+      if (barW >= 22) {
+        final paceStr  = _fmtPace(pace);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: paceStr,
+            style: TextStyle(
+              color: _zoneColor(pace).withValues(alpha: 0.9),
+              fontSize: 7,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        if (tp.width <= barW + 2) {
+          tp.paint(canvas, Offset(x + barW / 2 - tp.width / 2, y - 11));
+        }
+      }
+
+      // Km label below bar
+      final kmTp = TextPainter(
+        text: TextSpan(
+          text: '${i + 1}',
+          style: const TextStyle(
+              color: Color(0xFF636366), fontSize: 8, fontWeight: FontWeight.w700),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      kmTp.paint(canvas,
+          Offset(x + barW / 2 - kmTp.width / 2, chartH + 4));
+    }
+
+    // Average pace dashed line
+    final avgNorm = 0.15 + 0.85 * (1 - (avg - minP) / range);
+    final avgY    = chartH * (1 - avgNorm);
+    final dashPaint = Paint()
+      ..color = const Color(0x44FFFFFF)
+      ..strokeWidth = 1;
+    double dx = labelAreaLeft;
+    while (dx < size.width) {
+      canvas.drawLine(Offset(dx, avgY), Offset(dx + 5, avgY), dashPaint);
+      dx += 9;
+    }
+
+    // Y-axis avg label
+    final avgTp = TextPainter(
+      text: TextSpan(
+        text: _fmtPace(avg),
+        style: const TextStyle(color: Color(0x66FFFFFF), fontSize: 7),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    avgTp.paint(canvas, Offset(0, avgY - avgTp.height / 2));
+  }
+
+  static Color _zoneColor(double pace) {
+    if (pace < 4.5) return const Color(0xFFE63030);
+    if (pace < 5.5) return const Color(0xFFFF9500);
+    if (pace < 6.5) return const Color(0xFFFFD60A);
+    if (pace < 7.5) return const Color(0xFF30D158);
+    return const Color(0xFF636366);
+  }
+
+  static String _fmtPace(double minKm) {
+    final m = minKm.floor();
+    final s = ((minKm - m) * 60).round();
+    return "$m'${s.toString().padLeft(2, '0')}\"";
+  }
+
+  @override
+  bool shouldRepaint(_PaceBarPainter old) => old.splits != splits;
 }
