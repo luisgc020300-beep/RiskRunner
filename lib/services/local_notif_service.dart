@@ -7,10 +7,14 @@ import 'package:timezone/timezone.dart' as tz;
 class LocalNotifService {
   static final _plugin = FlutterLocalNotificationsPlugin();
 
-  static const _chRacha   = 'riskrunner_racha';
-  static const _chSemanal = 'riskrunner_semanal';
-  static const _idRacha   = 1001;
-  static const _idSemanal = 1002;
+  static const _chRacha    = 'riskrunner_racha';
+  static const _chSemanal  = 'riskrunner_semanal';
+  static const _chInvasion = 'riskrunner_invasion';
+  static const _chReto     = 'riskrunner_reto';
+  static const _idRacha    = 1001;
+  static const _idSemanal  = 1002;
+  static const _idInvasion = 1003;
+  static const _idReto     = 1004;
 
   static bool _initialized = false;
 
@@ -118,6 +122,59 @@ class LocalNotifService {
       );
     } catch (e) {
       debugPrint('LocalNotifService.programarResumenSemanal: $e');
+    }
+  }
+
+  // ── Invasión de territorio ────────────────────────────────────────────────
+  /// Dispara una notificación inmediata cuando un rival conquista un territorio.
+  static Future<void> notificarInvasion({
+    required String territorio,
+    required String rival,
+  }) async {
+    try {
+      await _plugin.show(
+        _idInvasion,
+        '¡Territorio perdido!',
+        '$rival ha conquistado $territorio',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _chInvasion, 'Invasiones',
+            channelDescription: 'Alertas cuando pierdes un territorio',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            color: Color(0xFFE02020),
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('LocalNotifService.notificarInvasion: $e');
+    }
+  }
+
+  // ── Reto completado ───────────────────────────────────────────────────────
+  /// Dispara una notificación inmediata al completar un reto.
+  static Future<void> notificarRetoCumplido(String nombreReto) async {
+    try {
+      await _plugin.show(
+        _idReto,
+        '¡Reto completado!',
+        nombreReto,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _chReto, 'Logros y retos',
+            channelDescription: 'Notificaciones de retos completados',
+            importance: Importance.defaultImportance,
+            priority: Priority.defaultPriority,
+            icon: '@mipmap/ic_launcher',
+            color: Color(0xFFFFD60A),
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('LocalNotifService.notificarRetoCumplido: $e');
     }
   }
 }
