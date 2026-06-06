@@ -1306,11 +1306,14 @@ class _ResumenScreenState extends State<ResumenScreen>
       const SizedBox(height: 8),
       // Fila 1: ritmo medio, vel. media, kcal
       Row(children: [
-        Expanded(child: _metricTileSmall(ritmo,              'MIN/KM MEDIO',  isDark: isDark)),
+        Expanded(child: _metricTileSmall(ritmo,                  'MIN/KM MEDIO',
+            isDark: isDark, icon: Icons.timer_outlined,        iconColor: _kGrey)),
         const SizedBox(width: 8),
-        Expanded(child: _metricTileSmall(vel.toStringAsFixed(1), 'KM/H MEDIO', isDark: isDark)),
+        Expanded(child: _metricTileSmall(vel.toStringAsFixed(1), 'KM/H MEDIO',
+            isDark: isDark, icon: Icons.speed_rounded,         iconColor: _kGrey)),
         const SizedBox(width: 8),
-        Expanded(child: _metricTileSmall(kcal.toString(),    'KCAL',          isDark: isDark)),
+        Expanded(child: _metricTileSmall(kcal.toString(),        'KCAL',
+            isDark: isDark, icon: Icons.local_fire_department_rounded, iconColor: const Color(0xFFFF7B1A))),
       ]),
       const SizedBox(height: 8),
       // Fila 2: vel. máx, mejor km, elevación
@@ -1319,22 +1322,27 @@ class _ResumenScreenState extends State<ResumenScreen>
           widget.velocidadMaxima > 0
               ? widget.velocidadMaxima.toStringAsFixed(1)
               : '--',
-          'VEL. MÁX KM/H', isDark: isDark)),
+          'VEL. MÁX KM/H',
+          isDark: isDark, icon: Icons.rocket_launch_rounded, iconColor: const Color(0xFFFF9500))),
         const SizedBox(width: 8),
-        Expanded(child: _metricTileSmall(mejorKm, 'MEJOR KM', isDark: isDark)),
+        Expanded(child: _metricTileSmall(mejorKm, 'MEJOR KM',
+            isDark: isDark, icon: Icons.emoji_events_rounded, iconColor: const Color(0xFFFFD60A))),
         const SizedBox(width: 8),
         Expanded(child: _metricTileSmall(
           widget.elevacionGanada > 0
               ? '+${widget.elevacionGanada.round()} m'
               : '--',
-          'DESNIVEL +', isDark: isDark)),
+          'DESNIVEL +',
+          isDark: isDark, icon: Icons.terrain_rounded, iconColor: const Color(0xFF6E7CF2))),
       ]),
     ]);
   }
 
-  Widget _metricTileSmall(String v, String l, {bool isDark = false}) {
+  Widget _metricTileSmall(String v, String l,
+      {bool isDark = false, IconData? icon, Color? iconColor}) {
     final cardBg     = isDark ? const Color(0xFF2C2C2E) : _kSurface;
     final cardBorder = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
+    final textColor  = isDark ? Colors.white : _kWhite;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
       decoration: BoxDecoration(
@@ -1345,8 +1353,12 @@ class _ResumenScreenState extends State<ResumenScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (icon != null) ...[
+            Icon(icon, color: iconColor ?? _kGreyDim, size: 12),
+            const SizedBox(height: 4),
+          ],
           Text(v, style: TextStyle(
-              color:      isDark ? Colors.white : _kWhite,
+              color:      textColor,
               fontSize:   18,
               fontWeight: FontWeight.w900,
               height:     1)),
@@ -1497,7 +1509,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      final path = Path()
+      final path = ui.Path()
         ..moveTo(toCanvas(lats[0], lngs[0]).dx,
                  toCanvas(lats[0], lngs[0]).dy);
       for (int i = 1; i < widget.ruta.length; i++) {

@@ -5243,13 +5243,28 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (_state.grupos.isEmpty) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
         decoration: BoxDecoration(
             color: _shSurf,
             border: Border.all(color: _shBorder),
-            borderRadius: BorderRadius.circular(6)),
-        child: Text('No hay territorios en 5 km',
-            style: _raj(12, FontWeight.w500, _kSub)),
+            borderRadius: BorderRadius.circular(8)),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+                color: _kSub.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.map_outlined, color: _kSub, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Sin territorios cercanos',
+                style: _raj(12, FontWeight.w700, _kText)),
+            const SizedBox(height: 3),
+            Text('No hay zonas en un radio de 5 km',
+                style: _raj(10, FontWeight.w500, _kSub)),
+          ]),
+        ]),
       );
     }
     return Container(
@@ -5375,35 +5390,61 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
       est = 'DESGASTE'; c = _kWarn;
     }
+    final dias    = det.diasSinVisitar ?? 0;
+    final hpFrac  = ((kHpMax - dias * (100.0 / 7)).clamp(1.0, 100.0) / 100.0);
+    final nombre  = det.nombreTerritorio?.isNotEmpty == true
+        ? det.nombreTerritorio!
+        : 'ZONA #${i + 1}';
+
     return GestureDetector(
       onTap: () => _mostrarDialogo(det, nick),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(
-            horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
             color: _kSurface,
-            border: Border.all(color: c.withValues(alpha: 0.2)),
-            borderRadius: BorderRadius.circular(4)),
-        child: Row(children: [
-          Container(width: 2, height: 14, color: c,
-              margin: const EdgeInsets.only(right: 8)),
-          Text('ZONA #${i + 1}',
-              style: _raj(11, FontWeight.w800, _kText,
-                  spacing: 0.5)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 5, vertical: 2),
-            color: c.withValues(alpha: 0.08),
-            child: Text(est,
-                style: _raj(8, FontWeight.w800, c, spacing: 1))),
-          const Spacer(),
-          Text('${det.dist.toStringAsFixed(1)} km',
-              style: _raj(10, FontWeight.w600, _kSub)),
-          const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded,
-              color: _kRed.withValues(alpha: 0.5), size: 13),
+            border: Border.all(color: c.withValues(alpha: 0.22)),
+            borderRadius: BorderRadius.circular(6)),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: Row(children: [
+              Container(width: 2, height: 14, color: c,
+                  margin: const EdgeInsets.only(right: 8)),
+              Expanded(child: Text(nombre.toUpperCase(),
+                  style: _raj(11, FontWeight.w800, _kText, spacing: 0.5),
+                  overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(3)),
+                child: Text(est, style: _raj(8, FontWeight.w800, c, spacing: 1))),
+              const SizedBox(width: 8),
+              Text('${det.dist.toStringAsFixed(1)} km',
+                  style: _raj(10, FontWeight.w600, _kSub)),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: _kRed.withValues(alpha: 0.4), size: 13),
+            ]),
+          ),
+          // Mini barra de salud
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Stack(children: [
+              Container(height: 3,
+                  decoration: BoxDecoration(
+                      color: _shBorder, borderRadius: BorderRadius.circular(2))),
+              FractionallySizedBox(
+                widthFactor: hpFrac,
+                child: Container(height: 3,
+                    decoration: BoxDecoration(
+                        color: c, borderRadius: BorderRadius.circular(2),
+                        boxShadow: [BoxShadow(
+                            color: c.withValues(alpha: 0.45), blurRadius: 4)])),
+              ),
+            ]),
+          ),
         ]),
       ),
     );

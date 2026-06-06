@@ -1508,6 +1508,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           _buildRachaGauge(), const SizedBox(height: 16),
           if (_prDistancia > 0 || _prPaceMinKm > 0 || _prVelocidadMax > 0)
             ...[_buildPRsCard(), const SizedBox(height: 16)],
+          _buildHitosPanel(), const SizedBox(height: 16),
           if (_diasActividad.isNotEmpty)
             ...[_buildHeatmapActividad(), const SizedBox(height: 16)],
           if (_historialCompleto.isNotEmpty)
@@ -2404,6 +2405,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             ritmoMinKm: StatsService.ritmoMinKm(dist, seg),
             zona: ZonaRitmo.moderado,
             calles: [],
+            ruta: [],
           );
         }).toList();
 
@@ -2467,6 +2469,91 @@ class _PerfilScreenState extends State<PerfilScreen>
   // ══════════════════════════════════════════════════════════════════════════
   // RECORDS PERSONALES
   // ══════════════════════════════════════════════════════════════════════════
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HITOS — badges predefinidos calculados desde stats ya cargadas
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildHitosPanel() {
+    final hitos = <_Hito>[
+      // Corredor
+      _Hito('Primera carrera',   Icons.directions_run_rounded,     const Color(0xFFE02020), _totalCarreras >= 1),
+      _Hito('10 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 10),
+      _Hito('50 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 50),
+      _Hito('100 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 100),
+      _Hito('500 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 500),
+      _Hito('10 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 10),
+      _Hito('50 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 50),
+      // Conquistador
+      _Hito('Primera conquista', Icons.flag_rounded,               const Color(0xFF6E7CF2), _territoriosConquistados >= 1),
+      _Hito('10 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 10),
+      _Hito('50 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 50),
+      // Racha
+      _Hito('Racha 3 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 3),
+      _Hito('Racha 7 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 7),
+      _Hito('Racha 30 días',     Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 30),
+      // Retos
+      _Hito('Primer reto',       Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.isNotEmpty),
+      _Hito('5 retos',           Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.length >= 5),
+    ];
+
+    final desbloqueados = hitos.where((h) => h.unlocked).length;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kGold, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('HITOS', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: _kGold.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _kGold.withValues(alpha: 0.25)),
+            ),
+            child: Text('$desbloqueados/${hitos.length}',
+                style: _rajdhani(10, FontWeight.w800, _kGold, spacing: 0.5)),
+          ),
+        ]),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: hitos.map((h) => _hitoBadge(h)).toList(),
+        ),
+      ]),
+    );
+  }
+
+  Widget _hitoBadge(_Hito h) {
+    final color = h.unlocked ? h.color : _p.border2;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: h.unlocked ? h.color.withValues(alpha: 0.09) : _p.surface2,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: h.unlocked ? h.color.withValues(alpha: 0.35) : _p.border2),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(h.unlocked ? h.icon : Icons.lock_outline_rounded,
+            color: color, size: 13),
+        const SizedBox(width: 6),
+        Text(h.label,
+            style: _rajdhani(11, FontWeight.w700,
+                h.unlocked ? _p.title : _p.dim, spacing: 0.2)),
+      ]),
+    );
+  }
 
   Widget _buildPRsCard() {
     String _fmtPace(double minKm) {
@@ -3008,7 +3095,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (_carrerasRecientes.isEmpty) {
       return _Panel(
         accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
-        child: _emptyRow('Sin misiones registradas'));
+        child: _emptyRow('Sin misiones registradas', icon: Icons.task_alt_rounded));
     }
     final query     = _misionesQuery.trim().toLowerCase();
     final filtradas = query.isEmpty
@@ -3089,7 +3176,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (_logros.isEmpty) {
       return _Panel(
         accent: _kAccent, label: 'LOGROS', icon: Icons.emoji_events_outlined,
-        child: _emptyRow('Sin logros todavía'));
+        child: _emptyRow('Sin logros todavía', icon: Icons.emoji_events_outlined));
     }
     final query     = _logrosQuery.trim().toLowerCase();
     final filtrados = query.isEmpty
@@ -3206,7 +3293,15 @@ class _PerfilScreenState extends State<PerfilScreen>
     ]);
   }
 
-  Widget _emptyRow(String text) => Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(text, style: _rajdhani(12, FontWeight.w500, _p.dim)));
+  Widget _emptyRow(String text, {IconData icon = Icons.inbox_outlined}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(children: [
+          Icon(icon, color: _p.border2, size: 16),
+          const SizedBox(width: 10),
+          Text(text, style: _rajdhani(12, FontWeight.w500, _p.dim)),
+        ]),
+      );
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -3329,6 +3424,14 @@ class _LoaderPainter extends CustomPainter {
   }
   @override
   bool shouldRepaint(_LoaderPainter o) => o.progress != progress || o.pulse != pulse;
+}
+
+class _Hito {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool unlocked;
+  const _Hito(this.label, this.icon, this.color, this.unlocked);
 }
 
 class _BotonFoto extends StatelessWidget {

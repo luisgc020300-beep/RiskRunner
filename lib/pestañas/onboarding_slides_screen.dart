@@ -5,30 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 // =============================================================================
-// PALETA (coherente con ResumenScreen y ConquistaOverlay)
+// PALETA (iOS light — coherente con Map y Resumen)
 // =============================================================================
 const _kBg       = Color(0xFFE8E8ED);
 const _kSurface  = Color(0xFFFFFFFF);
 const _kBorder   = Color(0xFFC6C6C8);
 const _kDim      = Color(0xFF8E8E93);
+const _kText     = Color(0xFF1C1C1E);
 const _kAccent   = Color(0xFFE02020);
 
 // =============================================================================
 // MODELO DE SLIDE
 // =============================================================================
 class _SlideData {
-  final String tag;          // Ej: "MISIÓN 01"
-  final String headline;     // Línea grande
-  final String sub;          // Descripción
-  final String emoji;        // Icono grande
-  final Color accentColor;
-  final String mechanic;     // Qué mecánica se desbloquea
+  final String  tag;
+  final String  headline;
+  final String  sub;
+  final IconData icon;
+  final Color   accentColor;
+  final String  mechanic;
 
   const _SlideData({
     required this.tag,
     required this.headline,
     required this.sub,
-    required this.emoji,
+    required this.icon,
     required this.accentColor,
     required this.mechanic,
   });
@@ -36,10 +37,10 @@ class _SlideData {
 
 const _slides = [
   _SlideData(
-    tag: 'BIENVENIDO A RUNNER RISK',
+    tag: 'BIENVENIDO A RISKRUNNER',
     headline: 'La ciudad\nes tuya.',
     sub: 'Cada kilómetro que corres conquista territorio real. Marca el mapa. Defiende lo que es tuyo.',
-    emoji: '🏙️',
+    icon: Icons.location_city_rounded,
     accentColor: _kAccent,
     mechanic: 'CONQUISTA',
   ),
@@ -47,7 +48,7 @@ const _slides = [
     tag: 'MECÁNICA 01',
     headline: 'Corre.\nConquista.',
     sub: 'Tu ruta de hoy se convierte en zona tuya en el mapa. Cuanto más corres, más territorio controlas.',
-    emoji: '🗺️',
+    icon: Icons.map_rounded,
     accentColor: Color(0xFFFF7B1A),
     mechanic: 'RUN → ZONA',
   ),
@@ -55,7 +56,7 @@ const _slides = [
     tag: 'MECÁNICA 02',
     headline: 'Las zonas\nse deterioran.',
     sub: 'Si no vuelves a correr por tu territorio en 5 días, empieza a desvanecerse. En 10 días, cualquiera puede invadirlo.',
-    emoji: '⏳',
+    icon: Icons.hourglass_bottom_rounded,
     accentColor: Color(0xFFEAB308),
     mechanic: 'DETERIORO',
   ),
@@ -63,7 +64,7 @@ const _slides = [
     tag: 'MECÁNICA 03',
     headline: 'Invade.\nSé invadido.',
     sub: 'Otros runners compiten por el mismo mapa. Si corren por tu zona deteriorada, te la roban. Tú puedes hacer lo mismo.',
-    emoji: '⚔️',
+    icon: Icons.flash_on_rounded,
     accentColor: Color(0xFFEF4444),
     mechanic: 'INVASIÓN',
   ),
@@ -71,7 +72,7 @@ const _slides = [
     tag: 'PRIMER OBJETIVO',
     headline: 'Empieza\nahora.',
     sub: 'Tu primera carrera define tu color de territorio. Sal a correr y marca el mapa por primera vez.',
-    emoji: '🚀',
+    icon: Icons.rocket_launch_rounded,
     accentColor: Color(0xFF22C55E),
     mechanic: 'PRIMER RUN',
   ),
@@ -95,17 +96,14 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
   final PageController _pageCtrl = PageController();
   int _currentPage = 0;
 
-  // Por cada slide: animación de entrada
   late AnimationController _slideAnimCtrl;
   late Animation<double> _fadeAnim;
   late Animation<double> _slideUpAnim;
-  late Animation<double> _emojiScaleAnim;
+  late Animation<double> _iconScaleAnim;
 
-  // Pulso continuo para el indicador
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
 
-  // Partículas de fondo
   late AnimationController _particleCtrl;
 
   @override
@@ -113,22 +111,22 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
     super.initState();
 
     _slideAnimCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
+        vsync: this, duration: const Duration(milliseconds: 600));
     _fadeAnim = CurvedAnimation(parent: _slideAnimCtrl, curve: Curves.easeOut);
-    _slideUpAnim = Tween<double>(begin: 40, end: 0).animate(
+    _slideUpAnim = Tween<double>(begin: 32, end: 0).animate(
         CurvedAnimation(parent: _slideAnimCtrl, curve: Curves.easeOutCubic));
-    _emojiScaleAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
+    _iconScaleAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
         CurvedAnimation(parent: _slideAnimCtrl,
-            curve: const Interval(0.0, 0.6, curve: Curves.elasticOut)));
+            curve: const Interval(0.0, 0.55, curve: Curves.elasticOut)));
 
     _pulseCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000))
+        vsync: this, duration: const Duration(milliseconds: 1800))
       ..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.3, end: 0.9).animate(
+    _pulse = Tween<double>(begin: 0.25, end: 0.85).animate(
         CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
     _particleCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 8))
+        vsync: this, duration: const Duration(seconds: 10))
       ..repeat();
 
     _slideAnimCtrl.forward();
@@ -143,12 +141,18 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
     super.dispose();
   }
 
+  void _onPageChanged(int i) {
+    setState(() => _currentPage = i);
+    _slideAnimCtrl.forward(from: 0);
+    HapticFeedback.selectionClick();
+  }
+
   void _nextPage() {
     HapticFeedback.lightImpact();
     if (_currentPage < _slides.length - 1) {
       _slideAnimCtrl.reset();
       _pageCtrl.nextPage(
-          duration: const Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 450),
           curve: Curves.easeInOutCubic);
     } else {
       _completar();
@@ -159,7 +163,7 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
     HapticFeedback.lightImpact();
     _slideAnimCtrl.reset();
     _pageCtrl.animateToPage(_slides.length - 1,
-        duration: const Duration(milliseconds: 600),
+        duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOutCubic);
   }
 
@@ -186,23 +190,19 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
           ),
         )),
 
-        // PageView de slides
+        // PageView deslizable
         PageView.builder(
           controller: _pageCtrl,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (i) {
-            setState(() => _currentPage = i);
-            _slideAnimCtrl.forward(from: 0);
-          },
+          onPageChanged: _onPageChanged,
           itemCount: _slides.length,
           itemBuilder: (_, i) => _buildSlide(_slides[i]),
         ),
 
-        // HUD superior: skip + progreso
+        // HUD superior: skip + indicadores
         SafeArea(child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(children: [
-            // Indicadores de punto
+            // Indicadores de progreso
             Row(children: List.generate(_slides.length, (i) =>
               AnimatedBuilder(animation: _pulseCtrl, builder: (_, __) =>
                 AnimatedContainer(
@@ -217,14 +217,13 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
                         : _kBorder,
                     boxShadow: i == _currentPage ? [BoxShadow(
                         color: _slides[_currentPage].accentColor
-                            .withValues(alpha: _pulse.value * 0.7),
+                            .withValues(alpha: _pulse.value * 0.6),
                         blurRadius: 8)] : [],
                   ),
                 ),
               ),
             )),
             const Spacer(),
-            // Skip (solo si no es el último)
             if (_currentPage < _slides.length - 1)
               GestureDetector(
                 onTap: _skipToLast,
@@ -234,6 +233,9 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
                     color: _kSurface,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _kBorder),
+                    boxShadow: [BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 8)],
                   ),
                   child: const Text('SALTAR', style: TextStyle(
                       color: _kDim, fontSize: 10,
@@ -243,10 +245,10 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
           ]),
         )),
 
-        // Botón de acción (inferior)
+        // Botón inferior
         Positioned(bottom: 0, left: 0, right: 0, child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
             child: _buildBoton(),
           ),
         )),
@@ -256,36 +258,38 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
 
   Widget _buildSlide(_SlideData slide) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 100, 28, 120),
+      padding: const EdgeInsets.fromLTRB(28, 110, 28, 110),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // Emoji con scale elástico
+          // Icono con scale elástico
           AnimatedBuilder(animation: _slideAnimCtrl, builder: (_, __) =>
             Transform.scale(
-              scale: _emojiScaleAnim.value,
+              scale: _iconScaleAnim.value,
               alignment: Alignment.centerLeft,
               child: Container(
                 width: 88, height: 88,
                 decoration: BoxDecoration(
-                  color: slide.accentColor.withValues(alpha: 0.08),
+                  color: slide.accentColor.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: slide.accentColor.withValues(alpha: 0.25)),
+                  border: Border.all(
+                      color: slide.accentColor.withValues(alpha: 0.30),
+                      width: 1.5),
                   boxShadow: [BoxShadow(
-                      color: slide.accentColor.withValues(alpha: 0.15),
-                      blurRadius: 30)],
+                      color: slide.accentColor.withValues(alpha: 0.18),
+                      blurRadius: 28, offset: const Offset(0, 6))],
                 ),
-                child: Center(child: Text(slide.emoji,
-                    style: const TextStyle(fontSize: 40))),
+                child: Center(child: Icon(slide.icon,
+                    color: slide.accentColor, size: 38)),
               ),
             ),
           ),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 36),
 
-          // Tag
+          // Tag + badge mecánica
           AnimatedBuilder(animation: _slideAnimCtrl, builder: (_, __) =>
             Opacity(opacity: _fadeAnim.value,
               child: Row(children: [
@@ -296,39 +300,38 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
                     color: slide.accentColor, fontSize: 9,
                     fontWeight: FontWeight.w900, letterSpacing: 3)),
                 const SizedBox(width: 12),
-                // Badge de mecánica
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: slide.accentColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: slide.accentColor.withValues(alpha: 0.2)),
+                    border: Border.all(color: slide.accentColor.withValues(alpha: 0.22)),
                   ),
                   child: Text(slide.mechanic, style: TextStyle(
-                      color: slide.accentColor.withValues(alpha: 0.8),
+                      color: slide.accentColor.withValues(alpha: 0.85),
                       fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                 ),
               ]),
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // Headline grande
+          // Headline — ahora en color oscuro para que sea legible en fondo claro
           AnimatedBuilder(animation: _slideAnimCtrl, builder: (_, __) =>
             Opacity(opacity: _fadeAnim.value,
               child: Transform.translate(
                 offset: Offset(0, _slideUpAnim.value),
                 child: Text(slide.headline,
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 52,
+                    color: _kText,
+                    fontSize: 50,
                     fontWeight: FontWeight.w900,
                     height: 1.0,
                     letterSpacing: -1.5,
                     shadows: [
-                      Shadow(color: slide.accentColor.withValues(alpha: 0.3),
-                          blurRadius: 30),
+                      Shadow(color: slide.accentColor.withValues(alpha: 0.20),
+                          blurRadius: 20),
                     ],
                   ),
                 ),
@@ -336,37 +339,38 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // Descripción
           AnimatedBuilder(animation: _slideAnimCtrl, builder: (_, __) =>
-            Opacity(opacity: (_fadeAnim.value - 0.3).clamp(0.0, 1.0),
+            Opacity(opacity: (_fadeAnim.value - 0.25).clamp(0.0, 1.0),
               child: Transform.translate(
-                offset: Offset(0, _slideUpAnim.value * 1.3),
+                offset: Offset(0, _slideUpAnim.value * 1.2),
                 child: Text(slide.sub,
                   style: const TextStyle(
                     color: _kDim,
-                    fontSize: 16,
-                    height: 1.6,
-                    letterSpacing: 0.2,
+                    fontSize: 15.5,
+                    height: 1.65,
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
             ),
           ),
 
-          // Separador decorativo
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
+
+          // Separador + contador
           AnimatedBuilder(animation: _slideAnimCtrl, builder: (_, __) =>
             Opacity(opacity: _fadeAnim.value,
               child: Row(children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 600),
-                  width: 40, height: 1,
-                  color: slide.accentColor.withValues(alpha: 0.4)),
+                  duration: const Duration(milliseconds: 500),
+                  width: 36, height: 1,
+                  color: slide.accentColor.withValues(alpha: 0.35)),
                 const SizedBox(width: 8),
                 Text('${_currentPage + 1} / ${_slides.length}',
-                    style: TextStyle(color: slide.accentColor.withValues(alpha: 0.5),
+                    style: TextStyle(color: _kDim.withValues(alpha: 0.6),
                         fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 2)),
               ]),
             ),
@@ -386,25 +390,28 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: ultimo ? slide.accentColor : Colors.transparent,
+          color: ultimo ? slide.accentColor : _kSurface,
           border: Border.all(
-              color: slide.accentColor.withValues(alpha: ultimo ? 1.0 : 0.5),
+              color: slide.accentColor.withValues(alpha: ultimo ? 1.0 : 0.45),
               width: 1.5),
-          boxShadow: ultimo ? [BoxShadow(
-              color: slide.accentColor.withValues(alpha: 0.35),
-              blurRadius: 24, offset: const Offset(0, 8))] : [],
+          boxShadow: [BoxShadow(
+              color: ultimo
+                  ? slide.accentColor.withValues(alpha: 0.35)
+                  : Colors.black.withValues(alpha: 0.06),
+              blurRadius: ultimo ? 24 : 8,
+              offset: const Offset(0, 6))],
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(
             ultimo ? 'EMPEZAR A CONQUISTAR' : 'SIGUIENTE',
             style: TextStyle(
-              color: ultimo ? Colors.black : slide.accentColor,
+              color: ultimo ? Colors.white : slide.accentColor,
               fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2.5,
             ),
           ),
           const SizedBox(width: 10),
           Icon(ultimo ? Icons.flag_rounded : Icons.arrow_forward_rounded,
-              color: ultimo ? Colors.black : slide.accentColor, size: 16),
+              color: ultimo ? Colors.white : slide.accentColor, size: 16),
         ]),
       ),
     );
@@ -419,11 +426,11 @@ class _ParticleBg extends CustomPainter {
   final Color accentColor;
 
   static final _rng = math.Random(42);
-  static late final List<_Particle> _particles = List.generate(28, (_) => _Particle(
+  static late final List<_Particle> _particles = List.generate(24, (_) => _Particle(
     x:     _rng.nextDouble(),
     y:     _rng.nextDouble(),
-    size:  _rng.nextDouble() * 2.5 + 0.5,
-    speed: _rng.nextDouble() * 0.008 + 0.002,
+    size:  _rng.nextDouble() * 2.0 + 0.5,
+    speed: _rng.nextDouble() * 0.006 + 0.002,
     phase: _rng.nextDouble(),
   ));
 
@@ -431,16 +438,16 @@ class _ParticleBg extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Gradiente radial de fondo
+    // Gradiente radial suave
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     canvas.drawRect(rect, Paint()
       ..shader = RadialGradient(
-        center: const Alignment(-0.6, -0.8), radius: 1.4,
-        colors: [accentColor.withValues(alpha: 0.07), Colors.transparent],
+        center: const Alignment(-0.5, -0.7), radius: 1.2,
+        colors: [accentColor.withValues(alpha: 0.06), Colors.transparent],
       ).createShader(rect));
 
     // Grid de puntos
-    final dotPaint = Paint()..color = accentColor.withValues(alpha: 0.045);
+    final dotPaint = Paint()..color = accentColor.withValues(alpha: 0.05);
     const spacing = 40.0;
     for (double x = spacing / 2; x < size.width; x += spacing) {
       for (double y = spacing / 2; y < size.height; y += spacing) {
@@ -450,20 +457,13 @@ class _ParticleBg extends CustomPainter {
 
     // Partículas flotantes
     for (final p in _particles) {
-      final currentY = (p.y - progress * p.speed * 20) % 1.0;
-      final opacity  = (math.sin((currentY + p.phase) * math.pi * 2) * 0.5 + 0.5) * 0.35;
+      final currentY = (p.y - progress * p.speed * 18) % 1.0;
+      final opacity  = (math.sin((currentY + p.phase) * math.pi * 2) * 0.5 + 0.5) * 0.30;
       canvas.drawCircle(
         Offset(p.x * size.width, currentY * size.height),
         p.size,
         Paint()..color = accentColor.withValues(alpha: opacity),
       );
-    }
-
-    // Línea diagonal decorativa
-    final lp = Paint()..color = accentColor.withValues(alpha: 0.04)..strokeWidth = 1;
-    for (int i = 0; i < 8; i++) {
-      final o = i * 24.0;
-      canvas.drawLine(Offset(o, 0), Offset(0, o), lp);
     }
   }
 
