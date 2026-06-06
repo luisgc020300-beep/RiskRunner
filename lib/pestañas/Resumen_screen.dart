@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1390,6 +1391,7 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   Widget _buildAcciones() {
     final isDark = _isDark;
+    final tieneRuta = widget.ruta.length >= 2;
     return Column(children: [
     GestureDetector(
       onTap: () {
@@ -1413,6 +1415,34 @@ class _ResumenScreenState extends State<ResumenScreen>
         ]),
       ),
     ),
+    if (tieneRuta) ...[
+      const SizedBox(height: 10),
+      GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _compartirRutaComoImagen();
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _kBorder2),
+            color: isDark ? const Color(0xFF1C1C1E) : _kSurface,
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.route_rounded,
+                color: isDark ? Colors.white : _kBright, size: 14),
+            const SizedBox(width: 8),
+            Text('COMPARTIR RUTA', style: TextStyle(
+                color:         isDark ? Colors.white : _kBright,
+                fontSize:      11,
+                fontWeight:    FontWeight.w900,
+                letterSpacing: 2.5)),
+          ]),
+        ),
+      ),
+    ],
     const SizedBox(height: 20),
     Row(children: [
       Expanded(child: Container(height: 1, color: _kBorder2)),
@@ -1423,6 +1453,137 @@ class _ResumenScreenState extends State<ResumenScreen>
       Expanded(child: Container(height: 1, color: _kBorder2)),
     ]),
   ]);
+  }
+
+  // ── Route art: dibuja la ruta como imagen y la comparte ─────────────────
+  Future<void> _compartirRutaComoImagen() async {
+    if (widget.ruta.length < 2) return;
+    try {
+      const size = 1080.0;
+      const pad  = 100.0;
+
+      final recorder = ui.PictureRecorder();
+      final canvas   = Canvas(recorder,
+          Rect.fromLTWH(0, 0, size, size));
+
+      // Fondo negro
+      canvas.drawRect(
+          Rect.fromLTWH(0, 0, size, size),
+          Paint()..color = const Color(0xFF0A0A0A));
+
+      // Normalizar puntos a [pad, size-pad]
+      final lats = widget.ruta.map((p) => p.latitude).toList();
+      final lngs = widget.ruta.map((p) => p.longitude).toList();
+      final minLat = lats.reduce((a, b) => a < b ? a : b);
+      final maxLat = lats.reduce((a, b) => a > b ? a : b);
+      final minLng = lngs.reduce((a, b) => a < b ? a : b);
+      final maxLng = lngs.reduce((a, b) => a > b ? a : b);
+
+      final rangoLat = (maxLat - minLat).abs().clamp(0.0001, double.infinity);
+      final rangoLng = (maxLng - minLng).abs().clamp(0.0001, double.infinity);
+      final escala   = (size - pad * 2) / math.max(rangoLat, rangoLng);
+
+      Offset toCanvas(double lat, double lng) {
+        final x = (lng - minLng) * escala + pad;
+        final y = size - ((lat - minLat) * escala + pad);
+        return Offset(x, y);
+      }
+
+      // Sombra glow roja
+      final glowPaint = Paint()
+        ..color   = const Color(0xFFE02020).withValues(alpha: 0.18)
+        ..strokeWidth = 14
+        ..style   = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      final path = Path()
+        ..moveTo(toCanvas(lats[0], lngs[0]).dx,
+                 toCanvas(lats[0], lngs[0]).dy);
+      for (int i = 1; i < widget.ruta.length; i++) {
+        final o = toCanvas(lats[i], lngs[i]);
+        path.lineTo(o.dx, o.dy);
+      }
+      canvas.drawPath(path, glowPaint);
+
+      // Línea principal blanca
+      final linePaint = Paint()
+        ..color      = Colors.white
+        ..strokeWidth = 4
+        ..style      = PaintingStyle.stroke
+        ..strokeCap  = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(path, linePaint);
+
+      // Punto inicio (verde) y fin (rojo)
+      final ptInicio = toCanvas(lats.first, lngs.first);
+      final ptFin    = toCanvas(lats.last,  lngs.last);
+      canvas.drawCircle(ptInicio, 10,
+          Paint()..color = const Color(0xFF30D158));
+      canvas.drawCircle(ptFin,    10,
+          Paint()..color = const Color(0xFFE02020));
+
+      // Textos
+      final horas   = widget.tiempo.inSeconds / 3600;
+      final vel     = horas > 0 ? widget.distancia / horas : 0.0;
+      final ritmoMpk = vel > 0.5 ? 60.0 / vel : 0.0;
+      final ritmoMin = ritmoMpk.floor();
+      final ritmoSeg = ((ritmoMpk - ritmoMin) * 60).round();
+      final ritmoStr = vel > 0.5
+          ? "$ritmoMin'${ritmoSeg.toString().padLeft(2, '0')}\"/km"
+          : '';
+
+      void drawText(String text, double x, double y,
+          {double fontSize = 40,
+          FontWeight weight = FontWeight.w900,
+          Color color = Colors.white,
+          double letterSpacing = 0}) {
+        final tp = TextPainter(
+          text: TextSpan(
+              text: text,
+              style: TextStyle(
+                  color: color,
+                  fontSize: fontSize,
+                  fontWeight: weight,
+                  letterSpacing: letterSpacing,
+                  fontFamily: 'Inter')),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(x - tp.width / 2, y));
+      }
+
+      // RISKRUNNER logo
+      drawText('RISKRUNNER', size / 2, 40,
+          fontSize: 36, letterSpacing: 8,
+          color: const Color(0xFFE02020));
+
+      // Distancia grande
+      drawText('${widget.distancia.toStringAsFixed(2)} KM',
+          size / 2, size - 120,
+          fontSize: 52, letterSpacing: 2);
+
+      // Stats pequeños
+      final tiempo =
+          '${widget.tiempo.inMinutes.toString().padLeft(2, '0')}:${(widget.tiempo.inSeconds % 60).toString().padLeft(2, '0')}';
+      drawText('$tiempo   $ritmoStr', size / 2, size - 58,
+          fontSize: 22, color: const Color(0xFF8E8E93), weight: FontWeight.w500);
+
+      final picture = recorder.endRecording();
+      final img     = await picture.toImage(size.toInt(), size.toInt());
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final tmpDir = await getTemporaryDirectory();
+      final file   = File('${tmpDir.path}/ruta_riskrunner.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Mi ruta en RiskRunner · ${widget.distancia.toStringAsFixed(2)} km',
+      );
+    } catch (e) {
+      debugPrint('_compartirRutaComoImagen error: $e');
+    }
   }
 
   Widget _sectionLabel(String t) => Row(children: [

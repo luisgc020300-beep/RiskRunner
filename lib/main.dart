@@ -4,6 +4,7 @@ import 'package:RiskRunner/pesta%C3%B1as/fullscreen_map_screen.dart';
 import 'package:RiskRunner/services/territory_service.dart' show TerritoryData;
 import 'package:RiskRunner/pesta%C3%B1as/onboarding_slides_screen.dart';
 import 'package:RiskRunner/services/notification_service.dart';
+import 'package:RiskRunner/services/local_notif_service.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:RiskRunner/services/subscription_service.dart';
 
@@ -65,6 +66,7 @@ void main() async {
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!Env.isDebug);
 
   await setupLocator();
+  await LocalNotifService.init();
   mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);

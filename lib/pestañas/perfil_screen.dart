@@ -1512,6 +1512,8 @@ class _PerfilScreenState extends State<PerfilScreen>
             ...[_buildHeatmapActividad(), const SizedBox(height: 16)],
           if (_historialCompleto.isNotEmpty)
             ...[_buildGraficoSemanal(), const SizedBox(height: 16)],
+          if (_historialCompleto.length >= 3)
+            ...[_buildPredictorWidget(), const SizedBox(height: 16)],
           PalmaresPanel(titulos: _todosLosTitulos, titulosActivos: _titulosActivos),
           const SizedBox(height: 16),
           _buildRutasStats(), const SizedBox(height: 16),
@@ -2377,6 +2379,90 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PREDICTOR DE TIEMPOS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPredictorWidget() {
+    // Convierte historial en CarreraStats para el predictor
+    final carreras = _historialCompleto
+        .where((c) {
+          final dist = (c['distancia'] as num?)?.toDouble() ?? 0;
+          final seg  = (c['tiempo_segundos'] as num?)?.toInt() ?? 0;
+          return dist >= 1.0 && seg > 0;
+        })
+        .take(10)
+        .map((c) {
+          final dist = (c['distancia'] as num).toDouble();
+          final seg  = (c['tiempo_segundos'] as num).toInt();
+          return CarreraStats(
+            id: c['docId'] as String? ?? '',
+            fecha: DateTime.now(),
+            distanciaKm: dist,
+            tiempoSeg: seg,
+            ritmoMinKm: StatsService.ritmoMinKm(dist, seg),
+            zona: ZonaRitmo.moderado,
+            calles: [],
+          );
+        }).toList();
+
+    final pred = StatsService.calcularPrediccion(carreras);
+    if (pred == null) return const SizedBox.shrink();
+
+    String _fmtRitmo(double minKm) {
+      final m = minKm.floor();
+      final s = ((minKm - m) * 60).round();
+      return "$m'${s.toString().padLeft(2, '0')}\"/km";
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('PREDICTOR DE TIEMPOS', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+          const Spacer(),
+          Text('ritmo base ${_fmtRitmo(pred.ritmoBase)}',
+              style: _rajdhani(8, FontWeight.w600, _p.dim)),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _predCell('5K', pred.str5k, const Color(0xFF30D158))),
+          const SizedBox(width: 8),
+          Expanded(child: _predCell('10K', pred.str10k, const Color(0xFF0A84FF))),
+          const SizedBox(width: 8),
+          Expanded(child: _predCell('21K', pred.strMediaMaraton, _kGold)),
+        ]),
+        const SizedBox(height: 10),
+        Text('Estimación basada en tus últimas carreras usando la fórmula de Riegel.',
+            style: _rajdhani(8, FontWeight.w500, _p.dim, height: 1.4)),
+      ]),
+    );
+  }
+
+  Widget _predCell(String dist, String tiempo, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(children: [
+        Text(dist, style: _rajdhani(9, FontWeight.w700, color, spacing: 1)),
+        const SizedBox(height: 4),
+        Text(tiempo, style: _rajdhani(16, FontWeight.w900, _p.title)),
+      ]),
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // RECORDS PERSONALES
