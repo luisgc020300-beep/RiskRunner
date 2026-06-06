@@ -89,6 +89,13 @@ class _PerfilScreenState extends State<PerfilScreen>
   List<Map<String, dynamic>> _carrerasRecientes = [];
   int _rachaActual = 0;
 
+  // ── Records personales (calculados desde activity_logs)
+  double       _prDistancia    = 0.0;
+  double       _prPaceMinKm    = 0.0;
+  double       _prVelocidadMax = 0.0;
+  double       _prElevacion    = 0.0;
+  List<String> _diasActividad  = [];
+
   bool   _misionesExpandidas = false;
   String _misionesQuery      = '';
   final TextEditingController _misionesSearchCtrl = TextEditingController();
@@ -928,6 +935,11 @@ class _PerfilScreenState extends State<PerfilScreen>
       final List<Map<String, dynamic>> historial = [];
       int carrerasConDist = 0;
 
+      // PRs derivados de activity_logs
+      double prDist    = 0, prVelMax = 0, prElev = 0;
+      double prPace    = double.infinity;
+      final Set<String> diasConActividad = {};
+
       for (final doc in logsSnap.docs) {
         final d    = doc.data();
         final dist = (d['distancia'] as num?)?.toDouble() ?? 0;
@@ -940,6 +952,21 @@ class _PerfilScreenState extends State<PerfilScreen>
           kmModo[modo]  = (kmModo[modo]  ?? 0) + dist;
           segModo[modo] = (segModo[modo] ?? 0) + seg;
           cntModo[modo] = (cntModo[modo] ?? 0) + 1;
+
+          // PRs
+          if (dist > prDist) prDist = dist;
+          if (dist > 0 && seg > 0) {
+            final pace = (seg / 60.0) / dist;
+            if (pace > 0 && pace < prPace) prPace = pace;
+          }
+          final velMax = (d['velocidad_maxima'] as num?)?.toDouble() ?? 0;
+          if (velMax > prVelMax) prVelMax = velMax;
+          final elev = (d['elevacion_ganada'] as num?)?.toDouble() ?? 0;
+          if (elev > prElev) prElev = elev;
+
+          // Heatmap
+          final fechaDia = d['fecha_dia'] as String?;
+          if (fechaDia != null) diasConActividad.add(fechaDia);
         }
 
         // carreras recientes (solo con distancia real)
@@ -991,6 +1018,12 @@ class _PerfilScreenState extends State<PerfilScreen>
         _kmPorModo               = kmModo;
         _segPorModo              = segModo;
         _carrerasPorModo         = cntModo;
+        // PRs calculados desde historial
+        _prDistancia    = prDist;
+        _prPaceMinKm    = prPace < double.infinity ? prPace : 0;
+        _prVelocidadMax = prVelMax;
+        _prElevacion    = prElev;
+        _diasActividad  = diasConActividad.toList();
       });
     } catch (e) {
       debugPrint('Error stats: $e');
@@ -1473,6 +1506,12 @@ class _PerfilScreenState extends State<PerfilScreen>
           _buildKmSangre(), const SizedBox(height: 16),
           _buildTriadaStats(), const SizedBox(height: 16),
           _buildRachaGauge(), const SizedBox(height: 16),
+          if (_prDistancia > 0 || _prPaceMinKm > 0 || _prVelocidadMax > 0)
+            ...[_buildPRsCard(), const SizedBox(height: 16)],
+          if (_diasActividad.isNotEmpty)
+            ...[_buildHeatmapActividad(), const SizedBox(height: 16)],
+          if (_historialCompleto.isNotEmpty)
+            ...[_buildGraficoSemanal(), const SizedBox(height: 16)],
           PalmaresPanel(titulos: _todosLosTitulos, titulosActivos: _titulosActivos),
           const SizedBox(height: 16),
           _buildRutasStats(), const SizedBox(height: 16),
@@ -2338,6 +2377,234 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RECORDS PERSONALES
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPRsCard() {
+    String _fmtPace(double minKm) {
+      if (minKm <= 0) return '--';
+      final m = minKm.floor();
+      final s = ((minKm - m) * 60).round();
+      return "$m'${s.toString().padLeft(2, '0')}\"";
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('RECORDS PERSONALES', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+          const Spacer(),
+          Icon(Icons.emoji_events_rounded, color: _kGold, size: 14),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(child: _prCell(
+            _prDistancia > 0 ? '${_prDistancia.toStringAsFixed(2)} km' : '--',
+            'MEJOR DISTANCIA', Icons.straighten_rounded, _kAccent)),
+          const SizedBox(width: 10),
+          Expanded(child: _prCell(
+            _fmtPace(_prPaceMinKm),
+            'MEJOR RITMO', Icons.speed_rounded, const Color(0xFF30D158))),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _prCell(
+            _prVelocidadMax > 0 ? '${_prVelocidadMax.toStringAsFixed(1)} km/h' : '--',
+            'VEL. MÁXIMA', Icons.rocket_launch_rounded, const Color(0xFFFF9500))),
+          const SizedBox(width: 10),
+          Expanded(child: _prCell(
+            _prElevacion > 0 ? '+${_prElevacion.round()} m' : '--',
+            'MAX DESNIVEL+', Icons.terrain_rounded, const Color(0xFF6E7CF2))),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _prCell(String val, String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      decoration: BoxDecoration(
+        color: _p.surface2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _p.border2),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(val, style: _rajdhani(14, FontWeight.w800, _p.title, height: 1)),
+          const SizedBox(height: 2),
+          Text(label, style: _rajdhani(7, FontWeight.w600, _p.dim, spacing: 1.2)),
+        ]),
+      ]),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HEATMAP DE ACTIVIDAD (últimos 90 días)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildHeatmapActividad() {
+    final hoy    = DateTime.now();
+    final inicio = hoy.subtract(const Duration(days: 89));
+    final diasSet = _diasActividad.toSet();
+
+    // Construye 90 celdas del día más antiguo al más reciente
+    final celdas = <Widget>[];
+    for (int i = 0; i < 90; i++) {
+      final dia    = inicio.add(Duration(days: i));
+      final key    = '${dia.year}-${dia.month.toString().padLeft(2, '0')}-${dia.day.toString().padLeft(2, '0')}';
+      final activo = diasSet.contains(key);
+      celdas.add(Container(
+        width: 9, height: 9,
+        margin: const EdgeInsets.all(1),
+        decoration: BoxDecoration(
+          color: activo ? _kAccent : _p.surface2,
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: _p.border2, width: 0.5),
+        ),
+      ));
+    }
+
+    // Agrupa en columnas de 7 (semanas)
+    final semanas = <List<Widget>>[];
+    for (int s = 0; s < celdas.length; s += 7) {
+      semanas.add(celdas.sublist(s, (s + 7).clamp(0, celdas.length)));
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('ACTIVIDAD — ÚLTIMOS 90 DÍAS', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+          const Spacer(),
+          Text('${diasSet.length} días', style: _rajdhani(10, FontWeight.w700, _kAccent)),
+        ]),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: semanas.map((sem) => Column(
+            children: sem,
+          )).toList(),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Container(width: 9, height: 9, decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(2), border: Border.all(color: _p.border2, width: 0.5))),
+          const SizedBox(width: 4),
+          Text('Sin actividad', style: _rajdhani(8, FontWeight.w500, _p.dim)),
+          const SizedBox(width: 12),
+          Container(width: 9, height: 9, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 4),
+          Text('Con actividad', style: _rajdhani(8, FontWeight.w500, _p.dim)),
+        ]),
+      ]),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GRÁFICO SEMANAL DE VOLUMEN (últimas 8 semanas)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildGraficoSemanal() {
+    final ahora = DateTime.now();
+    final semanas = <String, double>{};
+
+    for (int s = 7; s >= 0; s--) {
+      final ini  = ahora.subtract(Duration(days: (s + 1) * 7));
+      final fin  = ahora.subtract(Duration(days: s * 7));
+      final label = s == 0 ? 'HOY' : '-${s}S';
+      double km  = 0;
+      for (final c in _historialCompleto) {
+        final ts = c['timestamp'] as Timestamp?;
+        if (ts == null) continue;
+        final dt = ts.toDate();
+        if (dt.isAfter(ini) && dt.isBefore(fin)) {
+          km += (c['distancia'] as num?)?.toDouble() ?? 0;
+        }
+      }
+      semanas[label] = km;
+    }
+
+    final valores  = semanas.values.toList();
+    final maxKm    = valores.isEmpty ? 1.0 : (valores.reduce((a, b) => a > b ? a : b)).clamp(0.1, double.infinity);
+    final labels   = semanas.keys.toList();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      decoration: BoxDecoration(
+        color: _p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _p.border2),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 12, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(color: _kAccent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text('KM POR SEMANA', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
+          const Spacer(),
+          Text('${valores.fold(0.0, (a, b) => a + b).toStringAsFixed(1)} km total', style: _rajdhani(10, FontWeight.w700, _p.sub)),
+        ]),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 80,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(valores.length, (i) {
+              final km      = valores[i];
+              final ratio   = km / maxKm;
+              final isLast  = i == valores.length - 1;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (km > 0)
+                        Text(km.toStringAsFixed(1),
+                            style: _rajdhani(7, FontWeight.w700,
+                                isLast ? _kAccent : _p.sub)),
+                      const SizedBox(height: 2),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOutCubic,
+                        height: (ratio * 60).clamp(2.0, 60.0),
+                        decoration: BoxDecoration(
+                          color: isLast ? _kAccent : _p.muted.withValues(alpha: 0.4),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(labels[i],
+                          style: _rajdhani(7, FontWeight.w600, _p.dim, spacing: 0.5)),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ]),
+    );
+  }
 
   Widget _buildKmSangre() {
     final progreso = (_kmTotales % 100) / 100;

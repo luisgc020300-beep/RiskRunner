@@ -208,6 +208,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   int    _kmUltimoSplit             = 0;
   double _tiempoUltimoSplitSeg      = 0;
 
+  // ── Métricas adicionales por sesión
+  double _velocidadMaximaKmh  = 0.0;
+  double _elevacionGanada     = 0.0;
+  double _elevacionPerdida    = 0.0;
+  double? _altitudAnterior;
+
   // ── Barrios OSM (modo solitario)
   List<_BarrioData> _barriosCercanos   = [];
   _BarrioData?      _barrioActual;
@@ -2940,8 +2946,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 final vel = (dist / 1000) / dt;
                 _velocidadActualKmh =
                     (_velocidadActualKmh * 0.6 + vel * 0.4).clamp(0, 40);
+                if (_velocidadActualKmh > _velocidadMaximaKmh) {
+                  _velocidadMaximaKmh = _velocidadActualKmh;
+                }
               }
             }
+            // Elevación acumulada
+            final alt = pos.altitude;
+            if (_altitudAnterior != null) {
+              final delta = alt - _altitudAnterior!;
+              if (delta > 0.5) _elevacionGanada += delta;
+              else if (delta < -0.5) _elevacionPerdida += delta.abs();
+            }
+            _altitudAnterior = alt;
           }
           routePoints.add(newPt);
           _currentPosition         = pos;
@@ -3250,6 +3267,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _splitsPorKm.clear();
     _kmUltimoSplit        = 0;
     _tiempoUltimoSplitSeg = 0;
+    _velocidadMaximaKmh   = 0.0;
+    _elevacionGanada      = 0.0;
+    _elevacionPerdida     = 0.0;
+    _altitudAnterior      = null;
     _stopwatch.reset();
     _stopwatch.start();
 
@@ -3553,12 +3574,24 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'ruta': rutaFinal.isNotEmpty
               ? rutaFinal.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList()
               : [],
+          'velocidad_maxima':  _velocidadMaximaKmh,
+          'elevacion_ganada':  _elevacionGanada,
+          'elevacion_perdida': _elevacionPerdida,
+          'splits_por_km':     _splitsPorKm,
           if (_objetivoGlobal != null) ...{
             'objetivo_global_id':           _objetivoGlobal!['territorioId'],
             'objetivo_global_conquistado':  _globalConquistado,
           },
         });
         logId = logRef.id;
+
+        StatsService.actualizarPRs(
+          uid:             user.uid,
+          distanciaKm:     distanciaFinal,
+          ritmoMinKm:      StatsService.ritmoMinKm(distanciaFinal, tiempoFinal.inSeconds),
+          velocidadMaxKmh: _velocidadMaximaKmh,
+          elevacionGanada: _elevacionGanada,
+        ).catchError((e) => debugPrint('actualizarPRs: $e'));
 
         if (_objetivoGlobal != null && _globalKmAlcanzados) {
           await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
@@ -3759,6 +3792,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'globalConquistado':       _globalConquistado,
       'nuevaClausula':           _nuevaClausula,
       'splitsPorKm':             List<double>.from(_splitsPorKm),
+      'velocidadMaxima':         _velocidadMaximaKmh,
+      'elevacionGanada':         _elevacionGanada,
+      'elevacionPerdida':        _elevacionPerdida,
       'modoInicial':             _modoSolitario ? 'solitario'
                                      : _objetivoGlobal != null ? 'global'
                                      : 'competitivo',
@@ -4581,6 +4617,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         'routeId':              routeId,
         'monedasRuta':          recompensa.monedas,
         'splitsPorKm':          List<double>.from(_splitsPorKm),
+        'velocidadMaxima':      _velocidadMaximaKmh,
+        'elevacionGanada':      _elevacionGanada,
+        'elevacionPerdida':     _elevacionPerdida,
       });
     }
   }

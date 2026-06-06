@@ -67,6 +67,12 @@ class ResumenScreen extends StatefulWidget {
   final String? modoInicial;
   /// Ritmo real (min/km) por cada km completado durante la carrera.
   final List<double>? splitsPorKm;
+  /// Velocidad máxima alcanzada (km/h).
+  final double velocidadMaxima;
+  /// Elevación ganada en la sesión (m).
+  final double elevacionGanada;
+  /// Elevación perdida en la sesión (m).
+  final double elevacionPerdida;
 
   const ResumenScreen({
     super.key,
@@ -88,6 +94,9 @@ class ResumenScreen extends StatefulWidget {
     this.esDetalle               = false,
     this.modoInicial,
     this.splitsPorKm,
+    this.velocidadMaxima         = 0.0,
+    this.elevacionGanada         = 0.0,
+    this.elevacionPerdida        = 0.0,
   });
 
   @override
@@ -1260,11 +1269,22 @@ class _ResumenScreenState extends State<ResumenScreen>
     }() : '--:--';
     final tiempo =
         '${widget.tiempo.inMinutes.toString().padLeft(2, '0')}:${(widget.tiempo.inSeconds % 60).toString().padLeft(2, '0')}';
+    final kcal = (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0)).round();
+
+    // Km más rápido desde splits
+    String mejorKm = '--';
+    if (widget.splitsPorKm != null && widget.splitsPorKm!.isNotEmpty) {
+      final best = widget.splitsPorKm!.reduce((a, b) => a < b ? a : b);
+      final m = best.floor();
+      final s = ((best - m) * 60).round();
+      mejorKm = "$m'${s.toString().padLeft(2, '0')}\"";
+    }
 
     final cardBg     = isDark ? const Color(0xFF2C2C2E) : _kSurface;
     final cardBorder = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Tiempo destacado
       Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
@@ -1283,15 +1303,30 @@ class _ResumenScreenState extends State<ResumenScreen>
         ]),
       ),
       const SizedBox(height: 8),
+      // Fila 1: ritmo medio, vel. media, kcal
       Row(children: [
-        Expanded(child: _metricTileSmall(ritmo, 'MIN/KM', isDark: isDark)),
+        Expanded(child: _metricTileSmall(ritmo,              'MIN/KM MEDIO',  isDark: isDark)),
         const SizedBox(width: 8),
-        Expanded(child: _metricTileSmall(vel.toStringAsFixed(1), 'KM/H', isDark: isDark)),
+        Expanded(child: _metricTileSmall(vel.toStringAsFixed(1), 'KM/H MEDIO', isDark: isDark)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricTileSmall(kcal.toString(),    'KCAL',          isDark: isDark)),
+      ]),
+      const SizedBox(height: 8),
+      // Fila 2: vel. máx, mejor km, elevación
+      Row(children: [
+        Expanded(child: _metricTileSmall(
+          widget.velocidadMaxima > 0
+              ? widget.velocidadMaxima.toStringAsFixed(1)
+              : '--',
+          'VEL. MÁX KM/H', isDark: isDark)),
+        const SizedBox(width: 8),
+        Expanded(child: _metricTileSmall(mejorKm, 'MEJOR KM', isDark: isDark)),
         const SizedBox(width: 8),
         Expanded(child: _metricTileSmall(
-            (widget.distancia * (55 + vel * 1.0).clamp(55.0, 82.0))
-                .round().toString(),
-            'KCAL', isDark: isDark)),
+          widget.elevacionGanada > 0
+              ? '+${widget.elevacionGanada.round()} m'
+              : '--',
+          'DESNIVEL +', isDark: isDark)),
       ]),
     ]);
   }

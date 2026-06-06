@@ -589,6 +589,66 @@ class StatsService {
   }
 
   // ==========================================================================
+  // RECORDS PERSONALES (PRs)
+  // ==========================================================================
+
+  /// Actualiza los PRs y totales acumulados en el documento del jugador.
+  static Future<void> actualizarPRs({
+    required String uid,
+    required double distanciaKm,
+    required double ritmoMinKm,
+    required double velocidadMaxKmh,
+    required double elevacionGanada,
+  }) async {
+    try {
+      final ref = FirebaseFirestore.instance.collection('players').doc(uid);
+      final doc = await ref.get();
+      final d   = doc.data() ?? {};
+
+      final updates = <String, dynamic>{
+        'km_totales_vida':       FieldValue.increment(distanciaKm),
+        'carreras_totales_vida': FieldValue.increment(1),
+      };
+
+      final prDist = (d['pr_distancia'] as num?)?.toDouble() ?? 0;
+      if (distanciaKm > prDist) updates['pr_distancia'] = distanciaKm;
+
+      final prPace = (d['pr_pace'] as num?)?.toDouble() ?? double.infinity;
+      if (ritmoMinKm > 0 && ritmoMinKm < prPace) updates['pr_pace'] = ritmoMinKm;
+
+      final prVel = (d['pr_velocidad_max'] as num?)?.toDouble() ?? 0;
+      if (velocidadMaxKmh > prVel) updates['pr_velocidad_max'] = velocidadMaxKmh;
+
+      final prElev = (d['pr_elevacion'] as num?)?.toDouble() ?? 0;
+      if (elevacionGanada > prElev) updates['pr_elevacion'] = elevacionGanada;
+
+      await ref.update(updates);
+    } catch (e) {
+      debugPrint('StatsService.actualizarPRs error: $e');
+    }
+  }
+
+  /// Carga PRs y totales de vida desde el documento del jugador.
+  static Future<Map<String, dynamic>> cargarPRs(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('players').doc(uid).get();
+      final d = doc.data() ?? {};
+      return {
+        'pr_distancia':        (d['pr_distancia']        as num?)?.toDouble() ?? 0.0,
+        'pr_pace':             (d['pr_pace']             as num?)?.toDouble() ?? 0.0,
+        'pr_velocidad_max':    (d['pr_velocidad_max']    as num?)?.toDouble() ?? 0.0,
+        'pr_elevacion':        (d['pr_elevacion']        as num?)?.toDouble() ?? 0.0,
+        'km_totales_vida':     (d['km_totales_vida']     as num?)?.toDouble() ?? 0.0,
+        'carreras_totales_vida':(d['carreras_totales_vida'] as num?)?.toInt() ?? 0,
+      };
+    } catch (e) {
+      debugPrint('StatsService.cargarPRs error: $e');
+      return {};
+    }
+  }
+
+  // ==========================================================================
   // GUARDAR CARRERA CON RUTA Y CALLES
   // ==========================================================================
 
