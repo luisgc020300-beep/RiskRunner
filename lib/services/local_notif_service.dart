@@ -62,6 +62,8 @@ class LocalNotifService {
           iOS: const DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
       debugPrint('LocalNotifService.programarRachaEnRiesgo: $e');
@@ -111,6 +113,8 @@ class LocalNotifService {
           iOS: const DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
       debugPrint('LocalNotifService.programarResumenSemanal: $e');
