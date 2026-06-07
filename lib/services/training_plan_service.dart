@@ -219,7 +219,7 @@ TrainingPlan buildPlanFromAiData(Map<String, dynamic> data) {
     slot:      (s['slot']      as num).toInt(),
     weekday:   (s['weekday']   as num).toInt(),
     type:      _parseSessionType(s['type'] as String? ?? 'easy'),
-    targetKm:  (s['targetKm']  as num).toDouble(),
+    targetKm:  (s['targetKm']  as num?)?.toDouble() ?? 0.0,
     note:       s['note']      as String? ?? '',
   )).toList();
 

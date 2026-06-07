@@ -262,9 +262,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (uid == null) return;
     final state = await TrainingPlanService.loadState(uid);
     if (!mounted) return;
+    TrainingPlan? plan;
+    if (state != null) {
+      plan = planById(state.planId);
+      if (plan == null && state.planId == 'plan_ai' && state.aiPlanData != null) {
+        try { plan = buildPlanFromAiData(state.aiPlanData!); } catch (_) {}
+      }
+    }
     setState(() {
       _userPlan   = state;
-      _planActivo = state != null ? planById(state.planId) : null;
+      _planActivo = plan;
     });
   }
 

@@ -2488,7 +2488,10 @@ class _PerfilScreenState extends State<PerfilScreen>
       future: TrainingPlanService.loadState(uid),
       builder: (ctx, snap) {
         final state = snap.data;
-        final plan  = state != null ? planById(state.planId) : null;
+        TrainingPlan? plan = state != null ? planById(state.planId) : null;
+        if (plan == null && state?.planId == 'plan_ai' && state?.aiPlanData != null) {
+          try { plan = buildPlanFromAiData(state!.aiPlanData!); } catch (_) {}
+        }
 
         return GestureDetector(
           onTap: () => Navigator.push(context,
