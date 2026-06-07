@@ -22,7 +22,6 @@ class _ChatScreenState extends State<ChatScreen> {
   late final DocumentReference _chatRef;
   int _count = 0;
 
-  // 'normal' | 'solicitud' | null (sin chat aún)
   String? _tipChat;
   String? _initiatorId;
   bool    _esMutual = false;
@@ -45,10 +44,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatSnap = await _chatRef.get();
     if (chatSnap.exists) {
       final d = chatSnap.data() as Map<String, dynamic>;
-      if (mounted) setState(() {
+      if (mounted) { setState(() {
         _tipChat     = d['tipo'] as String? ?? 'normal';
         _initiatorId = d['initiatorId'] as String?;
-      });
+      }); }
     } else {
       final db = FirebaseFirestore.instance;
       final results = await Future.wait([
@@ -77,7 +76,9 @@ class _ChatScreenState extends State<ChatScreen> {
     await _chatRef.set({'deleted_${widget.currentUserId}': true}, SetOptions(merge: true));
     if (mounted) Navigator.pop(context);
   }
-  @override void dispose() { _msgCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
+
+  @override
+  void dispose() { _msgCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
 
   Future<void> _marcarLeido() async =>
     _chatRef.set({'unread_${widget.currentUserId}': 0}, SetOptions(merge: true));
@@ -103,7 +104,10 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -220,14 +224,16 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('Eliminar conversación', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        title: const Text('Eliminar conversación',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
         content: Text('El chat con ${widget.friendNickname} se eliminará para ti.',
-          style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14)),
+            style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.white70))),
+              child: const Text('Cancelar', style: TextStyle(color: Colors.white70))),
           TextButton(onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar', style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w700))),
+              child: const Text('Eliminar',
+                  style: TextStyle(color: Color(0xFFFF453A), fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -239,142 +245,382 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
+  // ── Helpers de agrupación ─────────────────────────────────────────────────
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static bool _sameGroup(Map<String, dynamic> a, Map<String, dynamic> b) {
+    if (a['senderId'] != b['senderId']) return false;
+    final tsA = (a['timestamp'] as Timestamp?)?.toDate();
+    final tsB = (b['timestamp'] as Timestamp?)?.toDate();
+    if (tsA == null || tsB == null) return false;
+    return tsB.difference(tsA).inMinutes.abs() <= 3;
+  }
+
+  // Construye la lista de items (mensajes + separadores de fecha)
+  List<_ChatItem> _buildItems(List<QueryDocumentSnapshot> docs) {
+    final items = <_ChatItem>[];
+    DateTime? lastDay;
+
+    for (int i = 0; i < docs.length; i++) {
+      final m    = docs[i].data() as Map<String, dynamic>;
+      final ts   = (m['timestamp'] as Timestamp?)?.toDate();
+      final day  = ts != null ? DateTime(ts.year, ts.month, ts.day) : null;
+
+      // Separador de fecha
+      if (day != null && (lastDay == null || !_sameDay(lastDay, day))) {
+        items.add(_DateItem(day));
+        lastDay = day;
+      }
+
+      final prev = i > 0 ? (docs[i - 1].data() as Map<String, dynamic>) : null;
+      final next = i < docs.length - 1 ? (docs[i + 1].data() as Map<String, dynamic>) : null;
+
+      // Si el anterior era de otro día, forzamos inicio de grupo
+      final prevDay = prev != null ? (prev['timestamp'] as Timestamp?)?.toDate() : null;
+      final prevDifferentDay = prevDay == null || day == null || !_sameDay(prevDay, day);
+
+      final isFirst = prev == null || prevDifferentDay || !_sameGroup(prev, m);
+      final isLast  = next == null || !_sameGroup(m, next) ||
+          (() {
+            final nextDay = (next['timestamp'] as Timestamp?)?.toDate();
+            return nextDay == null || day == null || !_sameDay(day, nextDay);
+          })();
+
+      items.add(_MsgItem(m, isFirst: isFirst, isLast: isLast));
+    }
+
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    backgroundColor: _p.bg,
     appBar: AppBar(
-      backgroundColor: const Color(0xFF0D0D0D), elevation: 0, surfaceTintColor: Colors.transparent,
-      bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(height: 1, color: kSocAccent)),
-      leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 16), onPressed: () => Navigator.pop(context)),
-      title: Row(children: [
-        SocialAvatar(fotoBase64: widget.friendFoto, nickname: widget.friendNickname, size: 34),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.friendNickname, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13, letterSpacing: 0.3)),
-          Row(children: [
-            Container(width: 6, height: 6, decoration: const BoxDecoration(color: kSocGreenFg, shape: BoxShape.circle)),
-            const SizedBox(width: 5),
-            const Text('EN LÍNEA', style: TextStyle(color: kSocGreenFg, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
+      backgroundColor: _p.bg,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 0.5, color: _p.line),
+      ),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios_new_rounded, color: _p.text1, size: 18),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: GestureDetector(
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+          builder: (_) => PerfilScreen(targetUserId: widget.friendId),
+        )),
+        child: Row(children: [
+          SocialAvatar(fotoBase64: widget.friendFoto, nickname: widget.friendNickname, size: 36),
+          const SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.friendNickname,
+                style: TextStyle(color: _p.text1, fontWeight: FontWeight.w700, fontSize: 14)),
+            Row(children: [
+              Container(width: 6, height: 6,
+                  decoration: const BoxDecoration(color: kSocGreenFg, shape: BoxShape.circle)),
+              const SizedBox(width: 5),
+              Text('EN LÍNEA',
+                  style: const TextStyle(
+                      color: kSocGreenFg, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
+            ]),
           ]),
         ]),
-      ]),
+      ),
       actions: [
         IconButton(
           onPressed: _mostrarOpciones,
-          icon: Icon(Icons.more_horiz, color: _p.dim, size: 20),
+          icon: Icon(Icons.more_horiz, color: _p.dim, size: 22),
           padding: EdgeInsets.zero,
         ),
-      ]),
+      ],
+    ),
     body: Column(children: [
       if (_esSolicitudRecibida)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          color: const Color(0xFF1C1C1E),
+          decoration: BoxDecoration(
+            color: _p.surface,
+            border: Border(bottom: BorderSide(color: _p.line, width: 0.5)),
+          ),
           child: Row(children: [
             Expanded(child: Text(
               '${widget.friendNickname} quiere enviarte un mensaje',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: _p.subtext, fontSize: 12),
             )),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: _aceptarSolicitud,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(8)),
-                child: const Text('Aceptar', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(20)),
+                child: const Text('Aceptar',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
               ),
             ),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: _ignorarSolicitud,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF3A3A3C)), borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  border: Border.all(color: _p.line2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: Text('Ignorar', style: TextStyle(color: _p.dim, fontSize: 12)),
               ),
             ),
           ]),
         ),
+
+      // ── Lista de mensajes ──────────────────────────────────────────────
       Expanded(child: StreamBuilder<QuerySnapshot>(
         stream: _msgsRef.orderBy('timestamp', descending: false).snapshots(),
         builder: (ctx, snapshot) {
-          if (!snapshot.hasData) return Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _p.dim, strokeWidth: 1.5)));
-          final msgs = snapshot.data!.docs;
-          if (msgs.length > _count) {
-            _count = msgs.length;
-            if (msgs.isNotEmpty) {
-              final last = msgs.last.data() as Map<String, dynamic>;
-              if (last['senderId'] != widget.currentUserId)
+          if (!snapshot.hasData) {
+            return Center(
+              child: SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(color: _p.dim, strokeWidth: 1.5)),
+            );
+          }
+          final docs = snapshot.data!.docs;
+          if (docs.length > _count) {
+            _count = docs.length;
+            if (docs.isNotEmpty) {
+              final last = docs.last.data() as Map<String, dynamic>;
+              if (last['senderId'] != widget.currentUserId) {
                 WidgetsBinding.instance.addPostFrameCallback((_) => _marcarLeido());
+              }
             }
           }
-          if (msgs.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 56, height: 56,
-              decoration: BoxDecoration(color: _p.surface3, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(14)),
-              child: Icon(Icons.chat_bubble_outline_rounded, color: _p.dim, size: 22)),
-            const SizedBox(height: 14),
-            Text('¡Saluda a ${widget.friendNickname}!',
-              style: TextStyle(color: _p.subtext, fontSize: 13, fontStyle: FontStyle.italic)),
-          ]));
+
+          if (docs.isEmpty) {
+            return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 60, height: 60,
+                decoration: BoxDecoration(
+                  color: _p.surface,
+                  border: Border.all(color: _p.line2),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(Icons.chat_bubble_outline_rounded, color: _p.dim, size: 24),
+              ),
+              const SizedBox(height: 14),
+              Text('¡Saluda a ${widget.friendNickname}!',
+                  style: TextStyle(color: _p.subtext, fontSize: 13, fontStyle: FontStyle.italic)),
+            ]));
+          }
+
+          final items = _buildItems(docs);
+
           return ListView.builder(
             controller: _scrollCtrl,
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-            itemCount: msgs.length,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            itemCount: items.length,
             itemBuilder: (ctx, i) {
-              final m = msgs[i].data() as Map<String, dynamic>;
-              final bool esMio = m['senderId'] == widget.currentUserId;
-              final Timestamp? ts = m['timestamp'] as Timestamp?;
-              final DateTime? d = ts?.toDate();
-              return _Bubble(texto: m['text'] ?? '', esMio: esMio,
-                hora: d != null ? '${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}' : '');
-            });
-        })),
+              final item = items[i];
+              if (item is _DateItem) return _DateSeparator(date: item.date);
+              final msg = item as _MsgItem;
+              final m = msg.data;
+              final esMio = m['senderId'] == widget.currentUserId;
+              final ts = (m['timestamp'] as Timestamp?)?.toDate();
+              final hora = ts != null
+                  ? '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
+                  : '';
+              return _Bubble(
+                texto: m['text'] ?? '',
+                esMio: esMio,
+                hora: hora,
+                isFirst: msg.isFirst,
+                isLast: msg.isLast,
+              );
+            },
+          );
+        },
+      )),
+
+      // ── Barra de entrada ───────────────────────────────────────────────
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-        decoration: BoxDecoration(color: _p.bg, border: Border(top: BorderSide(color: _p.line))),
-        child: SafeArea(top: false, child: Row(children: [
+        decoration: BoxDecoration(
+          color: _p.bg,
+          border: Border(top: BorderSide(color: _p.line, width: 0.5)),
+        ),
+        child: SafeArea(top: false, child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Expanded(child: Container(
-            decoration: BoxDecoration(color: _p.surface, border: Border.all(color: _p.line2), borderRadius: BorderRadius.circular(10)),
-            child: TextField(controller: _msgCtrl,
-              style: TextStyle(color: _p.text1, fontSize: 13),
-              maxLines: null, textInputAction: TextInputAction.newline,
+            constraints: const BoxConstraints(minHeight: 44),
+            decoration: BoxDecoration(
+              color: _p.surface,
+              border: Border.all(color: _p.line2),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: TextField(
+              controller: _msgCtrl,
+              style: TextStyle(color: _p.text1, fontSize: 14),
+              maxLines: 5,
+              minLines: 1,
+              textInputAction: TextInputAction.newline,
               decoration: InputDecoration(
-                hintText: 'Escribe un mensaje...', hintStyle: TextStyle(color: _p.dim, fontSize: 13),
-                border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11))))),
+                hintText: 'Mensaje...',
+                hintStyle: TextStyle(color: _p.dim, fontSize: 14),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
+            ),
+          )),
           const SizedBox(width: 8),
-          SocialPress(onTap: _send, child: Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(10),
-              boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 10)]),
-            child: const Icon(Icons.send_rounded, color: Colors.white, size: 17))),
-        ]))),
-    ]));
+          GestureDetector(
+            onTap: _send,
+            child: Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: kSocAccent,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 12, spreadRadius: 1)],
+              ),
+              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
+            ),
+          ),
+        ])),
+      ),
+    ]),
+  );
 }
 
-// ── Message Bubble ────────────────────────────────────────────────────────────
-class _Bubble extends StatelessWidget {
-  final String texto, hora; final bool esMio;
-  const _Bubble({required this.texto, required this.esMio, required this.hora});
-  @override Widget build(BuildContext ctx) {
-    final p = SocialPalette.of(ctx);
+// ── Items de la lista ─────────────────────────────────────────────────────────
+abstract class _ChatItem {}
+
+class _DateItem extends _ChatItem {
+  final DateTime date;
+  _DateItem(this.date);
+}
+
+class _MsgItem extends _ChatItem {
+  final Map<String, dynamic> data;
+  final bool isFirst, isLast;
+  _MsgItem(this.data, {required this.isFirst, required this.isLast});
+}
+
+// ── Separador de fecha ────────────────────────────────────────────────────────
+class _DateSeparator extends StatelessWidget {
+  final DateTime date;
+  const _DateSeparator({required this.date});
+
+  String _label() {
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d     = DateTime(date.year, date.month, date.day);
+    final diff  = today.difference(d).inDays;
+    if (diff == 0) return 'Hoy';
+    if (diff == 1) return 'Ayer';
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    final year  = date.year != now.year ? ' ${date.year}' : '';
+    return '${date.day} ${meses[date.month - 1]}$year';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = SocialPalette.of(context);
     return Padding(
-      padding: EdgeInsets.only(bottom: 8, left: esMio ? 60 : 0, right: esMio ? 0 : 60),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(children: [
+        Expanded(child: Divider(color: p.line2, thickness: 0.5, endIndent: 12)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: p.line2),
+          ),
+          child: Text(_label(),
+              style: TextStyle(color: p.subtext, fontSize: 10,
+                  letterSpacing: 0.8, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(child: Divider(color: p.line2, thickness: 0.5, indent: 12)),
+      ]),
+    );
+  }
+}
+
+// ── Burbuja de mensaje ────────────────────────────────────────────────────────
+class _Bubble extends StatelessWidget {
+  final String texto, hora;
+  final bool esMio, isFirst, isLast;
+
+  const _Bubble({
+    required this.texto,
+    required this.esMio,
+    required this.hora,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  BorderRadius _radius() {
+    const full  = Radius.circular(18);
+    const small = Radius.circular(4);
+    if (esMio) {
+      // Burbuja propia (derecha): cola en esquina inferior-derecha
+      return BorderRadius.only(
+        topLeft:     full,
+        topRight:    isFirst ? full : small,
+        bottomLeft:  full,
+        bottomRight: isLast  ? small : small,
+      );
+    } else {
+      // Burbuja ajena (izquierda): cola en esquina inferior-izquierda
+      return BorderRadius.only(
+        topLeft:     isFirst ? full : small,
+        topRight:    full,
+        bottomLeft:  isLast  ? small : small,
+        bottomRight: full,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = SocialPalette.of(context);
+    // Espacio entre burbujas: menos si son del mismo grupo
+    final bottomPad = isLast ? 8.0 : 2.0;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: bottomPad,
+        left:   esMio ? 64 : 0,
+        right:  esMio ? 0 : 64,
+      ),
       child: Align(
         alignment: esMio ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: esMio ? p.text1 : p.surface3,
-            border: esMio ? null : Border.all(color: p.line2),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(14), topRight: const Radius.circular(14),
-              bottomLeft: Radius.circular(esMio ? 14 : 3), bottomRight: Radius.circular(esMio ? 3 : 14))),
-          child: Column(
-            crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              Text(texto, style: TextStyle(color: esMio ? p.bg : p.text1, fontSize: 13)),
-              const SizedBox(height: 4),
-              Text(hora, style: TextStyle(color: esMio ? p.bg.withValues(alpha: 0.4) : p.subtext, fontSize: 9)),
-            ]))));
+        child: Column(
+          crossAxisAlignment: esMio ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: esMio ? kSocAccent : p.surface,
+                border: esMio ? null : Border.all(color: p.line2, width: 0.5),
+                borderRadius: _radius(),
+                boxShadow: esMio
+                    ? [BoxShadow(color: kSocAccentGlow, blurRadius: 8, offset: const Offset(0, 2))]
+                    : null,
+              ),
+              child: Text(texto,
+                  style: TextStyle(
+                      color: esMio ? Colors.white : p.text1,
+                      fontSize: 14,
+                      height: 1.4)),
+            ),
+            // Hora solo en el último mensaje del grupo
+            if (isLast && hora.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
+                child: Text(hora,
+                    style: TextStyle(color: p.dim, fontSize: 9, letterSpacing: 0.3)),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
