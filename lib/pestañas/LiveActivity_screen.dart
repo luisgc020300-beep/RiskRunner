@@ -3841,7 +3841,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (t == null) return;
 
     if (t.esMio) {
-      if (!_territoriosVisitadosEnSesion.contains(t.docId)) {
+      if (!_territoriosVisitadosEnSesion.contains(t.docId) &&
+          _distanciaTotal * 1000 >= 200) {
         _territoriosVisitadosEnSesion.add(t.docId);
         TerritoryService.actualizarUltimaVisita(t.docId);
         _narrador.eventoTerritorioPropio();
@@ -4076,6 +4077,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       duration: const Duration(seconds: 4),
       backgroundColor: Colors.transparent,
       elevation: 0,
+      behavior: SnackBarBehavior.floating,
+      margin: EdgeInsets.fromLTRB(12, 0, 12, MediaQuery.of(context).padding.bottom + 110),
       content: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -4382,6 +4385,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       duration: Duration(seconds: territorio.escudoVigente ? 2 : 5),
       backgroundColor: Colors.transparent,
       elevation: 0,
+      behavior: SnackBarBehavior.floating,
+      margin: EdgeInsets.fromLTRB(12, 0, 12, MediaQuery.of(context).padding.bottom + 110),
       content: _snackWrap(
         color:  _p.parchMid,
         border: Border.all(color: _kGold.withValues(alpha: 0.55)),
