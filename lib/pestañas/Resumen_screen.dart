@@ -885,7 +885,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                         'userNickname'    : pd['nickname'] ?? 'Runner',
                         'userNivel'       : (pd['nivel'] as num?)?.toInt() ?? 1,
                         'userAvatarBase64': pd['foto_base64'],
-                        'tipo'            : 'run',
+                        'tipo'            : widget.modoInicial ?? 'run',
                         'titulo'          : 'Carrera de ${widget.distancia.toStringAsFixed(2)} km',
                         'descripcion'     : ctrl.text.trim(),
                         'distanciaKm'     : widget.distancia,

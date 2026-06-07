@@ -392,6 +392,86 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
 
+  void _mostrarMenuPost(FeedPost post) {
+    final esPropio = userId != null && post.userId == userId;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _T.bg1,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(top: 10, bottom: 16),
+              decoration: BoxDecoration(
+                color: _T.dim.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (esPropio)
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: Colors.redAccent.shade200),
+                title: Text('Eliminar publicación',
+                    style: _raj(14, FontWeight.w600, Colors.redAccent.shade200)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (dCtx) => AlertDialog(
+                      backgroundColor: _T.bg1,
+                      title: Text('Eliminar', style: _raj(16, FontWeight.w700, _T.white)),
+                      content: Text('¿Seguro que quieres eliminar esta publicación?',
+                          style: _raj(13, FontWeight.w400, _T.dim)),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dCtx, false),
+                          child: Text('Cancelar', style: _raj(13, FontWeight.w500, _T.sub)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(dCtx, true),
+                          child: Text('Eliminar',
+                              style: _raj(13, FontWeight.w600, Colors.redAccent.shade200)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('posts').doc(post.id).delete();
+                    } catch (e) {
+                      if (mounted) _snackError('No se pudo eliminar');
+                    }
+                  }
+                },
+              )
+            else
+              ListTile(
+                leading: Icon(Icons.flag_outlined, color: _T.sub),
+                title: Text('Reportar publicación',
+                    style: _raj(14, FontWeight.w600, _T.white)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Publicación reportada',
+                        style: _raj(13, FontWeight.w500, _T.white)),
+                    backgroundColor: _T.bg2,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 2),
+                  ));
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _snackError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 3),
@@ -1591,7 +1671,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ]),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.more_horiz, color: _T.dim, size: 20),
+            GestureDetector(
+              onTap: () => _mostrarMenuPost(post),
+              child: Icon(Icons.more_horiz, color: _T.dim, size: 20),
+            ),
           ]),
         ),
         // â”€â”€ Título + descripción
@@ -1900,8 +1983,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   IconData _iconForTipo(String tipo) {
     switch (tipo) {
       case 'video': return Icons.play_circle_outline_rounded;
-      case 'foto': return Icons.image_outlined;
+      case 'foto':
+      case 'photo': return Icons.image_outlined;
       case 'territorio': return Icons.flag_rounded;
+      case 'solitario': return Icons.person_rounded;
+      case 'ruta': return Icons.route_rounded;
+      case 'global': return Icons.public_rounded;
       default: return Icons.directions_run_rounded;
     }
   }
@@ -1909,9 +1996,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _labelForTipo(String tipo) {
     switch (tipo) {
       case 'video': return 'VIDEO';
-      case 'foto': return 'FOTO';
+      case 'foto':
+      case 'photo': return 'FOTO';
+      case 'texto': return 'TEXTO';
       case 'territorio': return 'ZONA';
-      default: return 'CARRERA';
+      case 'solitario': return 'SOLITARIO';
+      case 'ruta': return 'RUTA';
+      case 'global': return 'GLOBAL';
+      default: return 'COMPETITIVO';
     }
   }
 }
