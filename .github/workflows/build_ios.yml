@@ -23,8 +23,9 @@ jobs:
         run: flutter config --no-enable-swift-package-manager
       - name: Create env.dart
         run: |
-          python3 -c "
-          content = '''class Env {
+          mkdir -p lib/config
+          cat > lib/config/env.dart << 'EOF'
+          class Env {
             Env._();
             static const bool isDebug = true;
             static const String revenueCatAndroid = '';
@@ -35,10 +36,8 @@ jobs:
             static const String productMonthly     = 'riskrunner_premium_monthly';
             static const String productAnnual      = 'riskrunner_premium_annual';
             static const String anthropicApiKey    = '';
-          }'''
-          with open('lib/config/env.dart', 'w') as f:
-              f.write(content)
-          "
+          }
+          EOF
       - name: Flutter pub get
         run: flutter pub get
       - name: Generate Flutter iOS config
