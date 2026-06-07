@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/subscription_service.dart';
 import '../services/training_plan_service.dart';
+import 'ai_plan_screen.dart';
+import 'coin_shop_screen.dart';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
 const _kBg      = Color(0xFF0D0D0E);
@@ -57,7 +60,11 @@ class _TrainingPlansScreenState extends State<TrainingPlansScreen> {
           }
           final state = snap.data;
           if (state == null) return _PlanSelector(uid: uid);
-          final plan = planById(state.planId);
+          TrainingPlan? plan = planById(state.planId);
+          if (plan == null && state.planId == 'plan_ai' &&
+              state.aiPlanData != null) {
+            try { plan = buildPlanFromAiData(state.aiPlanData!); } catch (_) {}
+          }
           if (plan == null) return _PlanSelector(uid: uid);
           return _ActivePlanView(uid: uid, plan: plan, state: state);
         },
@@ -85,6 +92,7 @@ class _PlanSelector extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: _PlanCard(plan: plan, uid: uid),
         )),
+        _AiPlanCard(uid: uid),
       ],
     );
   }
@@ -222,6 +230,142 @@ class _PlanCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Tarjeta plan IA ───────────────────────────────────────────────────────────
+class _AiPlanCard extends StatelessWidget {
+  final String uid;
+  const _AiPlanCard({required this.uid});
+
+  static const _kAiColor = Color(0xFF0A84FF);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<SubscriptionStatus>(
+      stream: SubscriptionService.statusStream,
+      initialData: SubscriptionService.currentStatus,
+      builder: (ctx, snap) {
+        final isPremium = snap.data?.isPremium ?? false;
+        return GestureDetector(
+          onTap: () {
+            if (isPremium) {
+              Navigator.push(ctx,
+                  MaterialPageRoute(builder: (_) => AIPlanScreen(uid: uid)));
+            } else {
+              CoinShopScreen.mostrar(ctx);
+            }
+          },
+          child: Container(
+            margin: const EdgeInsets.only(top: 0),
+            decoration: BoxDecoration(
+              color: _kSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isPremium
+                    ? _kAiColor.withValues(alpha: 0.3)
+                    : _kBorder,
+              ),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                decoration: BoxDecoration(
+                  color: _kAiColor.withValues(alpha: 0.06),
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(15)),
+                  border: Border(
+                    bottom: BorderSide(
+                        color: _kAiColor.withValues(alpha: 0.12))),
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: _kAiColor.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: _kAiColor, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Plan Personalizado IA',
+                          style: _t(18, FontWeight.w800, _kWhite)),
+                      Text('Diseñado para tus objetivos',
+                          style: _t(12, FontWeight.w500, _kSub)),
+                    ],
+                  )),
+                  if (!isPremium)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFCC00).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: const Color(0xFFFFCC00)
+                                .withValues(alpha: 0.4)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.lock_rounded,
+                            color: Color(0xFFFFCC00), size: 11),
+                        const SizedBox(width: 4),
+                        Text('PREMIUM',
+                            style: _t(10, FontWeight.w800,
+                                const Color(0xFFFFCC00), spacing: 0.5)),
+                      ]),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _kAiColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('IA',
+                          style: _t(12, FontWeight.w800, Colors.white,
+                              spacing: 1)),
+                    ),
+                ]),
+              ),
+              // Descripción
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                child: Row(children: [
+                  _aiStat(Icons.psychology_rounded, 'Personalizado'),
+                  const SizedBox(width: 20),
+                  _aiStat(Icons.tune_rounded, 'Adaptativo'),
+                  const SizedBox(width: 20),
+                  _aiStat(Icons.chat_bubble_outline_rounded, 'Chat IA'),
+                  const Spacer(),
+                  Icon(
+                    isPremium
+                        ? Icons.arrow_forward_ios_rounded
+                        : Icons.lock_outline_rounded,
+                    color: isPremium ? _kAiColor : _kDim,
+                    size: 14,
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _aiStat(IconData icon, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: _kDim, size: 13),
+      const SizedBox(width: 4),
+      Text(label, style: _t(11, FontWeight.w500, _kSub)),
+    ],
+  );
 }
 
 // ── Vista plan activo ─────────────────────────────────────────────────────────

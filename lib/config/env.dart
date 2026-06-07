@@ -44,4 +44,10 @@ class Env {
   static const String entitlementPremium = 'premium';
   static const String productMonthly     = 'riskrunner_premium_monthly';
   static const String productAnnual      = 'riskrunner_premium_annual';
+
+  // ==========================================================================
+  // ANTHROPIC — IA entrenador personal (solo premium)
+  // Obtén tu clave en: https://console.anthropic.com/
+  // ==========================================================================
+  static const String anthropicApiKey = '';
 }

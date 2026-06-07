@@ -98,23 +98,28 @@ class UserPlanState {
   final String planId;
   final DateTime startDate;
   final List<String> completedSessions;
+  // Solo para planes generados por IA
+  final Map<String, dynamic>? aiPlanData;
 
   const UserPlanState({
     required this.planId,
     required this.startDate,
     required this.completedSessions,
+    this.aiPlanData,
   });
 
   factory UserPlanState.fromMap(Map<String, dynamic> d) => UserPlanState(
     planId: d['planId'] as String,
     startDate: (d['startDate'] as Timestamp).toDate(),
     completedSessions: List<String>.from(d['completedSessions'] ?? []),
+    aiPlanData: d['aiPlanData'] as Map<String, dynamic>?,
   );
 
   Map<String, dynamic> toMap() => {
     'planId': planId,
     'startDate': Timestamp.fromDate(startDate),
     'completedSessions': completedSessions,
+    if (aiPlanData != null) 'aiPlanData': aiPlanData,
   };
 
   // Semana actual (1-indexed) según cuántos días han pasado desde el inicio
@@ -183,6 +188,52 @@ class TrainingPlanService {
   static Future<void> abandonPlan(String uid) async {
     await _ref(uid).delete();
   }
+
+  static Future<void> startAiPlan(
+      String uid, Map<String, dynamic> aiPlanData) async {
+    await _ref(uid).set(UserPlanState(
+      planId: 'plan_ai',
+      startDate: DateTime.now(),
+      completedSessions: [],
+      aiPlanData: aiPlanData,
+    ).toMap());
+  }
+}
+
+// ── Constructor de plan desde datos IA ───────────────────────────────────────
+SessionType _parseSessionType(String s) {
+  switch (s) {
+    case 'rest':      return SessionType.rest;
+    case 'intervals': return SessionType.intervals;
+    case 'tempo':     return SessionType.tempo;
+    case 'longRun':   return SessionType.longRun;
+    case 'race':      return SessionType.race;
+    default:          return SessionType.easy;
+  }
+}
+
+TrainingPlan buildPlanFromAiData(Map<String, dynamic> data) {
+  final rawSessions = (data['sessions'] as List).cast<Map<String, dynamic>>();
+  final sessions = rawSessions.map((s) => TrainingSession(
+    week:      (s['week']      as num).toInt(),
+    slot:      (s['slot']      as num).toInt(),
+    weekday:   (s['weekday']   as num).toInt(),
+    type:      _parseSessionType(s['type'] as String? ?? 'easy'),
+    targetKm:  (s['targetKm']  as num).toDouble(),
+    note:       s['note']      as String? ?? '',
+  )).toList();
+
+  return TrainingPlan(
+    id:             'plan_ai',
+    name:           data['name']           as String? ?? 'Plan Personalizado',
+    subtitle:       data['subtitle']       as String? ?? 'Generado por IA',
+    targetLabel:    data['targetLabel']    as String? ?? 'OBJETIVO',
+    weeks:          (data['weeks']         as num).toInt(),
+    sessionsPerWeek:(data['sessionsPerWeek'] as num?)?.toInt() ?? 3,
+    color:          const Color(0xFF0A84FF),
+    icon:           Icons.auto_awesome_rounded,
+    sessions:       sessions,
+  );
 }
 
 // ── Planes integrados ─────────────────────────────────────────────────────────
