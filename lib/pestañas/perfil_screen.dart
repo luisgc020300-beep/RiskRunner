@@ -1299,6 +1299,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       (Icons.shield_outlined,    'HISTORIAL', false),
       (Icons.grid_on_rounded,    'POSTS',     false),
       (Icons.sports_mma_rounded, 'DUELOS',    _desafiosActivosCount > 0),
+      if (isOwnProfile) (Icons.bookmark_rounded, 'GUARDADOS', false),
     ];
 
     return Padding(
@@ -1381,6 +1382,9 @@ class _PerfilScreenState extends State<PerfilScreen>
       case 3:
         if (viewedUserId == null) return const SizedBox.shrink();
         return PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3);
+      case 4:
+        if (viewedUserId == null) return const SizedBox.shrink();
+        return PerfilSavedTab(uid: viewedUserId!, colorTerritorio: _colorTerritorio);
       default: return const SizedBox.shrink();
     }
   }

@@ -440,6 +440,259 @@ class _ConfirmDeleteSheet extends StatelessWidget {
   }
 }
 
+// ── Tab de publicaciones guardadas ────────────────────────────────────────────
+class PerfilSavedTab extends StatefulWidget {
+  final String uid;
+  final Color colorTerritorio;
+  const PerfilSavedTab({super.key, required this.uid, required this.colorTerritorio});
+  @override State<PerfilSavedTab> createState() => _PerfilSavedTabState();
+}
+
+class _PerfilSavedTabState extends State<PerfilSavedTab> {
+  PerfilPalette get _p => PerfilPalette.of(context);
+
+  static const _tileUrl =
+      'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
+      '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
+
+  List<LatLng> _parseRoute(dynamic rawRoute) {
+    if (rawRoute == null) return [];
+    return (rawRoute as List<dynamic>).map((pt) {
+      final m = pt as Map;
+      return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+    }).toList();
+  }
+
+  Future<void> _quitarGuardado(String postId) async {
+    await FirebaseFirestore.instance
+        .collection('posts')
+        .doc(postId)
+        .update({'saved': FieldValue.arrayRemove([widget.uid])});
+  }
+
+  void _mostrarDetalle(BuildContext context, String postId, Map<String, dynamic> data) {
+    final p      = _p;
+    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
+    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
+    final desc   = (data['descripcion'] as String? ?? '').trim();
+    final titulo = (data['titulo'] as String? ?? '').trim();
+    final ts     = data['timestamp'] as Timestamp?;
+    final route  = _parseRoute(data['ruta']);
+    final mins   = tiempo ~/ 60;
+    final secs   = tiempo % 60;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36, height: 4,
+            decoration: BoxDecoration(color: p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (titulo.isNotEmpty)
+                Text(titulo, style: GoogleFonts.inter(
+                    color: p.title, fontSize: 16, fontWeight: FontWeight.w700)),
+              if (ts != null)
+                Text(
+                  '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
+                  style: GoogleFonts.inter(color: p.dim, fontSize: 11)),
+            ])),
+            GestureDetector(
+              onTap: () async {
+                Navigator.pop(ctx);
+                await _quitarGuardado(postId);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: p.surface2,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: p.border2),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.bookmark_remove_rounded, color: p.dim, size: 14),
+                  const SizedBox(width: 5),
+                  Text('Quitar', style: GoogleFonts.inter(
+                      color: p.sub, fontSize: 12, fontWeight: FontWeight.w600)),
+                ]),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 20),
+          if (route.length > 1) ...[
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: p.border2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: FlutterMap(
+                  options: MapOptions(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    initialCameraFit: CameraFit.bounds(
+                      bounds: LatLngBounds.fromPoints(route),
+                      padding: const EdgeInsets.all(32),
+                    ),
+                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                  ),
+                  children: [
+                    TileLayer(urlTemplate: _tileUrl, userAgentPackageName: 'com.example.mi_app'),
+                    PolylineLayer(polylines: [
+                      Polyline(points: route, color: widget.colorTerritorio, strokeWidth: 4),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Row(children: [
+            _stat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
+            Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
+            _stat(p, '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}', 'TIEMPO'),
+            Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
+            _stat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
+          ]),
+          if (desc.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(height: 0.5, color: p.border2),
+            const SizedBox(height: 12),
+            Text(desc, style: GoogleFonts.inter(color: p.text, fontSize: 13, height: 1.5)),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _stat(PerfilPalette p, String val, String label) =>
+      Expanded(child: Column(children: [
+        Text(val, style: GoogleFonts.inter(color: p.title, fontSize: 13, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(label, style: GoogleFonts.inter(color: p.dim, fontSize: 7, fontWeight: FontWeight.w700, letterSpacing: 1)),
+      ]));
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _p;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .where('saved', arrayContains: widget.uid)
+          .limit(60)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 48),
+            child: Center(child: SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(color: p.dim, strokeWidth: 1.5))),
+          );
+        }
+        final posts = List<QueryDocumentSnapshot>.from(snap.data?.docs ?? []);
+        posts.sort((a, b) {
+          final ta = ((a.data() as Map)['timestamp'] as Timestamp?)?.toDate() ?? DateTime(0);
+          final tb = ((b.data() as Map)['timestamp'] as Timestamp?)?.toDate() ?? DateTime(0);
+          return tb.compareTo(ta);
+        });
+        if (posts.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.bookmark_border_rounded, color: p.muted, size: 36),
+              const SizedBox(height: 12),
+              Text('Sin publicaciones guardadas',
+                  style: perfilStyle(14, FontWeight.w600, p.sub)),
+              const SizedBox(height: 6),
+              Text('Guarda publicaciones del feed para verlas aquí',
+                  style: perfilStyle(11, FontWeight.w400, p.dim),
+                  textAlign: TextAlign.center),
+            ]),
+          );
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+          itemCount: posts.length,
+          itemBuilder: (ctx, i) {
+            final doc  = posts[i];
+            final data = (doc.data() ?? {}) as Map<String, dynamic>;
+            final dist = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+            final ts   = data['timestamp'] as Timestamp?;
+            final date = ts != null
+                ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year % 100}'
+                : '';
+            final route = _parseRoute(data['ruta']);
+            final offsetRoute = (data['ruta'] as List<dynamic>?)?.map((pt) {
+              final m = pt as Map;
+              return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
+            }).toList() ?? <Offset>[];
+
+            return GestureDetector(
+              onTap: () => _mostrarDetalle(context, doc.id, data),
+              child: Container(
+                color: const Color(0xFF141414),
+                child: Stack(fit: StackFit.expand, children: [
+                  if (route.length > 1)
+                    FlutterMap(
+                      options: MapOptions(
+                        backgroundColor: const Color(0xFF141414),
+                        initialCameraFit: CameraFit.bounds(
+                          bounds: LatLngBounds.fromPoints(route),
+                          padding: const EdgeInsets.all(12),
+                        ),
+                        interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                      ),
+                      children: [
+                        TileLayer(urlTemplate: _tileUrl, userAgentPackageName: 'com.example.mi_app'),
+                        PolylineLayer(polylines: [
+                          Polyline(points: route, color: widget.colorTerritorio, strokeWidth: 2),
+                        ]),
+                      ],
+                    )
+                  else if (offsetRoute.length > 1)
+                    CustomPaint(painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio)),
+                  Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
+                      stops: const [0.45, 1.0]),
+                  ))),
+                  Positioned(bottom: 6, left: 7,
+                      child: Text('${dist.toStringAsFixed(1)} km',
+                          style: perfilStyle(11, FontWeight.w800, Colors.white))),
+                  Positioned(top: 6, right: 6,
+                      child: Text(date,
+                          style: perfilStyle(8, FontWeight.w500, Colors.white.withValues(alpha: 0.7)))),
+                  Positioned(top: 6, left: 6,
+                      child: Icon(Icons.bookmark_rounded,
+                          color: Colors.white.withValues(alpha: 0.6), size: 10)),
+                ]),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 // ── Painter de fallback (cuando no hay coordenadas GPS válidas) ─────────────
 class _RouteMiniPainter extends CustomPainter {
   final List<Offset> points;
