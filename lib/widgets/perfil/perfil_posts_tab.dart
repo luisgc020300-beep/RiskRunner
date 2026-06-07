@@ -26,6 +26,7 @@ class PerfilPostsTab extends StatefulWidget {
 
 class _PerfilPostsTabState extends State<PerfilPostsTab> {
   PerfilPalette get _p => PerfilPalette.of(context);
+  bool _mostrandoGuardados = false;
 
   static const _tileUrl =
       'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
@@ -213,70 +214,102 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
       width: 0.5, height: 32, color: p.border2,
       margin: const EdgeInsets.symmetric(horizontal: 4));
 
+  // ── Selector posts / guardados ──────────────────────────────────────────────
+  Widget _buildSelector(PerfilPalette p) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(children: [
+        _selectorBtn(p, Icons.grid_on_rounded,      !_mostrandoGuardados, () => setState(() => _mostrandoGuardados = false)),
+        const SizedBox(width: 8),
+        _selectorBtn(p, Icons.bookmark_rounded,      _mostrandoGuardados,  () => setState(() => _mostrandoGuardados = true)),
+      ]),
+    );
+  }
+
+  Widget _selectorBtn(PerfilPalette p, IconData icon, bool active, VoidCallback onTap) {
+    final color = active ? p.title : p.dim;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? p.title.withValues(alpha: 0.07) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: active ? p.title.withValues(alpha: 0.35) : p.border2),
+        ),
+        child: Icon(icon, color: color, size: 16),
+      ),
+    );
+  }
+
   // ── Build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final p = _p;
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: widget.viewedUserId)
-          .orderBy('timestamp', descending: true)
-          .limit(60)
-          .snapshots(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting &&
-            !snap.hasData) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 48),
-            child: Center(
-              child: SizedBox(
-                width: 20, height: 20,
-                child: CircularProgressIndicator(
-                    color: p.dim, strokeWidth: 1.5)),
-            ),
-          );
-        }
-        final posts = snap.data?.docs ?? [];
-        if (posts.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.directions_run_rounded, color: p.muted, size: 36),
-              const SizedBox(height: 12),
-              Text(
-                widget.isOwnProfile
-                    ? 'Comparte tus carreras'
-                    : 'Sin publicaciones aún',
-                style: perfilStyle(14, FontWeight.w600, p.sub),
-              ),
-              if (widget.isOwnProfile) ...[
-                const SizedBox(height: 6),
+
+    if (widget.isOwnProfile && _mostrandoGuardados) {
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        _buildSelector(p),
+        PerfilSavedTab(uid: widget.viewedUserId!, colorTerritorio: widget.colorTerritorio),
+      ]);
+    }
+
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (widget.isOwnProfile) _buildSelector(p),
+      StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('posts')
+            .where('userId', isEqualTo: widget.viewedUserId)
+            .orderBy('timestamp', descending: true)
+            .limit(60)
+            .snapshots(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 48),
+              child: Center(child: SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(color: p.dim, strokeWidth: 1.5))),
+            );
+          }
+          final posts = snap.data?.docs ?? [];
+          if (posts.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.directions_run_rounded, color: p.muted, size: 36),
+                const SizedBox(height: 12),
                 Text(
-                  'Al terminar una carrera puedes publicarla en el feed',
-                  style: perfilStyle(11, FontWeight.w400, p.dim),
-                  textAlign: TextAlign.center,
+                  widget.isOwnProfile ? 'Comparte tus carreras' : 'Sin publicaciones aún',
+                  style: perfilStyle(14, FontWeight.w600, p.sub),
                 ),
-              ],
-            ]),
+                if (widget.isOwnProfile) ...[
+                  const SizedBox(height: 6),
+                  Text('Al terminar una carrera puedes publicarla en el feed',
+                      style: perfilStyle(11, FontWeight.w400, p.dim),
+                      textAlign: TextAlign.center),
+                ],
+              ]),
+            );
+          }
+          return GridView.builder(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (ctx, i) {
+              final doc  = posts[i];
+              final data = (doc.data() ?? {}) as Map<String, dynamic>;
+              return _buildPostCell(context, doc.id, data, p);
+            },
           );
-        }
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2,
-          ),
-          itemCount: posts.length,
-          itemBuilder: (ctx, i) {
-            final doc  = posts[i];
-            final data = (doc.data() ?? {}) as Map<String, dynamic>;
-            return _buildPostCell(context, doc.id, data, p);
-          },
-        );
-      },
-    );
+        },
+      ),
+    ]);
   }
 
   Widget _buildPostCell(BuildContext context, String postId,
