@@ -1454,6 +1454,32 @@ class _ResumenScreenState extends State<ResumenScreen>
           ]),
         ),
       ),
+      const SizedBox(height: 10),
+      GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _exportarGPX();
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 17),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _kBorder2),
+            color: isDark ? const Color(0xFF1C1C1E) : _kSurface,
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.upload_file_rounded,
+                color: isDark ? Colors.white : _kBright, size: 14),
+            const SizedBox(width: 8),
+            Text('EXPORTAR GPX', style: TextStyle(
+                color:         isDark ? Colors.white : _kBright,
+                fontSize:      11,
+                fontWeight:    FontWeight.w900,
+                letterSpacing: 2.5)),
+          ]),
+        ),
+      ),
     ],
     const SizedBox(height: 20),
     Row(children: [
@@ -1465,6 +1491,56 @@ class _ResumenScreenState extends State<ResumenScreen>
       Expanded(child: Container(height: 1, color: _kBorder2)),
     ]),
   ]);
+  }
+
+  // ── Exportar GPX ──────────────────────────────────────────────────────────
+  Future<void> _exportarGPX() async {
+    if (widget.ruta.length < 2) return;
+    try {
+      final start = DateTime.now().subtract(widget.tiempo);
+      final totalPts = widget.ruta.length;
+      final msPerPt = widget.tiempo.inMilliseconds / (totalPts - 1);
+
+      final buf = StringBuffer()
+        ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+        ..writeln('<gpx version="1.1" creator="RiskRunner"'
+            ' xmlns="http://www.topografix.com/GPX/1/1">')
+        ..writeln('  <trk>')
+        ..writeln('    <name>Carrera RiskRunner ${widget.distancia.toStringAsFixed(2)} km</name>')
+        ..writeln('    <trkseg>');
+
+      for (int i = 0; i < totalPts; i++) {
+        final pt = widget.ruta[i];
+        final t = start.add(Duration(milliseconds: (i * msPerPt).round()));
+        final iso = t.toUtc().toIso8601String();
+        buf.writeln('      <trkpt lat="${pt.latitude.toStringAsFixed(7)}"'
+            ' lon="${pt.longitude.toStringAsFixed(7)}">');
+        buf.writeln('        <time>$iso</time>');
+        buf.writeln('      </trkpt>');
+      }
+
+      buf
+        ..writeln('    </trkseg>')
+        ..writeln('  </trk>')
+        ..writeln('</gpx>');
+
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/riskrunner_${DateTime.now().millisecondsSinceEpoch}.gpx');
+      await file.writeAsString(buf.toString());
+
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/gpx+xml')],
+        subject: 'Carrera RiskRunner',
+      ));
+    } catch (e) {
+      debugPrint('_exportarGPX error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo exportar el GPX'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
   }
 
   // ── Route art: dibuja la ruta como imagen y la comparte ─────────────────

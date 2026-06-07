@@ -28,6 +28,8 @@ import 'package:RiskRunner/pesta%C3%B1as/story_viewer_screen.dart';
 import '../config/env.dart';
 import '../widgets/home/home_theme.dart';
 import '../widgets/home/home_retos_tab.dart';
+import '../services/training_plan_service.dart';
+import 'training_plans_screen.dart';
 
 // =============================================================================
 // MAPBOX
@@ -176,6 +178,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<FeedPost> _feedPosts = [];
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
+
+  // â”€â”€ Plan de entrenamiento
+  UserPlanState? _userPlan;
+  TrainingPlan?  _planActivo;
   // Cache de avatares actuales por userId (evita mostrar fotos desactualizadas)
   final Map<String, String?> _avatarCache = {};
 
@@ -247,7 +253,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _escucharNotificacionesInvasion();
     _escucharConteoNotificaciones();
     _escucharFeed();
+    _cargarPlan();
     _verificarPermisoNotificaciones();
+  }
+
+  Future<void> _cargarPlan() async {
+    final uid = userId;
+    if (uid == null) return;
+    final state = await TrainingPlanService.loadState(uid);
+    if (!mounted) return;
+    setState(() {
+      _userPlan   = state;
+      _planActivo = state != null ? planById(state.planId) : null;
+    });
   }
 
   Future<void> _verificarPermisoNotificaciones() async {
@@ -1568,16 +1586,116 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     if (_feedPosts.isEmpty) return _buildFeedEmptyState();
+    final hasBanner = _userPlan != null && _planActivo != null;
     return RefreshIndicator(
       onRefresh: () async {
         _feedListener?.cancel();
         _escucharFeed();
+        _cargarPlan();
       },
       color: _T.bronze, backgroundColor: _T.bg2, strokeWidth: 1.5,
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 12, bottom: 120),
-        itemCount: _feedPosts.length,
-        itemBuilder: (context, index) => _buildPostCard(_feedPosts[index]),
+        itemCount: _feedPosts.length + (hasBanner ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (hasBanner && index == 0) return _buildPlanBanner();
+          final post = _feedPosts[index - (hasBanner ? 1 : 0)];
+          return _buildPostCard(post);
+        },
+      ),
+    );
+  }
+
+  Widget _buildPlanBanner() {
+    final plan  = _planActivo!;
+    final state = _userPlan!;
+    final week  = state.currentWeek.clamp(1, plan.weeks);
+    final progress = state.progressIn(plan);
+
+    // Sesión de hoy según el día de la semana
+    final sessions = plan.week(week);
+    final todayWd  = DateTime.now().weekday;
+    final todaySession = sessions.where(
+        (s) => s.weekday == todayWd && s.type.isRun).firstOrNull;
+    final todayDone = todaySession != null &&
+        state.isCompleted(todaySession.key);
+
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => const TrainingPlansScreen())),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _T.bg1,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: plan.color.withValues(alpha: 0.35)),
+          boxShadow: [
+            BoxShadow(color: plan.color.withValues(alpha: 0.08),
+                blurRadius: 12, offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(plan.icon, color: plan.color, size: 14),
+            const SizedBox(width: 7),
+            Text('MI PLAN · SEM $week/${plan.weeks}',
+                style: _raj(9, FontWeight.w700, plan.color, spacing: 1.5)),
+            const Spacer(),
+            if (todaySession != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: todayDone
+                      ? const Color(0xFF34C759).withValues(alpha: 0.15)
+                      : plan.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  todayDone ? 'COMPLETADA' : 'HOY',
+                  style: _raj(8, FontWeight.w700,
+                      todayDone ? const Color(0xFF34C759) : plan.color,
+                      spacing: 1),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          if (todaySession != null) ...[
+            Row(children: [
+              Icon(todaySession.type.icon,
+                  color: todayDone ? _T.muted : todaySession.type.color, size: 16),
+              const SizedBox(width: 8),
+              Text(todaySession.type.label,
+                  style: _raj(14, FontWeight.w700,
+                      todayDone ? _T.muted : _T.white)),
+              const SizedBox(width: 6),
+              Text('· ${todaySession.targetKm.toStringAsFixed(1)} km',
+                  style: _raj(12, FontWeight.w400, _T.dim)),
+            ]),
+            const SizedBox(height: 4),
+            Text(todaySession.note,
+                style: _raj(11, FontWeight.w400, _T.dim),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ] else ...[
+            Text(plan.name,
+                style: _raj(14, FontWeight.w700, _T.white)),
+            Text('Hoy es día de descanso. Descansa bien.',
+                style: _raj(11, FontWeight.w400, _T.dim)),
+          ],
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: _T.bg2,
+              valueColor: AlwaysStoppedAnimation(plan.color),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text('${(progress * 100).round()}% completado',
+              style: _raj(9, FontWeight.w500, _T.dim)),
+        ]),
       ),
     );
   }

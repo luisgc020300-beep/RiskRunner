@@ -1,6 +1,8 @@
 // lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
+import 'training_plans_screen.dart';
+import '../services/training_plan_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -1510,6 +1512,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           if (_prDistancia > 0 || _prPaceMinKm > 0 || _prVelocidadMax > 0)
             ...[_buildPRsCard(), const SizedBox(height: 16)],
           _buildHitosPanel(), const SizedBox(height: 16),
+          if (isOwnProfile)
+            ...[_buildPlanEntrenamiento(), const SizedBox(height: 16)],
           if (_diasActividad.isNotEmpty)
             ...[_buildHeatmapActividad(), const SizedBox(height: 16)],
           if (_historialCompleto.isNotEmpty)
@@ -2474,6 +2478,86 @@ class _PerfilScreenState extends State<PerfilScreen>
   // ══════════════════════════════════════════════════════════════════════════
   // HITOS — badges predefinidos calculados desde stats ya cargadas
   // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Plan de entrenamiento ─────────────────────────────────────────────────
+  Widget _buildPlanEntrenamiento() {
+    final uid = myUserId;
+    if (uid == null) return const SizedBox.shrink();
+    final p = _PP.of(context);
+    return FutureBuilder<UserPlanState?>(
+      future: TrainingPlanService.loadState(uid),
+      builder: (ctx, snap) {
+        final state = snap.data;
+        final plan  = state != null ? planById(state.planId) : null;
+
+        return GestureDetector(
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const TrainingPlansScreen())),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: plan != null
+                  ? plan.color.withValues(alpha: 0.3)
+                  : p.border),
+            ),
+            child: Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: (plan?.color ?? const Color(0xFF636366))
+                      .withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  plan?.icon ?? Icons.fitness_center_rounded,
+                  color: plan?.color ?? p.muted,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: plan != null
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(plan.name,
+                          style: GoogleFonts.inter(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: p.text)),
+                      const SizedBox(height: 2),
+                      Text('Semana ${state!.currentWeek.clamp(1, plan.weeks)} de ${plan.weeks}'
+                          ' · ${(state.progressIn(plan) * 100).round()}% completado',
+                          style: GoogleFonts.inter(
+                              fontSize: 11, color: p.muted)),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: state.progressIn(plan),
+                          minHeight: 4,
+                          backgroundColor: p.border,
+                          valueColor: AlwaysStoppedAnimation(plan.color),
+                        ),
+                      ),
+                    ])
+                  : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Plan de entrenamiento',
+                          style: GoogleFonts.inter(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: p.text)),
+                      const SizedBox(height: 2),
+                      Text('Elige un plan de 5K, 10K o media maratón',
+                          style: GoogleFonts.inter(
+                              fontSize: 11, color: p.muted)),
+                    ]),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: p.muted, size: 20),
+            ]),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildHitosPanel() {
     final hitos = <_Hito>[
