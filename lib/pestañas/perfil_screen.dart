@@ -2478,24 +2478,24 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildHitosPanel() {
     final hitos = <_Hito>[
       // Corredor
-      _Hito('Primera carrera',   Icons.directions_run_rounded,     const Color(0xFFE02020), _totalCarreras >= 1),
-      _Hito('10 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 10),
-      _Hito('50 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 50),
-      _Hito('100 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 100),
-      _Hito('500 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 500),
-      _Hito('10 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 10),
-      _Hito('50 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 50),
+      _Hito('Primera carrera',   Icons.directions_run_rounded,     const Color(0xFFE02020), _totalCarreras >= 1,  progreso: _totalCarreras.toDouble(), meta: 1),
+      _Hito('10 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 10,     progreso: _kmTotales,                meta: 10),
+      _Hito('50 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 50,     progreso: _kmTotales,                meta: 50),
+      _Hito('100 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 100,    progreso: _kmTotales,                meta: 100),
+      _Hito('500 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 500,    progreso: _kmTotales,                meta: 500),
+      _Hito('10 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 10, progreso: _totalCarreras.toDouble(), meta: 10),
+      _Hito('50 carreras',       Icons.repeat_rounded,             const Color(0xFF30D158), _totalCarreras >= 50, progreso: _totalCarreras.toDouble(), meta: 50),
       // Conquistador
-      _Hito('Primera conquista', Icons.flag_rounded,               const Color(0xFF6E7CF2), _territoriosConquistados >= 1),
-      _Hito('10 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 10),
-      _Hito('50 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 50),
+      _Hito('Primera conquista', Icons.flag_rounded,               const Color(0xFF6E7CF2), _territoriosConquistados >= 1,  progreso: _territoriosConquistados.toDouble(), meta: 1),
+      _Hito('10 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 10, progreso: _territoriosConquistados.toDouble(), meta: 10),
+      _Hito('50 territorios',    Icons.map_rounded,                const Color(0xFF6E7CF2), _territoriosConquistados >= 50, progreso: _territoriosConquistados.toDouble(), meta: 50),
       // Racha
-      _Hito('Racha 3 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 3),
-      _Hito('Racha 7 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 7),
-      _Hito('Racha 30 días',     Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 30),
+      _Hito('Racha 3 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 3,  progreso: _rachaActual.toDouble(), meta: 3),
+      _Hito('Racha 7 días',      Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 7,  progreso: _rachaActual.toDouble(), meta: 7),
+      _Hito('Racha 30 días',     Icons.local_fire_department_rounded, const Color(0xFFEAB308), _rachaActual >= 30, progreso: _rachaActual.toDouble(), meta: 30),
       // Retos
-      _Hito('Primer reto',       Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.isNotEmpty),
-      _Hito('5 retos',           Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.length >= 5),
+      _Hito('Primer reto',       Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.isNotEmpty,   progreso: _logros.length.toDouble(), meta: 1),
+      _Hito('5 retos',           Icons.task_alt_rounded,           const Color(0xFF06B6D4), _logros.length >= 5,  progreso: _logros.length.toDouble(), meta: 5),
     ];
 
     final desbloqueados = hitos.where((h) => h.unlocked).length;
@@ -2537,22 +2537,84 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   Widget _hitoBadge(_Hito h) {
     final color = h.unlocked ? h.color : _p.border2;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: h.unlocked ? h.color.withValues(alpha: 0.09) : _p.surface2,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-            color: h.unlocked ? h.color.withValues(alpha: 0.35) : _p.border2),
+    return GestureDetector(
+      onTap: () => _mostrarHitoSheet(h),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: h.unlocked ? h.color.withValues(alpha: 0.09) : _p.surface2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: h.unlocked ? h.color.withValues(alpha: 0.35) : _p.border2),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(h.unlocked ? h.icon : Icons.lock_outline_rounded,
+              color: color, size: 13),
+          const SizedBox(width: 6),
+          Text(h.label,
+              style: _rajdhani(11, FontWeight.w700,
+                  h.unlocked ? _p.title : _p.dim, spacing: 0.2)),
+        ]),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(h.unlocked ? h.icon : Icons.lock_outline_rounded,
-            color: color, size: 13),
-        const SizedBox(width: 6),
-        Text(h.label,
-            style: _rajdhani(11, FontWeight.w700,
-                h.unlocked ? _p.title : _p.dim, spacing: 0.2)),
-      ]),
+    );
+  }
+
+  void _mostrarHitoSheet(_Hito h) {
+    final ratio = h.meta > 0 ? (h.progreso / h.meta).clamp(0.0, 1.0) : 1.0;
+    final activeColor = h.unlocked ? h.color : _p.border2;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: _p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(28, 16, 28, MediaQuery.of(ctx).padding.bottom + 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: _p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 24),
+          Container(
+            width: 60, height: 60,
+            decoration: BoxDecoration(
+              color: activeColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: activeColor.withValues(alpha: 0.35), width: 1.5),
+            ),
+            child: Center(child: Icon(
+              h.unlocked ? h.icon : Icons.lock_outline_rounded,
+              color: activeColor, size: 28)),
+          ),
+          const SizedBox(height: 14),
+          Text(h.label, style: _rajdhani(20, FontWeight.w800, _p.title, spacing: 0.3)),
+          const SizedBox(height: 20),
+          if (h.unlocked) ...[
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.check_circle_rounded, color: Color(0xFF30D158), size: 18),
+              const SizedBox(width: 6),
+              Text('Hito conseguido', style: _rajdhani(13, FontWeight.w700, const Color(0xFF30D158))),
+            ]),
+          ] else ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 7,
+                backgroundColor: _p.surface2,
+                valueColor: AlwaysStoppedAnimation(h.color),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              h.meta <= 1
+                  ? 'Aún sin conseguir'
+                  : '${h.progreso.toStringAsFixed(h.progreso == h.progreso.truncateToDouble() ? 0 : 1)} de ${h.meta.toInt()} para desbloquearlo',
+              style: _rajdhani(12, FontWeight.w600, _p.sub),
+            ),
+          ],
+        ]),
+      ),
     );
   }
 
@@ -2633,19 +2695,36 @@ class _PerfilScreenState extends State<PerfilScreen>
     final inicio = hoy.subtract(const Duration(days: 89));
     final diasSet = _diasActividad.toSet();
 
+    // Computa km y carreras por día desde el historial
+    final perDia = <String, ({double km, int carreras})>{};
+    for (final c in _historialCompleto) {
+      final ts = c['timestamp'] as Timestamp?;
+      if (ts == null) continue;
+      final dt  = ts.toDate();
+      final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final km  = (c['distancia'] as num?)?.toDouble() ?? 0;
+      final prev = perDia[key];
+      perDia[key] = prev == null
+          ? (km: km, carreras: 1)
+          : (km: prev.km + km, carreras: prev.carreras + 1);
+    }
+
     // Construye 90 celdas del día más antiguo al más reciente
     final celdas = <Widget>[];
     for (int i = 0; i < 90; i++) {
       final dia    = inicio.add(Duration(days: i));
       final key    = '${dia.year}-${dia.month.toString().padLeft(2, '0')}-${dia.day.toString().padLeft(2, '0')}';
       final activo = diasSet.contains(key);
-      celdas.add(Container(
-        width: 9, height: 9,
-        margin: const EdgeInsets.all(1),
-        decoration: BoxDecoration(
-          color: activo ? _kAccent : _p.surface2,
-          borderRadius: BorderRadius.circular(2),
-          border: Border.all(color: _p.border2, width: 0.5),
+      celdas.add(GestureDetector(
+        onTap: () => _mostrarDiaSheet(dia, perDia[key]),
+        child: Container(
+          width: 9, height: 9,
+          margin: const EdgeInsets.all(1),
+          decoration: BoxDecoration(
+            color: activo ? _kAccent : _p.surface2,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: _p.border2, width: 0.5),
+          ),
         ),
       ));
     }
@@ -2693,33 +2772,80 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+  void _mostrarDiaSheet(DateTime dia, ({double km, int carreras})? stats) {
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const diasSem = ['lun','mar','mié','jue','vie','sáb','dom'];
+    final fechaStr = '${diasSem[dia.weekday - 1]} ${dia.day} ${meses[dia.month - 1]} ${dia.year}';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: _p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(28, 16, 28, MediaQuery.of(ctx).padding.bottom + 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: _p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: (stats != null ? _kAccent : _p.border2).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: (stats != null ? _kAccent : _p.border2).withValues(alpha: 0.3)),
+              ),
+              child: Center(child: Icon(
+                stats != null ? Icons.directions_run_rounded : Icons.bedtime_outlined,
+                color: stats != null ? _kAccent : _p.dim, size: 20)),
+            ),
+            const SizedBox(width: 14),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(fechaStr, style: _rajdhani(15, FontWeight.w800, _p.title, spacing: 0.2)),
+              const SizedBox(height: 2),
+              if (stats != null)
+                Text('${stats.carreras} ${stats.carreras == 1 ? 'carrera' : 'carreras'} · ${stats.km.toStringAsFixed(2)} km',
+                    style: _rajdhani(12, FontWeight.w600, _kAccent))
+              else
+                Text('Sin actividad este día', style: _rajdhani(12, FontWeight.w500, _p.dim)),
+            ]),
+          ]),
+        ]),
+      ),
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // GRÁFICO SEMANAL DE VOLUMEN (últimas 8 semanas)
   // ══════════════════════════════════════════════════════════════════════════
 
   Widget _buildGraficoSemanal() {
     final ahora = DateTime.now();
-    final semanas = <String, double>{};
 
+    // Datos por semana: km, carreras, rango de fechas
+    final semanasData = <({String label, double km, int carreras, DateTime ini, DateTime fin})>[];
     for (int s = 7; s >= 0; s--) {
-      final ini  = ahora.subtract(Duration(days: (s + 1) * 7));
-      final fin  = ahora.subtract(Duration(days: s * 7));
+      final ini   = ahora.subtract(Duration(days: (s + 1) * 7));
+      final fin   = ahora.subtract(Duration(days: s * 7));
       final label = s == 0 ? 'HOY' : '-${s}S';
-      double km  = 0;
+      double km   = 0;
+      int carreras = 0;
       for (final c in _historialCompleto) {
         final ts = c['timestamp'] as Timestamp?;
         if (ts == null) continue;
         final dt = ts.toDate();
         if (dt.isAfter(ini) && dt.isBefore(fin)) {
           km += (c['distancia'] as num?)?.toDouble() ?? 0;
+          carreras++;
         }
       }
-      semanas[label] = km;
+      semanasData.add((label: label, km: km, carreras: carreras, ini: ini, fin: fin));
     }
 
-    final valores  = semanas.values.toList();
-    final maxKm    = valores.isEmpty ? 1.0 : (valores.reduce((a, b) => a > b ? a : b)).clamp(0.1, double.infinity);
-    final labels   = semanas.keys.toList();
+    final valores = semanasData.map((s) => s.km).toList();
+    final maxKm   = valores.isEmpty ? 1.0 : valores.reduce((a, b) => a > b ? a : b).clamp(0.1, double.infinity);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
@@ -2742,34 +2868,37 @@ class _PerfilScreenState extends State<PerfilScreen>
           height: 80,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(valores.length, (i) {
-              final km      = valores[i];
-              final ratio   = km / maxKm;
-              final isLast  = i == valores.length - 1;
+            children: List.generate(semanasData.length, (i) {
+              final s       = semanasData[i];
+              final ratio   = s.km / maxKm;
+              final isLast  = i == semanasData.length - 1;
               return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (km > 0)
-                        Text(km.toStringAsFixed(1),
-                            style: _rajdhani(7, FontWeight.w700,
-                                isLast ? _kAccent : _p.sub)),
-                      const SizedBox(height: 2),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutCubic,
-                        height: (ratio * 60).clamp(2.0, 60.0),
-                        decoration: BoxDecoration(
-                          color: isLast ? _kAccent : _p.muted.withValues(alpha: 0.4),
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                child: GestureDetector(
+                  onTap: s.km > 0 ? () => _mostrarSemanaSheet(s.ini, s.fin, s.km, s.carreras) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (s.km > 0)
+                          Text(s.km.toStringAsFixed(1),
+                              style: _rajdhani(7, FontWeight.w700,
+                                  isLast ? _kAccent : _p.sub)),
+                        const SizedBox(height: 2),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 600),
+                          curve: Curves.easeOutCubic,
+                          height: (ratio * 60).clamp(2.0, 60.0),
+                          decoration: BoxDecoration(
+                            color: isLast ? _kAccent : _p.muted.withValues(alpha: 0.4),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(labels[i],
-                          style: _rajdhani(7, FontWeight.w600, _p.dim, spacing: 0.5)),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(s.label,
+                            style: _rajdhani(7, FontWeight.w600, _p.dim, spacing: 0.5)),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -2777,6 +2906,50 @@ class _PerfilScreenState extends State<PerfilScreen>
           ),
         ),
       ]),
+    );
+  }
+
+  void _mostrarSemanaSheet(DateTime ini, DateTime fin, double km, int carreras) {
+    const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    final desde = '${ini.day} ${meses[ini.month - 1]}';
+    final hasta = '${fin.day} ${meses[fin.month - 1]}';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: _p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.fromLTRB(28, 16, 28, MediaQuery.of(ctx).padding.bottom + 28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 36, height: 4,
+              decoration: BoxDecoration(color: _p.border2, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: _kAccent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _kAccent.withValues(alpha: 0.3)),
+              ),
+              child: const Center(child: Icon(Icons.calendar_today_rounded, color: _kAccent, size: 20)),
+            ),
+            const SizedBox(width: 14),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$desde — $hasta', style: _rajdhani(15, FontWeight.w800, _p.title, spacing: 0.2)),
+              const SizedBox(height: 4),
+              Row(children: [
+                Text('${km.toStringAsFixed(2)} km', style: _rajdhani(13, FontWeight.w700, _kAccent)),
+                Text('  ·  ', style: _rajdhani(13, FontWeight.w400, _p.dim)),
+                Text('$carreras ${carreras == 1 ? 'carrera' : 'carreras'}',
+                    style: _rajdhani(13, FontWeight.w600, _p.sub)),
+              ]),
+            ]),
+          ]),
+        ]),
+      ),
     );
   }
 

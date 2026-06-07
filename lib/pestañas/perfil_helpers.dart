@@ -208,7 +208,9 @@ class _Hito {
   final IconData icon;
   final Color color;
   final bool unlocked;
-  const _Hito(this.label, this.icon, this.color, this.unlocked);
+  final double progreso;
+  final double meta;
+  const _Hito(this.label, this.icon, this.color, this.unlocked, {this.progreso = 0, this.meta = 0});
 }
 
 // ── Botón de foto ─────────────────────────────────────────────────────────────
