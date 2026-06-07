@@ -29,8 +29,8 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
   bool _mostrandoGuardados = false;
 
   static const _tileUrl =
-      'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
-      '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
+      'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
+      '/tiles/256/{z}/{x}/{y}?access_token=${Env.mapboxPublicToken}';
 
   // ── Borrar un post ──────────────────────────────────────────────────────────
   Future<void> _borrarPost(BuildContext ctx, String postId) async {
@@ -485,8 +485,8 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
   PerfilPalette get _p => PerfilPalette.of(context);
 
   static const _tileUrl =
-      'https://api.mapbox.com/styles/v1/${Env.mapboxStyleId}'
-      '/tiles/256/{z}/{x}/{y}@2x?access_token=${Env.mapboxPublicToken}';
+      'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
+      '/tiles/256/{z}/{x}/{y}?access_token=${Env.mapboxPublicToken}';
 
   List<LatLng> _parseRoute(dynamic rawRoute) {
     if (rawRoute == null) return [];
