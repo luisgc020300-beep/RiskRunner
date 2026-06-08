@@ -57,6 +57,10 @@
 	<string>RiskRunner registra tus carreras en Apple Health para llevar tu historial de actividad.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>RiskRunner guarda tus entrenamientos (distancia, tiempo y calorías) en Apple Health.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Necesitamos acceso a la cámara para que puedas actualizar tu foto de perfil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesitamos acceso a tus fotos para que puedas elegir una imagen de perfil.</string>
 
 	<!-- Push Notifications + background fetch -->
 	<key>UIBackgroundModes</key>
