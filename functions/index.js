@@ -26,6 +26,8 @@ const _FCM_TITLES = {
   desafio_ganado:            '🏆 ¡Desafío ganado!',
   desafio_perdido:           '💀 Desafío perdido',
   follow:                    '👤 Nuevo seguidor',
+  post_like:                 'Nuevo me gusta',
+  post_comment:              'Nuevo comentario',
   guerra_global_recompensa:  '⚔️ Recompensa semanal',
   global_territory_conquered:'⚔️ ¡Conquista Global!',
   global_territory_lost:     '💀 Territorio Global perdido',

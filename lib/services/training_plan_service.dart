@@ -137,12 +137,56 @@ class UserPlanState {
   }
 }
 
+// ── Historial de planes completados ──────────────────────────────────────────
+class CompletedPlanRecord {
+  final String id;
+  final String planId;
+  final String planName;
+  final String planSubtitle;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int completedSessions;
+  final int totalSessions;
+  final bool abandoned;
+
+  const CompletedPlanRecord({
+    required this.id,
+    required this.planId,
+    required this.planName,
+    required this.planSubtitle,
+    required this.startDate,
+    required this.endDate,
+    required this.completedSessions,
+    required this.totalSessions,
+    required this.abandoned,
+  });
+
+  factory CompletedPlanRecord.fromMap(String id, Map<String, dynamic> d) =>
+      CompletedPlanRecord(
+        id:                id,
+        planId:            d['planId']        as String? ?? '',
+        planName:          d['planName']       as String? ?? 'Plan',
+        planSubtitle:      d['planSubtitle']   as String? ?? '',
+        startDate:         (d['startDate']     as Timestamp).toDate(),
+        endDate:           (d['endDate']       as Timestamp).toDate(),
+        completedSessions: (d['completedSessions'] as num?)?.toInt() ?? 0,
+        totalSessions:     (d['totalSessions'] as num?)?.toInt() ?? 0,
+        abandoned:         (d['abandoned']     as bool?) ?? false,
+      );
+
+  double get completionRate =>
+      totalSessions > 0 ? completedSessions / totalSessions : 0;
+}
+
 // ── Servicio Firestore ────────────────────────────────────────────────────────
 class TrainingPlanService {
   static final _db = FirebaseFirestore.instance;
 
   static DocumentReference _ref(String uid) =>
       _db.collection('training_plans').doc(uid);
+
+  static CollectionReference _histRef(String uid) =>
+      _db.collection('training_plan_history').doc(uid).collection('plans');
 
   static Future<UserPlanState?> loadState(String uid) async {
     final snap = await _ref(uid).get();
@@ -185,7 +229,49 @@ class TrainingPlanService {
     }
   }
 
-  static Future<void> abandonPlan(String uid) async {
+  static Future<void> savePlanToHistory(
+      String uid, UserPlanState state, TrainingPlan plan,
+      {required bool abandoned}) async {
+    await _histRef(uid).add({
+      'planId':            state.planId,
+      'planName':          plan.name,
+      'planSubtitle':      plan.subtitle,
+      'startDate':         Timestamp.fromDate(state.startDate),
+      'endDate':           Timestamp.fromDate(DateTime.now()),
+      'completedSessions': state.completedSessions.length,
+      'totalSessions':     plan.totalSessions,
+      'abandoned':         abandoned,
+    });
+  }
+
+  static Future<List<CompletedPlanRecord>> loadHistory(String uid) async {
+    try {
+      final snap = await _histRef(uid)
+          .orderBy('endDate', descending: true)
+          .limit(20)
+          .get();
+      return snap.docs
+          .map((d) => CompletedPlanRecord.fromMap(
+              d.id, d.data() as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> completePlan(
+      String uid, UserPlanState state, TrainingPlan plan) async {
+    await savePlanToHistory(uid, state, plan, abandoned: false);
+    await _ref(uid).delete();
+  }
+
+  static Future<void> abandonPlan(String uid,
+      {UserPlanState? state, TrainingPlan? plan}) async {
+    if (state != null && plan != null) {
+      try {
+        await savePlanToHistory(uid, state, plan, abandoned: true);
+      } catch (_) {}
+    }
     await _ref(uid).delete();
   }
 

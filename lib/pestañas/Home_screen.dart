@@ -393,6 +393,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await ref.update({'likes': FieldValue.arrayRemove([userId])});
       } else {
         await ref.update({'likes': FieldValue.arrayUnion([userId])});
+        if (post.userId != userId) {
+          FirebaseFirestore.instance.collection('notifications').add({
+            'toUserId':     post.userId,
+            'type':         'post_like',
+            'fromUserId':   userId,
+            'fromNickname': nickname,
+            'message':      '$nickname le ha dado me gusta a tu publicación',
+            'read':         false,
+            'timestamp':    FieldValue.serverTimestamp(),
+            'postId':       post.id,
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error toggleLike: $e');
@@ -2088,6 +2100,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
         await FirebaseFirestore.instance.collection('posts').doc(post.id)
             .update({'comentariosCount': FieldValue.increment(1)});
+        if (post.userId != userId) {
+          FirebaseFirestore.instance.collection('notifications').add({
+            'toUserId':     post.userId,
+            'type':         'post_comment',
+            'fromUserId':   userId,
+            'fromNickname': nickname,
+            'message':      '$nickname ha comentado en tu publicación',
+            'read':         false,
+            'timestamp':    FieldValue.serverTimestamp(),
+            'postId':       post.id,
+          });
+        }
       },
     );
   }

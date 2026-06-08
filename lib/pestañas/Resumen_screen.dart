@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territory_service.dart';
 import '../services/stats_service.dart';
 import '../services/onboarding_service.dart';
+import '../services/training_plan_service.dart';
 import '../widgets/onboarding_overlay.dart';
 import '../widgets/stats_resumen_widget.dart';
 import '../widgets/reveal.dart';
@@ -151,6 +152,12 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   Map<String, dynamic>? _retoCompletadoEnSesion;
 
+  // ── Plan de entrenamiento ─────────────────────────────────────────────────
+  TrainingSession? _planSesionSugerida;
+  TrainingPlan?    _planSugeridoRef;
+  bool _planSesionConfirmada = false;
+  bool _planSesionDismissed  = false;
+
   bool get _esGuerraGlobal => widget.objetivoGlobal != null;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
 
@@ -248,6 +255,10 @@ class _ResumenScreenState extends State<ResumenScreen>
     await _cargarHistorialTotal();
     _cargarStatsResumen();
 
+    if (widget.esDesdeCarrera) {
+      _verificarSesionPlan();
+    }
+
     if (widget.esDesdeCarrera && mounted) {
       if (_territoriosConquistados > 0) {
         _mostrarBannerConquista(_territoriosConquistados);
@@ -271,6 +282,151 @@ class _ResumenScreenState extends State<ResumenScreen>
       Future.delayed(const Duration(milliseconds: 700),
           () { if (mounted) _rutaCtrl.forward(); });
     }
+  }
+
+  // ── Plan de entrenamiento: sugerencia post-carrera ───────────────────────
+  Future<void> _verificarSesionPlan() async {
+    if (userId.isEmpty) return;
+    try {
+      final state = await TrainingPlanService.loadState(userId);
+      if (state == null) return;
+
+      TrainingPlan? plan = planById(state.planId);
+      if (plan == null && state.planId == 'plan_ai' && state.aiPlanData != null) {
+        try { plan = buildPlanFromAiData(state.aiPlanData!); } catch (_) {}
+      }
+      if (plan == null) return;
+
+      final week     = state.currentWeek.clamp(1, plan.weeks);
+      final todayWd  = DateTime.now().weekday;
+      final sessions = plan.week(week);
+
+      TrainingSession? sesionHoy;
+      for (final s in sessions) {
+        if (s.weekday == todayWd && s.type.isRun && !state.isCompleted(s.key)) {
+          sesionHoy = s;
+          break;
+        }
+      }
+      if (sesionHoy == null) return;
+
+      // Solo sugerir si se corrió al menos el 70 % del objetivo
+      if (widget.distancia < sesionHoy.targetKm * 0.7) return;
+
+      if (mounted) {
+        setState(() {
+          _planSesionSugerida = sesionHoy;
+          _planSugeridoRef    = plan;
+        });
+      }
+    } catch (e) {
+      debugPrint('_verificarSesionPlan error: $e');
+    }
+  }
+
+  Widget _buildPlanSesionBanner() {
+    final sesion = _planSesionSugerida!;
+    final plan   = _planSugeridoRef;
+    final color  = sesion.type.color;
+
+    if (_planSesionConfirmada) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF34C759).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF34C759).withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF34C759), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('Sesión "${sesion.type.label}" marcada como completada',
+                style: const TextStyle(color: Color(0xFF34C759),
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+          child: Row(children: [
+            Icon(Icons.fitness_center_rounded, color: color, size: 13),
+            const SizedBox(width: 6),
+            Text(
+              plan != null ? 'PLAN ${plan.name.toUpperCase()}' : 'PLAN DE ENTRENAMIENTO',
+              style: TextStyle(color: color, fontSize: 10,
+                  fontWeight: FontWeight.w700, letterSpacing: 1.2),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => setState(() => _planSesionDismissed = true),
+              child: Icon(Icons.close_rounded, color: color.withValues(alpha: 0.6), size: 18),
+            ),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(sesion.type.icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(sesion.type.label,
+                  style: const TextStyle(color: Colors.white,
+                      fontSize: 14, fontWeight: FontWeight.w700)),
+              Text('Objetivo: ${sesion.targetKm.toStringAsFixed(1)} km  ·  ${sesion.note}',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 11),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ])),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () async {
+                try {
+                  await TrainingPlanService.markSession(userId, sesion.key, true);
+                  if (mounted) setState(() => _planSesionConfirmada = true);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ));
+                  }
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('Marcar\nhecha',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white,
+                        fontSize: 11, fontWeight: FontWeight.w800, height: 1.2)),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
   }
 
   // ── Compartir resumen ────────────────────────────────────────────────────
@@ -770,15 +926,20 @@ class _ResumenScreenState extends State<ResumenScreen>
       if (!mounted) return;
       final ts = d['timestamp'];
       final tsMs = ts is Timestamp ? ts.millisecondsSinceEpoch : null;
+      final splitsRaw = data['splits_por_km'] as List<dynamic>?;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
-        distancia      : (d['distancia'] as double? ?? 0),
-        tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
-        ruta           : ruta,
-        esDesdeCarrera : false,
-        esDetalle      : true,
-        timestamp      : tsMs,
-        modoRuta       : (d['modo'] as String? ?? '') == 'ruta',
-        modoInicial    : d['modo'] as String? ?? 'competitivo',
+        distancia        : (data['distancia'] as num?)?.toDouble() ?? 0,
+        tiempo           : Duration(seconds: (data['tiempo_segundos'] as num?)?.toInt() ?? 0),
+        ruta             : ruta,
+        esDesdeCarrera   : false,
+        esDetalle        : true,
+        timestamp        : tsMs,
+        modoRuta         : (data['modo'] as String? ?? '') == 'ruta',
+        modoInicial      : data['modo'] as String? ?? 'competitivo',
+        velocidadMaxima  : (data['velocidad_maxima'] as num?)?.toDouble() ?? 0.0,
+        elevacionGanada  : (data['elevacion_ganada'] as num?)?.toDouble() ?? 0.0,
+        elevacionPerdida : (data['elevacion_perdida'] as num?)?.toDouble() ?? 0.0,
+        splitsPorKm      : splitsRaw?.map((e) => (e as num).toDouble()).toList(),
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen desde logro: $e');
@@ -1055,6 +1216,12 @@ class _ResumenScreenState extends State<ResumenScreen>
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  if (_planSesionSugerida != null && !_planSesionDismissed)
+                    Reveal(
+                      anim: _cardsReveal,
+                      child: _buildPlanSesionBanner(),
+                    ),
 
                   Reveal(
                     anim: _cardsReveal,

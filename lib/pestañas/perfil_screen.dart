@@ -2002,15 +2002,20 @@ class _PerfilScreenState extends State<PerfilScreen>
       if (!mounted) return;
       final tsRaw = data['timestamp'];
       final tsMs  = tsRaw is Timestamp ? tsRaw.millisecondsSinceEpoch : null;
+      final splitsRaw = data['splits_por_km'] as List<dynamic>?;
       Navigator.push(context, MaterialPageRoute(builder: (_) => ResumenScreen(
-        distancia      : (d['distancia'] as double? ?? 0),
-        tiempo         : Duration(seconds: d['tiempo_segundos'] as int? ?? 0),
-        ruta           : ruta,
-        esDesdeCarrera : false,
-        esDetalle      : true,
-        timestamp      : tsMs,
-        modoRuta       : (data['modo'] as String? ?? '') == 'ruta',
-        modoInicial    : data['modo'] as String? ?? 'competitivo',
+        distancia        : (data['distancia'] as num?)?.toDouble() ?? 0,
+        tiempo           : Duration(seconds: (data['tiempo_segundos'] as num?)?.toInt() ?? 0),
+        ruta             : ruta,
+        esDesdeCarrera   : false,
+        esDetalle        : true,
+        timestamp        : tsMs,
+        modoRuta         : (data['modo'] as String? ?? '') == 'ruta',
+        modoInicial      : data['modo'] as String? ?? 'competitivo',
+        velocidadMaxima  : (data['velocidad_maxima'] as num?)?.toDouble() ?? 0.0,
+        elevacionGanada  : (data['elevacion_ganada'] as num?)?.toDouble() ?? 0.0,
+        elevacionPerdida : (data['elevacion_perdida'] as num?)?.toDouble() ?? 0.0,
+        splitsPorKm      : splitsRaw?.map((e) => (e as num).toDouble()).toList(),
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen: $e');

@@ -203,6 +203,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           );
         }
         break;
+
+      // ── Publicaciones: like y comentario ──────────────────────────────────
+      case 'post_like':
+      case 'post_comment':
+        if (item.fromUserId != null) {
+          Navigator.pushNamed(context, '/perfil',
+              arguments: {'userId': item.fromUserId});
+        }
+        break;
     }
   }
 
@@ -364,6 +373,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (t == 'desafio_aceptado')                         return Icons.sports_mma_rounded;
     if (t == 'desafio_ganado')                           return Icons.emoji_events_rounded;
     if (t == 'desafio_perdido')                          return Icons.sports_mma_rounded;
+    if (t == 'post_like')                                return Icons.favorite_rounded;
+    if (t == 'post_comment')                             return Icons.chat_bubble_rounded;
     return Icons.notifications_rounded;
   }
 
@@ -381,6 +392,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'desafio_aceptado':        return 'DESAFÍO ACEPTADO';
       case 'desafio_ganado':          return 'DESAFÍO GANADO';
       case 'desafio_perdido':         return 'DESAFÍO PERDIDO';
+      case 'post_like':               return 'ME GUSTA';
+      case 'post_comment':            return 'COMENTARIO';
       default:                        return 'NOTIFICACIÓN';
     }
   }
