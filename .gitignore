@@ -44,5 +44,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Claves privadas — nunca subir a GitHub
-lib/config/env.dart
+# env.dart se commitea con valores vacios; usa 'git update-index --skip-worktree lib/config/env.dart' para proteger tu clave local
