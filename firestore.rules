@@ -276,6 +276,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── training_plans ────────────────────────────────────────────────────────
+    // Cada usuario lee y escribe solo su propio plan activo (doc ID = uid).
+    match /training_plans/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── training_plan_history ─────────────────────────────────────────────────
+    // Cada usuario puede leer y crear entradas en su propio historial.
+    match /training_plan_history/{uid}/plans/{planId} {
+      allow read, create: if isOwner(uid);
+      allow update, delete: if false;
+    }
+
     // ── Denegar todo lo demás ─────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
