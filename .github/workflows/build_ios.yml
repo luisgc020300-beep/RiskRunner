@@ -24,20 +24,28 @@ jobs:
       - name: Create env.dart
         run: |
           mkdir -p lib/config
-          cat > lib/config/env.dart << 'EOF'
-          class Env {
-            Env._();
-            static const bool isDebug = true;
-            static const String revenueCatAndroid = '';
-            static const String revenueCatIOS     = '';
-            static const String mapboxPublicToken  = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';
-            static const String mapboxStyleId      = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';
-            static const String entitlementPremium = 'premium';
-            static const String productMonthly     = 'riskrunner_premium_monthly';
-            static const String productAnnual      = 'riskrunner_premium_annual';
-            static const String anthropicApiKey    = '';
-          }
-          EOF
+          python3 - << 'PYEOF'
+          import os
+          content = (
+            "class Env {\n"
+            "  Env._();\n"
+            "  static const bool isDebug = true;\n"
+            "  static const String revenueCatAndroid = '';\n"
+            "  static const String revenueCatIOS     = '';\n"
+            "  static const String mapboxPublicToken  = 'pk.eyJ1IjoibHVpaXNnb29tZXp6MSIsImEiOiJjbW1mNDVoajkwNGNyMnBzNTBiaXNrMm5pIn0.gzN772_GMDx55owCXwsozA';\n"
+            "  static const String mapboxStyleId      = 'luiisgoomezz1/cmmdzh1aj00f501r68crag5gv';\n"
+            "  static const String entitlementPremium = 'premium';\n"
+            "  static const String productMonthly     = 'riskrunner_premium_monthly';\n"
+            "  static const String productAnnual      = 'riskrunner_premium_annual';\n"
+            "  static const String anthropicApiKey    = '';\n"
+            "}\n"
+          )
+          path = os.path.join(os.getcwd(), 'lib', 'config', 'env.dart')
+          with open(path, 'w') as f:
+            f.write(content)
+          print('env.dart created at:', path)
+          PYEOF
+          ls -la lib/config/
       - name: Flutter pub get
         run: flutter pub get
       - name: Generate Flutter iOS config
@@ -55,6 +63,12 @@ jobs:
           pod install --repo-update
         env:
           COCOAPODS_DISABLE_STATS: true
+      - name: Verify env.dart exists
+        run: |
+          echo "=== lib/config/ ==="
+          ls -la lib/config/
+          echo "=== env.dart content ==="
+          cat lib/config/env.dart
       - name: Flutter build iOS
         run: flutter build ios --release --no-codesign
       - name: Build with xcodebuild
