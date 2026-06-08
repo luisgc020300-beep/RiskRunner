@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/env.dart';
 import '../services/subscription_service.dart';
 import '../services/training_plan_service.dart';
 import 'ai_plan_screen.dart';
@@ -296,7 +297,7 @@ class _AiPlanCard extends StatelessWidget {
       stream: SubscriptionService.statusStream,
       initialData: SubscriptionService.currentStatus,
       builder: (ctx, snap) {
-        final isPremium = snap.data?.isPremium ?? false;
+        final isPremium = (snap.data?.isPremium ?? false) || Env.isDebug;
         return GestureDetector(
           onTap: () {
             if (isPremium) {
