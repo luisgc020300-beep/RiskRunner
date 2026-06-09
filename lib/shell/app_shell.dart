@@ -56,6 +56,11 @@ class _AppShellState extends State<AppShell> {
           context, '/correr', ModalRoute.withName('/home'));
       return;
     }
+    // Si hay pantallas apiladas encima del shell, volver al root primero
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
     if (navIndex == _navIndex) return;
     setState(() => _navIndex = navIndex);
   }

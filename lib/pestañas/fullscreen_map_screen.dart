@@ -469,10 +469,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
-  // ── FIX: Estado del botón centrar (toggle: mi posición ↔ vista inicial) ───
-  bool _fabCentradoEnUsuario = false;
-
-  // Toggle mapa claro/oscuro
+  // Mapa siempre en estilo claro
   bool _mapaOscuro = false;
 
   // Caché de widgets de mapa — se crea una vez por modo y se reutiliza para
@@ -1569,8 +1566,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildToggleMapa(),
-                  const SizedBox(height: 8),
                   _buildFab(),
                 ],
               ),
@@ -1855,7 +1850,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 await WidgetsBinding.instance.endOfFrame;
                 await (_centroListo ?? Future.value());
                 await _refrescarCentroGps();
-                setState(() => _fabCentradoEnUsuario = false);
                 _moverCamara(_state.centro, 13.0);
                 await _cargarTerritorios();
               },
@@ -1921,7 +1915,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _state.setTerritorios([]);
     _state.setModoSolitario(true);
     await WidgetsBinding.instance.endOfFrame;
-    setState(() => _fabCentradoEnUsuario = false);
     _moverCamara(_state.centro, 13.0);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
@@ -2111,7 +2104,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await WidgetsBinding.instance.endOfFrame;
     await (_centroListo ?? Future.value());
     await _refrescarCentroGps();
-    setState(() => _fabCentradoEnUsuario = false);
     _moverCamara(_state.centro, _kInitialZoom);
     await _cargarMisRutas();
   }
@@ -2167,13 +2159,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   // BUILD MAPA — dispatcher
   // ==========================================================================
-  void _invalidarCacheMapa() {
-    _cachedMapaCiudad   = null;
-    _cachedMapaSolitario = null;
-    _cachedMapaRutas    = null;
-    _cachedMapaGlobal   = null;
-  }
-
   Widget _buildMapa() {
     final int idx = _state.modoGlobal    ? 3
         : _state.modoSolitario ? 1
@@ -3316,81 +3301,30 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
 
   // ==========================================================================
-  // TOGGLE MAPA CLARO / OSCURO
-  // ==========================================================================
-  Widget _buildToggleMapa() {
-    if (_state.modoGlobal) return const SizedBox.shrink();
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _invalidarCacheMapa();
-        setState(() => _mapaOscuro = !_mapaOscuro);
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: _kSurface.withValues(alpha: 0.85),
-              border: Border.all(
-                color: _mapaOscuro
-                    ? _kGold.withValues(alpha: 0.55)
-                    : _kBorder.withValues(alpha: 0.7),
-              ),
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 12)],
-            ),
-            child: Icon(
-              _mapaOscuro ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-              color: _mapaOscuro ? _kGold : _kSub,
-              size: 20,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // FAB — FIX: toggle entre mi posición y vista inicial
+  // FAB — ir siempre a mi posición actual
   // ==========================================================================
   Widget _buildFab() => GestureDetector(
     onTap: () async {
       HapticFeedback.mediumImpact();
 
       if (_state.modoGlobal) {
-        // En modo global siempre centra el mapa global
         _moverCamara(_kGlobalCenter, 2.5);
         return;
       }
 
-      if (_fabCentradoEnUsuario) {
-        // Segunda pulsación: volver a vista de barrio (ciudad) o amplia (otros modos)
-        final zoomOut = (_state.modoSolitario || _state.modoRutas)
-            ? _kInitialZoom
-            : 13.0;
-        _moverCamara(_state.centro, zoomOut);
-        setState(() => _fabCentradoEnUsuario = false);
-      } else {
-        // Primera pulsación: ir a mi posición actual con zoom cercano
-        try {
-          final perm = await Geolocator.checkPermission();
-          if (perm == LocationPermission.always ||
-              perm == LocationPermission.whileInUse) {
-            final pos = await Geolocator.getCurrentPosition(
-                locationSettings: const LocationSettings(
-                    accuracy: LocationAccuracy.low));
-            if (!mounted) return;
-            _moverCamara(LatLng(pos.latitude, pos.longitude), _kLocateZoom);
-            setState(() => _fabCentradoEnUsuario = true);
-          }
-        } catch (_) {
-          await _refrescarCentroGps();
-          _moverCamara(_state.centro, _kLocateZoom);
-          setState(() => _fabCentradoEnUsuario = true);
+      try {
+        final perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.always ||
+            perm == LocationPermission.whileInUse) {
+          final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                  accuracy: LocationAccuracy.low));
+          if (!mounted) return;
+          _moverCamara(LatLng(pos.latitude, pos.longitude), _kLocateZoom);
         }
+      } catch (_) {
+        await _refrescarCentroGps();
+        _moverCamara(_state.centro, _kLocateZoom);
       }
     },
     child: AnimatedBuilder(
@@ -3404,38 +3338,24 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             decoration: BoxDecoration(
               color: _kSurface.withValues(alpha: 0.85),
               border: Border.all(
-                // FIX: el borde cambia según el estado del toggle
                 color: _state.modoGlobal
                     ? _kGold.withValues(alpha: 0.4 + 0.3 * _pulse.value)
-                    : _fabCentradoEnUsuario
-                        ? _kSafe.withValues(alpha: 0.7)
-                        : _kRed.withValues(alpha: 0.4 + 0.3 * _pulse.value),
+                    : _kRed.withValues(alpha: 0.4 + 0.3 * _pulse.value),
               ),
               borderRadius: BorderRadius.circular(4),
               boxShadow: [
                 BoxShadow(
-                    color: (_state.modoGlobal
-                            ? _kGold
-                            : _fabCentradoEnUsuario
-                                ? _kSafe
-                                : _kRed)
+                    color: (_state.modoGlobal ? _kGold : _kRed)
                         .withValues(alpha: 0.15 * _pulse.value),
                     blurRadius: 16),
                 const BoxShadow(color: Colors.black54, blurRadius: 12),
               ],
             ),
-            // FIX: el icono cambia según el estado del toggle
             child: Icon(
               _state.modoGlobal
                   ? Icons.public_rounded
-                  : _fabCentradoEnUsuario
-                      ? Icons.explore_rounded   // centrado en usuario → icono brújula
-                      : Icons.my_location_rounded,
-              color: _state.modoGlobal
-                  ? _kGold
-                  : _fabCentradoEnUsuario
-                      ? _kSafe
-                      : _kRed,
+                  : Icons.my_location_rounded,
+              color: _state.modoGlobal ? _kGold : _kRed,
               size: 18,
             ),
           ),

@@ -314,11 +314,13 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
 
   Widget _buildPostCell(BuildContext context, String postId,
       Map<String, dynamic> data, PerfilPalette p) {
-    final dist = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
-    final ts   = data['timestamp'] as Timestamp?;
-    final date = ts != null
+    final dist     = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final ts       = data['timestamp'] as Timestamp?;
+    final date     = ts != null
         ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year % 100}'
         : '';
+    final likes    = (data['likes'] as List<dynamic>?)?.length ?? 0;
+    final comments = (data['comentariosCount'] as num?)?.toInt() ?? 0;
     final route = _parseRoute(data['ruta']);
 
     // Offset route para el painter (sin tiles, solo la forma)
@@ -378,6 +380,24 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
             bottom: 6, left: 7,
             child: Text('${dist.toStringAsFixed(1)} km',
                 style: perfilStyle(11, FontWeight.w800, Colors.white))),
+          Positioned(
+            bottom: 6, right: 6,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.favorite_rounded,
+                  color: Colors.white.withValues(alpha: 0.85), size: 9),
+              const SizedBox(width: 2),
+              Text('$likes',
+                  style: perfilStyle(9, FontWeight.w700,
+                      Colors.white.withValues(alpha: 0.85))),
+              const SizedBox(width: 5),
+              Icon(Icons.chat_bubble_rounded,
+                  color: Colors.white.withValues(alpha: 0.7), size: 9),
+              const SizedBox(width: 2),
+              Text('$comments',
+                  style: perfilStyle(9, FontWeight.w700,
+                      Colors.white.withValues(alpha: 0.7))),
+            ]),
+          ),
           Positioned(
             top: 6, right: 6,
             child: Text(date,

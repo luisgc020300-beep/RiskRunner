@@ -89,7 +89,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   Duration _tiempoTotalActividad    = Duration.zero;
 
   List<Map<String, dynamic>> _logros            = [];
-  List<Map<String, dynamic>> _carrerasRecientes = [];
   int _rachaActual = 0;
 
   // ── Records personales (calculados desde activity_logs)
@@ -99,9 +98,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   double       _prElevacion    = 0.0;
   List<String> _diasActividad  = [];
 
-  bool   _misionesExpandidas = false;
-  String _misionesQuery      = '';
-  final TextEditingController _misionesSearchCtrl = TextEditingController();
   bool   _logrosExpandidos   = false;
   String _logrosQuery        = '';
   final TextEditingController _logrosSearchCtrl   = TextEditingController();
@@ -235,7 +231,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     _liveMapCtrl.dispose();
     _nicknameController.dispose();
     _historialSearchCtrl.dispose();
-    _misionesSearchCtrl.dispose();
+
     _logrosSearchCtrl.dispose();
     _entradaAnim.dispose();
     _loopAnim.dispose();
@@ -1012,7 +1008,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         _totalCarreras           = carrerasConDist;
         _tiempoTotalActividad    = Duration(seconds: totalSeg);
         _territoriosConquistados = (conqSnap.count as num?)?.toInt() ?? 0;
-        _carrerasRecientes       = carreras.toList();
+
         _logros                  = logrosData.toList();
         _historialCompleto       = historial;
         _historialFiltrado       = historial;
@@ -1543,7 +1539,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
         child: Column(children: [
           _buildGuerraPanel(), const SizedBox(height: 20),
-          _buildMisionesRecientes(), const SizedBox(height: 20),
           _buildHistorialCompleto(), const SizedBox(height: 20),
           _buildLogrosPanel(), const SizedBox(height: 100),
         ]),
@@ -3354,87 +3349,6 @@ class _PerfilScreenState extends State<PerfilScreen>
           Text(_formatearTiempoGuerra(item.timestamp), style: _rajdhani(9, FontWeight.w500, _p.dim)),
         ]),
       ]))]),
-    );
-  }
-
-  Widget _buildMisionesRecientes() {
-    if (_carrerasRecientes.isEmpty) {
-      return _Panel(
-        accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
-        child: _emptyRow('Sin misiones registradas', icon: Icons.task_alt_rounded));
-    }
-    final query     = _misionesQuery.trim().toLowerCase();
-    final filtradas = query.isEmpty
-        ? _carrerasRecientes
-        : _carrerasRecientes.where((d) {
-            final titulo = (d['titulo'] as String? ?? '').toLowerCase();
-            final dist   = (d['distancia'] as num?)?.toStringAsFixed(2) ?? '';
-            return titulo.contains(query) || dist.contains(query);
-          }).toList();
-    final mostradas = _misionesExpandidas ? filtradas : filtradas.take(5).toList();
-    final hayMas    = _carrerasRecientes.length > 5;
-
-    return _Panel(
-      accent: _kAccent, label: 'ÚLTIMAS MISIONES', icon: Icons.directions_run_rounded,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (_misionesExpandidas) ...[
-          TextField(
-            controller: _misionesSearchCtrl,
-            onChanged: (v) => setState(() => _misionesQuery = v),
-            style: _rajdhani(13, FontWeight.w500, _p.title),
-            decoration: InputDecoration(
-              hintText: 'Buscar misión...', hintStyle: _rajdhani(13, FontWeight.w400, _p.dim),
-              prefixIcon: Icon(Icons.search_rounded, color: _p.dim, size: 16),
-              filled: true, fillColor: _p.bg, contentPadding: EdgeInsets.zero,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.border2)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: _p.text, width: 1.5)),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        ...mostradas.asMap().entries.map((e) {
-          final i = e.key; final d = e.value;
-          final dist  = (d['distancia'] as num?)?.toDouble() ?? 0;
-          final seg   = (d['tiempo_segundos'] as num?)?.toInt() ?? 0;
-          final vel   = (d['velocidad_media'] as num?)?.toDouble() ?? (dist > 0 && seg > 0 ? dist / (seg / 3600) : 0.0);
-          final fecha = _formatFechaCorta(d['timestamp']);
-          return GestureDetector(
-            onTap: () => _abrirResumenHistorial(d),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(color: _p.surface2, borderRadius: BorderRadius.circular(6), border: Border(left: BorderSide(color: i == 0 ? _p.border2 : _p.border, width: 1))),
-              child: Row(children: [
-                Text('${i + 1}', style: _rajdhani(11, FontWeight.w700, _p.dim, spacing: 0)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${dist.toStringAsFixed(2)} km', style: _rajdhani(16, FontWeight.w700, _p.title, height: 1)),
-                  Text('${_formatTiempo(Duration(seconds: seg))}  ·  ${vel.toStringAsFixed(1)} km/h', style: _rajdhani(10, FontWeight.w500, _p.dim)),
-                ])),
-                Text(fecha, style: _rajdhani(10, FontWeight.w600, _p.muted)),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right_rounded, color: _p.border2, size: 14),
-              ]),
-            ),
-          );
-        }),
-        if (hayMas)
-          GestureDetector(
-            onTap: () => setState(() {
-              _misionesExpandidas = !_misionesExpandidas;
-              if (!_misionesExpandidas) { _misionesSearchCtrl.clear(); _misionesQuery = ''; }
-            }),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_misionesExpandidas ? 'Ver menos' : 'Ver más', style: _rajdhani(11, FontWeight.w600, _p.text)),
-                const SizedBox(width: 4),
-                Icon(_misionesExpandidas ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: _p.dim, size: 14),
-              ]),
-            ),
-          ),
-      ]),
     );
   }
 

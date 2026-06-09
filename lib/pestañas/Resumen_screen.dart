@@ -1235,6 +1235,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                       retoCompletadoEnSesion: _retoCompletadoEnSesion,
                       onSearch:               _filtrarBusqueda,
                       onTapLogro:             _abrirResumenDesdeLogro,
+                      isDark:                 _isDark,
                       onToggleVerTodos: () => setState(() {
                         _verTodosLosLogros = !_verTodosLosLogros;
                         if (!_verTodosLosLogros) {
@@ -1361,7 +1362,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       ),
       const SizedBox(width: 8),
       GestureDetector(
-        onTap: _compartirResumen,
+        onTap: widget.ruta.length >= 2 ? _compartirRutaComoImagen : _compartirResumen,
         child: Container(
           width: 38, height: 38,
           decoration: BoxDecoration(
@@ -1538,31 +1539,35 @@ class _ResumenScreenState extends State<ResumenScreen>
     );
   }
 
-  Widget _buildTotalesRow() => Row(children: [
-    Expanded(child: _totalCell(
-        retosTotalesHistorial.toString(), 'CARRERAS TOTALES')),
-    const SizedBox(width: 8),
-    Expanded(child: _totalCell(
-        monedasTotalesHistorial.toString(),
-        'PUNTOS ACUMULADOS', accent: true)),
-  ]);
+  Widget _buildTotalesRow() {
+    final isDark = _isDark;
+    return Row(children: [
+      Expanded(child: _totalCell(
+          retosTotalesHistorial.toString(), 'CARRERAS TOTALES', isDark: isDark)),
+      const SizedBox(width: 8),
+      Expanded(child: _totalCell(
+          monedasTotalesHistorial.toString(),
+          'PUNTOS ACUMULADOS', accent: true, isDark: isDark)),
+    ]);
+  }
 
-  Widget _totalCell(String v, String l, {bool accent = false}) =>
+  Widget _totalCell(String v, String l, {bool accent = false, bool isDark = false}) =>
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color:        _kSurface,
+            color:        isDark ? const Color(0xFF2C2C2E) : _kSurface,
             borderRadius: BorderRadius.circular(10),
-            border:       Border.all(color: _kBorder2)),
+            border:       Border.all(
+                color: isDark ? const Color(0xFF3A3A3C) : _kBorder2)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(v, style: TextStyle(
-                color:      accent ? _kBright : _kWhite,
+                color:      isDark ? Colors.white : (accent ? _kBright : _kWhite),
                 fontSize:   18,
                 fontWeight: FontWeight.w900)),
-            Text(l, style: const TextStyle(
-                color: _kGrey, fontSize: 7,
+            Text(l, style: TextStyle(
+                color: isDark ? Colors.white38 : _kGrey, fontSize: 7,
                 fontWeight: FontWeight.w700, letterSpacing: 1.2)),
           ],
         ),
@@ -1595,32 +1600,6 @@ class _ResumenScreenState extends State<ResumenScreen>
       ),
     ),
     if (tieneRuta) ...[
-      const SizedBox(height: 10),
-      GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          _compartirRutaComoImagen();
-        },
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 17),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _kBorder2),
-            color: isDark ? const Color(0xFF1C1C1E) : _kSurface,
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.route_rounded,
-                color: isDark ? Colors.white : _kBright, size: 14),
-            const SizedBox(width: 8),
-            Text('COMPARTIR RUTA', style: TextStyle(
-                color:         isDark ? Colors.white : _kBright,
-                fontSize:      11,
-                fontWeight:    FontWeight.w900,
-                letterSpacing: 2.5)),
-          ]),
-        ),
-      ),
       const SizedBox(height: 10),
       GestureDetector(
         onTap: () {

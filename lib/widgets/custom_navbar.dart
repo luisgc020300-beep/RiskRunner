@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_colors.dart';
 
 // =============================================================================
@@ -151,6 +152,68 @@ class _NavbarContent extends StatelessWidget {
     this.onTabSelected,
   });
 
+  void _onLongPressProfile(BuildContext context) {
+    HapticFeedback.heavyImpact();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor  = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final txtColor = isDark ? Colors.white : const Color(0xFF1C1C1E);
+    final subColor = isDark ? const Color(0xFF8E8E93) : const Color(0xFF636366);
+    final divColor = isDark ? const Color(0xFF38383A) : const Color(0xFFD1D1D6);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14))),
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: subColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+              _SheetOption(
+                icon: Icons.logout_rounded,
+                label: 'Cerrar sesión',
+                color: const Color(0xFFE02020),
+                textColor: const Color(0xFFE02020),
+                divColor: divColor,
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  final nav = Navigator.of(context);
+                  await FirebaseAuth.instance.signOut();
+                  nav.pushNamedAndRemoveUntil('/login', (r) => false);
+                },
+              ),
+              _SheetOption(
+                icon: Icons.switch_account_rounded,
+                label: 'Cambiar de cuenta',
+                color: txtColor,
+                textColor: txtColor,
+                divColor: Colors.transparent,
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  final nav = Navigator.of(context);
+                  await GoogleSignIn().signOut();
+                  await FirebaseAuth.instance.signOut();
+                  nav.pushNamedAndRemoveUntil('/login', (r) => false);
+                },
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _onTap(BuildContext context, int index) {
     HapticFeedback.selectionClick();
 
@@ -231,10 +294,11 @@ class _NavbarContent extends StatelessWidget {
               onTap:    () => _onTap(context, 3),
             ),
             _NavItem(
-              icon:     Icons.person_rounded,
-              label:    'Perfil',
-              selected: currentIndex == 4,
-              onTap:    () => _onTap(context, 4),
+              icon:        Icons.person_rounded,
+              label:       'Perfil',
+              selected:    currentIndex == 4,
+              onTap:       () => _onTap(context, 4),
+              onLongPress: () => _onLongPressProfile(context),
             ),
           ]),
         ),
@@ -250,6 +314,7 @@ class _NavItem extends StatelessWidget {
   final bool selected;
   final int badge;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _NavItem({
     required this.icon,
@@ -257,6 +322,7 @@ class _NavItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.badge = 0,
+    this.onLongPress,
   });
 
   @override
@@ -271,6 +337,7 @@ class _NavItem extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -331,4 +398,48 @@ class _NavItem extends StatelessWidget {
     ),
   );
 }
+}
+
+// =============================================================================
+class _SheetOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color textColor;
+  final Color divColor;
+  final VoidCallback onTap;
+
+  const _SheetOption({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.textColor,
+    required this.divColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 14),
+              Text(label, style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500)),
+            ]),
+          ),
+        ),
+        if (divColor != Colors.transparent)
+          Divider(height: 1, color: divColor, indent: 20, endIndent: 20),
+      ],
+    );
+  }
 }

@@ -21,6 +21,7 @@ class ResumenHistorial extends StatelessWidget {
   final ValueChanged<String>                onSearch;
   final VoidCallback                        onToggleVerTodos;
   final ValueChanged<Map<String, dynamic>>? onTapLogro;
+  final bool                                isDark;
 
   const ResumenHistorial({
     super.key,
@@ -34,6 +35,7 @@ class ResumenHistorial extends StatelessWidget {
     required this.onToggleVerTodos,
     this.retoCompletadoEnSesion,
     this.onTapLogro,
+    this.isDark = false,
   });
 
   @override
@@ -42,16 +44,18 @@ class ResumenHistorial extends StatelessWidget {
         ? logrosFiltrados
         : logrosFiltrados.take(paginaTamanio * paginaActual).toList();
 
+    final labelColor = isDark ? Colors.white54 : _kGrey;
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Expanded(child: _SectionLabel('HISTORIAL DE MISIONES')),
+        Expanded(child: _SectionLabel('HISTORIAL DE MISIONES', isDark: isDark)),
         if (todosLosLogros.length > 5)
           GestureDetector(
             onTap: onToggleVerTodos,
             child: Text(
               verTodos ? 'MENOS' : 'TODO',
-              style: const TextStyle(
-                  color: _kGrey, fontSize: 8,
+              style: TextStyle(
+                  color: labelColor, fontSize: 8,
                   fontWeight: FontWeight.w900, letterSpacing: 2),
             ),
           ),
@@ -59,7 +63,7 @@ class ResumenHistorial extends StatelessWidget {
       const SizedBox(height: 12),
 
       if (retoCompletadoEnSesion != null) ...[
-        _BannerRetoCompletado(reto: retoCompletadoEnSesion!),
+        _BannerRetoCompletado(reto: retoCompletadoEnSesion!, isDark: isDark),
         const SizedBox(height: 16),
       ],
 
@@ -67,22 +71,28 @@ class ResumenHistorial extends StatelessWidget {
         TextField(
           controller: searchCtrl,
           onChanged:  onSearch,
-          style:      const TextStyle(color: _kBright, fontSize: 13),
+          style: TextStyle(
+              color: isDark ? Colors.white : _kBright, fontSize: 13),
           decoration: InputDecoration(
             hintText:   'Buscar carrera...',
-            hintStyle:  const TextStyle(color: _kGreyDim, fontSize: 13),
-            prefixIcon: const Icon(Icons.search_rounded, color: _kGrey, size: 16),
+            hintStyle:  TextStyle(
+                color: isDark ? Colors.white38 : _kGreyDim, fontSize: 13),
+            prefixIcon: Icon(Icons.search_rounded,
+                color: isDark ? Colors.white38 : _kGrey, size: 16),
             filled:     true,
-            fillColor:  _kSurface,
+            fillColor:  isDark ? const Color(0xFF2C2C2E) : _kSurface,
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kBorder2)),
+                borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF3A3A3C) : _kBorder2)),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kBorder2)),
+                borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF3A3A3C) : _kBorder2)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: _kGrey, width: 1.5)),
+                borderSide: BorderSide(
+                    color: isDark ? Colors.white38 : _kGrey, width: 1.5)),
             contentPadding: const EdgeInsets.symmetric(vertical: 0),
           ),
         ),
@@ -90,10 +100,11 @@ class ResumenHistorial extends StatelessWidget {
       ],
 
       if (lista.isEmpty)
-        const Center(child: Padding(
-          padding: EdgeInsets.all(24),
+        Center(child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Text('Sin carreras registradas',
-              style: TextStyle(color: _kGreyDim, fontSize: 12)),
+              style: TextStyle(
+                  color: isDark ? Colors.white38 : _kGreyDim, fontSize: 12)),
         ))
       else
         ...lista.asMap().entries.map((e) =>
@@ -109,9 +120,10 @@ class ResumenHistorial extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child:   _HistorialRow(
-                  idx:   e.key,
-                  data:  e.value,
-                  onTap: onTapLogro != null
+                  idx:    e.key,
+                  data:   e.value,
+                  isDark: isDark,
+                  onTap:  onTapLogro != null
                       ? () => onTapLogro!(e.value)
                       : null,
                 ),
@@ -125,17 +137,20 @@ class ResumenHistorial extends StatelessWidget {
 
 class _BannerRetoCompletado extends StatelessWidget {
   final Map<String, dynamic> reto;
-  const _BannerRetoCompletado({required this.reto});
+  final bool isDark;
+  const _BannerRetoCompletado({required this.reto, this.isDark = false});
 
   @override
   Widget build(BuildContext context) {
     final premio = (reto['premio'] as num?)?.toInt() ?? 0;
     final titulo = reto['titulo']  as String? ?? 'Misión completada';
+    final bgColor = isDark ? const Color(0xFF2C2C2E) : _kBg;
+    final titleColor = isDark ? Colors.white : _kBright;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _kBg,
+        color: bgColor,
         border: Border(
           left:   const BorderSide(color: _kGold, width: 3),
           top:    BorderSide(color: _kGoldDim.withValues(alpha: 0.5)),
@@ -162,8 +177,8 @@ class _BannerRetoCompletado extends StatelessWidget {
                 color: _kGold, fontSize: 9,
                 fontWeight: FontWeight.w900, letterSpacing: 3)),
             const SizedBox(height: 3),
-            Text(titulo, style: const TextStyle(
-                color: _kBright, fontSize: 15, fontWeight: FontWeight.w800),
+            Text(titulo, style: TextStyle(
+                color: titleColor, fontSize: 15, fontWeight: FontWeight.w800),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
             Text(
@@ -204,7 +219,13 @@ class _HistorialRow extends StatelessWidget {
   final int                  idx;
   final Map<String, dynamic> data;
   final VoidCallback?        onTap;
-  const _HistorialRow({required this.idx, required this.data, this.onTap});
+  final bool                 isDark;
+  const _HistorialRow({
+    required this.idx,
+    required this.data,
+    this.onTap,
+    this.isDark = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -215,13 +236,30 @@ class _HistorialRow extends StatelessWidget {
     final esGlobal   = modo == 'guerra_global';
     final tappable   = onTap != null && (data['docId'] as String?)?.isNotEmpty == true;
 
+    final cardBg     = isDark ? const Color(0xFF2C2C2E) : _kSurface;
+    final cardBorder = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
+    final divider    = isDark ? const Color(0xFF3A3A3C) : _kBorder;
+    final titleColor = esGlobal
+        ? _kGold
+        : (isFirst
+            ? (isDark ? Colors.white : _kBright)
+            : (isDark
+                ? Colors.white.withValues(alpha: 0.6)
+                : const Color(0xFF1C1C1E).withValues(alpha: 0.75)));
+    final idxColor   = esGlobal ? _kGold : (isFirst ? _kGrey : _kGreyDim);
+    final tagBg      = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : _kBorder2.withValues(alpha: 0.5);
+    final tagBorder  = isDark ? const Color(0xFF3A3A3C) : _kBorder2;
+    final tagText    = isDark ? Colors.white70 : _kBright;
+
     return GestureDetector(
       onTap: tappable ? onTap : null,
       child: Container(
       decoration: BoxDecoration(
-        color:        _kSurface,
+        color:        cardBg,
         borderRadius: BorderRadius.circular(10),
-        border:       Border.all(color: _kBorder2),
+        border:       Border.all(color: cardBorder),
       ),
       child: IntrinsicHeight(
         child: Row(children: [
@@ -237,12 +275,12 @@ class _HistorialRow extends StatelessWidget {
             child: Text(
               '${idx + 1}'.padLeft(2, '0'),
               style: TextStyle(
-                  color: esGlobal ? _kGold : (isFirst ? _kGrey : _kGreyDim),
+                  color: idxColor,
                   fontSize: 10, fontWeight: FontWeight.w900,
                   letterSpacing: 0.5),
             ),
           ),
-          Container(width: 1, color: _kBorder),
+          Container(width: 1, color: divider),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -259,10 +297,7 @@ class _HistorialRow extends StatelessWidget {
                         child: Text(
                           data['titulo'] ?? 'Carrera completada',
                           style: TextStyle(
-                              color: esGlobal
-                                  ? _kGold
-                                  : (isFirst ? _kBright
-                                      : const Color(0xFF1C1C1E).withValues(alpha: 0.75)),
+                              color: titleColor,
                               fontSize:   12,
                               fontWeight: FontWeight.w700),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -275,18 +310,20 @@ class _HistorialRow extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color:        _kBorder2.withValues(alpha: 0.5),
+                          color:        tagBg,
                           borderRadius: BorderRadius.circular(4),
-                          border:       Border.all(color: _kBorder2),
+                          border:       Border.all(color: tagBorder),
                         ),
                         child: Text('${dist.toStringAsFixed(1)} km',
-                            style: const TextStyle(
-                                color: _kBright, fontSize: 10,
+                            style: TextStyle(
+                                color: tagText, fontSize: 10,
                                 fontWeight: FontWeight.w800)),
                       ),
                       const SizedBox(width: 8),
                       Text(data['fecha'] ?? '--',
-                          style: const TextStyle(color: _kGrey, fontSize: 9)),
+                          style: TextStyle(
+                              color: isDark ? Colors.white38 : _kGrey,
+                              fontSize: 9)),
                     ]),
                   ],
                 )),
@@ -300,25 +337,26 @@ class _HistorialRow extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 7, vertical: 4),
                         decoration: BoxDecoration(
-                          color:        _kBorder2.withValues(alpha: 0.5),
+                          color:        tagBg,
                           borderRadius: BorderRadius.circular(6),
-                          border:       Border.all(color: _kBorder2),
+                          border:       Border.all(color: tagBorder),
                         ),
-                        child: Text('+$recompensa', style: const TextStyle(
-                            color: _kBright, fontSize: 11,
+                        child: Text('+$recompensa', style: TextStyle(
+                            color: tagText, fontSize: 11,
                             fontWeight: FontWeight.w900)),
                       ),
                       const SizedBox(height: 2),
-                      const Text('PTS', style: TextStyle(
-                          color: _kGreyDim, fontSize: 7,
+                      Text('PTS', style: TextStyle(
+                          color: isDark ? Colors.white38 : _kGreyDim,
+                          fontSize: 7,
                           fontWeight: FontWeight.w700, letterSpacing: 1)),
                     ],
                   ),
                 ],
                 if (tappable) ...[
                   const SizedBox(width: 6),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: _kGreyDim, size: 16),
+                  Icon(Icons.chevron_right_rounded,
+                      color: isDark ? Colors.white24 : _kGreyDim, size: 16),
                 ],
               ]),
             ),
@@ -333,18 +371,22 @@ class _HistorialRow extends StatelessWidget {
 
 class _SectionLabel extends StatelessWidget {
   final String text;
-  const _SectionLabel(this.text);
+  final bool   isDark;
+  const _SectionLabel(this.text, {this.isDark = false});
 
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Container(
-      width: 3, height: 11,
-      decoration: BoxDecoration(
-          color: _kGrey, borderRadius: BorderRadius.circular(2)),
-    ),
-    const SizedBox(width: 8),
-    Text(text, style: const TextStyle(
-        color: _kGrey, fontSize: 8,
-        fontWeight: FontWeight.w900, letterSpacing: 3)),
-  ]);
+  Widget build(BuildContext context) {
+    final color = isDark ? Colors.white38 : _kGrey;
+    return Row(children: [
+      Container(
+        width: 3, height: 11,
+        decoration: BoxDecoration(
+            color: color, borderRadius: BorderRadius.circular(2)),
+      ),
+      const SizedBox(width: 8),
+      Text(text, style: TextStyle(
+          color: color, fontSize: 8,
+          fontWeight: FontWeight.w900, letterSpacing: 3)),
+    ]);
+  }
 }
