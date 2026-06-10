@@ -39,6 +39,9 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   List<Map<String, dynamic>> _resultadosBusqueda = [];
   bool _buscando = false;
   bool _errorBusqueda = false;
+  DocumentSnapshot? _ultimoDocBusqueda;
+  bool _hayMasResultados = false;
+  bool _cargandoMas = false;
   int _solicitudesPendientes = 0;
   int _mensajesNoLeidos = 0;
   final Map<String, Map<String, dynamic>> _perfilesCache = {};
@@ -101,22 +104,62 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     } catch (e) { debugPrint('Error cargando datos propios: $e'); }
   }
 
+  static const int _kBusquedaLimit = 15;
+
   Future<void> _buscar() async {
     final q = _searchQuery;
-    if (q.isEmpty) { setState(() { _resultadosBusqueda = []; _buscando = false; }); return; }
+    if (q.isEmpty) {
+      setState(() { _resultadosBusqueda = []; _buscando = false; _ultimoDocBusqueda = null; _hayMasResultados = false; });
+      return;
+    }
     try {
       final snap = await FirebaseFirestore.instance.collection('players')
           .where('nickname', isGreaterThanOrEqualTo: q)
-          .where('nickname', isLessThanOrEqualTo: '$q').limit(15).get();
+          .where('nickname', isLessThanOrEqualTo: '$q')
+          .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
       final futures = snap.docs.where((d) => d.id != currentUserId).map(_procesarResultado).toList();
       final results = await Future.wait(futures);
       if (mounted && _searchQuery == q) {
-        setState(() { _resultadosBusqueda = results.whereType<Map<String, dynamic>>().toList(); _buscando = false; _errorBusqueda = false; });
+        setState(() {
+          _resultadosBusqueda = results.whereType<Map<String, dynamic>>().toList();
+          _buscando           = false;
+          _errorBusqueda      = false;
+          _ultimoDocBusqueda  = snap.docs.isNotEmpty ? snap.docs.last : null;
+          _hayMasResultados   = snap.docs.length == _kBusquedaLimit;
+          _cargandoMas        = false;
+        });
       }
     } catch (e) {
       debugPrint('Error búsqueda: $e');
       if (mounted) setState(() { _buscando = false; _errorBusqueda = true; });
+    }
+  }
+
+  Future<void> _cargarMas() async {
+    if (_cargandoMas || _ultimoDocBusqueda == null || !_hayMasResultados) return;
+    final q = _searchQuery;
+    setState(() => _cargandoMas = true);
+    try {
+      final snap = await FirebaseFirestore.instance.collection('players')
+          .where('nickname', isGreaterThanOrEqualTo: q)
+          .where('nickname', isLessThanOrEqualTo: '$q')
+          .startAfterDocument(_ultimoDocBusqueda!)
+          .limit(_kBusquedaLimit).get();
+      if (!mounted || _searchQuery != q) return;
+      final futures = snap.docs.where((d) => d.id != currentUserId).map(_procesarResultado).toList();
+      final results = await Future.wait(futures);
+      if (mounted && _searchQuery == q) {
+        setState(() {
+          _resultadosBusqueda.addAll(results.whereType<Map<String, dynamic>>());
+          _ultimoDocBusqueda = snap.docs.isNotEmpty ? snap.docs.last : _ultimoDocBusqueda;
+          _hayMasResultados  = snap.docs.length == _kBusquedaLimit;
+          _cargandoMas       = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error cargarMas: $e');
+      if (mounted) setState(() => _cargandoMas = false);
     }
   }
 
@@ -398,9 +441,32 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       icon: Icons.search_off_rounded, titulo: 'Sin resultados',
       subtitulo: 'Nadie con nickname "$_searchQuery"',
       accionLabel: 'Limpiar', onAccion: () => _searchController.clear());
+    final total = _resultadosBusqueda.length + (_hayMasResultados ? 1 : 0);
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32), itemCount: _resultadosBusqueda.length,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      itemCount: total,
       itemBuilder: (ctx, i) {
+        if (i == _resultadosBusqueda.length) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _cargandoMas
+                ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)))
+                : GestureDetector(
+                    onTap: _cargarMas,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: kSocAccent.withValues(alpha: 0.35)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('CARGAR MÁS', style: TextStyle(
+                        color: kSocAccent, fontSize: 11,
+                        fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    ),
+                  ),
+          );
+        }
         final u = _resultadosBusqueda[i];
         final bool yaEnviada = _solicitudesEnviadas.contains(u['id']);
         final String rel = yaEnviada ? 'pending' : (u['relacion'] as String? ?? 'ninguna');

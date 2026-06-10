@@ -44,6 +44,7 @@ import '../models/avatar_config.dart';
 import '../widgets/avatar_painter.dart';
 import '../controllers/game_mode_controller.dart';
 import '../theme/app_colors.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 // =============================================================================
 // PALETA
@@ -268,6 +269,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
   StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
   final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
+  bool  _mapaDesactualizado = false;
+  Timer? _streamReconectarTimer;
 
   Timer? _timerPublicarPosicion;
   int    _presenciaIntervaloSeg = _kPresenciaMovimientoSeg;
@@ -593,6 +596,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _jugadoresStream?.cancel();
     _competitiveStreamSub?.cancel();
     _solitarioStreamSub?.cancel();
+    _streamReconectarTimer?.cancel();
     TerritoryService.stopRealtimeListener();
     _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
@@ -1017,6 +1021,27 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     LocationPermission p = await Geolocator.checkPermission();
     if (p == LocationPermission.denied) {
       p = await Geolocator.requestPermission();
+    }
+    if (p == LocationPermission.denied || p == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          p == LocationPermission.deniedForever
+              ? 'Ubicación bloqueada. Ve a Ajustes → Permisos → Ubicación para activarla.'
+              : 'RiskRunner necesita acceso a tu ubicación para funcionar.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        backgroundColor: AppColors.red,
+        duration: const Duration(seconds: 6),
+        action: p == LocationPermission.deniedForever
+            ? SnackBarAction(
+                label: 'AJUSTES',
+                textColor: Colors.white,
+                onPressed: () => Geolocator.openAppSettings(),
+              )
+            : null,
+      ));
+      return;
     }
     if (p == LocationPermission.always || p == LocationPermission.whileInUse) {
       final pos = await Geolocator.getCurrentPosition(
@@ -2403,6 +2428,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _suscribirStreamTerritorios() {
     _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
       if (!mounted) return;
+      if (_mapaDesactualizado) setState(() => _mapaDesactualizado = false);
       GameStateService.instance.setCompetitiveTerritories(list);
       if (!_territoriosCargados || _modoSolitario || _modoRuta) return;
       setState(() => _territorios = list);
@@ -2410,9 +2436,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();
       });
+    }, onError: (e) {
+      debugPrint('Stream competitivo caído: $e');
+      if (mounted) setState(() => _mapaDesactualizado = true);
+      _programarReconexion();
     });
     _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
       if (!mounted) return;
+      if (_mapaDesactualizado) setState(() => _mapaDesactualizado = false);
       GameStateService.instance.setSolitarioTerritories(list);
       if (!_territoriosCargados || !_modoSolitario) return;
       setState(() => _territorios = list);
@@ -2420,6 +2451,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();
       });
+    }, onError: (e) {
+      debugPrint('Stream solitario caído: $e');
+      if (mounted) setState(() => _mapaDesactualizado = true);
+      _programarReconexion();
+    });
+  }
+
+  void _programarReconexion() {
+    _streamReconectarTimer?.cancel();
+    _streamReconectarTimer = Timer(const Duration(seconds: 8), () {
+      if (!mounted) return;
+      _competitiveStreamSub?.cancel();
+      _solitarioStreamSub?.cancel();
+      _suscribirStreamTerritorios();
     });
   }
 
@@ -3531,6 +3576,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       animated: true, duracion: 1200,
     );
 
+    // Verificar conectividad — Firestore hace cola offline, pero el usuario debe saberlo
+    final connectivity = await Connectivity().checkConnectivity();
+    final bool sinRed  = connectivity.isEmpty ||
+        (connectivity.length == 1 && connectivity.first == ConnectivityResult.none);
+
     String? logId;
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -3786,6 +3836,17 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     _stopping = false;
     if (!mounted) return;
+
+    if (sinRed) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'Sin conexión — tu carrera se guardará automáticamente cuando vuelvas a tener red.',
+          style: TextStyle(fontSize: 13),
+        ),
+        backgroundColor: AppColors.red,
+        duration: Duration(seconds: 5),
+      ));
+    }
 
     Navigator.pushReplacementNamed(context, '/resumen', arguments: {
       'distancia':               distanciaFinal,
@@ -4823,6 +4884,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                     ? const Alignment(0, -0.78)
                     : const Alignment(0, -0.50)),
             child: _buildTimerGrande(),
+          ),
+        if (_mapaDesactualizado)
+          Positioned(
+            bottom: isTracking ? 180 : 100, left: 0, right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.red.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.wifi_off_rounded, color: Colors.white, size: 13),
+                  SizedBox(width: 6),
+                  Text('MAPA DESACTUALIZADO', style: TextStyle(
+                    color: Colors.white, fontSize: 10,
+                    fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                ]),
+              ),
+            ),
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
         if (isTracking && !isPaused && _mensajeNarrador != null)

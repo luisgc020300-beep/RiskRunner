@@ -218,7 +218,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('posts').doc(postId).get();
-      if (!doc.exists || !mounted) { return; }
+      if (!mounted) return;
+      if (!doc.exists) {
+        _snack('Esta publicación ya no existe', _kMuted);
+        return;
+      }
       _mostrarPopUpPost(doc.data()!);
     } catch (e) {
       debugPrint('Error abrirDetallePost: $e');
@@ -351,7 +355,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('territories').doc(territoryId).get();
-      if (!doc.exists || !mounted) return;
+      if (!mounted) return;
+      if (!doc.exists) {
+        _snack('Este territorio ya no existe', _kMuted);
+        return;
+      }
       final data = doc.data()!;
       final List<LatLng> puntos = (data['puntos'] as List)
           .map((p) => LatLng(
@@ -845,18 +853,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _aceptarDesafio(NotifItem item, int apuesta, int horas,
       String? desafioId) async {
     try {
+      final db = FirebaseFirestore.instance;
       final String targetId;
       Map<String, dynamic> data;
 
       if (desafioId != null) {
-        final doc = await FirebaseFirestore.instance
-            .collection('desafios').doc(desafioId).get();
+        final doc = await db.collection('desafios').doc(desafioId).get();
         if (!doc.exists) return;
         targetId = desafioId;
         data     = doc.data()!;
       } else {
-        final snap = await FirebaseFirestore.instance
-            .collection('desafios')
+        final snap = await db.collection('desafios')
             .where('retadoId', isEqualTo: userId)
             .where('estado', isEqualTo: 'pendiente')
             .limit(1).get();
@@ -865,20 +872,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         data     = snap.docs.first.data();
       }
 
-      final myDoc = await FirebaseFirestore.instance
-          .collection('players').doc(userId).get();
-      final misMonedas = (myDoc.data()?['monedas'] as num?)?.toInt() ?? 0;
-
-      if (misMonedas < apuesta) {
-        if (mounted) _snack('No tienes suficientes monedas', Colors.redAccent);
-        return;
-      }
+      // Transacción atómica: verificar saldo y descontar en un solo paso
+      String myNick = 'Rival';
+      await db.runTransaction((tx) async {
+        final snap       = await tx.get(db.collection('players').doc(userId));
+        myNick           = snap.data()?['nickname'] as String? ?? 'Rival';
+        final misMonedas = (snap.data()?['monedas'] as num?)?.toInt() ?? 0;
+        if (misMonedas < apuesta) throw 'insufficient_coins';
+        tx.update(snap.reference, {'monedas': FieldValue.increment(-apuesta)});
+      });
 
       final ahora = DateTime.now();
       final fin   = ahora.add(Duration(hours: horas));
 
-      await FirebaseFirestore.instance
-          .collection('desafios').doc(targetId).update({
+      await db.collection('desafios').doc(targetId).update({
         'estado':        'activo',
         'apuesta':       apuesta,
         'duracionHoras': horas,
@@ -887,19 +894,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         'puntosRetador': 0,
         'puntosRetado':  0,
       });
+      await db.collection('notifications').doc(item.id).update({'read': true});
 
-      await FirebaseFirestore.instance
-          .collection('players').doc(userId)
-          .update({'monedas': FieldValue.increment(-apuesta)});
-      await FirebaseFirestore.instance
-          .collection('notifications').doc(item.id)
-          .update({'read': true});
-
-      final myNick    = myDoc.data()?['nickname'] as String? ?? 'Rival';
       final retadorId = data['retadorId'] as String;
       final toUserId  = userId == retadorId ? data['retadoId'] : retadorId;
 
-      await FirebaseFirestore.instance.collection('notifications').add({
+      await db.collection('notifications').add({
         'toUserId':     toUserId,
         'type':         'desafio_aceptado',
         'fromNickname': myNick,
@@ -911,12 +911,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       if (mounted) {
         _snack('¡Desafío aceptado! Tienes ${horas}h para ganar', _kRed);
-        // Navegar directamente a la pantalla de desafíos
-        Navigator.pushNamed(context, '/desafios',
-            arguments: {'desafioId': targetId});
+        Navigator.pushNamed(context, '/desafios', arguments: {'desafioId': targetId});
       }
     } catch (e) {
-      if (mounted) _snack('Error al aceptar el desafío', Colors.redAccent);
+      if (e == 'insufficient_coins') {
+        if (mounted) _snack('No tienes suficientes monedas', Colors.redAccent);
+      } else {
+        if (mounted) _snack('Error al aceptar el desafío', Colors.redAccent);
+      }
     }
   }
 

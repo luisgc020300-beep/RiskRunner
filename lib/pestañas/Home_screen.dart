@@ -137,7 +137,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   // Paleta dinámica â€” se actualiza al inicio de cada build()
@@ -182,8 +183,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // â”€â”€ Plan de entrenamiento
   UserPlanState? _userPlan;
   TrainingPlan?  _planActivo;
-  // Cache de avatares actuales por userId (evita mostrar fotos desactualizadas)
-  final Map<String, String?> _avatarCache = {};
+  // Cache de avatares con TTL de 5 min para reflejar cambios de foto
+  final Map<String, String?>   _avatarCache     = {};
+  final Map<String, DateTime>  _avatarCacheTime = {};
+  static const Duration _kAvatarTTL = Duration(minutes: 5);
 
   // â”€â”€ Tab activa
   int _tabIndex = 0;
@@ -207,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _pageController = PageController(initialPage: 0);
 
@@ -298,6 +302,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _dailyResetTimer?.cancel();
     _timeUntilReset.dispose();
@@ -309,6 +314,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _feedListener?.cancel();
     _authListener?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // El timer periódico se pausa en background — al volver relanzamos
+    // _initializeData para que recalcule el tiempo restante correctamente.
+    if (mounted && userId != null) _initializeData();
   }
 
   // â”€â”€ Notificaciones
@@ -351,10 +364,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _feedPosts = posts;
         _loadingFeed = false;
       });
-      // Actualizar cache de avatares para los userIds nuevos
-      final idsNuevos = posts.map((p) => p.userId).toSet()
-          .difference(_avatarCache.keys.toSet());
-      if (idsNuevos.isNotEmpty) _actualizarAvatarCache(idsNuevos);
+      // Refrescar avatares que no están en caché o cuyo TTL expiró
+      final ahora = DateTime.now();
+      final idsARefrescar = posts.map((p) => p.userId).toSet().where((id) {
+        final ts = _avatarCacheTime[id];
+        return ts == null || ahora.difference(ts) > _kAvatarTTL;
+      }).toSet();
+      if (idsARefrescar.isNotEmpty) _actualizarAvatarCache(idsARefrescar);
     }, onError: (e) {
       if (mounted) setState(() => _loadingFeed = false);
     });
@@ -374,7 +390,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         final fetched = {for (final d in snap.docs) d.id: d.data()['foto_base64'] as String?};
         // Marcar como null los ids que no devolvió Firestore
         final missing = {for (final id in chunk) id: null as String?};
-        setState(() => _avatarCache.addAll({...missing, ...fetched}));
+        final now = DateTime.now();
+        setState(() {
+          _avatarCache.addAll({...missing, ...fetched});
+          for (final id in chunk) { _avatarCacheTime[id] = now; }
+        });
       } catch (e) {
         debugPrint('Error cargando avatares batch: $e');
         for (final id in chunk) {

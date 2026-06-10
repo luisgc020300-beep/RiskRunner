@@ -861,16 +861,42 @@ class _PerfilScreenState extends State<PerfilScreen>
       return;
     }
     try {
-      final myDoc      = await FirebaseFirestore.instance.collection('players').doc(myUserId).get();
-      final myNick     = myDoc.data()?['nickname'] as String? ?? 'Runner';
-      final misMonedas = (myDoc.data()?['monedas'] as num?)?.toInt() ?? 0;
-      if (misMonedas < apuesta) { _mostrarSnackbar('No tienes suficientes monedas', error: true); return; }
-      await FirebaseFirestore.instance.collection('desafios').add({'retadorId': myUserId, 'retadorNick': myNick, 'retadoId': viewedUserId, 'retadoNick': nickname, 'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente', 'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0, 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('notifications').add({'toUserId': viewedUserId, 'type': 'desafio_recibido', 'fromUserId': myUserId, 'fromNickname': myNick, 'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?', 'apuesta': apuesta, 'duracionHoras': horas, 'esContrapropuesta': false, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
-      await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'monedas': FieldValue.increment(-apuesta)});
+      final db     = FirebaseFirestore.instance;
+      final myDoc  = await db.collection('players').doc(myUserId).get();
+      final myNick = myDoc.data()?['nickname'] as String? ?? 'Runner';
+
+      // Transacción atómica: verificar saldo y descontar en un solo paso
+      await db.runTransaction((tx) async {
+        final snap       = await tx.get(db.collection('players').doc(myUserId!));
+        final misMonedas = (snap.data()?['monedas'] as num?)?.toInt() ?? 0;
+        if (misMonedas < apuesta) throw 'insufficient_coins';
+        tx.update(snap.reference, {'monedas': FieldValue.increment(-apuesta)});
+      });
+
+      await db.collection('desafios').add({
+        'retadorId': myUserId, 'retadorNick': myNick,
+        'retadoId': viewedUserId, 'retadoNick': nickname,
+        'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente',
+        'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      await db.collection('notifications').add({
+        'toUserId': viewedUserId, 'type': 'desafio_recibido',
+        'fromUserId': myUserId, 'fromNickname': myNick,
+        'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?',
+        'apuesta': apuesta, 'duracionHoras': horas,
+        'esContrapropuesta': false, 'read': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
       _ultimoReto = DateTime.now();
       _mostrarSnackbar('¡Desafío enviado!');
-    } catch (e) { _mostrarSnackbar('Error al enviar el desafío', error: true); }
+    } catch (e) {
+      if (e == 'insufficient_coins') {
+        _mostrarSnackbar('No tienes suficientes monedas', error: true);
+      } else {
+        _mostrarSnackbar('Error al enviar el desafío', error: true);
+      }
+    }
   }
 
   Future<void> _enviarContrapropuesta(String desafioId, int apuesta, int horas) async {
