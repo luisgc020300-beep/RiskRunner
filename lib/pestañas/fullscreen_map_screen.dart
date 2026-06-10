@@ -5000,7 +5000,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           const SizedBox(width: 14),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Sin territorios cercanos',
-                style: _raj(12, FontWeight.w700, _kText)),
+                style: _raj(12, FontWeight.w700, _shText)),
             const SizedBox(height: 3),
             Text('No hay zonas en un radio de 5 km',
                 style: _raj(10, FontWeight.w500, _kSub)),
@@ -5142,7 +5142,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-            color: _kSurface,
+            color: _shSurf,
             border: Border.all(color: c.withValues(alpha: 0.22)),
             borderRadius: BorderRadius.circular(6)),
         child: Column(children: [
@@ -5152,7 +5152,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               Container(width: 2, height: 14, color: c,
                   margin: const EdgeInsets.only(right: 8)),
               Expanded(child: Text(nombre.toUpperCase(),
-                  style: _raj(11, FontWeight.w800, _kText, spacing: 0.5),
+                  style: _raj(11, FontWeight.w800, _shText, spacing: 0.5),
                   overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 6),
               Container(
