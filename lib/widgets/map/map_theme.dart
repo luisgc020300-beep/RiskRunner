@@ -1,24 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../theme/app_colors.dart';
 
-// Constantes de mapa — todas apuntan a AppColors
-const kMapBg       = AppColors.bg;
-const kMapSurface  = AppColors.surface;
-const kMapSurface2 = AppColors.surface2;
-const kMapBorder   = AppColors.border;
-const kMapBorder2  = AppColors.border2;
-const kMapDim      = AppColors.textTertiary;
-const kMapSub      = AppColors.textDim;
-const kMapText     = AppColors.textSecondary;
-const kMapWhite    = AppColors.textPrimary;
-const kMapRed      = AppColors.red;
-const kMapSafe     = AppColors.green;
-const kMapWarn     = AppColors.warn;
-const kMapGold     = AppColors.gold;
-const kMapGoldDim  = AppColors.goldDim;
-const kMapCyan     = AppColors.water;
-const kMapBlue     = AppColors.blue;
+const kMapBg       = Color(0xFFE8E8ED);
+const kMapSurface  = Color(0xFFFFFFFF);
+const kMapSurface2 = Color(0xFFE5E5EA);
+const kMapBorder   = Color(0xFFC6C6C8);
+const kMapBorder2  = Color(0xFFD1D1D6);
+const kMapDim      = Color(0xFFAEAEB2);
+const kMapSub      = Color(0xFF8E8E93);
+const kMapText     = Color(0xFF3C3C43);
+const kMapWhite    = Color(0xFF1C1C1E);
+const kMapRed      = Color(0xFFE02020);
+const kMapSafe     = Color(0xFF30D158);
+const kMapWarn     = Color(0xFFFF9500);
+const kMapGold     = Color(0xFFFFD60A);
+const kMapGoldDim  = Color(0xFFAEAEB2);
+const kMapCyan     = Color(0xFF636366);
+const kMapBlue     = Color.fromARGB(255, 16, 154, 235);
 
 TextStyle mapRaj(double size, FontWeight weight, Color color,
     {double spacing = 0, double? height}) =>

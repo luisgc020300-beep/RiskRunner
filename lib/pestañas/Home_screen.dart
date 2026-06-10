@@ -142,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   // Paleta dinámica â€” se actualiza al inicio de cada build()
-  _TColors _T = _TColors.dark;
+  _TColors _T = _TColors.light;
 
   // â”€â”€ Perfil
   String nickname = "Cargando...";
@@ -151,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? fotoBase64;
   bool isLoading = true;
 
-  Color _accentColor = _TColors.dark.bronze;
+  Color _accentColor = _TColors.light.bronze;
 
   // â”€â”€ Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
