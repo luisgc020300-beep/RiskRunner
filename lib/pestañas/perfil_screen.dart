@@ -27,6 +27,7 @@ import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
 import '../services/zona_service.dart';
+import 'importar_carrera_screen.dart';
 import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
 import '../services/route_service.dart';
@@ -2029,6 +2030,24 @@ class _PerfilScreenState extends State<PerfilScreen>
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('$total misión${total == 1 ? '' : 'es'} registrada${total == 1 ? '' : 's'}', style: _rajdhani(11, FontWeight.w500, _p.sub))),
+          GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const ImportarCarreraScreen())),
+            child: Container(
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _kAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.upload_file_rounded, color: _kAccent, size: 12),
+                const SizedBox(width: 4),
+                Text('IMPORTAR GPX', style: _rajdhani(8, FontWeight.w900, _kAccent, spacing: 1)),
+              ]),
+            ),
+          ),
           if (_historialCompleto.length > 5)
             GestureDetector(
               onTap: () => setState(() {

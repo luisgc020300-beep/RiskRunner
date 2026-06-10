@@ -45,3 +45,7 @@ app.*.map.json
 /android/app/release
 
 # env.dart se commitea con valores vacios; usa 'git update-index --skip-worktree lib/config/env.dart' para proteger tu clave local
+
+# Agent .env con API keys
+riskrunner/agent/.env
+riskrunner/agent/reports/

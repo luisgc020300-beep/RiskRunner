@@ -18,6 +18,9 @@ class NotifItem {
   final bool esContrapropuesta;
   final String? fromUserId;
 
+  // ── Campos para posts ─────────────────────────────────────
+  final String? postId;
+
   NotifItem({
     required this.id,
     required this.tipo,
@@ -33,6 +36,7 @@ class NotifItem {
     this.duracionHoras,
     this.esContrapropuesta = false,
     this.fromUserId,
+    this.postId,
   });
 
   factory NotifItem.fromFirestore(DocumentSnapshot doc) {
@@ -52,6 +56,7 @@ class NotifItem {
       duracionHoras: (data['duracionHoras'] as num?)?.toInt(),
       esContrapropuesta: data['esContrapropuesta'] as bool? ?? false,
       fromUserId: data['fromUserId'] as String?,
+      postId: data['postId'] as String?,
     );
   }
 }

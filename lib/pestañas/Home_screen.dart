@@ -141,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   // Paleta dinámica â€” se actualiza al inicio de cada build()
-  _TColors _T = _TColors.light;
+  _TColors _T = _TColors.dark;
 
   // â”€â”€ Perfil
   String nickname = "Cargando...";
@@ -150,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? fotoBase64;
   bool isLoading = true;
 
-  Color _accentColor = _TColors.light.bronze;
+  Color _accentColor = _TColors.dark.bronze;
 
   // â”€â”€ Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];

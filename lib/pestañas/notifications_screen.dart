@@ -3,28 +3,28 @@ import 'package:RiskRunner/widgets/mini_mapa_notif.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_typography.dart';
+import '../widgets/app_button.dart';
 
-// =============================================================================
-// PALETA
-// =============================================================================
-const _kBg      = Color(0xFFE8E8ED);
-const _kSurface = Color(0xFFFFFFFF);
-const _kBorder2 = Color(0xFFD1D1D6);
-const _kMuted   = Color(0xFFAEAEB2);
-const _kDim     = Color(0xFF8E8E93);
-const _kSub     = Color(0xFF636366);
-const _kText    = Color(0xFF3C3C43);
-const _kWhite   = Color(0xFF1C1C1E);
-const _kRed     = Color(0xFFE02020);
+// Alias locales para no reescribir cada referencia en el cuerpo del archivo
+const _kBg      = AppColors.bg;
+const _kSurface = AppColors.surface;
+const _kBorder2 = AppColors.border;
+const _kMuted   = AppColors.textMuted;
+const _kDim     = AppColors.textTertiary;
+const _kSub     = AppColors.textTertiary;
+const _kText    = AppColors.textSecondary;
+const _kWhite   = AppColors.textPrimary;
+const _kRed     = AppColors.red;
 
 TextStyle _raj(double size, FontWeight weight, Color color,
-    {double spacing = 0, double? height}) =>
-    GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color,
-        letterSpacing: spacing, height: height);
+    {double spacing = 0.5, double? height}) =>
+    AppTypography.raj(size, weight, color, spacing: spacing, height: height);
 
 // =============================================================================
 // PANTALLA
@@ -207,13 +207,143 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       // ── Publicaciones: like y comentario ──────────────────────────────────
       case 'post_like':
       case 'post_comment':
-        if (item.fromUserId != null) {
-          Navigator.pushNamed(context, '/perfil',
-              arguments: {'userId': item.fromUserId});
-        }
+        await _abrirDetallePost(item.postId);
         break;
     }
   }
+
+  // ── Detalle de publicación ─────────────────────────────────────────────────
+  Future<void> _abrirDetallePost(String? postId) async {
+    if (postId == null) { return; }
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('posts').doc(postId).get();
+      if (!doc.exists || !mounted) { return; }
+      _mostrarPopUpPost(doc.data()!);
+    } catch (e) {
+      debugPrint('Error abrirDetallePost: $e');
+    }
+  }
+
+  void _mostrarPopUpPost(Map<String, dynamic> data) {
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final bgColor  = isDark ? const Color(0xFF1C1C1E) : _kSurface;
+    final txtColor = isDark ? const Color(0xFFEEEEEE) : _kWhite;
+
+    final dist   = (data['distanciaKm'] as num?)?.toDouble() ?? 0;
+    final tiempo = (data['tiempoSegundos'] as num?)?.toInt() ?? 0;
+    final vel    = (data['velocidadMedia'] as num?)?.toDouble() ?? 0;
+    final desc   = (data['descripcion'] as String? ?? '').trim();
+    final titulo = (data['titulo'] as String? ?? '').trim();
+    final ts     = data['timestamp'] as Timestamp?;
+    final mins   = tiempo ~/ 60;
+    final secs   = tiempo % 60;
+
+    final List<LatLng> puntos = ((data['ruta'] as List<dynamic>?) ?? []).map((p) {
+      final m = p as Map;
+      return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+    }).toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border.all(
+              color: isDark ? const Color(0xFF38383A) : _kBorder2),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36, height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+                color: _kMuted.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          if (titulo.isNotEmpty || ts != null) ...[
+            Row(children: [
+              if (titulo.isNotEmpty)
+                Expanded(child: Text(titulo,
+                    style: _raj(15, FontWeight.w700, txtColor))),
+              if (ts != null)
+                Text(
+                  '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}',
+                  style: _raj(10, FontWeight.w400, _kSub),
+                ),
+            ]),
+            const SizedBox(height: 16),
+          ],
+          if (puntos.length > 1) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                height: 180,
+                child: FlutterMap(
+                  options: MapOptions(
+                    backgroundColor: const Color(0xFF1A1A1A),
+                    initialCameraFit: CameraFit.bounds(
+                      bounds: LatLngBounds.fromPoints(puntos),
+                      padding: const EdgeInsets.all(32),
+                    ),
+                    interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.tuapp.juego',
+                    ),
+                    PolylineLayer(polylines: [
+                      Polyline(
+                          points: puntos,
+                          color: _kRed,
+                          strokeWidth: 3),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          Row(children: [
+            _postStatCell(
+                '${dist.toStringAsFixed(2)} km', 'DISTANCIA', txtColor),
+            Container(width: 1, height: 32,
+                color: isDark ? const Color(0xFF38383A) : _kBorder2),
+            _postStatCell(
+                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                'TIEMPO', txtColor),
+            Container(width: 1, height: 32,
+                color: isDark ? const Color(0xFF38383A) : _kBorder2),
+            _postStatCell(
+                '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD', txtColor),
+          ]),
+          if (desc.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(height: 0.5,
+                color: isDark ? const Color(0xFF38383A) : _kBorder2),
+            const SizedBox(height: 12),
+            Text(desc,
+                style: _raj(13, FontWeight.w400, txtColor),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _postStatCell(String val, String label, Color txtColor) =>
+      Expanded(child: Column(children: [
+        Text(val, style: _raj(12, FontWeight.w800, txtColor)),
+        const SizedBox(height: 2),
+        Text(label, style: _raj(7, FontWeight.w700, _kSub, spacing: 1)),
+      ]));
 
   // ── Detalle de territorio ──────────────────────────────────────────────────
   Future<void> _abrirDetalleTerritorio(
@@ -498,19 +628,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     required bool filled,
     required VoidCallback onTap,
   }) =>
-      GestureDetector(
-        onTap: () { HapticFeedback.lightImpact(); onTap(); },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(
-            color: filled ? color : Colors.transparent,
-            border: Border.all(
-                color: filled ? color : color.withValues(alpha: 0.5)),
-          ),
-          child: Text(label, textAlign: TextAlign.center,
-              style: _raj(10, FontWeight.w900,
-                  filled ? Colors.white : color, spacing: 1)),
-        ),
+      AppButton(
+        label: label,
+        onTap: onTap,
+        variant: filled ? AppButtonVariant.primary : AppButtonVariant.secondary,
+        color: color,
+        fontSize: 10,
       );
 
   // =============================================================================
