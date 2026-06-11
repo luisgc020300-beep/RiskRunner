@@ -2809,7 +2809,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
     } on FirebaseFunctionsException catch (e) {
       if (mounted) _mostrarError(e.message ?? 'Error al conquistar.');
-    } catch (e) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'conquista_global');
       debugPrint('Error conquista global: $e');
       if (mounted) _mostrarError('Error inesperado. Inténtalo de nuevo.');
     } finally {
@@ -3594,7 +3595,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           }
         }
       }
-    } catch (e) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'guardar_log_sesion');
       debugPrint('Error log: $e');
       if (mounted) {
         showCupertinoDialog<void>(
@@ -5771,7 +5773,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (list.isEmpty) list.addAll(buildSampleGlobalTerritories());
       GameStateService.instance.setGlobalTerritories(list);
       if (mounted) setState(() { _terrGlobales = list; _cargandoGlobales = false; });
-    } catch (e) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargar_territorios_globales');
       debugPrint('Error cargando globales: $e');
       if (mounted) setState(() { _terrGlobales = buildSampleGlobalTerritories(); _cargandoGlobales = false; });
     }

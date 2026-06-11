@@ -1938,12 +1938,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _moverCamara(_state.centro, 13.0);
     await _cargarTerritorios();
     _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
+    if (!mounted) return;
     // Resetear si la carga anterior no encontró resultados
     if (_barriosCargados && _barriosCercanos.isEmpty) {
       setState(() { _barriosCargados = false; });
     }
     if (!_barriosCargados && !_cargandoBarrios) {
       await _cargarBarriosSolitario(_state.centro);
+      if (!mounted) return;
       _recalcularPorcentajesBarrios();
       _dibujarBarriosSolitario();
     }
@@ -2148,7 +2150,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _cargandoRutas = false;
       });
       await _dibujarRutas();
-    } catch (e) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargar_rutas_preview');
       debugPrint('FullscreenMap rutas error: $e');
       if (mounted) setState(() => _cargandoRutas = false);
     }
