@@ -3414,8 +3414,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           elevacionGanada: _session.elevacionGanada,
         ).catchError((e) => debugPrint('actualizarPRs: $e'));
 
-        // Notificaciones locales: racha en riesgo + resumen semanal
-        _programarNotificacionesPostCarrera(user.uid, distanciaFinal);
+        ActivityService.programarNotificacionesPostCarrera(user.uid, distanciaFinal);
 
         if (logId != null) {
           if (_objetivoGlobal != null && _globalKmAlcanzados) {
@@ -4312,58 +4311,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
       _mostrarError(e.message ?? 'Error al activar el escudo.');
-    }
-  }
-
-  // ==========================================================================
-  // NOTIFICACIONES LOCALES POST-CARRERA
-  // ==========================================================================
-  Future<void> _programarNotificacionesPostCarrera(
-      String uid, double distanciaKm) async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('players').doc(uid).get();
-      final d       = doc.data() ?? {};
-      final racha   = (d['racha_actual'] as num?)?.toInt() ?? 0;
-
-      // Racha en riesgo — avisa si aún no corre mañana a las 20:00
-      if (racha > 0) {
-        await LocalNotifService.programarRachaEnRiesgo(racha);
-      }
-
-      // Resumen semanal: calcular km de esta semana desde activity_logs
-      final ahora    = DateTime.now();
-      final inicioSemana = DateTime(
-          ahora.year, ahora.month, ahora.day - (ahora.weekday - 1));
-      final logsSnap = await FirebaseFirestore.instance
-          .collection('activity_logs')
-          .where('userId', isEqualTo: uid)
-          .where('timestamp',
-              isGreaterThanOrEqualTo:
-                  Timestamp.fromDate(inicioSemana))
-          .get();
-
-      double kmSemana = 0;
-      int    carreras = 0;
-      for (final doc in logsSnap.docs) {
-        final dist = (doc.data()['distancia'] as num?)?.toDouble() ?? 0;
-        if (dist > 0) { kmSemana += dist; carreras++; }
-      }
-
-      final conqSnap = await FirebaseFirestore.instance
-          .collection('territories')
-          .where('userId', isEqualTo: uid)
-          .count()
-          .get();
-      final territorios = (conqSnap.count as num?)?.toInt() ?? 0;
-
-      await LocalNotifService.programarResumenSemanal(
-        kmSemana:    kmSemana,
-        carreras:    carreras,
-        territorios: territorios,
-      );
-    } catch (e) {
-      debugPrint('_programarNotificacionesPostCarrera: $e');
     }
   }
 

@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'local_notif_service.dart';
+
 // ── Modelo de una entrada del feed ────────────────────────────────────────────
 class ActivityEntry {
   final String userNick;
@@ -247,6 +249,50 @@ class ActivityService {
       });
     } catch (e) {
       debugPrint('ActivityService.enviarNotificacion error: $e');
+    }
+  }
+
+  static Future<void> programarNotificacionesPostCarrera(
+      String uid, double distanciaKm) async {
+    try {
+      final doc = await _db.collection('players').doc(uid).get();
+      final d     = doc.data() ?? {};
+      final racha = (d['racha_actual'] as num?)?.toInt() ?? 0;
+      if (racha > 0) {
+        await LocalNotifService.programarRachaEnRiesgo(racha);
+      }
+
+      final ahora      = DateTime.now();
+      final inicioSemana = DateTime(
+          ahora.year, ahora.month, ahora.day - (ahora.weekday - 1));
+      final logsSnap = await _db
+          .collection('activity_logs')
+          .where('userId', isEqualTo: uid)
+          .where('timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(inicioSemana))
+          .get();
+
+      double kmSemana = 0;
+      int    carreras = 0;
+      for (final log in logsSnap.docs) {
+        final dist = (log.data()['distancia'] as num?)?.toDouble() ?? 0;
+        if (dist > 0) { kmSemana += dist; carreras++; }
+      }
+
+      final conqSnap = await _db
+          .collection('territories')
+          .where('userId', isEqualTo: uid)
+          .count()
+          .get();
+      final territorios = (conqSnap.count as num?)?.toInt() ?? 0;
+
+      await LocalNotifService.programarResumenSemanal(
+        kmSemana:    kmSemana,
+        carreras:    carreras,
+        territorios: territorios,
+      );
+    } catch (e) {
+      debugPrint('ActivityService.programarNotificacionesPostCarrera: $e');
     }
   }
 }
