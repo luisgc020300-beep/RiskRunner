@@ -155,4 +155,28 @@ void main() {
       expect(hist, isEmpty);
     });
   });
+
+  // ── programarNotificacionesPostCarrera ────────────────────────────────────
+  group('programarNotificacionesPostCarrera', () {
+    test('completa sin lanzar aunque LocalNotifService no esté inicializado', () async {
+      await fakeDb.collection('players').doc('uid1').set({'racha_actual': 5});
+      await fakeDb.collection('activity_logs').add({
+        'userId': 'uid1',
+        'distancia': 3.5,
+        'timestamp': Timestamp.fromDate(DateTime.now()),
+      });
+      await expectLater(
+        ActivityService.programarNotificacionesPostCarrera('uid1', 3.5),
+        completes,
+      );
+    });
+
+    test('completa sin lanzar cuando el jugador no tiene racha', () async {
+      await fakeDb.collection('players').doc('uid2').set({'racha_actual': 0});
+      await expectLater(
+        ActivityService.programarNotificacionesPostCarrera('uid2', 1.0),
+        completes,
+      );
+    });
+  });
 }
