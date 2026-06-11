@@ -2685,8 +2685,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineCap: mapbox.LineCap.ROUND,
         lineJoin: mapbox.LineJoin.ROUND,
       ));
-    } catch (_) {
-      // swallow
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'setup_ciudad_ruta');
     } finally {
       _rutasLayersCreating = false;
     }
@@ -2828,8 +2828,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-    } catch (_) {
-      // swallow
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujar_sol_competitivo');
     } finally {
       _solLayersCreating = false;
     }
@@ -3233,8 +3233,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-    } catch (_) {
-      // swallow
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujar_globales_mapbox');
     } finally {
       _globalMbxLayersCreating = false;
     }

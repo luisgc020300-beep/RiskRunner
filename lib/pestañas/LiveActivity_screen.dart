@@ -1143,8 +1143,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _barrioLabelLayerId, 'symbol-placement', 'point');
 
       _barriosLayerCreated = true;
-    } catch (e) {
-      debugPrint('Error dibujando barrios: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujar_barrios');
     } finally {
       _barriosCargando = false;
     }
