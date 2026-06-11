@@ -322,8 +322,8 @@ class _ChatScreenState extends State<ChatScreen> {
               Container(width: 6, height: 6,
                   decoration: const BoxDecoration(color: kSocGreenFg, shape: BoxShape.circle)),
               const SizedBox(width: 5),
-              Text('EN LÍNEA',
-                  style: const TextStyle(
+              const Text('EN LÍNEA',
+                  style: TextStyle(
                       color: kSocGreenFg, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
             ]),
           ]),
@@ -474,7 +474,7 @@ class _ChatScreenState extends State<ChatScreen> {
             onTap: _send,
             child: Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: kSocAccent,
                 shape: BoxShape.circle,
                 boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 12, spreadRadius: 1)],
@@ -602,7 +602,7 @@ class _Bubble extends StatelessWidget {
                 border: esMio ? null : Border.all(color: p.line2, width: 0.5),
                 borderRadius: _radius(),
                 boxShadow: esMio
-                    ? [BoxShadow(color: kSocAccentGlow, blurRadius: 8, offset: const Offset(0, 2))]
+                    ? [const BoxShadow(color: kSocAccentGlow, blurRadius: 8, offset: Offset(0, 2))]
                     : null,
               ),
               child: Text(texto,

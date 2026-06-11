@@ -107,8 +107,9 @@ class _DesafiosScreenState extends State<DesafiosScreen>
     if (widget.desafioId == null || uid == null) return;
     final info = await DesafiosService.getDesafio(widget.desafioId!);
     if (!mounted || info == null) return;
-    if (info.estado == 'activo')          _tabCtrl.animateTo(0);
-    else if (info.estado == 'finalizado') _tabCtrl.animateTo(2);
+    if (info.estado == 'activo') {
+      _tabCtrl.animateTo(0);
+    } else if (info.estado == 'finalizado') { _tabCtrl.animateTo(2); }
   }
 
   @override
@@ -190,10 +191,12 @@ class _TabActivos extends StatelessWidget {
       stream: DesafiosService.streamActivos(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar desafíos');
-        if (!snap.hasData) return ListView(
+        if (!snap.hasData) {
+          return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: const [_DesafioSkel(tall: true), _DesafioSkel(tall: true)],
         );
+        }
         final lista = snap.data!;
         if (lista.isEmpty) return _emptyState(context, 'No tienes desafíos activos\nReta a un rival desde su perfil');
         return RefreshIndicator(
@@ -436,13 +439,17 @@ class _TabPendientes extends StatelessWidget {
       stream: DesafiosService.streamPendientes(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar desafíos');
-        if (!snap.hasData) return ListView(
+        if (!snap.hasData) {
+          return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: const [_DesafioSkel(), _DesafioSkel(), _DesafioSkel()],
         );
+        }
         final lista = snap.data!;
-        if (lista.isEmpty) return _emptyState(context,
+        if (lista.isEmpty) {
+          return _emptyState(context,
             'No tienes desafíos enviados pendientes\nde respuesta');
+        }
         return RefreshIndicator(
           color: _kRed,
           onRefresh: () async {
@@ -516,8 +523,8 @@ class _CardPendiente extends StatelessWidget {
           .collection('desafios').doc(info.id)
           .update({'estado': 'cancelado'});
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text('Desafío cancelado — monedas devueltas'),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Desafío cancelado — monedas devueltas'),
             backgroundColor: Color.fromRGBO(255, 69, 58, 0.15)));
       }
     } catch (e) {
@@ -541,10 +548,12 @@ class _TabHistorial extends StatelessWidget {
       stream: DesafiosService.streamHistorial(uid!),
       builder: (context, snap) {
         if (snap.hasError) return _emptyState(context, 'Error al cargar historial');
-        if (!snap.hasData) return ListView(
+        if (!snap.hasData) {
+          return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
           children: const [_DesafioSkel(), _DesafioSkel(), _DesafioSkel(), _DesafioSkel()],
         );
+        }
         final lista = snap.data!;
         if (lista.isEmpty) return _emptyState(context, 'Sin desafíos completados todavía');
 

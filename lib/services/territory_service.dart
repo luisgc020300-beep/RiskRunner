@@ -153,7 +153,7 @@ class TerritoryData {
   final referencia = ultimaActualizacionHp ?? ultimaVisita ?? DateTime.now();
   final horasTranscurridas =
       DateTime.now().difference(referencia).inMinutes / 60.0;
-  final decayPorHora = kHpDecayPorDia / 24.0;
+  const decayPorHora = kHpDecayPorDia / 24.0;
   final hp = (hpGuardado - decayPorHora * horasTranscurridas).round();
   return hp.clamp(1, kHpMax); // ← mínimo 1, nunca muere solo
 }
@@ -471,7 +471,7 @@ class TerritoryService {
     final tsVisita = data['ultima_visita'] as Timestamp?;
     final referencia = tsHp?.toDate() ?? tsVisita?.toDate() ?? DateTime.now();
     final horasTranscurridas = DateTime.now().difference(referencia).inMinutes / 60.0;
-    final decayPorHora = kHpDecayPorDia / 24.0;
+    const decayPorHora = kHpDecayPorDia / 24.0;
     final hpGuardado = (data['hp'] as num?)?.toInt() ?? kHpMax;
     final hpActual = (hpGuardado - decayPorHora * horasTranscurridas)
         .round()
@@ -523,7 +523,7 @@ class TerritoryService {
         'nickname':                nickname,
         'puntos':                  puntosList,
         'centro':                  {'lat': latC, 'lng': lngC},
-        'color':                   colorTerritorio.value,
+        'color':                   colorTerritorio.toARGB32(),
         'ultima_visita':           FieldValue.serverTimestamp(),
         'fecha_creacion':          FieldValue.serverTimestamp(),
         'fecha_desde_dueno':       FieldValue.serverTimestamp(),

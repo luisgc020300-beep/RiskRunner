@@ -349,7 +349,7 @@ class SocialFriendCard extends StatelessWidget {
                 width: 38, height: 38,
                 decoration: BoxDecoration(
                   color: kSocAccent, borderRadius: BorderRadius.circular(8),
-                  boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 10)]),
+                  boxShadow: const [BoxShadow(color: kSocAccentGlow, blurRadius: 10)]),
                 child: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 15))),
             ])),
           Positioned(left: 0, top: 0, bottom: 0,
@@ -414,10 +414,10 @@ class SocialChatCard extends StatelessWidget {
               ]),
             ])),
           if (h) Positioned(left: 0, top: 0, bottom: 0,
-            child: Container(width: 3, decoration: BoxDecoration(
+            child: Container(width: 3, decoration: const BoxDecoration(
               color: kSocAccent,
               boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 8)],
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12))))),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12))))),
         ]))));
   }
 }
@@ -467,7 +467,9 @@ class _SocialPlayerCardState extends State<SocialPlayerCard> {
             .where('followerId',  isEqualTo: widget.currentUserId)
             .where('followingId', isEqualTo: widget.userId)
             .limit(1).get();
-        for (final d in snap.docs) await d.reference.delete();
+        for (final d in snap.docs) {
+          await d.reference.delete();
+        }
         if (mounted) setState(() => _siguiendo = false);
       } else {
         await FirebaseFirestore.instance.collection('follows').add({
@@ -542,7 +544,7 @@ class _SocialPlayerCardState extends State<SocialPlayerCard> {
               borderRadius: BorderRadius.circular(6),
             ),
             child: _loadingFollow
-                ? SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: kSocAccent))
+                ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.5, color: kSocAccent))
                 : Text(_siguiendo ? 'SIGUIENDO' : 'SEGUIR',
                     style: TextStyle(
                       color: _siguiendo ? p.subtext : kSocAccent,
@@ -561,18 +563,22 @@ class SocialRelBtn extends StatelessWidget {
   const SocialRelBtn({super.key, required this.relacion, required this.accent, required this.onAgregar});
   @override Widget build(BuildContext ctx) {
     final p = SocialPalette.of(ctx);
-    if (relacion == 'accepted') return Container(
+    if (relacion == 'accepted') {
+      return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(color: kSocGreen.withValues(alpha: 0.3), border: Border.all(color: kSocGreenFg.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(6)),
       child: const Text('ALIADO', style: TextStyle(color: kSocGreenFg, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.5)));
-    if (relacion == 'pending') return Container(
+    }
+    if (relacion == 'pending') {
+      return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(color: p.surface3, border: Border.all(color: p.line2), borderRadius: BorderRadius.circular(6)),
       child: Text('PENDIENTE', style: TextStyle(color: p.subtext, fontSize: 9, fontWeight: FontWeight.w700)));
+    }
     return SocialPress(onTap: onAgregar, child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(6),
-        boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 8)]),
+        boxShadow: const [BoxShadow(color: kSocAccentGlow, blurRadius: 8)]),
       child: const Text('+ UNIRSE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5))));
   }
 }
@@ -612,7 +618,7 @@ class SocialRequestCard extends StatelessWidget {
         SocialPress(onTap: onAceptar, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(color: kSocAccent, borderRadius: BorderRadius.circular(8),
-            boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 10)]),
+            boxShadow: const [BoxShadow(color: kSocAccentGlow, blurRadius: 10)]),
           child: const Text('ACEPTAR', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)))),
       ]));
   }

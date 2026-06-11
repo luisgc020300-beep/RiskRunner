@@ -95,7 +95,7 @@ class BuyResult {
       BuyResult._(success: true, cancelled: false, status: s);
 
   factory BuyResult.cancelled() =>
-      BuyResult._(success: false, cancelled: true);
+      const BuyResult._(success: false, cancelled: true);
 
   factory BuyResult.error(String msg) =>
       BuyResult._(success: false, cancelled: false, error: msg);
@@ -190,7 +190,7 @@ class SubscriptionService {
   static Future<BuyResult> comprar(rc.Package package) async {
     try {
       final rc.PurchaseResult result =
-          await rc.Purchases.purchasePackage(package);
+          await rc.Purchases.purchase(rc.PurchaseParams.package(package));
 
       final status = _parseCustomerInfo(result.customerInfo);
       _currentStatus = status;

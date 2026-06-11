@@ -159,7 +159,7 @@ class GuerraGlobalBanner extends StatelessWidget {
                   Expanded(
                     child: RichText(
                       text: TextSpan(
-                        style: TextStyle(color: _kGrey, fontSize: 11),
+                        style: const TextStyle(color: _kGrey, fontSize: 11),
                         children: [
                           const TextSpan(text: 'Próxima cláusula: '),
                           TextSpan(

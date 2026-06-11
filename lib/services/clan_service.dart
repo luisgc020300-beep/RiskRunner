@@ -359,16 +359,18 @@ class ClanService {
   }) async {
     if (myUid == null) return;
 
-    if (clan.miembros.any((m) => m.uid == targetUid))
+    if (clan.miembros.any((m) => m.uid == targetUid)) {
       throw Exception('Este jugador ya está en el clan');
+    }
 
     final existing = await _db.collection('clan_invites')
         .where('clanId', isEqualTo: clan.clanId)
         .where('toUid', isEqualTo: targetUid)
         .where('estado', isEqualTo: 'pending')
         .limit(1).get();
-    if (existing.docs.isNotEmpty)
+    if (existing.docs.isNotEmpty) {
       throw Exception('Ya hay una invitación pendiente');
+    }
 
     await _db.collection('clan_invites').add({
       'clanId':      clan.clanId,
@@ -439,8 +441,9 @@ class ClanService {
   // ── Abandonar clan ────────────────────────────────────────
   static Future<void> abandonarClan(ClanData clan) async {
     if (myUid == null) return;
-    if (clan.leaderId == myUid && clan.miembros.length > 1)
+    if (clan.leaderId == myUid && clan.miembros.length > 1) {
       throw Exception('Debes transferir el liderazgo antes de salir');
+    }
 
     final miembro = clan.miembro(myUid!);
     if (miembro == null) return;
@@ -472,10 +475,12 @@ class ClanService {
   }) async {
     if (myUid == null) return;
     final yo = clan.miembro(myUid!);
-    if (yo == null || yo.rol == ClanRol.miembro)
+    if (yo == null || yo.rol == ClanRol.miembro) {
       throw Exception('Sin permisos para expulsar');
-    if (miembro.rol == ClanRol.lider)
+    }
+    if (miembro.rol == ClanRol.lider) {
       throw Exception('No puedes expulsar al líder');
+    }
 
     final batch = _db.batch();
     batch.update(_db.collection('clans').doc(clan.clanId), {
@@ -546,8 +551,9 @@ class ClanService {
   }) async {
     if (myUid == null) return null;
     final yo = miClan.miembro(myUid!);
-    if (yo == null || yo.rol == ClanRol.miembro)
+    if (yo == null || yo.rol == ClanRol.miembro) {
       throw Exception('Solo líderes y capitanes pueden declarar guerra');
+    }
 
     final existing = await _db.collection('clan_wars')
         .where('estado', isEqualTo: 'activa')
@@ -643,8 +649,9 @@ class ClanService {
     final pA = war.puntuacion['clanA'] ?? 0;
     final pB = war.puntuacion['clanB'] ?? 0;
     String? ganadorId;
-    if (pA > pB) ganadorId = war.clanA['id'] as String;
-    else if (pB > pA) ganadorId = war.clanB['id'] as String;
+    if (pA > pB) {
+      ganadorId = war.clanA['id'] as String;
+    } else if (pB > pA) { ganadorId = war.clanB['id'] as String; }
 
     await _db.collection('clan_wars').doc(warId).update({
       'estado':    'finalizada',

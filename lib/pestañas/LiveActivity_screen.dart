@@ -33,6 +33,7 @@ import '../widgets/anticheat_warning_overlay.dart';
 import '../widgets/narrador_overlay.dart';
 import '../services/narrador_service.dart';
 import '../services/desafios_service.dart';
+import '../services/presence_service.dart';
 import '../services/health_service.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -765,8 +766,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   String _encodeJson(dynamic obj) {
-    if (obj is Map)
+    if (obj is Map) {
       return '{${obj.entries.map((e) => '"${e.key}":${_encodeJson(e.value)}').join(',')}}';
+    }
     if (obj is List)   return '[${obj.map(_encodeJson).join(',')}]';
     if (obj is String) return '"$obj"';
     if (obj is bool)   return obj.toString();
@@ -995,28 +997,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    try {
-      await FirebaseFirestore.instance.collection('activity_feed').add({
-        'userId':             uid,
-        'userNick':           _miNickname,
-        'territoryId':        territoryId,
-        'territoryName':      territoryName,
-        'action':             'conquest',
-        'mode':               mode,
-        'previousOwnerNick':  previousOwnerNick,
-        'fromColor':          fromColorValue,
-        'timestamp':          FieldValue.serverTimestamp(),
-      });
-      // Escribe historial del territorio e incrementa conquistas_count
-      await ActivityService.escribirHistorialConquista(
-        territoryId:       territoryId,
-        ownerNickname:     _miNickname,
-        ownerColorValue:   fromColorValue,
-        previousOwnerNick: previousOwnerNick,
-      );
-    } catch (e) {
-      debugPrint('activity_feed write error: $e');
-    }
+    await ActivityService.publicarConquistaFeed(
+      uid:               uid,
+      nickname:          _miNickname,
+      territoryId:       territoryId,
+      territoryName:     territoryName,
+      mode:              mode,
+      previousOwnerNick: previousOwnerNick,
+      fromColorValue:    fromColorValue,
+    );
+    await ActivityService.escribirHistorialConquista(
+      territoryId:       territoryId,
+      ownerNickname:     _miNickname,
+      ownerColorValue:   fromColorValue,
+      previousOwnerNick: previousOwnerNick,
+    );
   }
 
   Future<void> _determinePosition() async {
@@ -1215,28 +1210,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       if (pctAhora >= 1.0 && pctAntes < 1.0) {
         final bonusMonedas = _calcularBonusBarrio(barrio);
-        try {
-          await FirebaseFirestore.instance
-              .collection('players')
-              .doc(user.uid)
-              .update({'monedas': FieldValue.increment(bonusMonedas)});
-
-          await FirebaseFirestore.instance
-              .collection('notifications')
-              .add({
-            'toUserId':     user.uid,
-            'type':         'barrio_completado',
-            'message':      '🏆 ¡Has conquistado el barrio de ${barrio.nombre}! +$bonusMonedas 🪙',
-            'read':         false,
-            'timestamp':    FieldValue.serverTimestamp(),
-            'barrioNombre': barrio.nombre,
-            'bonusMonedas': bonusMonedas,
-          });
-        } catch (e, st) {
-          debugPrint('Error dando bonus barrio: $e');
-          FirebaseCrashlytics.instance.recordError(e, st, reason: 'bonusBarrio');
-        }
-
+        await ActivityService.acreditarMonedas(user.uid, bonusMonedas);
+        await ActivityService.enviarNotificacion({
+          'toUserId':     user.uid,
+          'type':         'barrio_completado',
+          'message':      'Has conquistado el barrio de ${barrio.nombre}! +$bonusMonedas monedas',
+          'barrioNombre': barrio.nombre,
+          'bonusMonedas': bonusMonedas,
+        });
         if (mounted) _mostrarNotificacionBarrioCompletado(barrio, bonusMonedas);
       }
     }
@@ -2477,12 +2458,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _escucharJugadoresActivos() {
     final cutoff = Timestamp.fromDate(
         DateTime.now().subtract(const Duration(minutes: 5)));
-    _jugadoresStream = FirebaseFirestore.instance
-        .collection('presencia_activa')
-        .where('timestamp', isGreaterThan: cutoff)
-        .limit(100)
-        .snapshots()
-        .listen((snap) async {
+    _jugadoresStream = PresenceService.stream(cutoff).listen((snap) async {
       if (!mounted) return;
       final user   = FirebaseAuth.instance.currentUser;
       final myLat  = _currentPosition?.latitude;
@@ -2645,12 +2621,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final recorder = ui.PictureRecorder();
     final canvas   = Canvas(recorder);
     const sz       = 48.0;
-    canvas.drawCircle(Offset(sz / 2, sz / 2), sz / 2,
+    canvas.drawCircle(const Offset(sz / 2, sz / 2), sz / 2,
         Paint()..color = color.withValues(alpha: 0.25));
     canvas.drawCircle(
-        Offset(sz / 2, sz / 2), sz / 2 - 6, Paint()..color = _p.parchment);
+        const Offset(sz / 2, sz / 2), sz / 2 - 6, Paint()..color = _p.parchment);
     canvas.drawCircle(
-        Offset(sz / 2, sz / 2), sz / 2 - 6,
+        const Offset(sz / 2, sz / 2), sz / 2 - 6,
         Paint()
           ..color       = color
           ..style       = PaintingStyle.stroke
@@ -2689,20 +2665,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _publicarPosicion() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _currentPosition == null || !isTracking) return;
-    try {
-      await FirebaseFirestore.instance
-          .collection('presencia_activa')
-          .doc(user.uid)
-          .set({
-        'lat':       _currentPosition!.latitude,
-        'lng':       _currentPosition!.longitude,
-        'color':     _colorTerritorio.toARGB32(),
-        'nickname':  _miNickname,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error presencia: $e');
-    }
+    await PresenceService.publicar(
+      uid:        user.uid,
+      lat:        _currentPosition!.latitude,
+      lng:        _currentPosition!.longitude,
+      colorValue: _colorTerritorio.toARGB32(),
+      nickname:   _miNickname,
+    );
   }
 
   Future<void> _actualizarPuntosDesafio(
@@ -2797,12 +2766,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _limpiarPresenciaFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    try {
-      await FirebaseFirestore.instance
-          .collection('presencia_activa')
-          .doc(user.uid)
-          .delete();
-    } catch (_) {}
+    await PresenceService.eliminar(user.uid);
   }
 
   // ==========================================================================
@@ -3008,8 +2972,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             final alt = pos.altitude;
             if (_altitudAnterior != null) {
               final delta = alt - _altitudAnterior!;
-              if (delta > 0.5) _elevacionGanada += delta;
-              else if (delta < -0.5) _elevacionPerdida += delta.abs();
+              if (delta > 0.5) {
+                _elevacionGanada += delta;
+              } else if (delta < -0.5) _elevacionPerdida += delta.abs();
             }
             _altitudAnterior = alt;
           }
@@ -3341,14 +3306,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF3A3A3C)),
           ),
-          child: Row(children: [
-            const SizedBox(
+          child: const Row(children: [
+            SizedBox(
               width: 14, height: 14,
               child: CircularProgressIndicator(
                   strokeWidth: 1.5, color: Color(0xFF636366)),
             ),
-            const SizedBox(width: 12),
-            const Text('Buscando señal GPS...', style: TextStyle(
+            SizedBox(width: 12),
+            Text('Buscando señal GPS...', style: TextStyle(
               color: Colors.white,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -3549,7 +3514,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             border: Border.all(color: _p.goldDim),
           ),
           child: Row(children: [
-            Icon(Icons.straighten_rounded, color: _kGoldLight, size: 20),
+            const Icon(Icons.straighten_rounded, color: _kGoldLight, size: 20),
             const SizedBox(width: 12),
             Expanded(child: Text(
               'Distancia mínima no alcanzada.\nCorre al menos 200 m para guardar la sesión.',
@@ -3598,16 +3563,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           final double factorModo = multiplicadorMonedas(_modoSolitario);
           final int monedasFinales =
               (monedasBase * multiplicador * factorModo).round();
-          await FirebaseFirestore.instance
-              .collection('players')
-              .doc(user.uid)
-              .update({'monedas': FieldValue.increment(monedasFinales)});
+          await ActivityService.acreditarMonedas(user.uid, monedasFinales);
         }
 
         final now = DateTime.now();
-        final logRef = await FirebaseFirestore.instance
-            .collection('activity_logs')
-            .add({
+        logId = await ActivityService.registrarSesion({
           'userId':          user.uid,
           'distancia':       distanciaFinal,
           'tiempo_segundos': tiempoFinal.inSeconds,
@@ -3615,7 +3575,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'boost_activo':    _boostXpActivo,
           'latFinal':        _currentPosition?.latitude,
           'lngFinal':        _currentPosition?.longitude,
-          'timestamp':       FieldValue.serverTimestamp(),
           'ownerColor':      _colorTerritorio.toARGB32(),
           'titulo': _modoRuta
               ? 'Ruta Libre'
@@ -3643,7 +3602,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'objetivo_global_conquistado':  _globalConquistado,
           },
         });
-        logId = logRef.id;
 
         StatsService.actualizarPRs(
           uid:             user.uid,
@@ -3656,13 +3614,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         // Notificaciones locales: racha en riesgo + resumen semanal
         _programarNotificacionesPostCarrera(user.uid, distanciaFinal);
 
-        if (_objetivoGlobal != null && _globalKmAlcanzados) {
-          await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
-        }
-
-        if (rutaFinal.isNotEmpty) {
-          StatsService.enriquecerLog(logId: logId, ruta: rutaFinal)
-              .catchError((e) => debugPrint('Error enriquecerLog: $e'));
+        if (logId != null) {
+          if (_objetivoGlobal != null && _globalKmAlcanzados) {
+            await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
+          }
+          if (rutaFinal.isNotEmpty) {
+            StatsService.enriquecerLog(logId: logId, ruta: rutaFinal)
+                .catchError((e) => debugPrint('Error enriquecerLog: $e'));
+          }
         }
       }
     } catch (e) {
@@ -3713,12 +3672,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       if (territorioId != null) {
         conquistados = 1;
-        if (logId != null) {
-          FirebaseFirestore.instance
-              .collection('activity_logs')
-              .doc(logId)
-              .update({'territorio_id': territorioId});
-        }
+        if (logId != null) ActivityService.vincularLogTerritorio(logId, territorioId);
         final nuevosTerritorios =
             await TerritoryService.cargarTodosLosTerritorios(modo: 'solitario');
         GameStateService.instance.setSolitarioTerritories(nuevosTerritorios);
@@ -3781,12 +3735,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       if (territorioId != null) {
         conquistados = 1;
-        if (logId != null) {
-          FirebaseFirestore.instance
-              .collection('activity_logs')
-              .doc(logId)
-              .update({'territorio_id': territorioId});
-        }
+        if (logId != null) ActivityService.vincularLogTerritorio(logId, territorioId);
         final nuevos = await TerritoryService.cargarTodosLosTerritorios(
             centro: _currentPosition != null
                 ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
@@ -5155,7 +5104,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   color: _seleccionandoGlobal ? _kGold : Colors.white,
                   shadows: [
                     Shadow(blurRadius: 24, color: Colors.black.withValues(alpha: 0.9)),
-                    Shadow(blurRadius: 8,  color: Colors.black),
+                    const Shadow(blurRadius: 8,  color: Colors.black),
                   ]),
             ),
             if (_seleccionandoGlobal)

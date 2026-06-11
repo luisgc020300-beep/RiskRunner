@@ -430,7 +430,7 @@ class _TooltipCard extends StatelessWidget {
           if (onSkip != null && total > 1) ...[
             GestureDetector(
               onTap: onSkip,
-              child: Text('SALTAR TODO', style: TextStyle(
+              child: const Text('SALTAR TODO', style: TextStyle(
                   color: _kDim, fontSize: 9,
                   fontWeight: FontWeight.w800, letterSpacing: 2,
                   decoration: TextDecoration.none)),

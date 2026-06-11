@@ -30,14 +30,18 @@ class ResumenContextCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cards = <Widget>[];
-    if (esDesdeCarrera && rachaActual > 0)
+    if (esDesdeCarrera && rachaActual > 0) {
       cards.add(_buildRachaCard());
-    if (modoRuta && monedasRuta > 0)
+    }
+    if (modoRuta && monedasRuta > 0) {
       cards.add(_buildRutaCard());
-    if (esDesdeCarrera && puntosLigaSesion > 0)
+    }
+    if (esDesdeCarrera && puntosLigaSesion > 0) {
       cards.add(_buildLigaCard());
-    if (esDesdeCarrera && !modoRuta && territoriosConquistados > 0)
+    }
+    if (esDesdeCarrera && !modoRuta && territoriosConquistados > 0) {
       cards.add(_buildConquistaCard());
+    }
     if (cards.isEmpty) return const SizedBox.shrink();
 
     return Column(children: [

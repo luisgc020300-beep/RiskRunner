@@ -169,4 +169,81 @@ class ActivityService {
       return [];
     }
   }
+
+  // Publica una conquista en el feed global de actividad
+  static Future<void> publicarConquistaFeed({
+    required String uid,
+    required String nickname,
+    required String territoryId,
+    required String territoryName,
+    required String mode,
+    String? previousOwnerNick,
+    int fromColorValue = 0xFFCC2222,
+  }) async {
+    try {
+      await _db.collection('activity_feed').add({
+        'userId':            uid,
+        'userNick':          nickname,
+        'territoryId':       territoryId,
+        'territoryName':     territoryName,
+        'action':            'conquest',
+        'mode':              mode,
+        'previousOwnerNick': previousOwnerNick,
+        'fromColor':         fromColorValue,
+        'timestamp':         FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('ActivityService.publicarConquistaFeed error: $e');
+    }
+  }
+
+  // Registra el log de una sesión completada. Devuelve el ID del documento creado.
+  static Future<String?> registrarSesion(
+      Map<String, dynamic> datos) async {
+    try {
+      final ref = await _db.collection('activity_logs').add({
+        ...datos,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      return ref.id;
+    } catch (e) {
+      debugPrint('ActivityService.registrarSesion error: $e');
+      return null;
+    }
+  }
+
+  // Vincula un log de sesión con el territorio creado en esa misma sesión
+  static void vincularLogTerritorio(String logId, String territorioId) {
+    _db
+        .collection('activity_logs')
+        .doc(logId)
+        .update({'territorio_id': territorioId})
+        .catchError((e) => debugPrint('vincularLogTerritorio error: $e'));
+  }
+
+  // Acredita monedas al jugador
+  static Future<void> acreditarMonedas(String uid, int cantidad) async {
+    try {
+      await _db
+          .collection('players')
+          .doc(uid)
+          .update({'monedas': FieldValue.increment(cantidad)});
+    } catch (e) {
+      debugPrint('ActivityService.acreditarMonedas error: $e');
+    }
+  }
+
+  // Envía una notificación in-app al jugador
+  static Future<void> enviarNotificacion(
+      Map<String, dynamic> datos) async {
+    try {
+      await _db.collection('notifications').add({
+        ...datos,
+        'read':      false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('ActivityService.enviarNotificacion error: $e');
+    }
+  }
 }

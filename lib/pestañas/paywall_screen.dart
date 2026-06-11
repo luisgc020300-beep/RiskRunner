@@ -573,7 +573,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         ]),
       ),
       if (showDivider)
-        Divider(height: 1, color: _C.border, indent: 16, endIndent: 16),
+        const Divider(height: 1, color: _C.border, indent: 16, endIndent: 16),
     ]);
   }
 
@@ -605,7 +605,7 @@ class _PaywallScreenState extends State<PaywallScreen>
             _headerCell('COMANDANTE\n4,99€/mes', _C.bronze),
           ]),
         ),
-        Divider(height: 1, color: _C.border),
+        const Divider(height: 1, color: _C.border),
         // Rows
         ..._features.asMap().entries.map((e) {
           final isLast = e.key == _features.length - 1;
@@ -627,7 +627,7 @@ class _PaywallScreenState extends State<PaywallScreen>
               _checkCell(commander, _C.gold),
             ]),
             if (!isLast)
-              Divider(height: 1, color: _C.border, indent: 12, endIndent: 12),
+              const Divider(height: 1, color: _C.border, indent: 12, endIndent: 12),
           ]);
         }),
         // Precios footer
@@ -668,7 +668,7 @@ class _PaywallScreenState extends State<PaywallScreen>
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: value
             ? Icon(Icons.check_circle_rounded, color: color, size: 16)
-            : Icon(Icons.remove_rounded, color: _C.dim, size: 14),
+            : const Icon(Icons.remove_rounded, color: _C.dim, size: 14),
       ),
     ));
   }
@@ -1127,9 +1127,9 @@ class _BgPainter extends CustomPainter {
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height * 0.5);
     canvas.drawRect(rect, Paint()
-      ..shader = RadialGradient(
+      ..shader = const RadialGradient(
         center: Alignment.topCenter, radius: 1.2,
-        colors: [const Color(0x15DECA46), Colors.transparent],
+        colors: [Color(0x15DECA46), Colors.transparent],
       ).createShader(rect));
 
     final cx = size.width / 2;

@@ -245,7 +245,7 @@ class _StatsScreenState extends State<StatsScreen>
                     fontWeight: FontWeight.w600)),
               ),
               if (lista.isEmpty)
-                Text('Sin carreras', style: TextStyle(
+                const Text('Sin carreras', style: TextStyle(
                     color: _kDim, fontSize: 11))
               else ...[
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -316,7 +316,7 @@ class _StatsScreenState extends State<StatsScreen>
       titulo: 'DISTRIBUCIÓN POR ZONA',
       child: Column(
         children: ZonaRitmo.values.map((zona) {
-          final display = _zonas[zona] ?? _RangoDisplay(count: 0, pct: 0);
+          final display = _zonas[zona] ?? const _RangoDisplay(count: 0, pct: 0);
           final color   = _hexToColor(zona.colorHex);
           return AnimatedBuilder(
             animation: _graficaCtrl,
@@ -590,7 +590,7 @@ class _GraficaTendencia extends CustomPainter {
     final maxRitmo = validos.map((p) => p.ritmoMedio).reduce(math.max);
     final rangoRitmo = (maxRitmo - minRitmo).clamp(0.5, double.infinity);
 
-    final pad = const EdgeInsets.fromLTRB(8, 12, 8, 24);
+    const pad = EdgeInsets.fromLTRB(8, 12, 8, 24);
     final w   = size.width  - pad.left - pad.right;
     final h   = size.height - pad.top  - pad.bottom;
 

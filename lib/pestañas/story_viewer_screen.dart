@@ -325,8 +325,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               animation: _progressCtrl,
               builder: (_, __) {
                 double progress = 0;
-                if (i < _storyIdx)      progress = 1.0;
-                else if (i == _storyIdx) progress = _progressCtrl.value;
+                if (i < _storyIdx) {
+                  progress = 1.0;
+                } else if (i == _storyIdx) { progress = _progressCtrl.value; }
                 return LinearProgressIndicator(
                   value: progress,
                   backgroundColor: Colors.white30,

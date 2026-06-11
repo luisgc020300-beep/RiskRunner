@@ -258,7 +258,7 @@ class TerritoryCard extends StatelessWidget {
                     if (!t.esMio) ...[
                       const SizedBox(height: 6),
                       Row(children: [
-                        Icon(Icons.schedule_rounded,
+                        const Icon(Icons.schedule_rounded,
                             color: kMapSub, size: 11),
                         const SizedBox(width: 4),
                         Text(
@@ -290,7 +290,7 @@ class TerritoryCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                 child: Row(children: [
-                  Icon(Icons.info_outline_rounded,
+                  const Icon(Icons.info_outline_rounded,
                       color: kMapSub, size: 12),
                   const SizedBox(width: 6),
                   Text(

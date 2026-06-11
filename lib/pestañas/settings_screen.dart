@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await FirebaseFirestore.instance
           .collection('players')
           .doc(uid)
-          .update({'territorio_color': color.value});
+          .update({'territorio_color': color.toARGB32()});
     } catch (_) {}
     if (mounted) setState(() => _savingColor = false);
   }
@@ -285,7 +285,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 runSpacing: 16,
                 children: _kTerritoryColors.map((entry) {
                   final (color, nombre) = entry;
-                  final sel = _colorTerritorio?.value == color.value;
+                  final sel = _colorTerritorio?.toARGB32() == color.toARGB32();
                   return GestureDetector(
                     onTap: () {
                       _guardarColor(color);
@@ -351,12 +351,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final border  = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFD1D1D6);
     final textPri = isDark ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
     final textSec = isDark ? const Color(0xFF8E8E93) : const Color(0xFF636366);
-    final accent  = const Color(0xFFCC2222);
+    const accent  = Color(0xFFCC2222);
 
     final colorActual = _colorTerritorio;
     final (_, nombreColor) = colorActual != null
         ? _kTerritoryColors.firstWhere(
-            (e) => e.$1.value == colorActual.value,
+            (e) => e.$1.toARGB32() == colorActual.toARGB32(),
             orElse: () => (colorActual, 'Personalizado'))
         : (Colors.transparent, 'Cargando...');
 
@@ -911,7 +911,7 @@ class _SwitchTile extends StatelessWidget {
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
-            activeColor: accentColor,
+            activeThumbColor: accentColor,
           ),
         ]),
       );

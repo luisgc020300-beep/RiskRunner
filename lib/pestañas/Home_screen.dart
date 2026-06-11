@@ -360,10 +360,12 @@ class _HomeScreenState extends State<HomeScreen>
       final posts = snap.docs
           .map((doc) => FeedPost.fromFirestore(doc, uid))
           .toList();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _feedPosts = posts;
         _loadingFeed = false;
       });
+      }
       // Refrescar avatares que no están en caché o cuyo TTL expiró
       final ahora = DateTime.now();
       final idsARefrescar = posts.map((p) => p.userId).toSet().where((id) {
@@ -633,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen>
       decoration: BoxDecoration(
         color: _T.bg1,
         border: Border.all(color: border.withValues(alpha: 0.5)),
-        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 16)],
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 16)],
       ),
       child: child,
     );
@@ -874,11 +876,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleDailyReset() async {
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _completedChallengesCache.clear();
       _dailyChallenges.clear();
       isLoading = true;
     });
+    }
     await _initializeData();
   }
 
@@ -1006,7 +1010,7 @@ class _HomeScreenState extends State<HomeScreen>
                     Text(
                       objetivoMetros >= 1000
                           ? '${(objetivoMetros / 1000).toStringAsFixed(1)} km'
-                          : '${objetivoMetros} m',
+                          : '$objetivoMetros m',
                       style: _raj(18, FontWeight.w900, _T.white, height: 1),
                     ),
                   ]),
@@ -2254,39 +2258,39 @@ class _CommentInputState extends State<_CommentInput> {
 
   @override
   Widget build(BuildContext context) {
-    final _T = _TColors.of(context);
+    final T = _TColors.of(context);
     return Container(
       padding: EdgeInsets.only(
           left: 14, right: 14, top: 10,
           bottom: MediaQuery.of(context).viewInsets.bottom + 14),
       decoration: BoxDecoration(
-          color: _T.bg2, border: Border(top: BorderSide(color: _T.border2))),
+          color: T.bg2, border: Border(top: BorderSide(color: T.border2))),
       child: Row(children: [
         Container(
           width: 32, height: 32,
           decoration: BoxDecoration(shape: BoxShape.circle,
-              border: Border.all(color: _T.bronze.withValues(alpha: 0.5))),
+              border: Border.all(color: T.bronze.withValues(alpha: 0.5))),
           child: ClipOval(
             child: widget.fotoBase64 != null
                 ? Image.memory(base64Decode(widget.fotoBase64!), fit: BoxFit.cover)
-                : Icon(Icons.person, color: _T.bronze, size: 16),
+                : Icon(Icons.person, color: T.bronze, size: 16),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: TextField(
             controller: _ctrl,
-            style: _raj(13, FontWeight.w500, _T.white),
+            style: _raj(13, FontWeight.w500, T.white),
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => _handleSend(),
             decoration: InputDecoration(
               hintText: 'Añadir comentario...',
-              hintStyle: _raj(13, FontWeight.w400, _T.muted),
-              filled: true, fillColor: _T.bg1,
+              hintStyle: _raj(13, FontWeight.w400, T.muted),
+              filled: true, fillColor: T.bg1,
               border: OutlineInputBorder(borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: _T.border2)),
+                  borderSide: BorderSide(color: T.border2)),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.zero,
-                  borderSide: BorderSide(color: _T.border2)),
+                  borderSide: BorderSide(color: T.border2)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             ),
           ),
@@ -2296,7 +2300,7 @@ class _CommentInputState extends State<_CommentInput> {
           onTap: _handleSend,
           child: Container(
             width: 36, height: 36,
-            color: _sending ? _T.muted : _T.bronze,
+            color: _sending ? T.muted : T.bronze,
             child: _sending
                 ? const Center(child: SizedBox(width: 16, height: 16,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 1.5)))

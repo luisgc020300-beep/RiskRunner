@@ -32,15 +32,15 @@ class ParchBackground extends StatelessWidget {
       children: [
         // ── 1. Fondo base con gradiente radial cálido pergamino
         Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: RadialGradient(
-              center: const Alignment(0.0, -0.7),
+              center: Alignment(0.0, -0.7),
               radius: 1.5,
               colors: [
-                const Color(0xFF1A120A), // cálido pergamino oscuro
-                const Color(0xFF090807), // negro casi puro
+                Color(0xFF1A120A), // cálido pergamino oscuro
+                Color(0xFF090807), // negro casi puro
               ],
-              stops: const [0.0, 1.0],
+              stops: [0.0, 1.0],
             ),
           ),
         ),

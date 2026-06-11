@@ -228,8 +228,11 @@ class _RutasExploradorScreenState extends State<RutasExploradorScreen>
     final estaba = _savedIds.contains(ruta.id);
     // Optimistic update
     setState(() {
-      if (estaba) _savedIds.remove(ruta.id);
-      else        _savedIds.add(ruta.id);
+      if (estaba) {
+        _savedIds.remove(ruta.id);
+      } else {
+        _savedIds.add(ruta.id);
+      }
     });
     if (estaba) {
       await RouteService.quitarFavorita(_uid, ruta.id);
@@ -630,7 +633,9 @@ class _RoutePainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (final pt in pts.skip(1)) path.lineTo(pt.dx, pt.dy);
+    for (final pt in pts.skip(1)) {
+      path.lineTo(pt.dx, pt.dy);
+    }
     canvas.drawPath(path, paint);
 
     // Punto de inicio (verde) y fin (rojo)

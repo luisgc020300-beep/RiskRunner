@@ -1,8 +1,7 @@
-﻿// lib/screens/fullscreen_map_screen.dart
+// lib/screens/fullscreen_map_screen.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show Factory;
@@ -473,7 +472,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
 
   // Mapa siempre en estilo claro
-  bool _mapaOscuro = false;
+  final bool _mapaOscuro = false;
 
   // Caché de widgets de mapa — se crea una vez por modo y se reutiliza para
   // evitar recrear el MapWidget (y su contexto Metal/GL nativo) en cada build().
@@ -1984,10 +1983,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         },
       ).timeout(const Duration(seconds: 20));
       if (response.statusCode != 200) {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _cargandoBarrios = false;
           _errorBarrios = 'Error ${response.statusCode} · OpenStreetMap';
         });
+        }
         return;
       }
 
@@ -2106,7 +2107,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         }
       }
       if (!matched) {
-        for (final s in pending) result.addAll(s);
+        for (final s in pending) {
+          result.addAll(s);
+        }
         break;
       }
     }
@@ -3304,7 +3307,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   border: Border.all(color: _kGold.withValues(alpha: 0.35)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 14, height: 14,
                     child: CircularProgressIndicator(
                         strokeWidth: 1.5, color: _kGold),
@@ -3796,14 +3799,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   decoration: InputDecoration(
                     hintText: 'Buscar zona…',
                     hintStyle: _raj(13, FontWeight.w400, _kSub),
-                    prefixIcon: Icon(Icons.search_rounded, color: _kSub, size: 18),
+                    prefixIcon: const Icon(Icons.search_rounded, color: _kSub, size: 18),
                     suffixIcon: _barriosBusqueda.isNotEmpty
                         ? GestureDetector(
                             onTap: () => setState(() {
                               _barriosBusqueda = '';
                               _barriosSearchCtrl.clear();
                             }),
-                            child: Icon(Icons.close_rounded, color: _kSub, size: 16),
+                            child: const Icon(Icons.close_rounded, color: _kSub, size: 16),
                           )
                         : null,
                     filled: true,
@@ -3819,7 +3822,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: _kSub),
+                      borderSide: const BorderSide(color: _kSub),
                     ),
                   ),
                 ),
@@ -3862,7 +3865,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final mios = _state.territoriosGlobales.where((t) => t.ownerUid == uid).toList();
     final libres = _state.territoriosGlobales.where((t) => !t.isOwned).toList();
     final disp = _state.territoriosGlobales.where((t) => t.isOwned && t.ownerUid != uid).toList();
-    final max  = _MapState.maxTerritoriosPorJugador;
+    const max  = _MapState.maxTerritoriosPorJugador;
 
     return Container(
       decoration: BoxDecoration(
@@ -4173,7 +4176,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         decoration: BoxDecoration(color: _kSub, borderRadius: BorderRadius.circular(2)),
       ),
       const SizedBox(width: 10),
-      Icon(Icons.shield_outlined, color: _kSub, size: 14),
+      const Icon(Icons.shield_outlined, color: _kSub, size: 14),
       const SizedBox(width: 8),
       Expanded(
         child: Text(
@@ -4772,8 +4775,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             border: Border(
               top:   BorderSide(color: accent.withValues(alpha: 0.55), width: 2),
-              left:  BorderSide(color: _kBorder2),
-              right: BorderSide(color: _kBorder2),
+              left:  const BorderSide(color: _kBorder2),
+              right: const BorderSide(color: _kBorder2),
             ),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [

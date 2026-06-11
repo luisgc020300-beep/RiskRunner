@@ -8,9 +8,11 @@ class OperativeBgPainter extends CustomPainter {
     final dot = Paint()
       ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.03);
     const spacing = 32.0;
-    for (double x = spacing / 2; x < size.width; x += spacing)
-      for (double y = spacing / 2; y < size.height; y += spacing)
+    for (double x = spacing / 2; x < size.width; x += spacing) {
+      for (double y = spacing / 2; y < size.height; y += spacing) {
         canvas.drawCircle(Offset(x, y), 0.8, dot);
+      }
+    }
 
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),

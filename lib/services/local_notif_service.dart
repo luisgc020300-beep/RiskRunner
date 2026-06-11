@@ -54,16 +54,16 @@ class LocalNotifService {
         '¡Tu racha de $racha días está en riesgo!',
         'Sal a correr antes de medianoche para mantenerla.',
         objetivo,
-        NotificationDetails(
+        const NotificationDetails(
           android: AndroidNotificationDetails(
             _chRacha, 'Racha diaria',
             channelDescription: 'Recordatorio cuando tu racha está en riesgo',
             importance: Importance.high,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
-            color: const Color(0xFFE02020),
+            color: Color(0xFFE02020),
           ),
-          iOS: const DarwinNotificationDetails(),
+          iOS: DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
@@ -106,7 +106,7 @@ class LocalNotifService {
         'Tu semana en RiskRunner',
         body,
         lunes,
-        NotificationDetails(
+        const NotificationDetails(
           android: AndroidNotificationDetails(
             _chSemanal, 'Resumen semanal',
             channelDescription: 'Resumen de actividad cada lunes',
@@ -114,7 +114,7 @@ class LocalNotifService {
             priority: Priority.defaultPriority,
             icon: '@mipmap/ic_launcher',
           ),
-          iOS: const DarwinNotificationDetails(),
+          iOS: DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:

@@ -198,26 +198,34 @@ class NarradorService {
   }
 
   List<String> _frasesKilometro(int km) {
-    if (km == 1) return [
+    if (km == 1) {
+      return [
       '$km km conquistado. El territorio empieza a ser tuyo.',
       '$km km. El campo de batalla se extiende.',
       'Primer kilómetro. Solo el inicio de la campaña.',
     ];
-    if (km == 2) return [
+    }
+    if (km == 2) {
+      return [
       '$km km. Buen ritmo, soldado.',
       '$km kilómetros en campaña. El enemigo ya te conoce.',
       '$km km. Cada paso es territorio ganado.',
     ];
-    if (km == 5) return [
+    }
+    if (km == 5) {
+      return [
       '5km. Estás forjando una leyenda.',
       '5 kilómetros. Los débiles ya se rindieron.',
       '5km completados. Tu resistencia es tu arma.',
     ];
-    if (km == 10) return [
+    }
+    if (km == 10) {
+      return [
       '10km. Eres una máquina de conquista.',
       'Diez kilómetros. El mapa te pertenece.',
       '10km. Pocos llegan hasta aquí.',
     ];
+    }
     return [
       '$km km. Sigues en pie. El territorio te lo agradece.',
       '$km kilómetros. Imparable.',
@@ -262,7 +270,7 @@ class NarradorService {
     final frases = [
       'Operativo detectado. $nombre a ${dist}m de tu posición.',
       'Alerta. $nombre está operando cerca. Cuidado con tus territorios.',
-      '$nombre a ${dist} metros. Puede estar mirando lo mismo que tú.',
+      '$nombre a $dist metros. Puede estar mirando lo mismo que tú.',
       'Contacto visual. $nombre en la zona.',
     ];
     _emitir(MensajeNarrador(

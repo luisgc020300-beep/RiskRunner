@@ -390,8 +390,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _calcVel(NotifItem item) {
     if (item.distancia != null &&
         item.tiempoSegundos != null &&
-        item.tiempoSegundos! > 0)
+        item.tiempoSegundos! > 0) {
       return '${(item.distancia! / (item.tiempoSegundos! / 3600)).toStringAsFixed(1)} km/h';
+    }
     return '--';
   }
 
@@ -1047,13 +1048,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   style: _raj(13, FontWeight.w500, _kSub)),
             ]));
           }
-          if (!snapshot.hasData) return const Center(
+          if (!snapshot.hasData) {
+            return const Center(
               child: CircularProgressIndicator(color: _kRed, strokeWidth: 1.5));
+          }
 
           final items = snapshot.data!;
           if (items.isEmpty) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.notifications_off_outlined, color: _kMuted, size: 52),
+              const Icon(Icons.notifications_off_outlined, color: _kMuted, size: 52),
               const SizedBox(height: 16),
               Text('Sin notificaciones de momento',
                   style: _raj(14, FontWeight.w500, _kSub)),
@@ -1129,7 +1132,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             style: _raj(10, FontWeight.w500, _kSub)),
                       ])),
                       if (!esDesafioActivo)
-                        Icon(Icons.chevron_right_rounded,
+                        const Icon(Icons.chevron_right_rounded,
                             color: _kDim, size: 16),
                     ]),
                     if (esDesafioActivo)

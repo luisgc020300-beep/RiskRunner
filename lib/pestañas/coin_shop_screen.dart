@@ -148,10 +148,12 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     try {
       final doc = await FirebaseFirestore.instance
           .collection('players').doc(uid).get();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _monedas = (doc.data()?['monedas'] as num?)?.toInt() ?? 0;
         _loadingMonedas = false;
       });
+      }
     } catch (_) {
       if (mounted) setState(() => _loadingMonedas = false);
     }
@@ -185,7 +187,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     if (_rcDisponible && _rcProducts.containsKey(pack.rcId)) {
       try {
         final product = _rcProducts[pack.rcId]!;
-        final result  = await rc.Purchases.purchaseStoreProduct(product);
+        final result  = await rc.Purchases.purchase(rc.PurchaseParams.storeProduct(product));
         final ok = result.customerInfo.nonSubscriptionTransactions
             .any((t) => t.productIdentifier == pack.rcId);
         if (ok) {
@@ -199,30 +201,36 @@ class _CoinShopScreenState extends State<CoinShopScreen>
             });
           }
         } else {
-          if (mounted) setState(() {
+          if (mounted) {
+            setState(() {
             _comprando = null;
             _errorMsg  = 'No se pudo verificar la compra. '
                 'Contacta con soporte si te han cobrado.';
           });
+          }
         }
       } catch (e) {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _comprando = null;
           final msg = e.toString().toLowerCase();
           if (!msg.contains('cancel') && !msg.contains('user')) {
             _errorMsg = 'Error al procesar el pago. Inténtalo de nuevo.';
           }
         });
+        }
       }
       return;
     }
 
     await Future.delayed(const Duration(milliseconds: 400));
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _comprando = null;
       _errorMsg  = 'Las compras estarán disponibles cuando la app '
           'esté publicada en la tienda.';
     });
+    }
   }
 
   Future<void> _darMonedas(int cantidad, String motivo) async {
@@ -261,7 +269,7 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       backgroundColor: _c.bg0,
       appBar: _appBar(),
       body: Stack(children: [
-        Positioned.fill(child: CustomPaint(painter: _BgPainter())),
+        const Positioned.fill(child: CustomPaint(painter: _BgPainter())),
         SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -743,9 +751,9 @@ class _BgPainter extends CustomPainter {
     }
     final rect = Rect.fromLTWH(0, 0, size.width, size.height * 0.35);
     canvas.drawRect(rect, Paint()
-      ..shader = RadialGradient(
+      ..shader = const RadialGradient(
         center: Alignment.topCenter, radius: 1.0,
-        colors: [const Color(0x0FDECA46), Colors.transparent],
+        colors: [Color(0x0FDECA46), Colors.transparent],
       ).createShader(rect));
   }
 

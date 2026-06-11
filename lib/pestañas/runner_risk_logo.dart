@@ -50,10 +50,10 @@ class _HexSwordsPainter extends CustomPainter {
 
     // ── 1. HEXÁGONO RELLENO (amarillo-naranja como el rayo) ────
     final hexFill = Paint()
-      ..shader = RadialGradient(
+      ..shader = const RadialGradient(
         colors: [
-          const Color(0xFFFFD000), // amarillo centro
-          const Color(0xFFFF8C00), // naranja-ámbar borde
+          Color(0xFFFFD000), // amarillo centro
+          Color(0xFFFF8C00), // naranja-ámbar borde
         ],
       ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
 
@@ -62,8 +62,11 @@ class _HexSwordsPainter extends CustomPainter {
       final angle = (pi / 180) * (60 * i - 30);
       final x = cx + r * 0.92 * cos(angle);
       final y = cy + r * 0.92 * sin(angle);
-      if (i == 0) hexPath.moveTo(x, y);
-      else hexPath.lineTo(x, y);
+      if (i == 0) {
+        hexPath.moveTo(x, y);
+      } else {
+        hexPath.lineTo(x, y);
+      }
     }
     hexPath.close();
     canvas.drawPath(hexPath, hexFill);
@@ -114,7 +117,7 @@ class _HexSwordsPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final bladeWidth = sw * 0.055;
-    final bladeStart = 0.22;
+    const bladeStart = 0.22;
 
     final bBase1 = from + Offset(ux * len * bladeStart + px * bladeWidth, uy * len * bladeStart + py * bladeWidth);
     final bBase2 = from + Offset(ux * len * bladeStart - px * bladeWidth, uy * len * bladeStart - py * bladeWidth);

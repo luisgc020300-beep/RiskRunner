@@ -131,7 +131,7 @@ class _LeagueCardState extends State<LeagueCard> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 16),
+                      const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 16),
                     ]),
                     const SizedBox(height: 4),
                     if (!esUltima && siguienteLiga != null)
@@ -146,10 +146,10 @@ class _LeagueCardState extends State<LeagueCard> {
                           style: const TextStyle(color: Colors.white38, fontSize: 11)),
                       ])
                     else
-                      Row(children: [
-                        const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 13),
-                        const SizedBox(width: 5),
-                        const Text('Rango máximo alcanzado',
+                      const Row(children: [
+                        Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 13),
+                        SizedBox(width: 5),
+                        Text('Rango máximo alcanzado',
                           style: TextStyle(
                             color: Colors.amber, fontSize: 11,
                             fontWeight: FontWeight.w700,

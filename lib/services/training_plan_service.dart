@@ -326,38 +326,38 @@ TrainingPlan buildPlanFromAiData(Map<String, dynamic> data) {
 // días de la semana: 1=Lun, 3=Mié, 6=Sáb (plan 3 días)
 //                   1=Lun, 2=Mar, 4=Jue, 6=Sáb (plan 4 días)
 
-final kPlan5K = TrainingPlan(
+const kPlan5K = TrainingPlan(
   id: 'plan_5k',
   name: 'Plan 5K',
   subtitle: 'Principiante · 6 semanas',
   targetLabel: '5 KM',
   weeks: 6,
   sessionsPerWeek: 3,
-  color: const Color(0xFF34C759),
+  color: Color(0xFF34C759),
   icon: Icons.directions_run_rounded,
   sessions: _s5k,
 );
 
-final kPlan10K = TrainingPlan(
+const kPlan10K = TrainingPlan(
   id: 'plan_10k',
   name: 'Plan 10K',
   subtitle: 'Intermedio · 8 semanas',
   targetLabel: '10 KM',
   weeks: 8,
   sessionsPerWeek: 4,
-  color: const Color(0xFF0A84FF),
+  color: Color(0xFF0A84FF),
   icon: Icons.speed_rounded,
   sessions: _s10k,
 );
 
-final kPlanHM = TrainingPlan(
+const kPlanHM = TrainingPlan(
   id: 'plan_hm',
   name: 'Plan Media Maratón',
   subtitle: 'Avanzado · 12 semanas',
   targetLabel: '21 KM',
   weeks: 12,
   sessionsPerWeek: 4,
-  color: const Color(0xFFBF5AF2),
+  color: Color(0xFFBF5AF2),
   icon: Icons.emoji_events_rounded,
   sessions: _sHM,
 );

@@ -170,60 +170,60 @@ class _NarradorOverlayState extends State<NarradorOverlay>
   _ColorSet _coloresPorTipo(NarradorTipo tipo) {
     switch (tipo) {
       case NarradorTipo.kilometro:
-        return _ColorSet(
-          fondo:  const Color(0xFF1E1408),
-          borde:  const Color(0xFFD4A84C),
-          acento: const Color(0xFFD4A84C),
-          texto:  const Color(0xFFEDD98A),
-          sombra: const Color(0xFFD4A84C),
+        return const _ColorSet(
+          fondo:  Color(0xFF1E1408),
+          borde:  Color(0xFFD4A84C),
+          acento: Color(0xFFD4A84C),
+          texto:  Color(0xFFEDD98A),
+          sombra: Color(0xFFD4A84C),
         );
       case NarradorTipo.conquista:
-        return _ColorSet(
-          fondo:  const Color(0xFF1A0F00),
-          borde:  const Color(0xFFFFD600),
-          acento: const Color(0xFFFFD600),
+        return const _ColorSet(
+          fondo:  Color(0xFF1A0F00),
+          borde:  Color(0xFFFFD600),
+          acento: Color(0xFFFFD600),
           texto:  Colors.white,
-          sombra: const Color(0xFFFFD600),
+          sombra: Color(0xFFFFD600),
         );
       case NarradorTipo.territorio:
-        return _ColorSet(
-          fondo:  const Color(0xFF1A0800),
-          borde:  const Color(0xFFD4722A),
-          acento: const Color(0xFFD4722A),
-          texto:  const Color(0xFFFFD4A0),
-          sombra: const Color(0xFFD4722A),
+        return const _ColorSet(
+          fondo:  Color(0xFF1A0800),
+          borde:  Color(0xFFD4722A),
+          acento: Color(0xFFD4722A),
+          texto:  Color(0xFFFFD4A0),
+          sombra: Color(0xFFD4722A),
         );
       case NarradorTipo.refuerzo:
-        return _ColorSet(
-          fondo:  const Color(0xFF0A1A0A),
-          borde:  const Color(0xFF8FAF4A),
-          acento: const Color(0xFF8FAF4A),
-          texto:  const Color(0xFFD4F0A0),
-          sombra: const Color(0xFF8FAF4A),
+        return const _ColorSet(
+          fondo:  Color(0xFF0A1A0A),
+          borde:  Color(0xFF8FAF4A),
+          acento: Color(0xFF8FAF4A),
+          texto:  Color(0xFFD4F0A0),
+          sombra: Color(0xFF8FAF4A),
         );
       case NarradorTipo.rival:
-        return _ColorSet(
-          fondo:  const Color(0xFF071A1A),
-          borde:  const Color(0xFF5BA3A0),
-          acento: const Color(0xFF5BA3A0),
-          texto:  const Color(0xFFB0F0F0),
-          sombra: const Color(0xFF5BA3A0),
+        return const _ColorSet(
+          fondo:  Color(0xFF071A1A),
+          borde:  Color(0xFF5BA3A0),
+          acento: Color(0xFF5BA3A0),
+          texto:  Color(0xFFB0F0F0),
+          sombra: Color(0xFF5BA3A0),
         );
       case NarradorTipo.resistencia:
-        return _ColorSet(
-          fondo:  const Color(0xFF1A0F00),
-          borde:  const Color(0xFFFF6D00),
-          acento: const Color(0xFFFF6D00),
-          texto:  const Color(0xFFFFD4A0),
-          sombra: const Color(0xFFFF6D00),
+        return const _ColorSet(
+          fondo:  Color(0xFF1A0F00),
+          borde:  Color(0xFFFF6D00),
+          acento: Color(0xFFFF6D00),
+          texto:  Color(0xFFFFD4A0),
+          sombra: Color(0xFFFF6D00),
         );
       case NarradorTipo.rendimiento:
-        return _ColorSet(
-          fondo:  const Color(0xFF111111),
-          borde:  const Color(0xFFB0BEC5),
-          acento: const Color(0xFFB0BEC5),
+        return const _ColorSet(
+          fondo:  Color(0xFF111111),
+          borde:  Color(0xFFB0BEC5),
+          acento: Color(0xFFB0BEC5),
           texto:  Colors.white,
-          sombra: const Color(0xFFB0BEC5),
+          sombra: Color(0xFFB0BEC5),
         );
     }
   }

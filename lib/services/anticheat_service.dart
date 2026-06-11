@@ -226,7 +226,7 @@ class AntiCheatService {
   // La protección en iOS la dan los checks de velocidad y teletransporte
   if (!Platform.isAndroid) return AntiCheatResultado.valido;
   if (pos.isMocked) {
-    return AntiCheatResultado(
+    return const AntiCheatResultado(
       veredicto: AntiCheatVeredicto.mockLocation,
       esValido: false,
       detalle: 'Mock location detectada (Android)',
@@ -331,9 +331,9 @@ class AntiCheatService {
 
   Future<void> _guardarLogFirestore(
       AntiCheatResultado resultado, Position pos) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
       await FirebaseFirestore.instance.collection('anticheat_logs').add({
         'userId':    uid,
         'tipo':      resultado.veredicto.name,
@@ -363,7 +363,7 @@ class AntiCheatService {
     required double distanciaKm,
   }) {
     if (ruta.length < 2) {
-      return AntiCheatSesionResultado(esValida: true, motivo: null);
+      return const AntiCheatSesionResultado(esValida: true, motivo: null);
     }
 
     // Velocidad media de toda la sesión
@@ -397,7 +397,7 @@ class AntiCheatService {
       );
     }
 
-    return AntiCheatSesionResultado(esValida: true, motivo: null);
+    return const AntiCheatSesionResultado(esValida: true, motivo: null);
   }
 
   static double _angulo(LatLng a, LatLng b) {

@@ -365,7 +365,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
               hintText: 'Buscar...', hintStyle: TextStyle(color: p.dim, fontSize: 13),
               border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12)))),
           if (_buscando)
-            Padding(padding: const EdgeInsets.only(right: 14),
+            const Padding(padding: EdgeInsets.only(right: 14),
               child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: kSocAccent, strokeWidth: 1.5)))
           else if (active)
             GestureDetector(
@@ -437,10 +437,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   // ══════════════════════════ SEARCH RESULTS ════════════════════════════════════
   Widget _buildSearchResults() {
     if (_errorBusqueda) return SocialErrorState(onRetry: () { setState(() { _buscando = true; _errorBusqueda = false; }); _buscar(); });
-    if (_resultadosBusqueda.isEmpty && !_buscando) return SocialEmptyState(
+    if (_resultadosBusqueda.isEmpty && !_buscando) {
+      return SocialEmptyState(
       icon: Icons.search_off_rounded, titulo: 'Sin resultados',
       subtitulo: 'Nadie con nickname "$_searchQuery"',
       accionLabel: 'Limpiar', onAccion: () => _searchController.clear());
+    }
     final total = _resultadosBusqueda.length + (_hayMasResultados ? 1 : 0);
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -562,10 +564,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         if (!snap.hasData) return _buildRankSkels();
         if (snap.hasError) return SocialErrorState(onRetry: () => setState(() {}));
         final docs = snap.data!;
-        if (docs.isEmpty) return SocialEmptyState(
+        if (docs.isEmpty) {
+          return SocialEmptyState(
           icon: Icons.public_rounded,
           titulo: 'Sin actividad esta semana',
           subtitulo: 'Corre en modo Global para aparecer\nen el ranking de la semana $semana');
+        }
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
             child: Row(children: [
@@ -607,10 +611,12 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
         if (!snap.hasData) return _buildRankSkels();
         if (snap.hasError) return SocialErrorState(onRetry: () => setState(() {}));
         final docs = snap.data!;
-        if (docs.isEmpty) return const SocialEmptyState(
+        if (docs.isEmpty) {
+          return const SocialEmptyState(
           icon: Icons.route_rounded,
           titulo: 'Nadie ha corrido rutas aún',
           subtitulo: 'Completa carreras en modo Rutas\npara aparecer en este ranking');
+        }
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
             child: Row(children: [
@@ -730,7 +736,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: kSocAccent, borderRadius: BorderRadius.circular(4),
-                                boxShadow: [BoxShadow(color: kSocAccentGlow, blurRadius: 6)]),
+                                boxShadow: const [BoxShadow(color: kSocAccentGlow, blurRadius: 6)]),
                               child: const Text('TÚ', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
                           ],
                         ]),
@@ -814,17 +820,20 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           stream: recvStream,
           builder: (ctx, recvSnap) {
             if (!sentSnap.hasData || !recvSnap.hasData) return _genSkels();
-            if (sentSnap.hasError || recvSnap.hasError)
+            if (sentSnap.hasError || recvSnap.hasError) {
               return SocialErrorState(onRetry: () { _perfilesCache.clear(); setState(() {}); });
+            }
 
             final amigos = [...sentSnap.data!.docs, ...recvSnap.data!.docs];
 
-            if (amigos.isEmpty) return SocialEmptyState(
+            if (amigos.isEmpty) {
+              return SocialEmptyState(
               icon: Icons.group_outlined,
               titulo: 'Sin aliados aún',
               subtitulo: 'Busca exploradores y forma\ntu equipo cartográfico',
               accionLabel: 'Buscar exploradores',
               onAccion: () => _searchController.clear());
+            }
 
             return RefreshIndicator(
               key: _rkAliados, color: kSocAccent, backgroundColor: _p.surface2,
@@ -838,8 +847,9 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                   final fid = doc['senderId'] == currentUserId
                       ? doc['receiverId']
                       : doc['senderId'];
-                  if (_perfilesCache.containsKey(fid))
+                  if (_perfilesCache.containsKey(fid)) {
                     return SocialStagger(index: i, child: _buildFriendCard(_perfilesCache[fid]!, fid));
+                  }
                   return FutureBuilder<DocumentSnapshot>(
                     future: FirebaseFirestore.instance.collection('players').doc(fid).get(),
                     builder: (ctx, s) {
@@ -925,10 +935,10 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(children: [
-                    Icon(Icons.mark_email_unread_outlined, color: const Color(0xFFFF9F0A), size: 14),
+                    const Icon(Icons.mark_email_unread_outlined, color: Color(0xFFFF9F0A), size: 14),
                     const SizedBox(width: 6),
                     Text('Solicitudes de mensaje (${solicitudes.length})',
-                        style: TextStyle(color: const Color(0xFFFF9F0A), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                        style: const TextStyle(color: Color(0xFFFF9F0A), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                   ]),
                 );
               }

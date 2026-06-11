@@ -7,7 +7,7 @@ import 'social_theme.dart';
 // ── Shimmer ──────────────────────────────────────────────────────────────────
 class SocialShimmer extends StatefulWidget {
   final double width, height, borderRadius;
-  const SocialShimmer({required this.width, required this.height, this.borderRadius = 4});
+  const SocialShimmer({super.key, required this.width, required this.height, this.borderRadius = 4});
   @override State<SocialShimmer> createState() => _SocialShimmerState();
 }
 class _SocialShimmerState extends State<SocialShimmer> with SingleTickerProviderStateMixin {
@@ -37,7 +37,7 @@ class _SocialShimmerState extends State<SocialShimmer> with SingleTickerProvider
 // ── Pulse Badge ───────────────────────────────────────────────────────────────
 class SocialPulseBadge extends StatefulWidget {
   final int count; final Color color;
-  const SocialPulseBadge({required this.count, required this.color});
+  const SocialPulseBadge({super.key, required this.count, required this.color});
   @override State<SocialPulseBadge> createState() => _SocialPulseBadgeState();
 }
 class _SocialPulseBadgeState extends State<SocialPulseBadge> with SingleTickerProviderStateMixin {
@@ -63,7 +63,7 @@ class _SocialPulseBadgeState extends State<SocialPulseBadge> with SingleTickerPr
 // ── Stagger ───────────────────────────────────────────────────────────────────
 class SocialStagger extends StatefulWidget {
   final Widget child; final int index;
-  const SocialStagger({required this.child, required this.index});
+  const SocialStagger({super.key, required this.child, required this.index});
   @override State<SocialStagger> createState() => _SocialStaggerState();
 }
 class _SocialStaggerState extends State<SocialStagger> with SingleTickerProviderStateMixin {
@@ -87,7 +87,7 @@ class _SocialStaggerState extends State<SocialStagger> with SingleTickerProvider
 // ── Press Scale ───────────────────────────────────────────────────────────────
 class SocialPress extends StatefulWidget {
   final Widget child; final VoidCallback? onTap;
-  const SocialPress({required this.child, this.onTap});
+  const SocialPress({super.key, required this.child, this.onTap});
   @override State<SocialPress> createState() => _SocialPressState();
 }
 class _SocialPressState extends State<SocialPress> with SingleTickerProviderStateMixin {
@@ -113,12 +113,14 @@ class SocialAvatar extends StatelessWidget {
   final double size;
   final Color? ringColor;
   final bool glow;
-  const SocialAvatar({this.fotoBase64, this.nickname, this.size = 40, this.ringColor, this.glow = false});
+  const SocialAvatar({super.key, this.fotoBase64, this.nickname, this.size = 40, this.ringColor, this.glow = false});
 
   static Color colorFromNick(String nick) {
     if (nick.isEmpty) return const Color(0xFF2A2A35);
     int hash = 0;
-    for (final c in nick.codeUnits) hash = (hash * 31 + c) & 0xFFFFFFFF;
+    for (final c in nick.codeUnits) {
+      hash = (hash * 31 + c) & 0xFFFFFFFF;
+    }
     final hue = (hash % 360).toDouble();
     return HSLColor.fromAHSL(1.0, hue, 0.55, 0.26).toColor();
   }
@@ -163,7 +165,7 @@ class _Initials extends StatelessWidget {
 // ── Pill Tag ──────────────────────────────────────────────────────────────────
 class SocialPill extends StatelessWidget {
   final String label; final Color color; final Widget? leading;
-  const SocialPill({required this.label, required this.color, this.leading});
+  const SocialPill({super.key, required this.label, required this.color, this.leading});
   @override Widget build(BuildContext ctx) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
     decoration: BoxDecoration(
@@ -183,7 +185,7 @@ class SocialPill extends StatelessWidget {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 class SocialSkel extends StatelessWidget {
   final double height;
-  const SocialSkel({this.height = 68});
+  const SocialSkel({super.key, this.height = 68});
   @override Widget build(BuildContext ctx) {
     final p = SocialPalette.of(ctx);
     return Container(
@@ -194,9 +196,9 @@ class SocialSkel extends StatelessWidget {
     child: Row(children: [
       SocialShimmer(width: 58, height: height),
       const SizedBox(width: 14),
-      Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
+      const Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SocialShimmer(width: 110, height: 12), const SizedBox(height: 8), const SocialShimmer(width: 75, height: 9)])),
+        SocialShimmer(width: 110, height: 12), SizedBox(height: 8), SocialShimmer(width: 75, height: 9)])),
       const SocialShimmer(width: 56, height: 30, borderRadius: 6),
       const SizedBox(width: 14)]));
   }

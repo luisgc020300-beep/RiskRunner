@@ -154,7 +154,7 @@ porTemporada.putIfAbsent(t.temporada, () => []).add(t);    }
               children: [
                 // Títulos activos (temporada en curso)
                 if (titulosActivos.isNotEmpty) ...[
-                  _SectionLabel(label: 'EN CURSO', color: _kGold),
+                  const _SectionLabel(label: 'EN CURSO', color: _kGold),
                   const SizedBox(height: 8),
                   ...titulosActivos.map((t) => _TituloCard(titulo: t, activo: true)),
                   const SizedBox(height: 16),

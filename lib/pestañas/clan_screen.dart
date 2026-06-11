@@ -342,11 +342,13 @@ class _ClanScreenState extends State<ClanScreen>
         try {
           await ClanService.abandonarClan(clan);
         } catch (e) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', ''),
                 style: _raj(13, FontWeight.w700, Colors.white)),
             backgroundColor: _kAccent,
           ));
+          }
         }
       },
       child: Container(
@@ -819,11 +821,13 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(e.toString().replaceAll('Exception: ', ''),
             style: GoogleFonts.inter(color: Colors.white)),
         backgroundColor: _kAccent,
       ));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

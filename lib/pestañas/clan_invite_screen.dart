@@ -482,7 +482,7 @@ class _InviteTileState extends State<_InviteTile> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.forward_to_inbox_rounded, size: 22, color: _kAccent),
+          const Icon(Icons.forward_to_inbox_rounded, size: 22, color: _kAccent),
           const SizedBox(width: 10),
           Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [

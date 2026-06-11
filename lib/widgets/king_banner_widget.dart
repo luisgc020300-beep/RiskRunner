@@ -163,7 +163,7 @@ class KingBannerWidget extends StatelessWidget {
               shape:  BoxShape.circle,
               border: Border.all(color: color.withValues(alpha: 0.4)),
             ),
-            child: Center(
+            child: const Center(
               child: Text('🏰',
                   style: TextStyle(fontSize: 18)),
             ),

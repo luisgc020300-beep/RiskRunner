@@ -85,7 +85,7 @@ class _MapDataService {
 
     final Map<String, List<_TerDet>> tersPorOwner = {};
     for (final doc in snap.docs) {
-      final data = (doc.data()) as Map<String, dynamic>;
+      final data = (doc.data());
       final rawPts = data['puntos'] as List<dynamic>?;
       if (rawPts == null || rawPts.isEmpty) continue;
       final docModo = data['modo'] as String?;

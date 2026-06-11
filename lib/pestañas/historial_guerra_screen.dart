@@ -99,15 +99,15 @@ class _HistorialGuerraScreenState extends State<HistorialGuerraScreen>
       }
 
       // Ordenar por timestamp descendente (null al final)
-      int _cmp(NotifItem a, NotifItem b) {
+      int cmp(NotifItem a, NotifItem b) {
         if (a.timestamp == null && b.timestamp == null) return 0;
         if (a.timestamp == null) return 1;
         if (b.timestamp == null) return -1;
         return b.timestamp!.compareTo(a.timestamp!);
       }
 
-      perdidos.sort(_cmp);
-      ganados.sort(_cmp);
+      perdidos.sort(cmp);
+      ganados.sort(cmp);
 
       // Para usuarios free: marcar cuáles están fuera de los 7 días
       // pero NO descartarlos — se muestran bloqueados en la UI

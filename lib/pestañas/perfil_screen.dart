@@ -294,19 +294,23 @@ class _PerfilScreenState extends State<PerfilScreen>
         nombres.addAll(resultado);
       }
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _tendencia8Semanas  = tendencia;
         _comparativaSemanal = comparativa;
         _nombresZonas       = nombres;
         _loadingStatsPremium   = false;
         _statsPremiumCargadas  = true;
       });
+      }
     } catch (e) {
       debugPrint('Error cargando stats premium: $e');
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _loadingStatsPremium = false;
         _statsPremiumError   = 'No se pudo cargar el análisis. Comprueba tu conexión.';
       });
+      }
     }
   }
 
@@ -409,10 +413,12 @@ class _PerfilScreenState extends State<PerfilScreen>
         ZonaService.getTitulosDeUsuario(viewedUserId!),
         ZonaService.getTitulosActivosDeUsuario(viewedUserId!),
       ]);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _todosLosTitulos = resultados[0];
         _titulosActivos  = resultados[1];
       });
+      }
     } catch (e) {
       debugPrint('Error títulos: $e');
     }
@@ -508,10 +514,12 @@ class _PerfilScreenState extends State<PerfilScreen>
           .where('followingId', isEqualTo: viewedUserId).count().get();
       final sig = await FirebaseFirestore.instance.collection('follows')
           .where('followerId', isEqualTo: viewedUserId).count().get();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _seguidores = (seg.count as num?)?.toInt() ?? 0;
         _siguiendo  = (sig.count as num?)?.toInt() ?? 0;
       });
+      }
     } catch (e) { debugPrint('Error contadores follow: $e'); }
   }
 
@@ -534,11 +542,13 @@ class _PerfilScreenState extends State<PerfilScreen>
         pendiente = reqSnap.docs.isNotEmpty;
         if (pendiente) { pendienteDocId = reqSnap.docs.first.id; }
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _esSiguiendo        = followSnap.docs.isNotEmpty;
         _solicitudPendiente = pendiente;
         _solicitudDocId     = pendienteDocId;
       });
+      }
     } catch (e) { debugPrint('Error estado follow: $e'); }
   }
 
@@ -565,10 +575,12 @@ class _PerfilScreenState extends State<PerfilScreen>
           'read':         false,
           'timestamp':    FieldValue.serverTimestamp(),
         });
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _solicitudPendiente = true;
           _solicitudDocId     = ref.id;
         });
+        }
       } else {
         // Perfil público → follow inmediato
         await FirebaseFirestore.instance.collection('follows').add({
@@ -607,12 +619,14 @@ class _PerfilScreenState extends State<PerfilScreen>
           newStatus = accepted ? 'accepted' : 'pending_sent';
           newDocId  = ref.id;
         }
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _esSiguiendo      = true;
           _seguidores      += 1;
           _friendshipStatus = newStatus;
           _friendshipDocId  = newDocId;
         });
+        }
       }
     } catch (e) {
       debugPrint('Error seguir: $e');
@@ -629,10 +643,12 @@ class _PerfilScreenState extends State<PerfilScreen>
           .collection('friendships')
           .doc(_solicitudDocId)
           .delete();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _solicitudPendiente = false;
         _solicitudDocId     = null;
       });
+      }
     } catch (e) {
       debugPrint('Error cancelar solicitud: $e');
       if (mounted) _mostrarSnackbar('No se pudo cancelar la solicitud', error: true);
@@ -648,17 +664,21 @@ class _PerfilScreenState extends State<PerfilScreen>
           .where('followerId', isEqualTo: myUserId)
           .where('followingId', isEqualTo: viewedUserId)
           .limit(1).get();
-      for (final doc in snap.docs) await doc.reference.delete();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+      }
       // Borrar amistad al dejar de seguir
       if (_friendshipDocId != null) {
         await FirebaseFirestore.instance.collection('friendships').doc(_friendshipDocId).delete();
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _esSiguiendo      = false;
         _seguidores       = (_seguidores - 1).clamp(0, 999999);
         _friendshipStatus = 'none';
         _friendshipDocId  = null;
       });
+      }
     } catch (e) {
       debugPrint('Error dejar de seguir: $e');
       if (mounted) _mostrarSnackbar('No se pudo dejar de seguir', error: true);
@@ -832,7 +852,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _p.border2), right: BorderSide(color: _p.border2), bottom: BorderSide(color: _p.border2))),
+              decoration: BoxDecoration(color: _kAccent.withValues(alpha: 0.04), border: Border(left: const BorderSide(color: _kAccent, width: 2), top: BorderSide(color: _p.border2), right: BorderSide(color: _p.border2), bottom: BorderSide(color: _p.border2))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('PUNTUACIÓN', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2)),
                 const SizedBox(height: 6),
@@ -1029,7 +1049,8 @@ class _PerfilScreenState extends State<PerfilScreen>
           .count()
           .get();
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _kmTotales               = kmTotal;
         _velocidadMediaHistorica = countVel > 0 ? sumVel / countVel : 0;
         _totalCarreras           = carrerasConDist;
@@ -1051,6 +1072,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         _prElevacion    = prElev;
         _diasActividad  = diasConActividad.toList();
       });
+      }
     } catch (e) {
       debugPrint('Error stats: $e');
       if (mounted) {
@@ -1075,8 +1097,9 @@ class _PerfilScreenState extends State<PerfilScreen>
       final List<NotifItem> perdidos = [], ganados = [];
       for (final doc in snap.docs) {
         final item = NotifItem.fromFirestore(doc);
-        if (item.tipo == 'territory_lost') perdidos.add(item);
-        else if (item.tipo == 'territory_conquered' || item.tipo == 'territory_steal_success') ganados.add(item);
+        if (item.tipo == 'territory_lost') {
+          perdidos.add(item);
+        } else if (item.tipo == 'territory_conquered' || item.tipo == 'territory_steal_success') { ganados.add(item); }
       }
       for (final list in [perdidos, ganados]) { list.sort((a, b) { if (a.timestamp == null || b.timestamp == null) return 0; return b.timestamp!.compareTo(a.timestamp!); }); }
       if (mounted) setState(() { _perdidos = perdidos; _ganados = ganados; _loadingHistorial = false; });
@@ -1484,10 +1507,10 @@ class _PerfilScreenState extends State<PerfilScreen>
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
           child: !_rutasLoaded
               ? Row(children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 14, height: 14,
                     child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: const Color(0xFF9B72CF)),
+                        strokeWidth: 1.5, color: Color(0xFF9B72CF)),
                   ),
                   const SizedBox(width: 10),
                   Text('Cargando rutas...', style: _rajdhani(11, FontWeight.w400, _p.dim)),
@@ -1592,7 +1615,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         ),
         child: Column(children: [
           const SizedBox(height: 8),
-          SizedBox(width: 20, height: 20,
+          const SizedBox(width: 20, height: 20,
               child: CircularProgressIndicator(
                   color: _kGold, strokeWidth: 1.5)),
           const SizedBox(height: 12),
@@ -1612,7 +1635,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           border: Border.all(color: _kAccent.withValues(alpha: 0.3)),
         ),
         child: Column(children: [
-          Icon(Icons.wifi_off_rounded, color: _kAccent, size: 28),
+          const Icon(Icons.wifi_off_rounded, color: _kAccent, size: 28),
           const SizedBox(height: 10),
           Text(_statsPremiumError,
               textAlign: TextAlign.center,
@@ -1807,7 +1830,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (pt.distanciaTotal > 0)
-                        Text('${pt.distanciaTotal.toStringAsFixed(0)}',
+                        Text(pt.distanciaTotal.toStringAsFixed(0),
                             style: _rajdhani(7, FontWeight.w700,
                                 esReciente ? goldColor : _p.sub)),
                       const SizedBox(height: 2),
@@ -2068,7 +2091,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                 border: Border.all(color: _kAccent.withValues(alpha: 0.35)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.upload_file_rounded, color: _kAccent, size: 12),
+                const Icon(Icons.upload_file_rounded, color: _kAccent, size: 12),
                 const SizedBox(width: 4),
                 Text('IMPORTAR GPX', style: _rajdhani(8, FontWeight.w900, _kAccent, spacing: 1)),
               ]),
@@ -2093,7 +2116,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         ],
         const SizedBox(height: 12),
         if (_cargandoHistorial)
-          Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5))))
+          const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 16), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5))))
         else if (mostrados.isEmpty)
           Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text('Sin misiones registradas', style: _rajdhani(12, FontWeight.w500, _p.dim)))
         else
@@ -2462,7 +2485,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     final pred = StatsService.calcularPrediccion(carreras);
     if (pred == null) return const SizedBox.shrink();
 
-    String _fmtRitmo(double minKm) {
+    String fmtRitmo(double minKm) {
       final m = minKm.floor();
       final s = ((minKm - m) * 60).round();
       return "$m'${s.toString().padLeft(2, '0')}\"/km";
@@ -2482,7 +2505,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(width: 8),
           Text('PREDICTOR DE TIEMPOS', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
           const Spacer(),
-          Text('ritmo base ${_fmtRitmo(pred.ritmoBase)}',
+          Text('ritmo base ${fmtRitmo(pred.ritmoBase)}',
               style: _rajdhani(8, FontWeight.w600, _p.dim)),
         ]),
         const SizedBox(height: 14),
@@ -2751,7 +2774,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildPRsCard() {
-    String _fmtPace(double minKm) {
+    String fmtPace(double minKm) {
       if (minKm <= 0) return '--';
       final m = minKm.floor();
       final s = ((minKm - m) * 60).round();
@@ -2772,7 +2795,7 @@ class _PerfilScreenState extends State<PerfilScreen>
           const SizedBox(width: 8),
           Text('RECORDS PERSONALES', style: _rajdhani(9, FontWeight.w700, _p.dim, spacing: 2.5)),
           const Spacer(),
-          Icon(Icons.emoji_events_rounded, color: _kGold, size: 14),
+          const Icon(Icons.emoji_events_rounded, color: _kGold, size: 14),
         ]),
         const SizedBox(height: 18),
         Row(children: [
@@ -2781,7 +2804,7 @@ class _PerfilScreenState extends State<PerfilScreen>
             'MEJOR DISTANCIA', Icons.straighten_rounded, _kAccent)),
           const SizedBox(width: 10),
           Expanded(child: _prCell(
-            _fmtPace(_prPaceMinKm),
+            fmtPace(_prPaceMinKm),
             'MEJOR RITMO', Icons.speed_rounded, const Color(0xFF30D158))),
         ]),
         const SizedBox(height: 10),
@@ -3293,11 +3316,12 @@ class _PerfilScreenState extends State<PerfilScreen>
     final int hito    = _rachaActual == 0 ? 3 : hitos.firstWhere((h) => _rachaActual < h, orElse: () => 30);
     final double prog = (_rachaActual / hito).clamp(0.0, 1.0);
     String msg;
-    if (!activa)                msg = 'Sin actividad reciente';
-    else if (_rachaActual == 1) msg = 'Buen comienzo. No pares.';
-    else if (_rachaActual < 7)  msg = '${7 - _rachaActual} días para una semana';
-    else if (_rachaActual < 30) msg = 'Más de una semana consecutiva';
-    else                        msg = 'Un mes sin parar. Leyenda.';
+    if (!activa) {
+      msg = 'Sin actividad reciente';
+    } else if (_rachaActual == 1) { msg = 'Buen comienzo. No pares.'; }
+    else if (_rachaActual < 7)  { msg = '${7 - _rachaActual} días para una semana'; }
+    else if (_rachaActual < 30) { msg = 'Más de una semana consecutiva'; }
+    else                        { msg = 'Un mes sin parar. Leyenda.'; }
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(color: _p.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _p.border)),
@@ -3364,7 +3388,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           child: _loadingHistorial
-              ? Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
+              ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: _kAccent, strokeWidth: 1.5)))
               : lista.isEmpty
                   ? Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(_tabGuerraIndex == 0 ? 'Sin territorios perdidos' : 'Sin conquistas', style: _rajdhani(12, FontWeight.w500, _p.dim), textAlign: TextAlign.center))
                   : Column(children: [

@@ -426,7 +426,7 @@ class _ParticleBg extends CustomPainter {
   final Color accentColor;
 
   static final _rng = math.Random(42);
-  static late final List<_Particle> _particles = List.generate(24, (_) => _Particle(
+  static final List<_Particle> _particles = List.generate(24, (_) => _Particle(
     x:     _rng.nextDouble(),
     y:     _rng.nextDouble(),
     size:  _rng.nextDouble() * 2.0 + 0.5,

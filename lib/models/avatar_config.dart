@@ -61,9 +61,9 @@ class AvatarConfig {
   Map<String, dynamic> toMap() => {
     'hairIndex':    hairIndex,
     'eyesIndex':    eyesIndex,
-    'jacketColor':  jacketColor.value,
-    'pantsColor':   pantsColor.value,
-    'shoesColor':   shoesColor.value,
+    'jacketColor':  jacketColor.toARGB32(),
+    'pantsColor':   pantsColor.toARGB32(),
+    'shoesColor':   shoesColor.toARGB32(),
   };
 
   factory AvatarConfig.fromMap(Map<String, dynamic> map) => AvatarConfig(

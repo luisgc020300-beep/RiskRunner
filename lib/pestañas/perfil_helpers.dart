@@ -127,8 +127,8 @@ class _RachaGaugePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final r = size.width / 2 - 6;
-    final startAngle = -math.pi * 0.75;
-    final sweepTotal = math.pi * 1.5;
+    const startAngle = -math.pi * 0.75;
+    const sweepTotal = math.pi * 1.5;
     canvas.drawArc(
         Rect.fromCircle(center: c, radius: r),
         startAngle,

@@ -468,27 +468,27 @@ class StatsService {
   // ZONAS DE RITMO
   // ==========================================================================
 
-  static Map<ZonaRitmo, _RangoRitmo> calcularZonasPersonalizadas(
+  static Map<ZonaRitmo, RangoRitmo> calcularZonasPersonalizadas(
       List<CarreraStats> carreras) {
     if (carreras.isEmpty) return _zonasDefault();
     final recientes = carreras.take(10).map((c) => c.ritmoMinKm).toList()
       ..sort();
     final umbral = recientes[(recientes.length * 0.2).floor()];
     return {
-      ZonaRitmo.recuperacion: _RangoRitmo(umbral * 1.30, double.infinity),
-      ZonaRitmo.facil:        _RangoRitmo(umbral * 1.15, umbral * 1.30),
-      ZonaRitmo.moderado:     _RangoRitmo(umbral * 1.05, umbral * 1.15),
-      ZonaRitmo.umbral:       _RangoRitmo(umbral * 0.95, umbral * 1.05),
-      ZonaRitmo.competicion:  _RangoRitmo(0, umbral * 0.95),
+      ZonaRitmo.recuperacion: RangoRitmo(umbral * 1.30, double.infinity),
+      ZonaRitmo.facil:        RangoRitmo(umbral * 1.15, umbral * 1.30),
+      ZonaRitmo.moderado:     RangoRitmo(umbral * 1.05, umbral * 1.15),
+      ZonaRitmo.umbral:       RangoRitmo(umbral * 0.95, umbral * 1.05),
+      ZonaRitmo.competicion:  RangoRitmo(0, umbral * 0.95),
     };
   }
 
-  static Map<ZonaRitmo, _RangoRitmo> _zonasDefault() => {
-    ZonaRitmo.recuperacion: _RangoRitmo(7.5, double.infinity),
-    ZonaRitmo.facil:        _RangoRitmo(6.5, 7.5),
-    ZonaRitmo.moderado:     _RangoRitmo(5.5, 6.5),
-    ZonaRitmo.umbral:       _RangoRitmo(4.5, 5.5),
-    ZonaRitmo.competicion:  _RangoRitmo(0,   4.5),
+  static Map<ZonaRitmo, RangoRitmo> _zonasDefault() => {
+    ZonaRitmo.recuperacion: const RangoRitmo(7.5, double.infinity),
+    ZonaRitmo.facil:        const RangoRitmo(6.5, 7.5),
+    ZonaRitmo.moderado:     const RangoRitmo(5.5, 6.5),
+    ZonaRitmo.umbral:       const RangoRitmo(4.5, 5.5),
+    ZonaRitmo.competicion:  const RangoRitmo(0,   4.5),
   };
 
   // ==========================================================================
@@ -710,9 +710,9 @@ class StatsService {
   }
 }
 
-class _RangoRitmo {
+class RangoRitmo {
   final double min;
   final double max;
-  const _RangoRitmo(this.min, this.max);
+  const RangoRitmo(this.min, this.max);
   bool contains(double ritmo) => ritmo >= min && ritmo < max;
 }

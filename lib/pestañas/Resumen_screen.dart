@@ -582,7 +582,7 @@ class _ResumenScreenState extends State<ResumenScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD60A).withOpacity(0.15),
+                color: const Color(0xFFFFD60A).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text('$_rachaActual días de racha', style: const TextStyle(
@@ -738,8 +738,8 @@ class _ResumenScreenState extends State<ResumenScreen>
         final uSH = DateTime(u.year, u.month, u.day);
         final d   = hoySH.difference(uSH).inDays;
         if (d == 0)      { if (mounted) setState(() => _rachaActual = racha); return; }
-        else if (d == 1) nueva = racha + 1;
-        else             nueva = 1;
+        else if (d == 1) { nueva = racha + 1; }
+        else             { nueva = 1; }
       }
       await ref.update({
         'racha_actual':           nueva,
@@ -1122,7 +1122,7 @@ class _ResumenScreenState extends State<ResumenScreen>
         color:           _kGrey,
         backgroundColor: _kSurface2,
         child: Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: const OperativeBgPainter())),
+          const Positioned.fill(child: CustomPaint(painter: OperativeBgPainter())),
           SafeArea(
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(
@@ -1462,7 +1462,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           border:       Border.all(color: cardBorder),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('TIEMPO', style: const TextStyle(
+          const Text('TIEMPO', style: TextStyle(
               color: _kGrey, fontSize: 7,
               fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 8),
@@ -1698,11 +1698,11 @@ class _ResumenScreenState extends State<ResumenScreen>
 
       final recorder = ui.PictureRecorder();
       final canvas   = Canvas(recorder,
-          Rect.fromLTWH(0, 0, size, size));
+          const Rect.fromLTWH(0, 0, size, size));
 
       // Fondo negro
       canvas.drawRect(
-          Rect.fromLTWH(0, 0, size, size),
+          const Rect.fromLTWH(0, 0, size, size),
           Paint()..color = const Color(0xFF0A0A0A));
 
       // Normalizar puntos a [pad, size-pad]
@@ -1811,10 +1811,10 @@ class _ResumenScreenState extends State<ResumenScreen>
       final file   = File('${tmpDir.path}/ruta_riskrunner.png');
       await file.writeAsBytes(byteData.buffer.asUint8List());
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: 'Mi ruta en RiskRunner · ${widget.distancia.toStringAsFixed(2)} km',
-      );
+      ));
     } catch (e) {
       debugPrint('_compartirRutaComoImagen error: $e');
     }
@@ -1877,13 +1877,13 @@ class _ResumenScreenState extends State<ResumenScreen>
           ),
           const SizedBox(height: 10),
           Row(children: [
-            _legendDot(const Color(0xFFE63030), '<4\'30\"'),
+            _legendDot(const Color(0xFFE63030), '<4\'30"'),
             const SizedBox(width: 10),
-            _legendDot(const Color(0xFFFF9500), '<5\'30\"'),
+            _legendDot(const Color(0xFFFF9500), '<5\'30"'),
             const SizedBox(width: 10),
-            _legendDot(const Color(0xFFFFD60A), '<6\'30\"'),
+            _legendDot(const Color(0xFFFFD60A), '<6\'30"'),
             const SizedBox(width: 10),
-            _legendDot(const Color(0xFF30D158), '<7\'30\"'),
+            _legendDot(const Color(0xFF30D158), '<7\'30"'),
             const SizedBox(width: 10),
             _legendDot(const Color(0xFF636366), 'lento'),
           ]),
@@ -1934,7 +1934,7 @@ class _PaceBarPainter extends CustomPainter {
     final avg   = splits.reduce((a, b) => a + b) / splits.length;
 
     final n      = splits.length;
-    final gap    = 3.0;
+    const gap    = 3.0;
     final barW   = (chartW - gap * (n - 1)) / n;
 
     for (int i = 0; i < n; i++) {
