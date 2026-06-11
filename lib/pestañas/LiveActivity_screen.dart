@@ -2637,95 +2637,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     );
   }
 
-  Future<void> _actualizarPuntosDesafio(
-      int conquistados, double distanciaKm) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      final snapRetador = await FirebaseFirestore.instance
-          .collection('desafios')
-          .where('retadorId', isEqualTo: user.uid)
-          .where('estado', isEqualTo: 'activo')
-          .limit(1)
-          .get();
-      final snapRetado = await FirebaseFirestore.instance
-          .collection('desafios')
-          .where('retadoId', isEqualTo: user.uid)
-          .where('estado', isEqualTo: 'activo')
-          .limit(1)
-          .get();
-      final doc = snapRetador.docs.isNotEmpty
-          ? snapRetador.docs.first
-          : snapRetado.docs.isNotEmpty
-              ? snapRetado.docs.first
-              : null;
-      if (doc == null) return;
-      final data = doc.data();
-      final fin  = (data['fin'] as Timestamp?)?.toDate();
-      if (fin != null && DateTime.now().isAfter(fin)) {
-        await _finalizarDesafio(doc.id, data);
-        return;
-      }
-      final int puntos = (conquistados * 10) + (distanciaKm * 5).round();
-      if (puntos == 0) return;
-      final bool soyRetador = data['retadorId'] == user.uid;
-      await FirebaseFirestore.instance
-          .collection('desafios')
-          .doc(doc.id)
-          .update({
-        soyRetador ? 'puntosRetador' : 'puntosRetado':
-            FieldValue.increment(puntos),
-      });
-    } catch (e) {
-      debugPrint('Error actualizando desafío: $e');
-    }
-  }
-
-  Future<void> _finalizarDesafio(
-      String desafioId, Map<String, dynamic> data) async {
-    try {
-      final puntosRetador = (data['puntosRetador'] as num?)?.toInt() ?? 0;
-      final puntosRetado  = (data['puntosRetado'] as num?)?.toInt() ?? 0;
-      final apuesta       = (data['apuesta'] as num?)?.toInt() ?? 0;
-      final retadorId     = data['retadorId'] as String;
-      final retadoId      = data['retadoId'] as String;
-      final retadorNick   = data['retadorNick'] as String? ?? 'Rival';
-      final retadoNick    = data['retadoNick'] as String? ?? 'Rival';
-      final String ganadorId, ganadorNick, perdedorId, perdedorNick;
-      if (puntosRetador > puntosRetado) {
-        ganadorId = retadorId; ganadorNick = retadorNick;
-        perdedorId = retadoId; perdedorNick = retadoNick;
-      } else {
-        ganadorId = retadoId; ganadorNick = retadoNick;
-        perdedorId = retadorId; perdedorNick = retadorNick;
-      }
-      await FirebaseFirestore.instance
-          .collection('players')
-          .doc(ganadorId)
-          .update({'monedas': FieldValue.increment(apuesta * 2)});
-      await FirebaseFirestore.instance
-          .collection('desafios')
-          .doc(desafioId)
-          .update({'estado': 'finalizado', 'ganadorId': ganadorId});
-      for (final n in [
-        {
-          'toUserId': ganadorId, 'type': 'desafio_ganado',
-          'message': '🏆 ¡Ganaste el desafío contra $perdedorNick! +${apuesta * 2} 🪙'
-        },
-        {
-          'toUserId': perdedorId, 'type': 'desafio_perdido',
-          'message': '💀 Perdiste el desafío contra $ganadorNick. $ganadorNick se lleva ${apuesta * 2} 🪙'
-        },
-      ]) {
-        await FirebaseFirestore.instance.collection('notifications').add(
-            {...n, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
-      }
-    } catch (e, st) {
-      debugPrint('Error finalizando desafío: $e');
-      FirebaseCrashlytics.instance.recordError(e, st, reason: 'finalizarDesafio');
-    }
-  }
-
   Future<void> _limpiarPresenciaFirestore() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -3642,7 +3553,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             await _procesarConquistas(rutaFinal, tiempoFinal, distanciaFinal);
       }
 
-      await _actualizarPuntosDesafio(conquistados, distanciaFinal);
+      DesafiosService.acumularPuntos(
+        uid:                     FirebaseAuth.instance.currentUser?.uid ?? '',
+        distanciaKm:             distanciaFinal,
+        territoriosConquistados: conquistados,
+      );
       if (mounted && distanciaFinal > 0) {
         HapticFeedback.heavyImpact();
         Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
