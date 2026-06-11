@@ -16,6 +16,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:shimmer/shimmer.dart';
@@ -279,8 +280,9 @@ class _MapState extends ChangeNotifier {
         territoriosGlobales = buildSampleGlobalTerritories();
         territoriosMios     = 0;
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('Error cargando territorios globales: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargarTerritoriosGlobales');
       territoriosGlobales = buildSampleGlobalTerritories();
       territoriosMios     = 0;
     }
@@ -819,8 +821,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _gpsResuelto = true;
         }
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('FullscreenMap resolverCentro error: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'resolverCentroGPS');
     }
   }
 
@@ -877,8 +880,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       } else {
         GameStateService.instance.setCompetitiveTerritories(lista);
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('FullscreenMap cargarTerritorios error: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargarTerritorios');
       _state.setError('No se pudieron cargar los territorios');
     }
   }
@@ -906,7 +910,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   Future<void> _refrescarTerritorios() async {
-    if (_refreshing) return;
+    if (_refreshing || !mounted) return;
     setState(() => _refreshing = true);
     TerritoryService.invalidarCache();
     GameStateService.instance.invalidateTerritories();
@@ -1451,7 +1455,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (!mounted) return;
       Navigator.of(context).pop();
       _mostrarError(e.message ?? 'No puedes conquistar este territorio');
-    } catch (_) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'ejecutarConquista');
       if (!mounted) return;
       Navigator.of(context).pop();
       _mostrarError('Error inesperado. Inténtalo de nuevo.');
@@ -2679,7 +2684,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         if (d < minDist) { minDist = d; closest = r; }
       }
     }
-    if (closest != null && minDist < 200) {
+    if (closest != null && minDist < 200 && mounted) {
       setState(() => _rutaSeleccionada = closest);
       _dibujarRutas();
     }
@@ -2864,6 +2869,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final map = _mapboxSolMap;
       if (map == null || !mounted) return;
       final cam = await map.getCameraState();
+      if (!mounted) return;
       final newCenter = LatLng(
         cam.center.coordinates.lat.toDouble(),
         cam.center.coordinates.lng.toDouble(),

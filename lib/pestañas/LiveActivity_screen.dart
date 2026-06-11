@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show Factory, kIsWeb;
 import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
@@ -861,8 +862,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           }
         }
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('Error datos iniciales: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'initData');
     }
 
     // Precargar territorios globales desde cache para que el botón Global sea instantáneo.
@@ -1230,8 +1232,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             'barrioNombre': barrio.nombre,
             'bonusMonedas': bonusMonedas,
           });
-        } catch (e) {
+        } catch (e, st) {
           debugPrint('Error dando bonus barrio: $e');
+          FirebaseCrashlytics.instance.recordError(e, st, reason: 'bonusBarrio');
         }
 
         if (mounted) _mostrarNotificacionBarrioCompletado(barrio, bonusMonedas);
@@ -1381,7 +1384,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
 
   void _onCameraChanged(mapbox.CameraChangedEventData _) {
-    if (_movingProgrammatically || !isTracking || isPaused) return;
+    if (!mounted || _movingProgrammatically || !isTracking || isPaused) return;
     if (!_userRotatedMap) setState(() => _userRotatedMap = true);
     _relockTimer?.cancel();
     _relockTimer = Timer(const Duration(milliseconds: _kRelockMs), () {
@@ -1833,6 +1836,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
     // Umbral ~500m (~0.0045° al cuadrado ≈ 0.00002)
     if (nearest == null || minDist > 0.00002) return;
+    if (!mounted) return;
     HapticFeedback.selectionClick();
     _infoTimer?.cancel();
     setState(() => _territorioInfo = nearest);
@@ -2217,7 +2221,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // PREVIEW DE TERRITORIO EN TIEMPO REAL
   // ==========================================================================
   Future<void> _actualizarPreviewTerritorio() async {
-    if (!isTracking || isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
+    if (!mounted || !isTracking || isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
     if (routePoints.length < 3) return;
 
     final area   = TerritoryService.calcularAreaM2(routePoints);
@@ -2413,12 +2417,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     // Actualizar porcentaje visible en HUD
     final nuevoPct = pctIdx.clamp(0.0, 1.0);
     if ((nuevoPct - _porcentajeRuta).abs() >= 0.005) {
-      setState(() => _porcentajeRuta = nuevoPct);
+      if (mounted) setState(() => _porcentajeRuta = nuevoPct);
     }
 
     // Detección de ruta completada (último 5% del trazado)
     if (!_rutaCompletada && pctIdx >= 0.95) {
-      setState(() => _rutaCompletada = true);
+      if (mounted) setState(() => _rutaCompletada = true);
       _narrador.eventoRutaCompletada(ruta.nombre ?? 'Ruta');
     }
   }
@@ -2784,8 +2788,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await FirebaseFirestore.instance.collection('notifications').add(
             {...n, 'read': false, 'timestamp': FieldValue.serverTimestamp()});
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('Error finalizando desafío: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'finalizarDesafio');
     }
   }
 
@@ -2825,6 +2830,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   if (uid == null) return;
   final territorioId = _objetivoGlobal?['territorioId'] as String?;
   if (territorioId == null) return;
+  if (!mounted) return;
 
   setState(() => _globalConquistando = true);
 
