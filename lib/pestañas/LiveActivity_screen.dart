@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -46,6 +46,7 @@ import '../models/avatar_config.dart';
 import '../widgets/avatar_painter.dart';
 import '../controllers/game_mode_controller.dart';
 import '../theme/app_colors.dart';
+import '../services/run_session_notifier.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 // =============================================================================
@@ -191,11 +192,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   List<TerritoryData> _territoriosRivalesCercanos = [];
   TerritoryData? _territorioActualBajoPie;
   List<LatLng> routePoints           = [];
-  bool isTracking                    = false;
-  bool isPaused                      = false;
+  late final RunSessionNotifier _session = RunSessionNotifier();
   Timer? _timerSesion;
-  double _distanciaTotal             = 0.0;
-  double _velocidadActualKmh         = 0.0;
   double _bearing                    = 0.0;
   // Bearing re-lock: user rotated the map manually; GPS heading resumes after _kRelockMs
   bool  _userRotatedMap        = false;
@@ -208,15 +206,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Position? _ultimaPosicionVelocidad;
   ScaffoldFeatureController? _gpsSnackBar;
 
-  // ── Splits por km (ritmo real en min/km por cada km completado)
-  final List<double> _splitsPorKm  = [];
-  int    _kmUltimoSplit             = 0;
-  double _tiempoUltimoSplitSeg      = 0;
-
-  // ── Métricas adicionales por sesión
-  double _velocidadMaximaKmh  = 0.0;
-  double _elevacionGanada     = 0.0;
-  double _elevacionPerdida    = 0.0;
   double? _altitudAnterior;
 
   // ── Barrios OSM (modo solitario)
@@ -247,10 +236,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const _kGhostSourceId = 'ghost-route-source';
   static const _kGhostLayerId  = 'ghost-route-layer';
   int    _checkpointActual     = 0;
-  bool   _fueraDeRuta          = false;
   bool   _narratorRutaIniciado = false;
-  bool   _rutaCompletada       = false;
-  double _porcentajeRuta       = 0.0;
   Timer? _timerCheckRuta;
 
   // ── Jugador
@@ -359,7 +345,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── Narrador
   final NarradorService _narrador = NarradorService();
-  MensajeNarrador? _mensajeNarrador;
   double _distanciaUltimoAnalisisRitmo  = 0;
   int    _minutosResistenciaNotificados = 0;
   Timer? _timerResistencia;
@@ -458,7 +443,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     });
 
     _narrador.onMensaje = (msg) {
-      if (mounted) setState(() => _mensajeNarrador = msg);
+      _session.setNarratorMessage(msg);
     };
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -560,12 +545,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final distanciaKm = (session['distanciaKm'] as num?)?.toDouble() ?? 0;
       setState(() {
         routePoints.addAll(pts);
-        _distanciaTotal = distanciaKm;
-        isTracking      = true;
-        isPaused        = true;
         _modoSolitario  = mode == 'solitario';
         _modoRuta       = mode == 'ruta';
       });
+      _session.resumeSession(distanciaKm);
       GameStateService.instance.currentMode = mode;
     } else {
       await GameStateService.instance.clearSession();
@@ -575,14 +558,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _iniciarTimerSesion() {
     _timerSesion?.cancel();
     _timerSesion = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!isTracking || isPaused || _sesionInvalidadaPorCheat) return;
+      if (!_session.isTracking || _session.isPaused || _sesionInvalidadaPorCheat) return;
       final pts = routePoints
           .map((p) => {'lat': p.latitude, 'lng': p.longitude})
           .toList();
       GameStateService.instance.saveSession(
         mode:           GameStateService.instance.currentMode,
         points:         pts,
-        distanciaKm:    _distanciaTotal,
+        distanciaKm:    _session.distanciaTotal,
         elapsedSeconds: _stopwatch.elapsed.inSeconds,
       );
     });
@@ -614,6 +597,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _progMoveTimer?.cancel();
     _fcmSub?.cancel();
     _narrador.resetear();
+    _session.dispose();
     _cuentaAtrasAnim.dispose();
     _hudAnim.dispose();
     _bounceAnim.dispose();
@@ -628,7 +612,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // HELPERS
   // ==========================================================================
   void _rotarGlobo() {
-    if (isTracking) return;
+    if (_session.isTracking) return;
     if (kIsWeb) return;
     if (_mapboxMap == null) return;
     final bearing = _globoAnim.value * 360.0;
@@ -667,13 +651,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     return _modoNoche ? mapbox.MapboxStyles.DARK : _kEstiloPersonalizado;
   }
 
-  String get _ritmoStr {
-    if (_velocidadActualKmh < 0.5 || !isTracking || isPaused) return '--:--';
-    final mpk = 60.0 / _velocidadActualKmh;
-    final min = mpk.floor();
-    final seg = ((mpk - min) * 60).round();
-    return "$min'${seg.toString().padLeft(2, '0')}\"";
-  }
+  String get _ritmoStr => _session.ritmoStr;
 
   double _calcularBearing(LatLng a, LatLng b) {
     final lat1 = a.latitude  * math.pi / 180;
@@ -740,7 +718,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
 
     _puckAnimTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
-      if (!mounted || !isTracking || isPaused) return;
+      if (!mounted || !_session.isTracking || _session.isPaused) return;
       _puckFrameIdx = (_puckFrameIdx + 1) % _puckFrames.length;
       _applyPuckFrame(_puckFrames[_puckFrameIdx]);
     });
@@ -1365,7 +1343,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
 
   void _onCameraChanged(mapbox.CameraChangedEventData _) {
-    if (!mounted || _movingProgrammatically || !isTracking || isPaused) return;
+    if (!mounted || _movingProgrammatically || !_session.isTracking || _session.isPaused) return;
     if (!_userRotatedMap) setState(() => _userRotatedMap = true);
     _relockTimer?.cancel();
     _relockTimer = Timer(const Duration(milliseconds: _kRelockMs), () {
@@ -1776,7 +1754,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (cam.zoom > 8) {
       // Modo running: mostrar info del territorio más cercano al tap
-      if (!isTracking || _territorios.isEmpty) return;
+      if (!_session.isTracking || _territorios.isEmpty) return;
       _mostrarInfoTerritorioCercano(tapLat, tapLng);
       return;
     }
@@ -2202,7 +2180,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // PREVIEW DE TERRITORIO EN TIEMPO REAL
   // ==========================================================================
   Future<void> _actualizarPreviewTerritorio() async {
-    if (!mounted || !isTracking || isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
+    if (!mounted || !_session.isTracking || _session.isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
     if (routePoints.length < 3) return;
 
     final area   = TerritoryService.calcularAreaM2(routePoints);
@@ -2351,7 +2329,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (ruta == null || ruta.coords.isEmpty) return;
 
     // Narración de inicio (una sola vez al arrancar)
-    if (!_narratorRutaIniciado && isTracking) {
+    if (!_narratorRutaIniciado && _session.isTracking) {
       _narratorRutaIniciado = true;
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
@@ -2378,11 +2356,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     // Desvío > 150 m
     final nuevaFuera = minDist > 150;
-    if (nuevaFuera && !_fueraDeRuta) {
-      _fueraDeRuta = true;
+    if (nuevaFuera && !_session.fueraDeRuta) {
+      _session.updateRuta(fuera: true);
       _narrador.eventoDesvio();
-    } else if (!nuevaFuera && _fueraDeRuta) {
-      _fueraDeRuta = false;
+    } else if (!nuevaFuera && _session.fueraDeRuta) {
+      _session.updateRuta(fuera: false);
       _narrador.eventoVueltaRuta();
     }
 
@@ -2397,13 +2375,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     // Actualizar porcentaje visible en HUD
     final nuevoPct = pctIdx.clamp(0.0, 1.0);
-    if ((nuevoPct - _porcentajeRuta).abs() >= 0.005) {
-      if (mounted) setState(() => _porcentajeRuta = nuevoPct);
+    if ((nuevoPct - _session.porcentajeRuta).abs() >= 0.005) {
+      _session.updateRuta(porcentaje: nuevoPct);
     }
 
     // Detección de ruta completada (último 5% del trazado)
-    if (!_rutaCompletada && pctIdx >= 0.95) {
-      if (mounted) setState(() => _rutaCompletada = true);
+    if (!_session.rutaCompletada && pctIdx >= 0.95) {
+      _session.updateRuta(completada: true);
       _narrador.eventoRutaCompletada(ruta.nombre ?? 'Ruta');
     }
   }
@@ -2664,7 +2642,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Future<void> _publicarPosicion() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || _currentPosition == null || !isTracking) return;
+    if (user == null || _currentPosition == null || !_session.isTracking) return;
     await PresenceService.publicar(
       uid:        user.uid,
       lat:        _currentPosition!.latitude,
@@ -2776,13 +2754,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (_objetivoGlobal == null) return 0;
     final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
     if (kmReq <= 0) return 0;
-    return (_distanciaTotal / kmReq).clamp(0.0, 1.0);
+    return (_session.distanciaTotal / kmReq).clamp(0.0, 1.0);
   }
 
   double get _kmRestantesGlobal {
     if (_objetivoGlobal == null) return 0;
     final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
-    return (kmReq - _distanciaTotal).clamp(0.0, kmReq);
+    return (kmReq - _session.distanciaTotal).clamp(0.0, kmReq);
   }
 
   Future<void> _conquistarTerritorioGlobal(
@@ -2913,7 +2891,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     return Geolocator.getPositionStream(
         locationSettings: _kGpsMovimiento).listen(
       (Position pos) async {
-        if (isPaused || !mounted) return;
+        if (_session.isPaused || !mounted) return;
 
         _gpsSnackBar?.close();
         _gpsSnackBar = null;
@@ -2934,9 +2912,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             );
             if (mounted) {
               WakelockPlus.disable();
+              _session.stopSession();
               setState(() {
-                isTracking     = false;
-                isPaused       = false;
                 _hudMinimizado = false;
                 routePoints.clear();
               });
@@ -2947,37 +2924,49 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
 
         final newPt = LatLng(pos.latitude, pos.longitude);
-        setState(() {
-          if (routePoints.isNotEmpty) {
-            final dist = Geolocator.distanceBetween(
-              routePoints.last.latitude, routePoints.last.longitude,
-              newPt.latitude, newPt.longitude,
-            );
-            _distanciaTotal += dist / 1000;
-            _bearing = _calcularBearing(routePoints.last, newPt);
-            if (_ultimaPosicionVelocidad != null) {
-              final dt = pos.timestamp
-                      .difference(_ultimaPosicionVelocidad!.timestamp)
-                      .inMilliseconds / 3600000.0;
-              if (dt > 0) {
-                final vel = (dist / 1000) / dt;
-                _velocidadActualKmh =
-                    (_velocidadActualKmh * 0.6 + vel * 0.4).clamp(0, 40);
-                if (_velocidadActualKmh > _velocidadMaximaKmh) {
-                  _velocidadMaximaKmh = _velocidadActualKmh;
-                }
-              }
+        double newDist    = _session.distanciaTotal;
+        double newVel     = _session.velocidadKmh;
+        double newVMax    = _session.velocidadMaxKmh;
+        double newEG      = _session.elevacionGanada;
+        double newEP      = _session.elevacionPerdida;
+        double newBearing = _bearing;
+
+        if (routePoints.isNotEmpty) {
+          final dist = Geolocator.distanceBetween(
+            routePoints.last.latitude, routePoints.last.longitude,
+            newPt.latitude, newPt.longitude,
+          );
+          newDist += dist / 1000;
+          newBearing = _calcularBearing(routePoints.last, newPt);
+          if (_ultimaPosicionVelocidad != null) {
+            final dt = pos.timestamp
+                    .difference(_ultimaPosicionVelocidad!.timestamp)
+                    .inMilliseconds / 3600000.0;
+            if (dt > 0) {
+              final vel = (dist / 1000) / dt;
+              newVel = (newVel * 0.6 + vel * 0.4).clamp(0, 40);
+              if (newVel > newVMax) newVMax = newVel;
             }
-            // Elevación acumulada
-            final alt = pos.altitude;
-            if (_altitudAnterior != null) {
-              final delta = alt - _altitudAnterior!;
-              if (delta > 0.5) {
-                _elevacionGanada += delta;
-              } else if (delta < -0.5) _elevacionPerdida += delta.abs();
-            }
-            _altitudAnterior = alt;
           }
+          final alt = pos.altitude;
+          if (_altitudAnterior != null) {
+            final delta = alt - _altitudAnterior!;
+            if (delta > 0.5) {
+              newEG += delta;
+            } else if (delta < -0.5) { newEP += delta.abs(); }
+          }
+          _altitudAnterior = alt;
+        }
+        _session.updateGpsMetrics(
+          distanciaTotal:  newDist,
+          velocidadKmh:    newVel,
+          velocidadMaxKmh: newVMax,
+          elevacionGanada: newEG,
+          elevacionPerdida: newEP,
+        );
+        _bearing = newBearing;
+
+        setState(() {
           routePoints.add(newPt);
           _currentPosition         = pos;
           _ultimaPosicionVelocidad = pos;
@@ -2997,7 +2986,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (_retoActivo != null && !_retoCompletado) {
           final objetivoMetros =
               (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
-          final distanciaMetros = _distanciaTotal * 1000;
+          final distanciaMetros = _session.distanciaTotal * 1000;
           if (objetivoMetros > 0) {
             _narrador.eventoMitadReto(distanciaMetros);
             _narrador.eventoFinalReto(distanciaMetros);
@@ -3012,7 +3001,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
         if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
           final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
-          if (kmReq > 0 && _distanciaTotal >= kmReq) {
+          if (kmReq > 0 && _session.distanciaTotal >= kmReq) {
             setState(() => _globalKmAlcanzados = true);
             final nombreTer =
                 _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
@@ -3031,20 +3020,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _actualizarProgresoRutaGuiada(newPt);
         }
 
-        final kmActual = _distanciaTotal.floor();
+        final kmActual = _session.distanciaTotal.floor();
         if (kmActual > 0) _narrador.eventoKilometro(kmActual);
 
-        if (kmActual > _kmUltimoSplit) {
+        if (kmActual > _session.kmUltimoSplit) {
           final t = _stopwatch.elapsed.inSeconds.toDouble();
-          final dt = t - _tiempoUltimoSplitSeg;
-          if (dt > 0) _splitsPorKm.add(dt / 60.0);
-          _tiempoUltimoSplitSeg = t;
-          _kmUltimoSplit = kmActual;
+          final dt = t - _session.tiempoUltimoSplitSeg;
+          if (dt > 0) _session.addSplit(dt / 60.0);
+          _session.tiempoUltimoSplitSeg = t;
+          _session.kmUltimoSplit = kmActual;
         }
 
-        if (_distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
-          _distanciaUltimoAnalisisRitmo = _distanciaTotal;
-          _narrador.analizarRitmo(_velocidadActualKmh);
+        if (_session.distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
+          _distanciaUltimoAnalisisRitmo = _session.distanciaTotal;
+          _narrador.analizarRitmo(_session.velocidadKmh);
         }
 
         if (!_modoSolitario) {
@@ -3258,15 +3247,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
       return;
     }
+    _session.startSession();
     setState(() {
       _globalKmAlcanzados = false;
       _globalConquistado       = false;
       _globalConquistando      = false;
       _nuevaClausula           = null;
-      isTracking               = true;
-      isPaused                 = false;
-      _distanciaTotal          = 0;
-      _velocidadActualKmh      = 0;
       _bearing                 = 0;
       _userRotatedMap          = false;
       routePoints.clear();
@@ -3282,12 +3268,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _antiCheat.resetear();
     _sesionInvalidadaPorCheat = false;
     _stopping = false;
-    _splitsPorKm.clear();
-    _kmUltimoSplit        = 0;
-    _tiempoUltimoSplitSeg = 0;
-    _velocidadMaximaKmh   = 0.0;
-    _elevacionGanada      = 0.0;
-    _elevacionPerdida     = 0.0;
     _altitudAnterior      = null;
     // El usuario está corriendo — cancelar aviso de racha
     LocalNotifService.cancelarRecordatorioRacha();
@@ -3348,7 +3328,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     _timerResistencia?.cancel();
     _timerResistencia = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (!isTracking || isPaused || !mounted) return;
+      if (!_session.isTracking || _session.isPaused || !mounted) return;
       final mins = _stopwatch.elapsed.inMinutes;
       if (mins >= 20 && mins % 10 == 0 && mins != _minutosResistenciaNotificados) {
         _minutosResistenciaNotificados = mins;
@@ -3380,7 +3360,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .doc(tId)
             .snapshots()
             .listen((snap) {
-          if (!mounted || !isTracking) return;
+          if (!mounted || !_session.isTracking) return;
           if (!snap.exists) return;
           final data    = snap.data()!;
           final newOwner = data['ownerUid'] as String?;
@@ -3431,14 +3411,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   void togglePause() {
-    setState(() {
-      isPaused       = !isPaused;
-      _hudMinimizado = !isPaused;
-    });
-    if (isPaused) {
+    final nowPaused = !_session.isPaused;
+    _session.setPaused(nowPaused);
+    setState(() { _hudMinimizado = !nowPaused; });
+    if (nowPaused) {
       _timerController.pause();
       _stopwatch.stop();
-      _velocidadActualKmh = 0;
       _bounceAnim.stop();
       _positionStream?.cancel();
       _positionStream = null;
@@ -3490,18 +3468,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     final tiempoFinal    = _stopwatch.elapsed;
     final rutaFinal      = List<LatLng>.from(routePoints);
-    final distanciaFinal = _distanciaTotal;
+    final distanciaFinal = _session.distanciaTotal;
 
     if (distanciaFinal < 0.2) {
       _stopping = false;
       WakelockPlus.disable();
       if (!mounted) return;
-      setState(() {
-        isTracking          = false;
-        isPaused            = false;
-        _velocidadActualKmh = 0;
-        _hudMinimizado      = false;
-      });
+      _session.stopSession();
+      setState(() { _hudMinimizado = false; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         duration: const Duration(seconds: 3),
         backgroundColor: Colors.transparent,
@@ -3531,12 +3505,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
 
     if (mounted) {
-      setState(() {
-        isTracking          = false;
-        isPaused            = false;
-        _velocidadActualKmh = 0;
-        _hudMinimizado      = false;
-      });
+      _session.stopSession();
+      setState(() { _hudMinimizado = false; });
     }
     await _mapboxMap?.gestures.updateSettings(
         mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
@@ -3593,10 +3563,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           'ruta': rutaFinal.isNotEmpty
               ? rutaFinal.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList()
               : [],
-          'velocidad_maxima':  _velocidadMaximaKmh,
-          'elevacion_ganada':  _elevacionGanada,
-          'elevacion_perdida': _elevacionPerdida,
-          'splits_por_km':     _splitsPorKm,
+          'velocidad_maxima':  _session.velocidadMaxKmh,
+          'elevacion_ganada':  _session.elevacionGanada,
+          'elevacion_perdida': _session.elevacionPerdida,
+          'splits_por_km':     _session.splits,
           if (_objetivoGlobal != null) ...{
             'objetivo_global_id':           _objetivoGlobal!['territorioId'],
             'objetivo_global_conquistado':  _globalConquistado,
@@ -3607,8 +3577,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           uid:             user.uid,
           distanciaKm:     distanciaFinal,
           ritmoMinKm:      StatsService.ritmoMinKm(distanciaFinal, tiempoFinal.inSeconds),
-          velocidadMaxKmh: _velocidadMaximaKmh,
-          elevacionGanada: _elevacionGanada,
+          velocidadMaxKmh: _session.velocidadMaxKmh,
+          elevacionGanada: _session.elevacionGanada,
         ).catchError((e) => debugPrint('actualizarPRs: $e'));
 
         // Notificaciones locales: racha en riesgo + resumen semanal
@@ -3720,8 +3690,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         });
       }
     } else if (_objetivoGlobal == null && distanciaFinal >= 0.3) {
-      final double velMedia = _velocidadActualKmh > 0
-          ? _velocidadActualKmh
+      final double velMedia = _session.velocidadKmh > 0
+          ? _session.velocidadKmh
           : (distanciaFinal > 0 && tiempoFinal.inSeconds > 0
               ? distanciaFinal / (tiempoFinal.inSeconds / 3600)
               : 5.0);
@@ -3814,10 +3784,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'objetivoGlobal':          _objetivoGlobal,
       'globalConquistado':       _globalConquistado,
       'nuevaClausula':           _nuevaClausula,
-      'splitsPorKm':             List<double>.from(_splitsPorKm),
-      'velocidadMaxima':         _velocidadMaximaKmh,
-      'elevacionGanada':         _elevacionGanada,
-      'elevacionPerdida':        _elevacionPerdida,
+      'splitsPorKm':             List<double>.from(_session.splits),
+      'velocidadMaxima':         _session.velocidadMaxKmh,
+      'elevacionGanada':         _session.elevacionGanada,
+      'elevacionPerdida':        _session.elevacionPerdida,
       'modoInicial':             _modoSolitario ? 'solitario'
                                      : _objetivoGlobal != null ? 'global'
                                      : 'competitivo',
@@ -3859,7 +3829,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (t.esMio) {
       if (!_territoriosVisitadosEnSesion.contains(t.docId) &&
-          _distanciaTotal * 1000 >= 200) {
+          _session.distanciaTotal * 1000 >= 200) {
         _territoriosVisitadosEnSesion.add(t.docId);
         TerritoryService.actualizarUltimaVisita(t.docId);
         _narrador.eventoTerritorioPropio();
@@ -3888,8 +3858,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || ruta.isEmpty || _territorios.isEmpty) return 0;
 
-    final double velocidadMedia = _velocidadActualKmh > 0
-        ? _velocidadActualKmh
+    final double velocidadMedia = _session.velocidadKmh > 0
+        ? _session.velocidadKmh
         : (distancia > 0 && tiempo.inSeconds > 0
             ? distancia / (tiempo.inSeconds / 3600)
             : 5.0);
@@ -4172,7 +4142,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   Widget _buildRadarTerritoriosProximos() {
-    if (_modoSolitario || !isTracking || isPaused) return const SizedBox.shrink();
+    if (_modoSolitario || !_session.isTracking || _session.isPaused) return const SizedBox.shrink();
     if (_territoriosRivalesCercanos.isEmpty && _territorioActualBajoPie == null) {
       return const SizedBox.shrink();
     }
@@ -4272,7 +4242,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   Widget _buildChipBarrioActual() {
-    if (!_modoSolitario || !isTracking || _barrioActual == null) {
+    if (!_modoSolitario || !_session.isTracking || _barrioActual == null) {
       return const SizedBox.shrink();
     }
     final barrio = _barrioActual!;
@@ -4696,10 +4666,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         'modoInicial':          'ruta',
         'routeId':              routeId,
         'monedasRuta':          recompensa.monedas,
-        'splitsPorKm':          List<double>.from(_splitsPorKm),
-        'velocidadMaxima':      _velocidadMaximaKmh,
-        'elevacionGanada':      _elevacionGanada,
-        'elevacionPerdida':     _elevacionPerdida,
+        'splitsPorKm':          List<double>.from(_session.splits),
+        'velocidadMaxima':      _session.velocidadMaxKmh,
+        'elevacionGanada':      _session.elevacionGanada,
+        'elevacionPerdida':     _session.elevacionPerdida,
       });
     }
   }
@@ -4750,7 +4720,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   @override
   Widget build(BuildContext context) {
-    final bool mostrarGlobo = !isTracking && !_mostrandoCuentaAtras;
+    final bool mostrarGlobo = !_session.isTracking && !_mostrandoCuentaAtras;
     return Scaffold(
       // Fondo azul universo — especialmente visible en modo oscuro
       backgroundColor: _modoNoche ? _kUniverseBg : Colors.black,
@@ -4815,7 +4785,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
 
         // ── 5. HUD y controles ──────────────────────────────────────────────
-        Positioned(top: 0, left: 0, right: 0, child: _buildHUD()),
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: ListenableBuilder(
+            listenable: _session,
+            builder: (_, __) => _buildHUD(),
+          ),
+        ),
         Positioned(top: 200, left: 14, child: _buildChips()),
         Positioned(
           top: 200, right: 14,
@@ -4829,11 +4805,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ),
         // Avatar se muestra en el puck de Mapbox (posición GPS real)
-        if (isTracking)
+        if (_session.isTracking)
           AnimatedAlign(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            alignment: isPaused
+            alignment: _session.isPaused
                 ? const Alignment(0, -0.1)
                 : (_hudMinimizado
                     ? const Alignment(0, -0.78)
@@ -4842,7 +4818,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         if (_mapaDesactualizado)
           Positioned(
-            bottom: isTracking ? 180 : 100, left: 0, right: 0,
+            bottom: _session.isTracking ? 180 : 100, left: 0, right: 0,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -4861,19 +4837,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
           ),
         if (_mostrandoCuentaAtras) _buildCuentaAtras(),
-        if (isTracking && !isPaused && _mensajeNarrador != null)
+        if (_session.isTracking && !_session.isPaused && _session.mensajeNarrador != null)
           Positioned(bottom: 175, left: 0, right: 0,
-              child: NarradorOverlay(mensaje: _mensajeNarrador)),
-        if (isTracking && _modoSolitario && _barrioActual != null)
+              child: NarradorOverlay(mensaje: _session.mensajeNarrador)),
+        if (_session.isTracking && _modoSolitario && _barrioActual != null)
           Positioned(top: 160, left: 0, right: 0,
               child: Center(child: _buildChipBarrioActual())),
-        if (isTracking && _retoActivo != null && !_retoCompletado)
+        if (_session.isTracking && _retoActivo != null && !_retoCompletado)
           Positioned(
             top: (_modoSolitario && _barrioActual != null) ? 210 : 160,
             left: 0, right: 0,
             child: Center(child: _buildChipRetoActivo()),
           ),
-        if (_objetivoGlobal != null && !_globalConquistado && isTracking)
+        if (_objetivoGlobal != null && !_globalConquistado && _session.isTracking)
           Positioned(
             top: (_retoActivo != null || (_modoSolitario && _barrioActual != null)) ? 248 : 248,
             left: 14,
@@ -5012,7 +4988,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   Widget _buildChipRetoActivo() {
     final objetivoMetros  = (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
-    final distanciaMetros = _distanciaTotal * 1000;
+    final distanciaMetros = _session.distanciaTotal * 1000;
     final progreso = objetivoMetros > 0
         ? (distanciaMetros / objetivoMetros).clamp(0.0, 1.0)
         : 0.0;
@@ -5130,7 +5106,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: _objetivoGlobal != null
                   ? [
-                      _globoStat(_distanciaTotal.toStringAsFixed(2), 'KM HECHOS', _kGold),
+                      _globoStat(_session.distanciaTotal.toStringAsFixed(2), 'KM HECHOS', _kGold),
                       _globoStat(
                         (_objetivoGlobal!['kmRequeridos'] as num?)?.toStringAsFixed(1) ?? '?',
                         'KM META', _kWaterLight,
@@ -5352,7 +5328,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _currentPosition?.latitude  ?? 40.4167,
           _currentPosition?.longitude ?? -3.70325,
         ),
-        initialZoom: isTracking ? _kZoomCorrer : 3.0,
+        initialZoom: _session.isTracking ? _kZoomCorrer : 3.0,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
@@ -5371,11 +5347,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             );
           }).toList(),
         ),
-        if (isTracking && routePoints.isNotEmpty) PolylineLayer(
+        if (_session.isTracking && routePoints.isNotEmpty) PolylineLayer(
           polylines: [Polyline(points: routePoints,
               color: _colorTerritorio, strokeWidth: 4.5)],
         ),
-        if (isTracking && _currentPosition != null) MarkerLayer(
+        if (_session.isTracking && _currentPosition != null) MarkerLayer(
           markers: [
             Marker(
               point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
@@ -5395,8 +5371,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   Widget _buildHUD() {
-    if (!isTracking) return const SizedBox.shrink();
-    if (_hudMinimizado && !isPaused) return _buildHUDMiniClasico();
+    if (!_session.isTracking) return const SizedBox.shrink();
+    if (_hudMinimizado && !_session.isPaused) return _buildHUDMiniClasico();
     return _buildHUDClasico();
   }
 
@@ -5426,7 +5402,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _hudStat('KM', _distanciaTotal.toStringAsFixed(2), _kGold),
+            _hudStat('KM', _session.distanciaTotal.toStringAsFixed(2), _kGold),
             _hudDivider(),
             _hudStat('MIN/KM', _ritmoStr, _kWaterLight),
             _hudDivider(),
@@ -5437,8 +5413,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                   _globalConquistado ? _kVerde : _p.globalRed),
             ] else if (_rutaGuiada != null) ...[
               _hudDivider(),
-              _hudStat('RUTA', '${(_porcentajeRuta * 100).toInt()}%',
-                  _rutaCompletada ? _kVerde : _kWaterLight),
+              _hudStat('RUTA', '${(_session.porcentajeRuta * 100).toInt()}%',
+                  _session.rutaCompletada ? _kVerde : _kWaterLight),
             ] else if (_modoSolitario) ...[
               _hudDivider(),
               _hudStat(
@@ -5477,7 +5453,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                Text(_distanciaTotal.toStringAsFixed(2),
+                Text(_session.distanciaTotal.toStringAsFixed(2),
                     style: const TextStyle(color: Colors.white,
                         fontWeight: FontWeight.w300, fontSize: 15,
                         letterSpacing: 0.5,
@@ -5497,8 +5473,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                           fontWeight: FontWeight.w300, fontSize: 15)),
                 ] else if (_rutaGuiada != null) ...[
                   Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  Text('${(_porcentajeRuta * 100).toInt()}%',
-                      style: TextStyle(color: _rutaCompletada ? _kVerde : Colors.white,
+                  Text('${(_session.porcentajeRuta * 100).toInt()}%',
+                      style: TextStyle(color: _session.rutaCompletada ? _kVerde : Colors.white,
                           fontWeight: FontWeight.w300, fontSize: 15)),
                 ] else if (_modoSolitario) ...[
                   Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
@@ -5541,10 +5517,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _buildStatTimer() => CustomTimer(
         controller: _timerController,
         builder: (state, remaining) {
-          final str = isTracking
+          final str = _session.isTracking
               ? '${remaining.hours}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}'
               : '--:--:--';
-          return _hudStat('TIEMPO', str, isPaused ? _p.goldDim : _kWaterLight);
+          return _hudStat('TIEMPO', str, _session.isPaused ? _p.goldDim : _kWaterLight);
         },
       );
 
@@ -5573,18 +5549,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       );
 
   Widget _buildChips() {
-    if (!isTracking) return const SizedBox.shrink();
+    if (!_session.isTracking) return const SizedBox.shrink();
     if (_modoRuta) {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (_rutaGuiada != null) ...[
-          _chip('${(_porcentajeRuta * 100).toInt()}% completado', _kVerde, Icons.route_rounded),
+          _chip('${(_session.porcentajeRuta * 100).toInt()}% completado', _kVerde, Icons.route_rounded),
           const SizedBox(height: 8),
           _chip('${_rutaGuiada!.distanciaKm.toStringAsFixed(1)} km total', _kWaterLight, Icons.straighten),
         ] else ...[
           _chip('Ruta libre', _kWaterLight, Icons.route_rounded),
-          if (_distanciaTotal > 0) ...[
+          if (_session.distanciaTotal > 0) ...[
             const SizedBox(height: 8),
-            _chip('${_distanciaTotal.toStringAsFixed(2)} km', _kVerde, Icons.straighten),
+            _chip('${_session.distanciaTotal.toStringAsFixed(2)} km', _kVerde, Icons.straighten),
           ],
         ],
       ]);
@@ -5637,14 +5613,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Widget _buildBotonesMapa() => Column(children: [
         _botonMapa(_modoNoche ? Icons.dark_mode_rounded : Icons.wb_sunny_rounded,
             _modoNoche ? _kGoldLight : _kGold, _toggleModoNoche),
-        if (isTracking) ...[
+        if (_session.isTracking) ...[
           const SizedBox(height: 10),
           _botonMapa(Icons.my_location_rounded, _p.terracotta, () {
             if (_currentPosition != null) {
               _moverCamara(lat: _currentPosition!.latitude,
                   lng: _currentPosition!.longitude,
-                  zoom:    isPaused ? _kZoomPausado  : _kZoomCorrer,
-                  pitch:   isPaused ? _kPitchPausado : _kPitchCorrer,
+                  zoom:    _session.isPaused ? _kZoomPausado  : _kZoomCorrer,
+                  pitch:   _session.isPaused ? _kPitchPausado : _kPitchCorrer,
                   bearing: _bearing, forzar: true);
             }
           }),
@@ -5729,15 +5705,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: EdgeInsets.fromLTRB(20, 18, 20, isTracking ? 38 : 12),
+            padding: EdgeInsets.fromLTRB(20, 18, 20, _session.isTracking ? 38 : 12),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter, end: Alignment.topCenter,
                 colors: [
-                  isTracking
+                  _session.isTracking
                       ? Colors.black.withValues(alpha: 0.72)
                       : _kUniverseBg.withValues(alpha: 0.97),
-                  isTracking
+                  _session.isTracking
                       ? Colors.black.withValues(alpha: 0.35)
                       : _kUniverseBg.withValues(alpha: 0.80),
                   Colors.transparent,
@@ -5747,11 +5723,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
             child: SafeArea(
               top: false,
-              bottom: isTracking,
-              child: !isTracking ? _buildSelectorModo() : _buildBotonesControl(),
+              bottom: _session.isTracking,
+              child: !_session.isTracking ? _buildSelectorModo() : _buildBotonesControl(),
             ),
           ),
-          if (!isTracking) const CustomBottomNavbar(currentIndex: 1),
+          if (!_session.isTracking) const CustomBottomNavbar(currentIndex: 1),
         ],
       );
 
@@ -6485,7 +6461,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ),
             child: Center(
                 child: Icon(
-                  isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  _session.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                   color: _p.ink, size: 28)),
           ),
         ),
