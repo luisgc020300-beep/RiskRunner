@@ -71,7 +71,10 @@ class ActivityEntry {
 
 // ── Servicio ──────────────────────────────────────────────────────────────────
 class ActivityService {
-  static final _db = FirebaseFirestore.instance;
+  static FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  @visibleForTesting
+  static void setDb(FirebaseFirestore db) => _db = db;
 
   static const _kFeedDataKey = 'act_feed_data';
   static const _kFeedTsKey   = 'act_feed_ts';

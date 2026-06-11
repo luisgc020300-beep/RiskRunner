@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 class PresenceService {
-  static final _db = FirebaseFirestore.instance;
+  static FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  @visibleForTesting
+  static void setDb(FirebaseFirestore db) => _db = db;
 
   // Stream de jugadores activos en los últimos 5 minutos
   static Stream<QuerySnapshot<Map<String, dynamic>>> stream(Timestamp cutoff) =>
