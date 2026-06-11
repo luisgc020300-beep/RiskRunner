@@ -5048,6 +5048,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                       color: Colors.white.withValues(alpha: 0.88))),
             ]),
           ),
+          if (miasCount > 0) ...[
+            const SizedBox(height: 6),
+            _buildMisTerritoriasGlobo(),
+          ],
         ],
       ],
       if (_retoActivo != null) ...[
@@ -5082,6 +5086,89 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             fontWeight: FontWeight.w700, letterSpacing: 1.8,
             color: _kGold.withValues(alpha: 0.4))),
       ]);
+
+  Widget _buildMisTerritoriasGlobo() {
+    final mias = _territorios.where((t) => t.esMio).toList()
+      ..sort((a, b) => a.hpActual.compareTo(b.hpActual));
+    final shown = mias.take(5).toList();
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MIS ZONAS',
+                style: GoogleFonts.inter(
+                    color: _kGold.withValues(alpha: 0.6),
+                    fontSize: 7, fontWeight: FontWeight.w800, letterSpacing: 2.0)),
+            const SizedBox(height: 6),
+            ...shown.map(_buildTerritoryRow),
+            if (mias.length > 5)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('+ ${mias.length - 5} más',
+                    style: GoogleFonts.inter(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 9)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTerritoryRow(TerritoryData t) {
+    final Color estadoColor = switch (t.estadoHp) {
+      EstadoHp.saludable => _kVerde,
+      EstadoHp.danado    => _kGold,
+      EstadoHp.critico   => _p.globalRed,
+    };
+    final String nombre = (t.nombreTerritorio?.isNotEmpty == true)
+        ? t.nombreTerritorio!
+        : t.docId.substring(0, 6).toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(
+                color: estadoColor, shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                    color: estadoColor.withValues(alpha: 0.5), blurRadius: 4)])),
+        const SizedBox(width: 6),
+        SizedBox(
+            width: 110,
+            child: Text(nombre,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 10, fontWeight: FontWeight.w600))),
+        const SizedBox(width: 6),
+        SizedBox(
+            width: 36, height: 4,
+            child: ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                    value: t.hpActual / 100.0,
+                    backgroundColor: Colors.white.withValues(alpha: 0.10),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        estadoColor.withValues(alpha: 0.8)),
+                    minHeight: 4))),
+        if (t.escudoActivo) ...[
+          const SizedBox(width: 4),
+          const Icon(Icons.security_rounded,
+              color: Colors.lightBlueAccent, size: 9),
+        ],
+      ]),
+    );
+  }
 
   Widget _buildMapbox() {
     if (kIsWeb) return _buildWebMap();

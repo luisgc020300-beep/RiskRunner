@@ -163,7 +163,8 @@ class SocialRankCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10)),
             child: Row(children: [
               SizedBox(width: 38, child: top3
-                ? Text(['','',''][posicion-1], style: TextStyle(fontSize: posicion==1?26:22), textAlign: TextAlign.center)
+                ? Icon(posicion == 1 ? Icons.emoji_events_rounded : Icons.military_tech_rounded,
+                    color: medal, size: posicion == 1 ? 26 : 22)
                 : Text('#$posicion', style: TextStyle(color: esYo ? kSocAccent : p.text3, fontWeight: FontWeight.w900, fontSize: 12), textAlign: TextAlign.center)),
               const SizedBox(width: 8),
               SocialAvatar(fotoBase64: fotoBase64, nickname: nickname, size: aSize,
@@ -340,10 +341,10 @@ class SocialFriendCard extends StatelessWidget {
               SocialPress(onTap: onPerfil, child: Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
-                  color: p.surface3,
-                  border: Border.all(color: p.line2),
+                  color: accent.withValues(alpha: 0.10),
+                  border: Border.all(color: accent.withValues(alpha: 0.25)),
                   borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.person_outline_rounded, color: p.text3, size: 15))),
+                child: Icon(Icons.person_outline_rounded, color: accent.withValues(alpha: 0.8), size: 15))),
               const SizedBox(width: 6),
               SocialPress(onTap: onChat, child: Container(
                 width: 38, height: 38,
@@ -612,8 +613,11 @@ class SocialRequestCard extends StatelessWidget {
         ])),
         SocialPress(onTap: onRechazar, child: Container(
           width: 38, height: 38,
-          decoration: BoxDecoration(color: p.surface3, border: Border.all(color: p.line2), borderRadius: BorderRadius.circular(8)),
-          child: Icon(Icons.close_rounded, color: p.text3, size: 16))),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withValues(alpha: 0.10),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.30)),
+            borderRadius: BorderRadius.circular(8)),
+          child: Icon(Icons.close_rounded, color: Colors.redAccent.withValues(alpha: 0.80), size: 16))),
         const SizedBox(width: 8),
         SocialPress(onTap: onAceptar, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
