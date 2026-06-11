@@ -313,7 +313,8 @@ class PerfilDuelosTab extends StatelessWidget {
           ),
         ),
         child: Row(children: [
-          Text(gane ? '' : '', style: const TextStyle(fontSize: 20)),
+          Icon(gane ? Icons.emoji_events_rounded : Icons.close_rounded,
+              color: color, size: 22),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
@@ -375,7 +376,6 @@ class PerfilDuelosTab extends StatelessWidget {
 // ── AnimatedCounter privado — copia local para este tab ──────────────────────
 class _AnimatedCounter extends StatefulWidget {
   final double value;
-  final int decimals;
   final TextStyle style;
   final Duration duration;
 
@@ -422,11 +422,7 @@ class _AnimatedCounterState extends State<_AnimatedCounter>
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: _anim,
     builder: (_, __) {
-      final val = _anim.value;
-      final text = widget.decimals > 0
-          ? val.toStringAsFixed(widget.decimals)
-          : val.toInt().toString();
-      return Text(text, style: widget.style);
+      return Text(_anim.value.toInt().toString(), style: widget.style);
     },
   );
 }
