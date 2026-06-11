@@ -1,4 +1,4 @@
-// lib/screens/fullscreen_map_screen.dart
+﻿// lib/screens/fullscreen_map_screen.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -31,6 +31,7 @@ import '../config/env.dart';
 import '../widgets/map/map_theme.dart';
 import '../widgets/map/map_dialogs.dart';
 import '../widgets/map/map_starfield.dart';
+import '../widgets/map/territory_card.dart';
 
 part 'map_helpers.dart';
 
@@ -1541,8 +1542,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               }
               return Positioned(
                 bottom: screenH * 0.14 + 12, left: 16, right: 16,
-                child: _buildGlobalTerritoryCard(
-                    _state.territorioGlobalSeleccionado!),
+                child: GlobalTerritoryCard(
+                  t: _state.territorioGlobalSeleccionado!,
+                  selAnim: _selAnim,
+                  onCerrar: _cerrarSeleccion,
+                  onConquistar: _intentarConquistarGlobal,
+                ),
               );
             } else {
               if (_state.territorioSeleccionado == null) {
@@ -1550,7 +1555,18 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               }
               return Positioned(
                 bottom: screenH * 0.14 + 12, left: 16, right: 16,
-                child: _buildTerritoryCard(_state.territorioSeleccionado!),
+                child: TerritoryCard(
+                  t: _state.territorioSeleccionado!,
+                  selAnim: _selAnim,
+                  bgColor: _shBg,
+                  textColor: _shText,
+                  borderColor: _shBorder,
+                  surfColor: _shSurf,
+                  modoSolitario: _state.modoSolitario,
+                  onCerrar: _cerrarSeleccion,
+                  onObservar: _moverCamara,
+                  historialBuilder: _buildCardHistorial,
+                ),
               );
             }
           },
@@ -3370,479 +3386,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     ),
   );
 
-  // ==========================================================================
-  // CARD TERRITORIO CIUDAD — FIX: muestra stats y vida para todos los territorios
-  // ==========================================================================
-  Widget _buildTerritoryCard(TerritoryData t) {
-    String estadoLabel = 'ACTIVO';
-    Color cEstado = _kSafe;
-    IconData estadoIcon = Icons.check_circle_rounded;
-    if (t.estadoHp == EstadoHp.critico) {
-      estadoLabel = 'CRÍTICO';
-      cEstado = _kRed;
-      estadoIcon = Icons.warning_rounded;
-    } else if (t.estadoHp == EstadoHp.danado) {
-      estadoLabel = 'DAÑADO';
-      cEstado = _kWarn;
-      estadoIcon = Icons.error_rounded;
-    }
-
-    final double hpFraction = t.hpActual / kHpMax.toDouble();
-    // En modo competitivo, los territorios rivales no revelan nombre ni HP
-    final bool rivalCompetitivo = !t.esMio && !_state.modoSolitario;
-
-    return ScaleTransition(
-      scale: _selAnim,
-      child: FadeTransition(
-        opacity: _selAnim,
-        child: Container(
-          decoration: BoxDecoration(
-            color: _shBg,
-            border: Border.all(color: t.color.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                  color: t.color.withValues(alpha: 0.18), blurRadius: 20),
-              const BoxShadow(
-                  color: Colors.black54, blurRadius: 16),
-            ],
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // ── Cabecera ──────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-              decoration: BoxDecoration(
-                color: t.color.withValues(alpha: 0.10),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(8)),
-                border: Border(
-                    bottom: BorderSide(
-                        color: t.color.withValues(alpha: 0.25))),
-              ),
-              child: Row(children: [
-                Container(width: 3, height: 20, color: t.color,
-                    margin: const EdgeInsets.only(right: 10)),
-                Expanded(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(
-                      t.esMio
-                          ? 'MI TERRITORIO'
-                          : rivalCompetitivo
-                              ? 'ZONA RIVAL'
-                              : t.ownerNickname.toUpperCase(),
-                      style: _raj(13, FontWeight.w900, _shText,
-                          spacing: 1.5)),
-                  Text(
-                      t.esMio
-                          ? 'ZONA CONTROLADA'
-                          : rivalCompetitivo
-                              ? 'INFORMACIÓN BLOQUEADA'
-                              : 'TERRITORIO RIVAL',
-                      style: _raj(8, FontWeight.w700,
-                          t.esMio ? t.color : _kSub, spacing: 2)),
-                ])),
-                GestureDetector(
-                  onTap: _cerrarSeleccion,
-                  child: Container(
-                    width: 28, height: 28,
-                    decoration: BoxDecoration(
-                        color: _shBorder,
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Icon(Icons.close_rounded,
-                        color: _shText, size: 14)),
-                ),
-              ]),
-            ),
-
-            // ── Stats row ────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-              child: Row(children: [
-                rivalCompetitivo
-                    ? _cardStat(Icons.lock_outline_rounded, 'OCULTO', _kSub)
-                    : _cardStat(estadoIcon, estadoLabel, cEstado),
-                _vDiv(),
-                _cardStat(Icons.flag_rounded, '${t.puntos.length} PTS', _shText),
-                _vDiv(),
-                t.esMio
-                    ? _cardStat(Icons.shield_rounded, 'DEFENDER', _kGold)
-                    : GestureDetector(
-                        onTap: () {
-                          _cerrarSeleccion();
-                          _moverCamara(t.centro, 16);
-                        },
-                        child: _cardStat(Icons.visibility_rounded, 'OBSERVAR', _kSub),
-                      ),
-              ]),
-            ),
-
-            // ── Barra de vida — oculta en modo competitivo para rivales ──────
-            if (!rivalCompetitivo)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(
-                          color: cEstado, shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(
-                              color: cEstado.withValues(alpha: 0.6),
-                              blurRadius: 4)],
-                        ),
-                        margin: const EdgeInsets.only(right: 6),
-                      ),
-                      Text(
-                        t.estadoHp == EstadoHp.saludable
-                            ? 'Territorio saludable'
-                            : t.estadoHp == EstadoHp.danado
-                                ? 'Territorio debilitado'
-                                : 'En estado crítico',
-                        style: _raj(9, FontWeight.w700, cEstado,
-                            spacing: 0.5),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${t.hpActual}/$kHpMax HP',
-                        style: _raj(9, FontWeight.w700, cEstado,
-                            spacing: 0.5),
-                      ),
-                    ]),
-                    const SizedBox(height: 5),
-                    Stack(children: [
-                      Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: _shBorder,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      FractionallySizedBox(
-                        widthFactor: hpFraction.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: cEstado,
-                            borderRadius: BorderRadius.circular(2),
-                            boxShadow: [BoxShadow(
-                                color: cEstado.withValues(alpha: 0.5),
-                                blurRadius: 6)],
-                          ),
-                        ),
-                      ),
-                    ]),
-                    if (!t.esMio) ...[
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        Icon(Icons.schedule_rounded, color: _kSub, size: 11),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
-                          style: _raj(9, FontWeight.w600, _kSub),
-                        ),
-                        if (t.esConquistableSinPasar) ...[
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _kRed.withValues(alpha: 0.12),
-                              border: Border.all(color: _kRed.withValues(alpha: 0.5)),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text('CONQUISTABLE',
-                                style: _raj(8, FontWeight.w900, _kRed)),
-                          ),
-                        ],
-                      ]),
-                    ],
-                  ],
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: Row(children: [
-                  Icon(Icons.info_outline_rounded, color: _kSub, size: 12),
-                  const SizedBox(width: 6),
-                  Text('Corre sobre este territorio para revelar su estado',
-                    style: _raj(9, FontWeight.w600, _kSub, spacing: 0.3)),
-                ]),
-              ),
-
-            // ── Stats extra: dominio + velocidad + rey ─────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-              child: Row(children: [
-                if (t.fechaDesdeDueno != null)
-                  _miniStat(
-                    Icons.calendar_today_rounded,
-                    '${DateTime.now().difference(t.fechaDesdeDueno!).inDays}d',
-                    'DOMINIO',
-                  ),
-                if (t.fechaDesdeDueno != null) const SizedBox(width: 14),
-                _miniStat(
-                  Icons.speed_rounded,
-                  '${t.velocidadConquistaKmh.toStringAsFixed(1)} km/h',
-                  'VELOCIDAD',
-                ),
-                const Spacer(),
-                if (t.tieneRey)
-                  _miniStat(
-                    Icons.military_tech_rounded,
-                    t.reyNickname ?? 'Rey',
-                    'REY',
-                    color: _kGold,
-                  ),
-              ]),
-            ),
-
-            // ── Historial de conquistas ────────────────────────────────────
-            if (!t.esFantasma)
-              Container(
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                decoration: BoxDecoration(
-                  color: _shSurf,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: _buildCardHistorial(t.docId),
-              ),
-
-          ]),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================================
-  // CARD TERRITORIO GLOBAL — muestra clausulaKm via t.kmRequired
-  // ==========================================================================
-  Widget _buildGlobalTerritoryCard(GlobalTerritory t) {
-    final Color baseColor = t.isMine
-        ? _kGold
-        : t.isOwned
-            ? (t.ownerColor ?? t.tierColor)
-            : t.tierColor;
-
-    return ScaleTransition(
-      scale: _selAnim,
-      child: FadeTransition(
-        opacity: _selAnim,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _kSurface.withValues(alpha: 0.92),
-                border: Border.all(color: baseColor.withValues(alpha: 0.5)),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                      color: baseColor.withValues(alpha: 0.2), blurRadius: 24),
-                  const BoxShadow(
-                      color: Colors.black87, blurRadius: 16),
-                ],
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        baseColor.withValues(alpha: 0.12),
-                        Colors.transparent
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8)),
-                    border: Border(
-                        bottom: BorderSide(
-                            color: baseColor.withValues(alpha: 0.2))),
-                  ),
-                  child: Row(children: [
-                    Container(
-                      width: 40, height: 40,
-                      decoration: BoxDecoration(
-                        color: baseColor.withValues(alpha: 0.10),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: baseColor.withValues(alpha: 0.40)),
-                      ),
-                      child: Center(
-                          child: Text(t.icon,
-                              style: const TextStyle(fontSize: 20))),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: baseColor.withValues(alpha: 0.12),
-                            border: Border.all(
-                                color: baseColor.withValues(alpha: 0.35)),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text(t.tierLabel,
-                              style: _raj(7, FontWeight.w900, baseColor,
-                                  spacing: 1)),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: _dificultadColor(t.difficultyLevel)
-                                .withValues(alpha: 0.1),
-                            border: Border.all(
-                                color: _dificultadColor(t.difficultyLevel)
-                                    .withValues(alpha: 0.35)),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text('DIF. ${t.difficultyLevel}/10',
-                              style: _raj(7, FontWeight.w900,
-                                  _dificultadColor(t.difficultyLevel),
-                                  spacing: 0.5)),
-                        ),
-                      ]),
-                      const SizedBox(height: 4),
-                      Text(t.epicName,
-                          style: _cinzel(12, FontWeight.w700, _kWhite)),
-                      const SizedBox(height: 1),
-                      Text(t.inspiration,
-                          style: _raj(9, FontWeight.w500, _kSub)),
-                    ])),
-                    GestureDetector(
-                      onTap: _cerrarSeleccion,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                            color: _kBorder,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: const Icon(Icons.close_rounded,
-                            color: _kText, size: 14)),
-                    ),
-                  ]),
-                ),
-
-                // ── Stats — muestra clausulaKm via t.kmRequired ─────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                  child: Row(children: [
-                    _cardStat(
-                      Icons.directions_run_rounded,
-                      '${t.kmRequired.toStringAsFixed(1)} km',
-                      _kCyan,
-                    ),
-                    _vDiv(),
-                    _cardStat(Icons.monetization_on_rounded, '+${t.rewardActual}', _kGold),
-                    _vDiv(),
-                    t.isMine
-                        ? _cardStat(Icons.stars_rounded, 'TUYO', _kGold)
-                        : t.isOwned
-                            ? _cardStat(Icons.dangerous_rounded, 'INVADIR', _kRed)
-                            : _cardStat(Icons.flag_rounded, 'LIBRE', _kSafe),
-                  ]),
-                ),
-
-                if (t.isOwned && !t.isMine)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: baseColor.withValues(alpha: 0.06),
-                        border: Border.all(
-                            color: baseColor.withValues(alpha: 0.25)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(children: [
-                        Container(
-                          width: 8, height: 8,
-                          decoration: BoxDecoration(
-                            color: baseColor, shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(
-                                color: baseColor.withValues(alpha: 0.5),
-                                blurRadius: 4)],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('Controlado por ',
-                            style: _raj(10, FontWeight.w500, _kSub)),
-                        Text(t.ownerNickname!.toUpperCase(),
-                            style:
-                                _raj(10, FontWeight.w900, baseColor)),
-                      ]),
-                    ),
-                  ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: GestureDetector(
-                    onTap: () {
-                      _cerrarSeleccion();
-                      Future.delayed(
-                          const Duration(milliseconds: 300), () {
-                        _intentarConquistarGlobal(t);
-                      });
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 11),
-                      decoration: BoxDecoration(
-                        color: t.isMine
-                            ? _kGold.withValues(alpha: 0.08)
-                            : baseColor.withValues(alpha: 0.15),
-                        border: Border.all(
-                            color: t.isMine
-                                ? _kGold.withValues(alpha: 0.3)
-                                : baseColor.withValues(alpha: 0.5)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Center(
-                          child: Text(
-                        t.isMine
-                            ? 'TERRITORIO CONTROLADO'
-                            : 'CONQUISTAR · ${t.kmRequired.toStringAsFixed(1)} KM',
-                        style: _raj(11, FontWeight.w900,
-                            t.isMine ? _kGoldDim : baseColor,
-                            spacing: 1),
-                      )),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _cardStat(IconData icon, String label, Color color) =>
-      Expanded(
-        child: Column(children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 4),
-          Text(label,
-              style: _raj(9, FontWeight.w800, color, spacing: 0.5),
-              textAlign: TextAlign.center),
-        ]),
-      );
-
-  Widget _vDiv() => Container(
-      width: 1, height: 36, color: _shBorder,
-      margin: const EdgeInsets.symmetric(horizontal: 4));
 
   // ==========================================================================
   // SHEET MI CIUDAD
@@ -4131,23 +3674,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // MINI STAT — para tarjeta de territorio
-  // ==========================================================================
-  Widget _miniStat(IconData icon, String value, String label, {Color? color}) {
-    final c = color ?? _kSub;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 9, color: c),
-          const SizedBox(width: 3),
-          Text(value, style: _raj(9, FontWeight.w800, _shText)),
-        ]),
-        Text(label, style: _raj(7, FontWeight.w700, c, spacing: 0.8)),
-      ],
-    );
-  }
 
   Widget _buildSheet(ScrollController scrollCtrl, int mios, int det, int pel) {
     return Container(
