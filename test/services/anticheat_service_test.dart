@@ -180,5 +180,67 @@ void main() {
       final r = svc.analizarPunto(_pos(timestamp: t0));
       expect(r.esValido, isTrue);
     });
+
+    // ── Warmup bypass fix ───────────────────────────────────────────────────
+    group('warmup', () {
+      test('salto >80m durante warmup es rechazado (no se añade a ruta)', () {
+        svc.analizarPunto(_pos(timestamp: t0)); // primer punto
+        // ~110m al norte — >80m pero <250m: debe ser rechazado
+        final r = svc.analizarPunto(_pos(
+          lat: 40.4178, // ≈110m desde 40.4168
+          timestamp: t0.add(const Duration(seconds: 3)),
+          speed: 3.0,
+        ));
+        expect(r.esValido, isFalse);
+        expect(r.veredicto, AntiCheatVeredicto.teletransporte);
+      });
+
+      test('salto ≤80m durante warmup es aceptado (GPS estabilizándose)', () {
+        svc.analizarPunto(_pos(timestamp: t0));
+        // ~55m al norte — ≤80m: warmup lo acepta
+        final r = svc.analizarPunto(_pos(
+          lat: 40.4173, // ≈55m
+          timestamp: t0.add(const Duration(seconds: 3)),
+          speed: 3.0,
+        ));
+        expect(r.esValido, isTrue);
+      });
+    });
+
+    // ── Speed near-zero bypass fix ──────────────────────────────────────────
+    group('speed near-zero bypass', () {
+      // Helper: avanza el servicio pasado el periodo warmup
+      void pasarWarmup() {
+        for (int i = 0; i < 9; i++) {
+          svc.analizarPunto(_pos(
+            lat: 40.4168 + i * 0.00001,
+            timestamp: t0.add(Duration(seconds: i * 3)),
+          ));
+        }
+      }
+
+      test('speed≈0 spoofed no bypassa salto >80m fuera de warmup', () {
+        pasarWarmup();
+        // ~100m de salto con speed=0.1 m/s (0.36 km/h < velocidadMinChipKmh)
+        final r = svc.analizarPunto(_pos(
+          lat: 40.4168 + 9 * 0.00001 + 0.001, // ~110m del último punto
+          timestamp: t0.add(const Duration(seconds: 30)),
+          speed: 0.1, // spoofed near-zero
+        ));
+        expect(r.esValido, isFalse);
+        expect(r.veredicto, AntiCheatVeredicto.teletransporte);
+      });
+
+      test('spike GPS con chip-speed plausible (≥1 km/h) sigue siendo aceptado', () {
+        pasarWarmup();
+        // Mismo salto pero con chip speed legítimo de 5 km/h (1.4 m/s)
+        final r = svc.analizarPunto(_pos(
+          lat: 40.4168 + 9 * 0.00001 + 0.001,
+          timestamp: t0.add(const Duration(seconds: 30)),
+          speed: 1.4, // 5.0 km/h — ≥1 km/h → se confía como spike posicional
+        ));
+        expect(r.esValido, isTrue);
+      });
+    });
   });
 }

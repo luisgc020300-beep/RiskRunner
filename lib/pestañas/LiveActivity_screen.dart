@@ -589,6 +589,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _relockTimer?.cancel();
     _progMoveTimer?.cancel();
     _fcmSub?.cancel();
+    _anotacionesJugadores.clear();
     _narrador.resetear();
     _session.dispose();
     _modeCtrl.dispose();

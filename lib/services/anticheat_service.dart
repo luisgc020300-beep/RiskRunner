@@ -44,6 +44,12 @@ class AntiCheatConfig {
 
   /// Puntos GPS iniciales que se validan de forma laxa (GPS estabilizándose).
   static const int kWarmupPuntos = 8;
+
+  /// Velocidad mínima del chip GPS (Doppler) para que su lectura sea creíble
+  /// como evidencia de un spike posicional.  Apps de mock-location típicamente
+  /// spoofean speed=0 o speed≈0.  Si el chip dice < 1 km/h pero la posición
+  /// saltó > distanciaMaxEntreEventosM, no confiamos en él.
+  static const double velocidadMinChipKmh = 1.0;
 }
 
 // =============================================================================
@@ -153,12 +159,16 @@ class AntiCheatService {
           _ultimaPosicion!.latitude, _ultimaPosicion!.longitude,
           pos.latitude,             pos.longitude,
         );
-        if (distWarmup > AntiCheatConfig.distanciaAbsolutaMaxM) {
-          // Punto descartado silenciosamente — GPS aún estabilizándose
+        if (distWarmup > AntiCheatConfig.distanciaMaxEntreEventosM) {
+          // Cualquier salto > 80m durante warmup se descarta Y cuenta como
+          // infracción blanda.  El GPS legítimo puede producir 1-2 spikes al
+          // arrancar; un cheater que intente acumular distancia quemará rápido
+          // su presupuesto de infraccionesTotalesParaCancelar.
+          _infraccionesTotales++;
           return AntiCheatResultado(
             veredicto:      AntiCheatVeredicto.teletransporte,
             esValido:       false,
-            detalle:        'Warmup: salto GPS de ${distWarmup.toStringAsFixed(0)}m descartado',
+            detalle:        'Warmup: salto de ${distWarmup.toStringAsFixed(0)}m descartado',
             valorDetectado: distWarmup,
           );
         }
@@ -259,9 +269,12 @@ class AntiCheatService {
       );
     }
     if (distM > AntiCheatConfig.distanciaMaxEntreEventosM) {
-      // Si el chip GPS (Doppler) reporta velocidad baja, es un spike posicional,
-      // no teletransporte real.
-      if (gpsChipKmh != null && gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
+      // Si el chip GPS (Doppler) reporta velocidad plausible (>= 1 km/h),
+      // el salto posicional es un spike del receptor, no teletransporte real.
+      // Requerimos >= velocidadMinChipKmh para que speed≈0 spoofed no bypass.
+      if (gpsChipKmh != null &&
+          gpsChipKmh >= AntiCheatConfig.velocidadMinChipKmh &&
+          gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
         return AntiCheatResultado.valido;
       }
       return AntiCheatResultado(
@@ -277,8 +290,10 @@ class AntiCheatService {
   AntiCheatResultado _checkVelocidad(double velKmh, double? gpsChipKmh) {
     if (velKmh > AntiCheatConfig.velocidadMaxKmh) {
       // El chip GPS (Doppler) es más fiable que el delta posicional.
-      // Si dice velocidad baja, fue un spike de posición, no velocidad real.
-      if (gpsChipKmh != null && gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
+      // Solo confiamos en él si reporta >= velocidadMinChipKmh (descarta speed≈0 spoofed).
+      if (gpsChipKmh != null &&
+          gpsChipKmh >= AntiCheatConfig.velocidadMinChipKmh &&
+          gpsChipKmh < AntiCheatConfig.velocidadMaxKmh) {
         return AntiCheatResultado.valido;
       }
       return AntiCheatResultado(
