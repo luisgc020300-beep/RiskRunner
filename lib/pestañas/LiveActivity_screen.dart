@@ -44,7 +44,7 @@ import '../config/env.dart';
 import '../widgets/live_activity/live_starfield.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_painter.dart';
-import '../controllers/game_mode_controller.dart';
+import '../controllers/territory_notifier.dart';
 import '../theme/app_colors.dart';
 import '../services/run_session_notifier.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -224,7 +224,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   static const _kMinMsCamara = 800;
 
   // ── Modo de juego
-  final _modeCtrl = GameModeController();
+  late final _modeCtrl = TerritoryNotifier();
   bool get _modoSolitario => _modeCtrl.modoSolitario;
   set _modoSolitario(bool v) => _modeCtrl.modoSolitario = v;
   bool get _modoRuta => _modeCtrl.modoRuta;
@@ -240,7 +240,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Timer? _timerCheckRuta;
 
   // ── Jugador
-  Color  _colorTerritorio      = const Color(0xFF636366);
+  Color  get _colorTerritorio      => _modeCtrl.colorTerritorio;
   List<TerritoryData> get _territorios => _modeCtrl.territorios;
   set _territorios(List<TerritoryData> v) => _modeCtrl.territorios = v;
   bool get _territoriosCargados => _modeCtrl.territoriosCargados;
@@ -257,7 +257,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
   StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
   final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
-  bool  _mapaDesactualizado = false;
+  bool  get _mapaDesactualizado => _modeCtrl.mapaDesactualizado;
   Timer? _streamReconectarTimer;
 
   Timer? _timerPublicarPosicion;
@@ -321,7 +321,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool _buildings3dCreated       = false;
   bool _territoriosLayersCreated = false;
   bool _previewLayerCreated      = false;
-  bool _zonaValida               = false;
+  bool get _zonaValida               => _modeCtrl.zonaValida;
 
   static const String _previewSourceId     = 'territory-preview-src';
   static const String _previewLayerId      = 'territory-preview-layer';
@@ -351,15 +351,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── Reto activo desde Home
   Map<String, dynamic>? _retoActivo;
-  bool _retoCompletado = false;
+  bool get _retoCompletado => _modeCtrl.retoCompletado;
 
   // ── GUERRA GLOBAL
   Map<String, dynamic>? get _objetivoGlobal => _modeCtrl.objetivoGlobal;
   set _objetivoGlobal(Map<String, dynamic>? v) => _modeCtrl.objetivoGlobal = v;
-  bool _globalConquistado   = false;
-  bool _globalConquistando  = false;
-  bool _globalKmAlcanzados  = false;
-  double? _nuevaClausula;
+  bool get _globalConquistado   => _modeCtrl.globalConquistado;
+  bool get _globalConquistando  => _modeCtrl.globalConquistando;
+  bool get _globalKmAlcanzados  => _modeCtrl.globalKmAlcanzados;
+  double? get _nuevaClausula   => _modeCtrl.nuevaClausula;
   StreamSubscription<DocumentSnapshot>? _globalTerritoryStream;
   StreamSubscription<RemoteMessage>?    _fcmSub;
   String? _globalTerritoryLastOwner;
@@ -482,12 +482,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
       if (args['objetivoGlobal'] != null) {
         final objetivo = args['objetivoGlobal'] as Map<String, dynamic>;
-        setState(() {
-          _objetivoGlobal     = objetivo;
-          _globalConquistado  = false;
-          _globalConquistando = false;
-          _modoSolitario      = false;
-        });
+        _modeCtrl.setObjetivoGlobal(objetivo);
+        _modeCtrl.resetConquistaGlobal();
+        setState(() { _modoSolitario = false; });
         final nombre = objetivo['territorioNombre'] as String? ?? 'Territorio';
         final kmReq  = (objetivo['kmRequeridos'] as num?)?.toDouble() ?? 0;
         Future.delayed(const Duration(seconds: 2), () {
@@ -598,6 +595,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _fcmSub?.cancel();
     _narrador.resetear();
     _session.dispose();
+    _modeCtrl.dispose();
     _cuentaAtrasAnim.dispose();
     _hudAnim.dispose();
     _bounceAnim.dispose();
@@ -768,7 +766,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         _miNickname = doc.data()?['nickname'] ?? 'Alguien';
         final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
         if (colorInt != null && mounted) {
-          setState(() => _colorTerritorio = Color(colorInt));
+          _modeCtrl.setColorTerritorio(Color(colorInt));
         }
         final boost  = doc.data()?['boost_xp_activo'] as bool? ?? false;
         final expira = doc.data()?['boost_xp_expira'] as Timestamp?;
@@ -2185,7 +2183,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     final area   = TerritoryService.calcularAreaM2(routePoints);
     final valida = area >= kAreaMinimaM2;
-    if (valida != _zonaValida) setState(() => _zonaValida = valida);
+    _modeCtrl.setZonaValida(valida);
 
     final coords  = routePoints.map((p) => [p.longitude, p.latitude]).toList();
     coords.add(coords.first);
@@ -2241,7 +2239,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
     try { await _mapboxMap!.style.removeStyleSource(_previewSourceId); } catch (_) {}
     _previewLayerCreated = false;
-    if (mounted) setState(() => _zonaValida = false);
+    if (mounted) _modeCtrl.setZonaValida(false);
   }
 
   // ==========================================================================
@@ -2391,7 +2389,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void _suscribirStreamTerritorios() {
     _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
       if (!mounted) return;
-      if (_mapaDesactualizado) setState(() => _mapaDesactualizado = false);
+      _modeCtrl.setMapaDesactualizado(false);
       GameStateService.instance.setCompetitiveTerritories(list);
       if (!_territoriosCargados || _modoSolitario || _modoRuta) return;
       setState(() => _territorios = list);
@@ -2401,12 +2399,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       });
     }, onError: (e) {
       debugPrint('Stream competitivo caído: $e');
-      if (mounted) setState(() => _mapaDesactualizado = true);
+      if (mounted) _modeCtrl.setMapaDesactualizado(true);
       _programarReconexion();
     });
     _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
       if (!mounted) return;
-      if (_mapaDesactualizado) setState(() => _mapaDesactualizado = false);
+      _modeCtrl.setMapaDesactualizado(false);
       GameStateService.instance.setSolitarioTerritories(list);
       if (!_territoriosCargados || !_modoSolitario) return;
       setState(() => _territorios = list);
@@ -2416,7 +2414,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       });
     }, onError: (e) {
       debugPrint('Stream solitario caído: $e');
-      if (mounted) setState(() => _mapaDesactualizado = true);
+      if (mounted) _modeCtrl.setMapaDesactualizado(true);
       _programarReconexion();
     });
   }
@@ -2774,7 +2772,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   if (territorioId == null) return;
   if (!mounted) return;
 
-  setState(() => _globalConquistando = true);
+  _modeCtrl.setGlobalConquistando(true);
 
   try {
     final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
@@ -2789,10 +2787,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final data = result.data as Map<String, dynamic>;
       if (data['ok'] == true) {
         final nuevaClausula = (data['nuevaClausula'] as num?)?.toDouble();
-        setState(() {
-          _globalConquistado = true;
-          _nuevaClausula = nuevaClausula;
-        });
+        _modeCtrl.setConquistaGlobalExito(nuevaCl: nuevaClausula);
         HapticFeedback.heavyImpact();
         Future.delayed(const Duration(milliseconds: 150),
             () => HapticFeedback.heavyImpact());
@@ -2814,7 +2809,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       debugPrint('Error conquista global: $e');
       if (mounted) _mostrarError('Error inesperado. Inténtalo de nuevo.');
     } finally {
-      if (mounted) setState(() => _globalConquistando = false);
+      if (mounted) _modeCtrl.setGlobalConquistando(false);
     }
   }
 
@@ -2992,7 +2987,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _narrador.eventoMitadReto(distanciaMetros);
             _narrador.eventoFinalReto(distanciaMetros);
             if (distanciaMetros >= objetivoMetros) {
-              setState(() => _retoCompletado = true);
+              _modeCtrl.setRetoCompletado();
               final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
               _narrador.anunciarRetoCompletado(titulo);
               _mostrarNotificacionRetoCompletado();
@@ -3003,7 +2998,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
           final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
           if (kmReq > 0 && _session.distanciaTotal >= kmReq) {
-            setState(() => _globalKmAlcanzados = true);
+            _modeCtrl.setGlobalKmAlcanzados();
             final nombreTer =
                 _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
             _narrador.anunciarReto(
@@ -3249,11 +3244,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       return;
     }
     _session.startSession();
+    _modeCtrl.resetParaSesion();
     setState(() {
-      _globalKmAlcanzados = false;
-      _globalConquistado       = false;
-      _globalConquistando      = false;
-      _nuevaClausula           = null;
       _bearing                 = 0;
       _userRotatedMap          = false;
       routePoints.clear();
@@ -3262,8 +3254,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _territoriosVisitadosEnSesion.clear();
       _ultimaNotifRival.clear();
       _hudMinimizado           = true;
-      _retoCompletado          = false;
-      _zonaValida              = false;
     });
     _limpiarPreviewTerritorio();
     _antiCheat.resetear();
@@ -5907,19 +5897,18 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     HapticFeedback.mediumImpact();
     _actualizarGlobalSeleccionado(null);
     GameStateService.instance.currentMode = 'global';
+    _modeCtrl.setObjetivoGlobal({
+      'territorioId':     t.id,
+      'territorioNombre': t.epicName,
+      'kmRequeridos':     t.kmRequired,
+      'recompensa':       t.rewardActual,
+      'ownerUid':         t.ownerUid,
+    });
+    _modeCtrl.resetConquistaGlobal();
     setState(() {
-      _seleccionandoGlobal = false;
+      _seleccionandoGlobal   = false;
       _terrPreviseleccionado = null;
-      _objetivoGlobal = {
-        'territorioId':     t.id,
-        'territorioNombre': t.epicName,
-        'kmRequeridos':     t.kmRequired,
-        'recompensa':       t.rewardActual,
-        'ownerUid':         t.ownerUid,
-      };
-      _modoSolitario = false;
-      _globalConquistado  = false;
-      _globalConquistando = false;
+      _modoSolitario         = false;
     });
     _actualizarGlobalesEnGlobo(visible: false);
     final kmReq = t.kmRequired;
