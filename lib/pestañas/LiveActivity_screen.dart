@@ -47,6 +47,7 @@ import '../widgets/avatar_painter.dart';
 import '../controllers/territory_notifier.dart';
 import '../theme/app_colors.dart';
 import '../services/run_session_notifier.dart';
+import '../services/tracking_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 // =============================================================================
@@ -109,10 +110,6 @@ const double _kZoomGlobo   = 5;
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
-const _kGpsMovimiento = LocationSettings(
-  accuracy: LocationAccuracy.high,
-  distanceFilter: 8,
-);
 
 const _kPresenciaMovimientoSeg = 15;
 const _kPresenciaPausadoSeg    = 45;
@@ -201,12 +198,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   bool  _movingProgrammatically = false;
   Timer? _progMoveTimer;
   static const int _kRelockMs = 5000;
-  StreamSubscription<Position>? _positionStream;
+  late final _tracking = TrackingService(session: _session, antiCheat: _antiCheat);
+  StreamSubscription<TrackingEvent>? _trackingEventsSub;
   Position? _currentPosition;
-  Position? _ultimaPosicionVelocidad;
   ScaffoldFeatureController? _gpsSnackBar;
-
-  double? _altitudAnterior;
 
   // ── Barrios OSM (modo solitario)
   List<_BarrioData> _barriosCercanos   = [];
@@ -574,7 +569,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _puckAnimTimer?.cancel();
     _timerController.dispose();
     _timerCuentaAtras?.cancel();
-    _positionStream?.cancel();
+    _trackingEventsSub?.cancel();
+    _tracking.dispose();
     _jugadoresStream?.cancel();
     _competitiveStreamSub?.cancel();
     _solitarioStreamSub?.cancel();
@@ -650,16 +646,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   String get _ritmoStr => _session.ritmoStr;
-
-  double _calcularBearing(LatLng a, LatLng b) {
-    final lat1 = a.latitude  * math.pi / 180;
-    final lat2 = b.latitude  * math.pi / 180;
-    final dLng = (b.longitude - a.longitude) * math.pi / 180;
-    final y = math.sin(dLng) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
-    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
-  }
 
   String _colorToHex(Color c) =>
       '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}'
@@ -2883,186 +2869,132 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   // TRACKING
   // ==========================================================================
-  StreamSubscription<Position> _crearStreamGPS() {
-    return Geolocator.getPositionStream(
-        locationSettings: _kGpsMovimiento).listen(
-      (Position pos) async {
-        if (_session.isPaused || !mounted) return;
+  void _onTrackingEvent(TrackingEvent event) async {
+    if (!mounted) return;
 
-        _gpsSnackBar?.close();
-        _gpsSnackBar = null;
+    if (event is GpsPointEvent) {
+      _gpsSnackBar?.close();
+      _gpsSnackBar = null;
 
-        final acResultado = _antiCheat.analizarPunto(pos);
-        if (!acResultado.esValido) {
-          if (_antiCheat.sesionCancelada && !_sesionInvalidadaPorCheat) {
-            _sesionInvalidadaPorCheat = true;
-            _timerSesion?.cancel();
-            GameStateService.instance.clearSession();
-            _positionStream?.cancel();
-            _timerPublicarPosicion?.cancel();
-            _stopwatch.stop();
-            _timerController.pause();
-            await AntiCheatWarningOverlay.mostrar(
-              context,
-              motivo: acResultado.detalle ?? 'Actividad sospechosa detectada',
-            );
-            if (mounted) {
-              WakelockPlus.disable();
-              _session.stopSession();
-              setState(() {
-                _hudMinimizado = false;
-                routePoints.clear();
-              });
-              await _limpiarPresenciaFirestore();
-            }
+      _bearing = event.bearing;
+      setState(() {
+        routePoints.add(event.punto);
+        _currentPosition = event.position;
+        _puntosDesdeUltimoUpdate++;
+      });
+
+      _moverCamara(
+          lat: event.position.latitude, lng: event.position.longitude,
+          zoom: _kZoomCorrer,
+          bearing: _userRotatedMap ? null : _bearing,
+          pitch: _kPitchCorrer);
+      if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
+        _puntosDesdeUltimoUpdate = 0;
+        _actualizarRutaEnMapa();
+        if (!_modoRuta) _actualizarPreviewTerritorio();
+      }
+
+      if (_retoActivo != null && !_retoCompletado) {
+        final objetivoMetros =
+            (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
+        final distanciaMetros = _session.distanciaTotal * 1000;
+        if (objetivoMetros > 0) {
+          _narrador.eventoMitadReto(distanciaMetros);
+          _narrador.eventoFinalReto(distanciaMetros);
+          if (distanciaMetros >= objetivoMetros) {
+            _modeCtrl.setRetoCompletado();
+            final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
+            _narrador.anunciarRetoCompletado(titulo);
+            _mostrarNotificacionRetoCompletado();
           }
-          return;
         }
+      }
 
-        final newPt = LatLng(pos.latitude, pos.longitude);
-        double newDist    = _session.distanciaTotal;
-        double newVel     = _session.velocidadKmh;
-        double newVMax    = _session.velocidadMaxKmh;
-        double newEG      = _session.elevacionGanada;
-        double newEP      = _session.elevacionPerdida;
-        double newBearing = _bearing;
+      if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
+        final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
+        if (kmReq > 0 && _session.distanciaTotal >= kmReq) {
+          _modeCtrl.setGlobalKmAlcanzados();
+          final nombreTer =
+              _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
+          _narrador.anunciarReto(
+              '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
+          HapticFeedback.heavyImpact();
+          Future.delayed(const Duration(milliseconds: 150),
+              () { if (mounted) HapticFeedback.heavyImpact(); });
+          Future.delayed(const Duration(milliseconds: 300),
+              () { if (mounted) HapticFeedback.heavyImpact(); });
+        }
+      }
 
-        if (routePoints.isNotEmpty) {
+      if (!_modoSolitario) _procesarPosicionEnTerritorios(event.punto);
+
+      if (_rutaGuiada != null && _rutaGuiada!.coords.isNotEmpty) {
+        _actualizarProgresoRutaGuiada(event.punto);
+      }
+
+      final kmActual = _session.distanciaTotal.floor();
+      if (kmActual > 0) _narrador.eventoKilometro(kmActual);
+
+      if (kmActual > _session.kmUltimoSplit) {
+        final t = _stopwatch.elapsed.inSeconds.toDouble();
+        final dt = t - _session.tiempoUltimoSplitSeg;
+        if (dt > 0) _session.addSplit(dt / 60.0);
+        _session.tiempoUltimoSplitSeg = t;
+        _session.kmUltimoSplit = kmActual;
+      }
+
+      if (_session.distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
+        _distanciaUltimoAnalisisRitmo = _session.distanciaTotal;
+        _narrador.analizarRitmo(_session.velocidadKmh);
+      }
+
+      if (!_modoSolitario) {
+        final double radioRadar = SubscriptionService.radioRadar;
+        for (final entry in _jugadoresActivos.entries) {
+          final lat2 = (entry.value['lat'] as num?)?.toDouble();
+          final lng2 = (entry.value['lng'] as num?)?.toDouble();
+          if (lat2 == null || lng2 == null) continue;
           final dist = Geolocator.distanceBetween(
-            routePoints.last.latitude, routePoints.last.longitude,
-            newPt.latitude, newPt.longitude,
-          );
-          newDist += dist / 1000;
-          newBearing = _calcularBearing(routePoints.last, newPt);
-          if (_ultimaPosicionVelocidad != null) {
-            final dt = pos.timestamp
-                    .difference(_ultimaPosicionVelocidad!.timestamp)
-                    .inMilliseconds / 3600000.0;
-            if (dt > 0) {
-              final vel = (dist / 1000) / dt;
-              newVel = (newVel * 0.6 + vel * 0.4).clamp(0, 40);
-              if (newVel > newVMax) newVMax = newVel;
-            }
+              event.position.latitude, event.position.longitude, lat2, lng2);
+          if (dist < radioRadar) {
+            _narrador.eventoRivalCerca(entry.value['nickname'] as String?, dist);
+            break;
           }
-          final alt = pos.altitude;
-          if (_altitudAnterior != null) {
-            final delta = alt - _altitudAnterior!;
-            if (delta > 0.5) {
-              newEG += delta;
-            } else if (delta < -0.5) { newEP += delta.abs(); }
-          }
-          _altitudAnterior = alt;
         }
-        _session.updateGpsMetrics(
-          distanciaTotal:  newDist,
-          velocidadKmh:    newVel,
-          velocidadMaxKmh: newVMax,
-          elevacionGanada: newEG,
-          elevacionPerdida: newEP,
-        );
-        _bearing = newBearing;
+      }
 
+      if (!_modoManual) {
+        final esNoche = _esHoraNoche();
+        if (esNoche != _modoNoche) setState(() => _modoNoche = esNoche);
+      }
+
+    } else if (event is AntiCheatCancelEvent) {
+      if (_sesionInvalidadaPorCheat) return;
+      _sesionInvalidadaPorCheat = true;
+      _timerSesion?.cancel();
+      GameStateService.instance.clearSession();
+      _tracking.stop();
+      _timerPublicarPosicion?.cancel();
+      _stopwatch.stop();
+      _timerController.pause();
+      await AntiCheatWarningOverlay.mostrar(context, motivo: event.motivo);
+      if (mounted) {
+        WakelockPlus.disable();
+        _session.stopSession();
         setState(() {
-          routePoints.add(newPt);
-          _currentPosition         = pos;
-          _ultimaPosicionVelocidad = pos;
-          _puntosDesdeUltimoUpdate++;
+          _hudMinimizado = false;
+          routePoints.clear();
         });
+        await _limpiarPresenciaFirestore();
+      }
 
-        _moverCamara(lat: pos.latitude, lng: pos.longitude,
-            zoom: _kZoomCorrer,
-            bearing: _userRotatedMap ? null : _bearing,
-            pitch: _kPitchCorrer);
-        if (_puntosDesdeUltimoUpdate >= _kActualizarMapaCadaN) {
-          _puntosDesdeUltimoUpdate = 0;
-          _actualizarRutaEnMapa();
-          if (!_modoRuta) _actualizarPreviewTerritorio();
-        }
-
-        if (_retoActivo != null && !_retoCompletado) {
-          final objetivoMetros =
-              (_retoActivo!['objetivo_valor'] as num?)?.toDouble() ?? 0;
-          final distanciaMetros = _session.distanciaTotal * 1000;
-          if (objetivoMetros > 0) {
-            _narrador.eventoMitadReto(distanciaMetros);
-            _narrador.eventoFinalReto(distanciaMetros);
-            if (distanciaMetros >= objetivoMetros) {
-              _modeCtrl.setRetoCompletado();
-              final titulo = _retoActivo!['titulo'] as String? ?? 'Reto';
-              _narrador.anunciarRetoCompletado(titulo);
-              _mostrarNotificacionRetoCompletado();
-            }
-          }
-        }
-
-        if (_objetivoGlobal != null && !_globalKmAlcanzados && !_globalConquistando) {
-          final kmReq = (_objetivoGlobal!['kmRequeridos'] as num?)?.toDouble() ?? 0;
-          if (kmReq > 0 && _session.distanciaTotal >= kmReq) {
-            _modeCtrl.setGlobalKmAlcanzados();
-            final nombreTer =
-                _objetivoGlobal!['territorioNombre'] as String? ?? 'Territorio';
-            _narrador.anunciarReto(
-                '⚔️ ¡$nombreTer alcanzado! Finaliza la carrera para reclamar.');
-            HapticFeedback.heavyImpact();
-            Future.delayed(const Duration(milliseconds: 150), () { if (mounted) HapticFeedback.heavyImpact(); });
-            Future.delayed(const Duration(milliseconds: 300), () { if (mounted) HapticFeedback.heavyImpact(); });
-          }
-        }
-
-        if (!_modoSolitario) _procesarPosicionEnTerritorios(newPt);
-
-        // ── Ruta guiada: checkpoints + desvío ─────────────────────────────
-        if (_rutaGuiada != null && _rutaGuiada!.coords.isNotEmpty) {
-          _actualizarProgresoRutaGuiada(newPt);
-        }
-
-        final kmActual = _session.distanciaTotal.floor();
-        if (kmActual > 0) _narrador.eventoKilometro(kmActual);
-
-        if (kmActual > _session.kmUltimoSplit) {
-          final t = _stopwatch.elapsed.inSeconds.toDouble();
-          final dt = t - _session.tiempoUltimoSplitSeg;
-          if (dt > 0) _session.addSplit(dt / 60.0);
-          _session.tiempoUltimoSplitSeg = t;
-          _session.kmUltimoSplit = kmActual;
-        }
-
-        if (_session.distanciaTotal - _distanciaUltimoAnalisisRitmo >= 0.5) {
-          _distanciaUltimoAnalisisRitmo = _session.distanciaTotal;
-          _narrador.analizarRitmo(_session.velocidadKmh);
-        }
-
-        if (!_modoSolitario) {
-          final double radioRadar = SubscriptionService.radioRadar;
-          for (final entry in _jugadoresActivos.entries) {
-            final lat2 = (entry.value['lat'] as num?)?.toDouble();
-            final lng2 = (entry.value['lng'] as num?)?.toDouble();
-            if (lat2 == null || lng2 == null) continue;
-            final dist = Geolocator.distanceBetween(
-                pos.latitude, pos.longitude, lat2, lng2);
-            if (dist < radioRadar) {
-              _narrador.eventoRivalCerca(entry.value['nickname'] as String?, dist);
-              break;
-            }
-          }
-        }
-
-        if (!_modoManual) {
-          final esNoche = _esHoraNoche();
-          if (esNoche != _modoNoche) setState(() => _modoNoche = esNoche);
-        }
-      },
-      onError: (e) {
-        debugPrint('GPS error: $e');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Señal GPS perdida. Busca un espacio abierto.'),
-            backgroundColor: Color(0xFFFF453A),
-            duration: Duration(seconds: 4),
-          ));
-        }
-      },
-    );
+    } else if (event is GpsErrorEvent) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Señal GPS perdida. Busca un espacio abierto.'),
+        backgroundColor: Color(0xFFFF453A),
+        duration: Duration(seconds: 4),
+      ));
+    }
   }
 
   void _iniciarCuentaAtras() {
@@ -3259,7 +3191,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _antiCheat.resetear();
     _sesionInvalidadaPorCheat = false;
     _stopping = false;
-    _altitudAnterior      = null;
     // El usuario está corriendo — cancelar aviso de racha
     LocalNotifService.cancelarRecordatorioRacha();
     _stopwatch.reset();
@@ -3338,7 +3269,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
 
 
-    _positionStream = _crearStreamGPS();
+    _trackingEventsSub = _tracking.events.listen(_onTrackingEvent);
+    _tracking.start();
 
     if (_objetivoGlobal != null) {
       final tId = _objetivoGlobal!['territorioId'] as String?;
@@ -3409,8 +3341,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _timerController.pause();
       _stopwatch.stop();
       _bounceAnim.stop();
-      _positionStream?.cancel();
-      _positionStream = null;
+      _tracking.pause();
       _ajustarPresenciaPausado();
       if (_currentPosition != null) {
         _moverCamara(lat: _currentPosition!.latitude,
@@ -3426,8 +3357,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _stopwatch.start();
       WakelockPlus.enable();
       _bounceAnim.repeat(reverse: true);
-      _positionStream?.cancel();
-      _positionStream = _crearStreamGPS();
+      _tracking.resume();
       _ajustarPresenciaMovimiento();
       if (_currentPosition != null) {
         _moverCamara(lat: _currentPosition!.latitude,
@@ -3447,7 +3377,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     _stopwatch.stop();
     _timerController.pause();
-    _positionStream?.cancel();
+    _tracking.stop();
     _timerPublicarPosicion?.cancel();
     _pulsoTimer?.cancel();
     await _limpiarPresenciaFirestore();
