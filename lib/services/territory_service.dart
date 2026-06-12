@@ -1373,6 +1373,28 @@ class TerritoryService {
       );
     });
   }
+
+  // ── Territorios globales ───────────────────────────────────────────────────
+
+  static Future<List<GlobalTerritory>> cargarGlobalesActivos() async {
+    final snap = await FirebaseFirestore.instance
+        .collection('global_territories')
+        .where('activo', isEqualTo: true)
+        .get();
+    final list = <GlobalTerritory>[];
+    for (final doc in snap.docs) {
+      final t = GlobalTerritory.fromFirestore(doc);
+      if (t != null) list.add(t);
+    }
+    return list;
+  }
+
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> streamGlobalTerritory(
+          String tId) =>
+      FirebaseFirestore.instance
+          .collection('global_territories')
+          .doc(tId)
+          .snapshots();
 }
 
 // =============================================================================

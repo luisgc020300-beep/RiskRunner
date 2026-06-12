@@ -747,22 +747,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('players')
-          .doc(user.uid)
-          .get();
-      if (doc.exists) {
-        _miNickname = doc.data()?['nickname'] ?? 'Alguien';
-        final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
+      final data = await ActivityService.cargarConfigJugador(user.uid);
+      if (data != null) {
+        _miNickname = data['nickname'] ?? 'Alguien';
+        final colorInt = (data['territorio_color'] as num?)?.toInt();
         if (colorInt != null && mounted) {
           _modeCtrl.setColorTerritorio(Color(colorInt));
         }
-        final boost  = doc.data()?['boost_xp_activo'] as bool? ?? false;
-        final expira = doc.data()?['boost_xp_expira'] as Timestamp?;
+        final boost  = data['boost_xp_activo'] as bool? ?? false;
+        final expira = data['boost_xp_expira'] as Timestamp?;
         if (boost && expira != null && expira.toDate().isAfter(DateTime.now())) {
           if (mounted) setState(() => _boostXpActivo = true);
         }
-        final av = doc.data()?['avatar_config'] as Map<String, dynamic>?;
+        final av = data['avatar_config'] as Map<String, dynamic>?;
         if (av != null) {
           try { _avatarConfig = AvatarConfig.fromMap(av); } catch (_) {}
           if (_mapboxMap != null && mounted) _buildAvatarPuckFrames();
@@ -3192,10 +3189,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         _globalTerritoryLastOwner =
             _objetivoGlobal!['ownerUid'] as String?;
         _globalTerritoryStream?.cancel();
-        _globalTerritoryStream = FirebaseFirestore.instance
-            .collection('global_territories')
-            .doc(tId)
-            .snapshots()
+        _globalTerritoryStream = TerritoryService.streamGlobalTerritory(tId)
             .listen((snap) {
           if (!mounted || !_session.isTracking) return;
           if (!snap.exists) return;
@@ -5633,16 +5627,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     setState(() => _cargandoGlobales = true);
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('global_territories')
-          .where('activo', isEqualTo: true)
-          .get();
+      final list = await TerritoryService.cargarGlobalesActivos();
       if (!mounted) return;
-      final list = <GlobalTerritory>[];
-      for (final doc in snap.docs) {
-        final t = GlobalTerritory.fromFirestore(doc);
-        if (t != null) list.add(t);
-      }
       if (list.isEmpty) list.addAll(buildSampleGlobalTerritories());
       GameStateService.instance.setGlobalTerritories(list);
       if (mounted) setState(() { _terrGlobales = list; _cargandoGlobales = false; });

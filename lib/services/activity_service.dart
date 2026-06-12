@@ -295,4 +295,16 @@ class ActivityService {
       debugPrint('ActivityService.programarNotificacionesPostCarrera: $e');
     }
   }
+
+  /// Lee el documento de jugador para inicializar configuración de sesión.
+  /// Devuelve null si el documento no existe o hay un error de red.
+  static Future<Map<String, dynamic>?> cargarConfigJugador(String uid) async {
+    try {
+      final doc = await _db.collection('players').doc(uid).get();
+      return doc.exists ? doc.data() : null;
+    } catch (e) {
+      debugPrint('ActivityService.cargarConfigJugador error: $e');
+      return null;
+    }
+  }
 }
