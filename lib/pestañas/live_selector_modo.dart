@@ -1,7 +1,7 @@
 // lib/pestañas/live_selector_modo.dart
 // Selector de modo, shimmer, botón de modo y selector de estilo de mapa.
 // ignore_for_file: invalid_use_of_protected_member
-part of 'liveactivity_screen.dart';
+part of 'LiveActivity_screen.dart';
 
 extension _LiveSelectorModo on _LiveActivityScreenState {
 

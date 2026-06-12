@@ -1504,8 +1504,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       await _mapboxMap!.style.setStyleLayerProperty(
           _buildingsLayerId, 'fill-extrusion-ambient-occlusion-radius', 3.0);
       _buildings3dCreated = true;
-    } catch (e) {
-      debugPrint('Error edificios 3D: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'edificios_3d');
     }
   }
 
@@ -1557,8 +1557,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         GameStateService.instance.setCompetitiveTerritories(lista);
         _dibujarTerritoriosEnMapa();
       }
-    } catch (e) {
-      debugPrint('Error gestionando fantasmas: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'fantasmas');
     } finally {
       _fantasmasCargando = false;
     }
@@ -2119,8 +2119,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               ['case', ['==', ['get', 'esMio'], true], _pulsoOpacity, 0.0]);
         } catch (_) {}
       });
-    } catch (e) {
-      debugPrint('Error territorios: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujar_territorios');
     } finally {
       _dibujandoTerritorios = false;
       // Race condition guard: if territories were cleared while this draw was
@@ -2158,8 +2158,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .getSource(_routeSourceId) as mapbox.GeoJsonSource?;
         await src?.updateGeoJSON(geojson);
       }
-    } catch (e) {
-      debugPrint('Error ruta mapa: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'ruta_mapa');
     }
   }
 
@@ -2216,8 +2216,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           _previewBorderLayerId, 'line-dasharray', [4.0, 2.5]);
 
       _previewLayerCreated = true;
-    } catch (e) {
-      debugPrint('Preview territorio: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'preview_territorio');
     }
   }
 
@@ -2258,8 +2258,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             _kGhostLayerId, 'line-opacity', 0.35);
         _ghostLayerCreated = true;
       }
-    } catch (e) {
-      debugPrint('Ghost route layer: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'ghost_layer');
     }
   }
 
@@ -2297,8 +2297,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             .setStyleLayerProperty(_rutasPreviewLayerId, 'line-opacity', 0.85);
         _rutasPreviewLayerCreated = true;
       }
-    } catch (e) {
-      debugPrint('_cargarYDibujarRutasPreview: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'rutas_preview');
     }
   }
 
@@ -3774,8 +3774,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ));
           }
           return 0;
-        } catch (e) {
-          debugPrint('Error atacarTerritorio [${t.docId}]: $e');
+        } catch (e, st) {
+          FirebaseCrashlytics.instance.recordError(e, st, reason: 'atacar_territorio');
           huboError = true;
           return 0;
         }
@@ -4395,7 +4395,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         puntosLiga:    recompensa.puntosLiga,
         nombre:        nombreElegido,
       );
-    } catch (e) {
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'guardar_ruta');
       if (mounted) {
         await showCupertinoDialog<void>(
           context: context,
@@ -5688,8 +5689,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
         await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'visibility', vis);
       }
-    } catch (e) {
-      debugPrint('Error globales globo: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'globales_globo');
     }
   }
 
@@ -5743,8 +5744,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         await _mapboxMap!.style.setStyleLayerProperty(
             _globalesSelLayerId, 'visibility', 'visible');
       }
-    } catch (e) {
-      debugPrint('Error sel globales layer: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'sel_globales_layer');
       return;
     }
 

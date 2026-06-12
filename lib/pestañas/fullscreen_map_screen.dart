@@ -903,8 +903,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       } else {
         GameStateService.instance.setCompetitiveTerritories(lista);
       }
-    } catch (e) {
-      debugPrint('FullscreenMap recargarSilencioso: $e');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'recargar_silencioso');
     } finally {
       _recargandoSilencioso = false;
     }
