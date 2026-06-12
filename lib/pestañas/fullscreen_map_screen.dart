@@ -1,4 +1,4 @@
-// lib/screens/fullscreen_map_screen.dart
+﻿// lib/screens/fullscreen_map_screen.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -33,6 +33,7 @@ import '../widgets/map/map_starfield.dart';
 import '../widgets/map/territory_card.dart';
 
 part 'map_helpers.dart';
+part 'map_sheet_helpers.dart';
 
 // =============================================================================
 // MAPBOX
@@ -44,7 +45,7 @@ const String _kMapboxUrl =
 
 
 // =============================================================================
-// PALETA — aliases privados sobre las constantes públicas de map_theme.dart
+// PALETA â€” aliases privados sobre las constantes pÃºblicas de map_theme.dart
 // =============================================================================
 const _kBg        = kMapBg;
 const _kSurface   = kMapSurface;
@@ -180,7 +181,7 @@ class _MapState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Stream en tiempo real de global_territories ──────────────────────────
+  // â”€â”€ Stream en tiempo real de global_territories â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void _escucharTerritoriosGlobales() {
     _globalStream?.cancel();
     _globalStream = FirebaseFirestore.instance
@@ -209,7 +210,7 @@ class _MapState extends ChangeNotifier {
         final ownerColorInt = data['ownerColor']     as int?;
         final difficulty    = (data['difficultyLevel'] as num?)?.toInt();
         final count         = (data['conquestCount']   as num?)?.toInt();
-        // ── clausulaKm: si no existe en Firestore, usa baseKm como fallback ─
+        // â”€â”€ clausulaKm: si no existe en Firestore, usa baseKm como fallback â”€
         final clausula      = (data['clausulaKm'] as num?)?.toDouble() ?? t.baseKm;
 
         if (ownerUid == null) {
@@ -238,7 +239,7 @@ class _MapState extends ChangeNotifier {
   }
 
   Future<void> _cargarTerritoriosGlobales() async {
-    // Usar cache compartido si sigue siendo válido
+    // Usar cache compartido si sigue siendo vÃ¡lido
     final cached = GameStateService.instance.getGlobalTerritories();
     if (cached != null) {
       final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -394,8 +395,8 @@ class FullscreenMapScreen extends StatefulWidget {
   final LatLng? centroInicial;
   final List<LatLng> ruta;
   final bool mostrarRuta;
-  /// Cuando es true, la pantalla se abre en modo selección de territorio global.
-  /// El botón "INICIAR CONQUISTA" devuelve los datos del territorio vía
+  /// Cuando es true, la pantalla se abre en modo selecciÃ³n de territorio global.
+  /// El botÃ³n "INICIAR CONQUISTA" devuelve los datos del territorio vÃ­a
   /// Navigator.pop en lugar de navegar a /correr.
   final bool selectionMode;
   /// Fuerza el modo inicial: 'competitivo', 'solitario', 'ruta', 'global'.
@@ -420,7 +421,7 @@ class FullscreenMapScreen extends StatefulWidget {
 class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     with TickerProviderStateMixin {
 
-  // flutter_map MapController eliminado — todos los mapas usan Mapbox
+  // flutter_map MapController eliminado â€” todos los mapas usan Mapbox
   final DraggableScrollableController _sheetCtrl     = DraggableScrollableController();
   late final _MapState                _state;
 
@@ -438,7 +439,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
   StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
 
-  // Últimos datos de cada query — se mezclan en _mergeDesafio()
+  // Ãšltimos datos de cada query â€” se mezclan en _mergeDesafio()
   Map<String, dynamic>? _desafioComoRetador;
   Map<String, dynamic>? _desafioComoRetado;
 
@@ -455,17 +456,17 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   bool _refreshing = false;
 
-  // ── Recarga automática al desplazar el mapa ───────────────────────────────
+  // â”€â”€ Recarga automÃ¡tica al desplazar el mapa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Timer?  _cameraDebounce;
 
-  // ── Solitario — scroll reload ─────────────────────────────────────────────
+  // â”€â”€ Solitario â€” scroll reload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Timer?  _solCamDebounce;
   LatLng? _solLastCenter;
 
-  // ── Campo de estrellas para el mapa global oscuro ─────────────────────────
+  // â”€â”€ Campo de estrellas para el mapa global oscuro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   late final List<_Star> _starfield;
 
-  // zoom amplio por defecto al entrar — FAB lleva a la zona del usuario
+  // zoom amplio por defecto al entrar â€” FAB lleva a la zona del usuario
   static const double _kInitialZoom = 5.0;
   static const double _kLocateZoom  = 15.0;
 
@@ -474,14 +475,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // Mapa siempre en estilo claro
   final bool _mapaOscuro = false;
 
-  // Caché de widgets de mapa — se crea una vez por modo y se reutiliza para
+  // CachÃ© de widgets de mapa â€” se crea una vez por modo y se reutiliza para
   // evitar recrear el MapWidget (y su contexto Metal/GL nativo) en cada build().
   Widget? _cachedMapaCiudad;
   Widget? _cachedMapaSolitario;
   Widget? _cachedMapaRutas;
   Widget? _cachedMapaGlobal;
 
-  // ── Modo solitario — barrios OSM ──────────────────────────────────────────
+  // â”€â”€ Modo solitario â€” barrios OSM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<_BarrioData> _barriosCercanos  = [];
   bool _barriosCargados               = false;
   bool _cargandoBarrios               = false;
@@ -495,12 +496,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   bool _gpsResuelto         = false;
   bool _recargandoSilencioso = false;
 
-  // ── Filtro de mapa + actividad ────────────────────────────────────────────
+  // â”€â”€ Filtro de mapa + actividad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
   Future<List<ActivityEntry>>? _feedFuture;
   final Map<String, List<Map<String, dynamic>>> _historialCache = {};
 
-  // ── Modo Ciudad — Mapbox ─────────────────────────────────────────────────
+  // â”€â”€ Modo Ciudad â€” Mapbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mapbox.MapboxMap?              _mapboxCiudadMap;
   bool                           _ciudadStyleLoaded    = false;
   bool                           _ciudadLayersCreating = false;
@@ -511,28 +512,28 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Timer?                         _streamTerritoriDebounce;
   Timer?                         _barrioPctDebounce;
 
-  // ── Modo Solitario — Mapbox ──────────────────────────────────────────────
+  // â”€â”€ Modo Solitario â€” Mapbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mapbox.MapboxMap?              _mapboxSolMap;
   bool                           _solStyleLoaded    = false;
   bool                           _solLayersCreating = false;
 
-  // ── Modo Rutas — Mapbox ──────────────────────────────────────────────────
+  // â”€â”€ Modo Rutas â€” Mapbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mapbox.MapboxMap?              _mapboxRutasMap;
   bool                           _rutasStyleLoaded   = false;
   bool                           _rutasLayersCreating = false;
 
-  // ── Modo Global — Mapbox ─────────────────────────────────────────────────
+  // â”€â”€ Modo Global â€” Mapbox â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mapbox.MapboxMap?              _mapboxGlobalMap;
   bool                           _globalMbxStyleLoaded    = false;
   bool                           _globalMbxLayersCreating = false;
 
-  // ── Modo Rutas ────────────────────────────────────────────────────────────
+  // â”€â”€ Modo Rutas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<RouteData> _misRutas        = [];
   bool            _cargandoRutas   = false;
   RouteData?      _rutaSeleccionada;
 
-  // Modo guardado antes de abrir una vista histórica (modoInicial != null).
-  // Se restaura en dispose para que el mapa live no herede el modo histórico.
+  // Modo guardado antes de abrir una vista histÃ³rica (modoInicial != null).
+  // Se restaura en dispose para que el mapa live no herede el modo histÃ³rico.
   String? _prevGameStateMode;
 
   @override
@@ -587,7 +588,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       } else if (m == 'competitivo') {
         GameStateService.instance.currentMode = 'competitivo';
       }
-      // 'global' mode needs maps ready — handled in postFrameCallback below
+      // 'global' mode needs maps ready â€” handled in postFrameCallback below
     }
 
     _initData();
@@ -615,7 +616,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           if (widget.modoInicial != null) {
-            // Vista histórica: cargar rutas (_onRutasStyleLoaded centra con zoom 13)
+            // Vista histÃ³rica: cargar rutas (_onRutasStyleLoaded centra con zoom 13)
             _cargarMisRutas();
           } else if (!_state.modoRutas) {
             _activarModoRutas();
@@ -739,8 +740,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (!mounted) return;
       GameStateService.instance.setCompetitiveTerritories(list);
       if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
-      // Debounce: evita redraws múltiples cuando Firestore emite ráfagas
-      // (p.ej. creación de territorios fantasma uno a uno)
+      // Debounce: evita redraws mÃºltiples cuando Firestore emite rÃ¡fagas
+      // (p.ej. creaciÃ³n de territorios fantasma uno a uno)
       _streamTerritoriDebounce?.cancel();
       _streamTerritoriDebounce = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
@@ -750,7 +751,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     });
     _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
       if (!mounted) return;
-      // Siempre actualizar caché para que el retorno a solitario sea inmediato
+      // Siempre actualizar cachÃ© para que el retorno a solitario sea inmediato
       GameStateService.instance.setSolitarioTerritories(list);
       if (!_state.modoSolitario) return;
       _state.setTerritorios(list);
@@ -766,7 +767,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     // Arrancar listener en tiempo real y suscribirse a los streams
     TerritoryService.startRealtimeListener(centro: _state.centro);
     _suscribirStreamTerritorios();
-    // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
+    // Listeners arrancan en cuanto tenemos el centro â€” no esperan a los territorios
     _escucharJugadores();
     _escucharDesafio();
     await _cargarTerritorios();
@@ -786,7 +787,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (_) {}
   }
 
-  // Refresca _state.centro con la última posición GPS conocida (instantáneo).
+  // Refresca _state.centro con la Ãºltima posiciÃ³n GPS conocida (instantÃ¡neo).
   // Llamar antes de _moverCamara en cualquier cambio de modo para evitar Madrid.
   Future<void> _refrescarCentroGps() async {
     try {
@@ -814,7 +815,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _gpsResuelto = true;
           return;
         } catch (_) {}
-        // Fallback: última posición conocida si getCurrentPosition falla
+        // Fallback: Ãºltima posiciÃ³n conocida si getCurrentPosition falla
         final last = await Geolocator.getLastKnownPosition();
         if (last != null) {
           _state.setCentro(LatLng(last.latitude, last.longitude));
@@ -837,7 +838,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     final savedMode = GameStateService.instance.currentMode;
     final modo = (_state.modoSolitario || savedMode == 'solitario') ? 'solitario' : 'competitivo';
 
-    // 1. Caché válida → mostrar al instante
+    // 1. CachÃ© vÃ¡lida â†’ mostrar al instante
     final cached = modo == 'solitario'
         ? GameStateService.instance.getSolitarioTerritories()
         : GameStateService.instance.getCompetitiveTerritories();
@@ -846,7 +847,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       return;
     }
 
-    // 2. Caché expirada pero con datos → mostrar inmediatamente y refrescar en background
+    // 2. CachÃ© expirada pero con datos â†’ mostrar inmediatamente y refrescar en background
     final stale = modo == 'solitario'
         ? GameStateService.instance.getStaleSolitarioTerritories()
         : GameStateService.instance.getStaleCompetitiveTerritories();
@@ -856,14 +857,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       return;
     }
 
-    // 3. Sin datos — mostrar spinner y esperar Firestore
+    // 3. Sin datos â€” mostrar spinner y esperar Firestore
     _state.setLoadingTerritorios(true);
     try {
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
-      // Si el modo cambió mientras esperábamos, guardamos en caché pero no
-      // actualizamos la UI (ya habrá otra carga en curso para el modo actual).
+      // Si el modo cambiÃ³ mientras esperÃ¡bamos, guardamos en cachÃ© pero no
+      // actualizamos la UI (ya habrÃ¡ otra carga en curso para el modo actual).
       final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
       if (modoActual != modo) {
         if (modo == 'solitario') {
@@ -933,7 +934,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       centro: centro,
       todosExistentes: actuales,
     );
-    // Load ghosts directly and merge — avoids Firestore eventual-consistency race
+    // Load ghosts directly and merge â€” avoids Firestore eventual-consistency race
     final fantasmas = await TerritoryService.cargarTerritoriosFantasmaCercanos(
       centro: centro,
     );
@@ -1103,7 +1104,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
 
     if (t.isMine) {
-      _mostrarError('Ya eres el dueño de este territorio');
+      _mostrarError('Ya eres el dueÃ±o de este territorio');
       return;
     }
 
@@ -1135,12 +1136,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 border: Border.all(color: _kWarn.withValues(alpha: 0.4))),
               child: const Icon(Icons.lock_rounded, color: _kWarn, size: 26)),
             const SizedBox(height: 16),
-            Text('LÍMITE ALCANZADO',
+            Text('LÃMITE ALCANZADO',
                 style: _cinzel(16, FontWeight.w900, _kWarn, spacing: 2)),
             const SizedBox(height: 8),
             Text(
               'Ya controlas ${_MapState.maxTerritoriosPorJugador} territorios, '
-              'el máximo permitido.\n\nDefiende los que tienes o pierde alguno '
+              'el mÃ¡ximo permitido.\n\nDefiende los que tienes o pierde alguno '
               'para poder conquistar uno nuevo.',
               textAlign: TextAlign.center,
               style: _raj(12, FontWeight.w500, _kSub, height: 1.6),
@@ -1167,7 +1168,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     );
   }
 
-  /// Diálogo de conquista — muestra clausulaKm real (via t.kmRequired)
+  /// DiÃ¡logo de conquista â€” muestra clausulaKm real (via t.kmRequired)
   void _mostrarDialogoConquistaGlobal(GlobalTerritory t) {
     // kmRequired ya devuelve clausulaKm directamente
     final kmReq = t.kmRequired;
@@ -1233,13 +1234,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   _dificultadColor(t.difficultyLevel),
                   Icons.whatshot_rounded),
               const SizedBox(width: 10),
-              // ── clausulaKm real ──────────────────────────────────────────
+              // â”€â”€ clausulaKm real â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               _globalStatCard(
                 'KM NECESARIOS',
                 '${kmReq.toStringAsFixed(1)} km',
                 _kCyan,
                 Icons.directions_run_rounded,
-                sub: t.conquestCount > 0 ? '×1.15 por conquista' : null,
+                sub: t.conquestCount > 0 ? 'Ã—1.15 por conquista' : null,
               ),
               const SizedBox(width: 10),
               _globalStatCard('RECOMPENSA', '+${t.rewardActual}',
@@ -1304,8 +1305,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 const SizedBox(width: 10),
                 Expanded(child: Text(
                   'Sal a correr ${kmReq.toStringAsFixed(1)} km en cualquier '
-                  'dirección desde tu ciudad. Al finalizar la carrera el '
-                  'territorio será tuyo automáticamente.',
+                  'direcciÃ³n desde tu ciudad. Al finalizar la carrera el '
+                  'territorio serÃ¡ tuyo automÃ¡ticamente.',
                   style: _raj(11, FontWeight.w500, _kText, height: 1.5),
                 )),
               ]),
@@ -1323,11 +1324,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   'territorioNombre': t.epicName,
                   'kmRequeridos':    t.kmRequired,
                   'recompensa':      t.rewardActual,
-                  'ownerUid':        t.ownerUid,      // ← bug fix: incluir ownerUid
+                  'ownerUid':        t.ownerUid,      // â† bug fix: incluir ownerUid
                 };
                 Navigator.of(context).pop(); // cierra el bottom sheet
                 if (widget.selectionMode) {
-                  // Devolver el territorio seleccionado a quien llamó (LiveActivity)
+                  // Devolver el territorio seleccionado a quien llamÃ³ (LiveActivity)
                   Navigator.of(context).pop(objetivo);
                 } else {
                   Navigator.pushNamed(context, '/correr',
@@ -1357,7 +1358,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   Text(t.icon, style: const TextStyle(fontSize: 20)),
                   const SizedBox(width: 12),
                   Text(
-                    'CONQUISTAR · ${kmReq.toStringAsFixed(1)} KM',
+                    'CONQUISTAR Â· ${kmReq.toStringAsFixed(1)} KM',
                     style: _cinzel(14, FontWeight.w900, t.tierColor,
                         spacing: 1.5),
                   ),
@@ -1424,7 +1425,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (_) {}
 
     if (pos == null) {
-      _mostrarError('No se pudo obtener tu ubicación.');
+      _mostrarError('No se pudo obtener tu ubicaciÃ³n.');
       return;
     }
     if (!mounted) return;
@@ -1447,7 +1448,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-      _mostrarExito('¡Territorio conquistado!');
+      _mostrarExito('Â¡Territorio conquistado!');
       HapticFeedback.heavyImpact();
       Navigator.of(context).pop();
       await _refrescarTerritorios();
@@ -1459,7 +1460,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       FirebaseCrashlytics.instance.recordError(e, st, reason: 'ejecutarConquista');
       if (!mounted) return;
       Navigator.of(context).pop();
-      _mostrarError('Error inesperado. Inténtalo de nuevo.');
+      _mostrarError('Error inesperado. IntÃ©ntalo de nuevo.');
     }
   }
 
@@ -1665,11 +1666,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                           ),
                           Text(
                             _state.modoGlobal
-                                ? '${_state.totalJugadoresGlobal} GUERREROS · '
+                                ? '${_state.totalJugadoresGlobal} GUERREROS Â· '
                                   '${_state.territoriosGlobales.length} TERRITORIOS'
                                 : _state.modoRutas
                                 ? '${_misRutas.length} ${_misRutas.length == 1 ? 'RUTA' : 'RUTAS'}'
-                                : '${_state.jugadoresEnVivo.length} EN VIVO · '
+                                : '${_state.jugadoresEnVivo.length} EN VIVO Â· '
                                   '${_state.territorios.length} ZONAS',
                             style: _raj(8, FontWeight.w700, _kSub,
                                 spacing: 1.5),
@@ -1927,7 +1928,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // MODO SOLITARIO — barrios OSM
+  // MODO SOLITARIO â€” barrios OSM
   // ==========================================================================
   Future<void> _activarModoSolitario() async {
     await _centroListo;
@@ -1937,9 +1938,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await WidgetsBinding.instance.endOfFrame;
     _moverCamara(_state.centro, 13.0);
     await _cargarTerritorios();
-    _recalcularPorcentajesBarrios(); // recalcular con barrios ya en caché
+    _recalcularPorcentajesBarrios(); // recalcular con barrios ya en cachÃ©
     if (!mounted) return;
-    // Resetear si la carga anterior no encontró resultados
+    // Resetear si la carga anterior no encontrÃ³ resultados
     if (_barriosCargados && _barriosCercanos.isEmpty) {
       setState(() { _barriosCargados = false; });
     }
@@ -1961,13 +1962,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     try {
       final lat   = pos.latitude;
       final lng   = pos.longitude;
-      const delta = 0.12; // ~13 km — cubre toda el área metropolitana
+      const delta = 0.12; // ~13 km â€” cubre toda el Ã¡rea metropolitana
 
       // Overpass bbox format: sur,oeste,norte,este
       final bbox = '${lat - delta},${lng - delta},${lat + delta},${lng + delta}';
       final query = '[out:json][timeout:40];'
           '('
-          // Municipios (admin_level=8 en España) — los pueblos que componen la ciudad
+          // Municipios (admin_level=8 en EspaÃ±a) â€” los pueblos que componen la ciudad
           '  relation["boundary"="administrative"]["admin_level"="8"]($bbox);'
           // Distritos y barrios administrativos
           '  relation["boundary"="administrative"]["admin_level"~"^(9|10)\$"]($bbox);'
@@ -1988,7 +1989,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         if (mounted) {
           setState(() {
           _cargandoBarrios = false;
-          _errorBarrios = 'Error ${response.statusCode} · OpenStreetMap';
+          _errorBarrios = 'Error ${response.statusCode} Â· OpenStreetMap';
         });
         }
         return;
@@ -2031,8 +2032,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
         if (puntos.length < 4) continue;
         final area = TerritoryService.calcularAreaM2(puntos);
-        if (area < 10000) continue;       // < 0.01 km² — artefacto
-        if (area > 300000000) continue;   // > 300 km² — provincia/región
+        if (area < 10000) continue;       // < 0.01 kmÂ² â€” artefacto
+        if (area > 300000000) continue;   // > 300 kmÂ² â€” provincia/regiÃ³n
 
         // Calcular % cubierto con territorios propios
         final misTers = _state.territorios.where((t) => t.esMio).toList();
@@ -2068,8 +2069,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       });
     } catch (e) {
       final msg = e.toString().contains('TimeoutException')
-          ? 'Tiempo agotado · Reintenta'
-          : 'Sin conexión · Reintenta';
+          ? 'Tiempo agotado Â· Reintenta'
+          : 'Sin conexiÃ³n Â· Reintenta';
       if (mounted) {
         setState(() {
           _cargandoBarrios = false;
@@ -2081,8 +2082,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
-  // Encadena los segmentos outer de una relación OSM en un anillo continuo.
-  // Conecta cada segmento al que comparte vértice (directo o invertido).
+  // Encadena los segmentos outer de una relaciÃ³n OSM en un anillo continuo.
+  // Conecta cada segmento al que comparte vÃ©rtice (directo o invertido).
   List<LatLng> _encadenarSegmentos(List<List<LatLng>> segs) {
     if (segs.isEmpty) return [];
     if (segs.length == 1) return segs[0];
@@ -2136,7 +2137,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
   Future<void> _cargarMisRutas() async {
     if (_cargandoRutas) return;
-    // Si ya tenemos datos sólo redibujar (el mapa puede ser una nueva instancia)
+    // Si ya tenemos datos sÃ³lo redibujar (el mapa puede ser una nueva instancia)
     if (_misRutas.isNotEmpty) {
       await _dibujarRutas();
       return;
@@ -2157,7 +2158,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
-  /// Ray-casting para saber si un punto está dentro de un polígono.
+  /// Ray-casting para saber si un punto estÃ¡ dentro de un polÃ­gono.
   bool _puntoEnPoligonoSol(LatLng punto, List<LatLng> polygon) {
     int cruces = 0;
     final n = polygon.length;
@@ -2173,7 +2174,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   /// Devuelve true si el territorio solapa con el barrio:
-  /// comprueba el centroide Y todos los vértices del territorio.
+  /// comprueba el centroide Y todos los vÃ©rtices del territorio.
   /// Esto evita perder territorios cuyo centro cae justo fuera del borde del barrio.
   bool _territorioEnBarrio(TerritoryData ter, List<LatLng> barrioPuntos) {
     if (_puntoEnPoligonoSol(ter.centro, barrioPuntos)) return true;
@@ -2184,7 +2185,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // BUILD MAPA — dispatcher
+  // BUILD MAPA â€” dispatcher
   // ==========================================================================
   Widget _buildMapa() {
     final int idx = _state.modoGlobal    ? 3
@@ -2199,7 +2200,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _cachedMapaRutas     ??= _buildMapaRutas();
     _cachedMapaGlobal    ??= _buildMapaGlobal();
     // Stack con Opacity en vez de IndexedStack: los mapas inactivos se quedan
-    // renderizando en background (GL nunca se suspende) → sin blank al cambiar modo.
+    // renderizando en background (GL nunca se suspende) â†’ sin blank al cambiar modo.
     return Stack(children: [
       IgnorePointer(ignoring: idx != 0, child: Opacity(opacity: idx == 0 ? 1.0 : 0.0, child: _cachedMapaCiudad!)),
       IgnorePointer(ignoring: idx != 1, child: Opacity(opacity: idx == 1 ? 1.0 : 0.0, child: _cachedMapaSolitario!)),
@@ -2209,7 +2210,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // CONSTANTES — layer IDs Mapbox
+  // CONSTANTES â€” layer IDs Mapbox
   // ==========================================================================
   static const String _cidSrc      = 'cid-territories-src';
   static const String _cidGlowLine = 'cid-glow-line';
@@ -2241,7 +2242,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static const String _glbSelDot   = 'glb-sel-dot';
 
   // ==========================================================================
-  // HELPERS — GeoJSON
+  // HELPERS â€” GeoJSON
   // ==========================================================================
   static String _hexColor(Color c) {
     final r = (c.r * 255).round();
@@ -2254,7 +2255,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static String _toJson(dynamic o) => jsonEncode(o);
 
   // ==========================================================================
-  // MODO CIUDAD — MAPBOX
+  // MODO CIUDAD â€” MAPBOX
   // ==========================================================================
 
   void _onStateChangedForCiudad() {
@@ -2539,7 +2540,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       TerritoryService.startRealtimeListener(centro: newCenter);
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: newCenter, modo: 'competitivo');
-      // El usuario pudo cambiar de modo mientras esperábamos Firestore
+      // El usuario pudo cambiar de modo mientras esperÃ¡bamos Firestore
       if (!mounted || _state.modoSolitario || _state.modoRutas || _state.modoGlobal) {
         GameStateService.instance.setCompetitiveTerritories(lista);
         return;
@@ -2590,7 +2591,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       strokeWidth: 1.5, color: _kSub),
                 ),
                 const SizedBox(width: 8),
-                Text('Cargando territorios…',
+                Text('Cargando territoriosâ€¦',
                     style: _raj(10, FontWeight.w600, _kSub)),
               ]),
             ),
@@ -2600,7 +2601,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // MODO RUTAS — MAPBOX lifecycle
+  // MODO RUTAS â€” MAPBOX lifecycle
   // ==========================================================================
 
   void _onRutasMapCreated(mapbox.MapboxMap map) async {
@@ -2693,7 +2694,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   void _onRutasTap(mapbox.MapContentGestureContext ctx) {
-    // Tap en modo rutas: buscar la ruta más cercana al punto pulsado
+    // Tap en modo rutas: buscar la ruta mÃ¡s cercana al punto pulsado
     final tapLat = ctx.point.coordinates.lat.toDouble();
     final tapLng = ctx.point.coordinates.lng.toDouble();
     final tapLL  = LatLng(tapLat, tapLng);
@@ -2713,7 +2714,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // MODO SOLITARIO — MAPBOX
+  // MODO SOLITARIO â€” MAPBOX
   // ==========================================================================
 
   void _onStateChangedForSolitario() {
@@ -2908,7 +2909,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       TerritoryService.invalidarCache();
       TerritoryService.startRealtimeListener(centro: newCenter);
 
-      // Si el nuevo centro está >8 km del centro original de los barrios,
+      // Si el nuevo centro estÃ¡ >8 km del centro original de los barrios,
       // invalidar para que se recarguen los barrios de la nueva zona.
       if (_barriosCentro != null) {
         final distBarrios = Geolocator.distanceBetween(
@@ -2997,8 +2998,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 const SizedBox(width: 8),
                 Text(
                   _state.loadingTerritorios
-                      ? 'Cargando territorios…'
-                      : 'Cargando barrios…',
+                      ? 'Cargando territoriosâ€¦'
+                      : 'Cargando barriosâ€¦',
                   style: _raj(10, FontWeight.w600, _kSub),
                 ),
               ]),
@@ -3050,7 +3051,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                       strokeWidth: 1.5, color: _kSub),
                 ),
                 const SizedBox(width: 8),
-                Text('Cargando rutas…',
+                Text('Cargando rutasâ€¦',
                     style: _raj(10, FontWeight.w600, _kSub)),
               ]),
             ),
@@ -3061,7 +3062,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
 
   // ==========================================================================
-  // MODO GLOBAL — MAPBOX
+  // MODO GLOBAL â€” MAPBOX
   // ==========================================================================
 
   void _onStateChangedForGlobal() {
@@ -3122,7 +3123,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final glowWidth = isMine ? 12.0 : (t.isOwned ? 8.0 : 6.0);
       final glowAlpha = isMine ? 0.30 : (t.isOwned ? 0.18 : 0.22);
 
-      final owner = isMine ? 'TÚ'
+      final owner = isMine ? 'TÃš'
           : t.isOwned ? (t.ownerNickname ?? '?') : 'LIBRE';
       final label = '${t.epicName}\n$owner';
 
@@ -3169,7 +3170,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     try {
       // Consultar Mapbox directamente en vez de usar el flag en memoria,
       // que puede desincronizarse si _onGlobalStyleLoaded lo resetea mientras
-      // un addSource anterior ya completó parcialmente.
+      // un addSource anterior ya completÃ³ parcialmente.
       final srcExists = await map.style.styleSourceExists(_glbSrc);
       if (srcExists) {
         await (await map.style.getSource(_glbSrc)
@@ -3204,7 +3205,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineWidthExpression: ['get', 'lineWidth'],
       ));
 
-      // Marcador de selección — anillo exterior + punto central (bajo la etiqueta)
+      // Marcador de selecciÃ³n â€” anillo exterior + punto central (bajo la etiqueta)
       await map.style.addSource(mapbox.GeoJsonSource(id: _glbSelSrc, data: selGeojson));
       await map.style.addLayer(mapbox.CircleLayer(
         id: _glbSelGlow, sourceId: _glbSelSrc,
@@ -3221,7 +3222,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         circleColorExpression: ['get', 'dotColor'],
       ));
 
-      // Etiqueta encima de los círculos
+      // Etiqueta encima de los cÃ­rculos
       await map.style.addLayer(mapbox.SymbolLayer(
         id: _glbLabel, sourceId: _glbSrc,
         textFieldExpression: ['get', 'label'],
@@ -3278,7 +3279,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         onStyleLoadedListener: _onGlobalStyleLoaded,
         onTapListener:         _onGlobalTapMapbox,
       ),
-      // Overlays Flutter — el fade solo aplica aquí, no al MapWidget nativo
+      // Overlays Flutter â€” el fade solo aplica aquÃ­, no al MapWidget nativo
       FadeTransition(
         opacity: _globalEntryAnim,
         child: Stack(children: [
@@ -3316,7 +3317,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         strokeWidth: 1.5, color: _kGold),
                   ),
                   const SizedBox(width: 10),
-                  Text('Cargando territorios…',
+                  Text('Cargando territoriosâ€¦',
                       style: _raj(11, FontWeight.w600, _kGold)),
                 ]),
               ),
@@ -3329,7 +3330,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
 
 
   // ==========================================================================
-  // FAB — ir siempre a mi posición actual
+  // FAB â€” ir siempre a mi posiciÃ³n actual
   // ==========================================================================
   Widget _buildFab() => GestureDetector(
     onTap: () async {
@@ -3427,7 +3428,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         children: [
           _filtroChip('Todos',    _FiltroMapa.todos,    Icons.layers_rounded),
           const SizedBox(width: 6),
-          _filtroChip('Míos',     _FiltroMapa.mios,     Icons.shield_rounded),
+          _filtroChip('MÃ­os',     _FiltroMapa.mios,     Icons.shield_rounded),
           const SizedBox(width: 6),
           _filtroChip('En guerra',_FiltroMapa.enGuerra, Icons.whatshot_rounded),
         ],
@@ -3571,7 +3572,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     style: _raj(11, FontWeight.w800, _shText),
                     overflow: TextOverflow.ellipsis)),
                 const SizedBox(width: 4),
-                Text('conquistó', style: _raj(10, FontWeight.w400, _kSub)),
+                Text('conquistÃ³', style: _raj(10, FontWeight.w400, _kSub)),
               ]),
               const SizedBox(height: 2),
               Text(e.territoryName,
@@ -3580,7 +3581,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               if (e.previousOwnerNick != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 1),
-                  child: Text('← @${e.previousOwnerNick}',
+                  child: Text('â† @${e.previousOwnerNick}',
                       style: _raj(9, FontWeight.w500, _kDim),
                       overflow: TextOverflow.ellipsis),
                 ),
@@ -3661,7 +3662,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
               Text('@$nick', style: _raj(9, FontWeight.w700, _shText)),
               if (prev != null)
-                Text(' ← @$prev', style: _raj(9, FontWeight.w500, _kSub)),
+                Text(' â† @$prev', style: _raj(9, FontWeight.w500, _kSub)),
               const Spacer(),
               Text(ago, style: _raj(9, FontWeight.w500, _kSub)),
             ]),
@@ -3707,14 +3708,14 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _ShStat('${_state.territorios.length}', 'EN MAPA'),
             _ShStat('${_state.jugadoresEnVivo.length}', 'EN VIVO'),
             _ShStat('$det', 'DESGASTE'),
-            _ShStat('$pel', 'CRÍTICOS'),
+            _ShStat('$pel', 'CRÃTICOS'),
           ]),
           if (pel > 0 || det > 0) _shAlert(det, pel),
           if (_state.loadingTerritorios)
             _shLoading('Buscando zonas', 'Cargando territorios cercanos', _kSub)
           else if (_state.territorios.isEmpty)
             _shEmptyState(Icons.map_outlined, 'Sin territorios',
-                'No hay territorios en esta zona.\nSal a correr para descubrir y\nconquistar los más cercanos.')
+                'No hay territorios en esta zona.\nSal a correr para descubrir y\nconquistar los mÃ¡s cercanos.')
           else if (mios == 0)
             _shEmptyState(Icons.flag_outlined, 'Zona libre',
                 'Hay ${_state.territorios.length} territorios cerca.\nSal a conquistar el primero.')
@@ -3738,11 +3739,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // SHEET MODO SOLITARIO
   // ==========================================================================
   Widget _buildSheetSolitario(ScrollController scrollCtrl) {
-    // Solo zonas con ≥1% — las demás se desbloquean al visitar
+    // Solo zonas con â‰¥1% â€” las demÃ¡s se desbloquean al visitar
     final barriosOrdenados = (List<_BarrioData>.from(_barriosCercanos)
       ..sort((a, b) => b.porcentajeCubierto.compareTo(a.porcentajeCubierto)))
         .where((b) => b.porcentajeCubierto >= 0.01).toList();
-    // Filtro por búsqueda
+    // Filtro por bÃºsqueda
     final q = _barriosBusqueda.toLowerCase().trim();
     final barriosFiltrados = q.isEmpty
         ? barriosOrdenados
@@ -3777,7 +3778,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               icon: Icons.explore_rounded,
               modeLabel: 'EXPLORADOR',
               modeColor: _kSafe,
-              heroValue: _cargandoBarrios ? '…' : '${barriosOrdenados.length}',
+              heroValue: _cargandoBarrios ? 'â€¦' : '${barriosOrdenados.length}',
               heroLabel: 'zonas cercanas',
               trailing: (!_cargandoBarrios && !_barriosCargados && barriosOrdenados.isEmpty)
                   ? GestureDetector(
@@ -3800,7 +3801,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   onChanged: (v) => setState(() => _barriosBusqueda = v),
                   style: _raj(13, FontWeight.w500, _shText),
                   decoration: InputDecoration(
-                    hintText: 'Buscar zona…',
+                    hintText: 'Buscar zonaâ€¦',
                     hintStyle: _raj(13, FontWeight.w400, _kSub),
                     prefixIcon: const Icon(Icons.search_rounded, color: _kSub, size: 18),
                     suffixIcon: _barriosBusqueda.isNotEmpty
@@ -3849,10 +3850,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   'No hay zonas que coincidan con "$_barriosBusqueda"')
             else if (_barriosCargados)
               _shEmptyState(Icons.explore_rounded, 'Sin zonas desbloqueadas',
-                  'Corre por una zona para desbloquearla aquí')
+                  'Corre por una zona para desbloquearla aquÃ­')
             else
               _shEmptyState(Icons.explore_rounded, 'Desliza para cargar',
-                  'Se consultarán las zonas cercanas'),
+                  'Se consultarÃ¡n las zonas cercanas'),
             const SizedBox(height: 32),
           ],
         ),
@@ -3894,7 +3895,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             below: _shCapacityBar(mios.length, max, _kSub),
           ),
           _shStatBar([
-            _ShStat('${mios.length}', 'MÍOS'),
+            _ShStat('${mios.length}', 'MÃOS'),
             _ShStat('${libres.length}', 'LIBRES'),
             _ShStat('${disp.length}', 'EN DISPUTA'),
             _ShStat('${_state.totalJugadoresGlobal}', 'RIVALES'),
@@ -3987,7 +3988,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             _shEmptyState(
               Icons.route_rounded,
               'Sin rutas',
-              'Sal a correr en modo Ruta Libre\npara ver tus recorridos aquí',
+              'Sal a correr en modo Ruta Libre\npara ver tus recorridos aquÃ­',
             )
           else ...[
             _shSectionTitle('Historial de rutas'),
@@ -4061,406 +4062,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       ),
     );
   }
-
-  Widget _shHeader({
-    required IconData icon,
-    required String modeLabel,
-    required Color modeColor,
-    required String heroValue,
-    required String heroLabel,
-    String? heroSuffix,
-    Widget? trailing,
-    Widget? below,
-  }) =>
-    Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: modeColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: modeColor.withValues(alpha: 0.20)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 11, color: modeColor),
-              const SizedBox(width: 5),
-              Text(modeLabel, style: _raj(9, FontWeight.w700, modeColor, spacing: 1)),
-            ]),
-          ),
-          if (trailing != null) ...[const Spacer(), trailing],
-        ]),
-        const SizedBox(height: 12),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(heroValue, style: _raj(36, FontWeight.w900, _shText, height: 1)),
-          if (heroSuffix != null) ...[
-            const SizedBox(width: 4),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(heroSuffix, style: _raj(16, FontWeight.w600, _kSub)),
-            ),
-          ],
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(heroLabel, style: _raj(11, FontWeight.w500, _kSub)),
-          ),
-        ]),
-        if (below != null) ...[const SizedBox(height: 10), below],
-      ]),
-    );
-
-  Widget _shStatBar(List<_ShStat> items) {
-    final children = <Widget>[];
-    for (int i = 0; i < items.length; i++) {
-      if (i > 0) children.add(const SizedBox(width: 8));
-      children.add(Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: _shSurf,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(items[i].value, style: _raj(17, FontWeight.w800, _shText, height: 1)),
-            const SizedBox(height: 3),
-            Text(items[i].label, style: _raj(8, FontWeight.w600, _kSub, spacing: 0.3)),
-          ]),
-        ),
-      ));
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Row(children: children),
-    );
-  }
-
-  Widget _shSectionTitle(String label) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-    child: Row(children: [
-      Text(label.toUpperCase(), style: _raj(11, FontWeight.w700, _kSub, spacing: 0.5)),
-      const SizedBox(width: 10),
-      Expanded(child: Container(height: 0.5, color: _shBorder)),
-    ]),
-  );
-
-  Widget _shPillBadge(String label, IconData icon, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: color.withValues(alpha: 0.20)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 11, color: color),
-      const SizedBox(width: 4),
-      Text(label, style: _raj(9, FontWeight.w600, color, spacing: 0.3)),
-    ]),
-  );
-
-  Widget _shStatusBadge(int det, int pel) {
-    if (pel > 0) return _shPillBadge('$pel críticos', Icons.warning_rounded, _kSub);
-    if (det > 0) return _shPillBadge('$det desgaste', Icons.shield_outlined, _kSub);
-    return _shPillBadge('Todo OK', Icons.check_circle_outline_rounded, _kSub);
-  }
-
-  Widget _shAlert(int det, int pel) => Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
-    decoration: BoxDecoration(
-      color: _shSurf,
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: _shBorder),
-    ),
-    child: Row(children: [
-      Container(
-        width: 3, height: 30,
-        decoration: BoxDecoration(color: _kSub, borderRadius: BorderRadius.circular(2)),
-      ),
-      const SizedBox(width: 10),
-      const Icon(Icons.shield_outlined, color: _kSub, size: 14),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          pel > 0
-              ? '$pel ${pel == 1 ? 'territorio puede' : 'territorios pueden'} ser conquistados.'
-              : '$det ${det == 1 ? 'territorio debilitado' : 'territorios debilitados'}. Visítalos pronto.',
-          style: _raj(11, FontWeight.w500, _kDim),
-        ),
-      ),
-    ]),
-  );
-
-  Widget _shEmptyState(IconData icon, String title, String subtitle) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
-    child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 48, height: 48,
-        decoration: BoxDecoration(
-          color: _shSurf,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: _kSub, size: 22),
-      ),
-      const SizedBox(height: 12),
-      Text(title.toUpperCase(), style: _raj(12, FontWeight.w700, _kSub, spacing: 1)),
-      const SizedBox(height: 4),
-      Text(subtitle,
-          textAlign: TextAlign.center,
-          style: _raj(11, FontWeight.w400, _kDim, height: 1.5)),
-    ]),
-  );
-
-  Widget _shLoading(String title, String subtitle, Color color) => Padding(
-    padding: const EdgeInsets.all(28),
-    child: Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(
-        width: 22, height: 22,
-        child: CircularProgressIndicator(strokeWidth: 2, color: color),
-      ),
-      const SizedBox(height: 12),
-      Text(title, style: _raj(12, FontWeight.w600, _kSub)),
-      const SizedBox(height: 3),
-      Text(subtitle, style: _raj(10, FontWeight.w400, _kDim)),
-    ]),
-  );
-
-  Widget _shCapacityBar(int current, int max, Color color) {
-    final frac = (current / max).clamp(0.0, 1.0);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Text('CAPACIDAD', style: _raj(8, FontWeight.w700, _kSub, spacing: 1)),
-        const Spacer(),
-        Text('$current / $max', style: _raj(9, FontWeight.w700, _kDim)),
-      ]),
-      const SizedBox(height: 5),
-      Stack(children: [
-        Container(
-          height: 3,
-          decoration: BoxDecoration(
-            color: _shBorder,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        FractionallySizedBox(
-          widthFactor: frac,
-          child: Container(
-            height: 3,
-            decoration: BoxDecoration(
-              color: _kDim,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        ),
-      ]),
-    ]);
-  }
-
-  Widget _shBarrioCell(_BarrioData b) {
-    final pct = b.porcentajeCubierto;
-    const Color color = _kSub;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _moverCamara(b.centro, 13.5);
-        if (_sheetCtrl.isAttached) {
-          _sheetCtrl.animateTo(0.13,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic);
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: _shSurf,
-          border: Border.all(color: _shBorder),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(children: [
-          Container(
-            width: 3, height: 32,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(b.nombre,
-                style: _raj(12, FontWeight.w600, _shText),
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Stack(children: [
-              Container(height: 2,
-                  decoration: BoxDecoration(color: _shBorder, borderRadius: BorderRadius.circular(2))),
-              FractionallySizedBox(
-                widthFactor: pct.clamp(0.0, 1.0),
-                child: Container(
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: _kDim,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ]),
-          ])),
-          const SizedBox(width: 12),
-          Text(pct >= 1.0 ? '100%' : '${(pct * 100).toInt()}%',
-              style: _raj(13, FontWeight.w800, _shText)),
-        ]),
-      ),
-    );
-  }
-
-
-  /// Card de territorio global en la sheet — muestra clausulaKm real
-  Widget _globalTerCard(GlobalTerritory t) {
-    final Color baseColor = t.isMine
-        ? _kGold
-        : t.isOwned
-            ? (t.ownerColor ?? t.tierColor)
-            : t.tierColor;
-    final diffColor = _dificultadColor(t.difficultyLevel);
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        _onGlobalTerritoryTap(t);
-        _sheetCtrl.animateTo(0.13,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut);
-      },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _shSurf,
-          border: Border.all(
-              color: t.isMine
-                  ? _kGold.withValues(alpha: 0.40)
-                  : t.isOwned
-                      ? baseColor.withValues(alpha: 0.30)
-                      : _shBorder),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: t.isMine
-              ? [BoxShadow(color: _kGold.withValues(alpha: 0.10), blurRadius: 16)]
-              : t.isOwned
-                  ? [BoxShadow(color: baseColor.withValues(alpha: 0.07), blurRadius: 12)]
-                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 2))],
-        ),
-        child: Row(children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color:  baseColor.withValues(alpha: t.isOwned ? 0.12 : 0.06),
-              shape:  BoxShape.circle,
-              border: Border.all(
-                  color: baseColor.withValues(alpha: t.isOwned ? 0.45 : 0.25)),
-            ),
-            child: Center(
-              child: Icon(
-                t.tier == TerritoryTier.legendario
-                    ? Icons.stars_rounded
-                    : t.tier == TerritoryTier.mediano
-                        ? Icons.shield_rounded
-                        : Icons.flag_rounded,
-                color: baseColor,
-                size: 20,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.10),
-                  border:
-                      Border.all(color: baseColor.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(t.tierLabel,
-                    style: _raj(7, FontWeight.w900, baseColor,
-                        spacing: 1)),
-              ),
-              const SizedBox(width: 6),
-              if (t.isMine)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text('TUYO',
-                      style: _raj(7, FontWeight.w900, _kGold)),
-                ),
-            ]),
-            const SizedBox(height: 4),
-            Text(t.epicName,
-                style: _raj(12, FontWeight.w700, _shText),
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Row(children: [
-              if (t.isOwned) ...[
-                Container(
-                  width: 6, height: 6,
-                  decoration: BoxDecoration(
-                      color: baseColor, shape: BoxShape.circle),
-                  margin: const EdgeInsets.only(right: 5),
-                ),
-              ],
-              Text(
-                t.isOwned && !t.isMine
-                    ? t.ownerNickname!
-                    : t.isMine
-                        ? 'Controlado por ti'
-                        : 'Disponible',
-                style: _raj(9, FontWeight.w600,
-                    t.isMine
-                        ? _kGold
-                        : (t.isOwned ? baseColor : _kSafe)),
-              ),
-            ]),
-          ])),
-
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 7, vertical: 3),
-              decoration: BoxDecoration(
-                color:  diffColor.withValues(alpha: 0.10),
-                border: Border.all(color: diffColor.withValues(alpha: 0.35)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text('${t.difficultyLevel}/10',
-                  style: _raj(10, FontWeight.w900, diffColor)),
-            ),
-            const SizedBox(height: 6),
-            // ── clausulaKm real via t.kmRequired ────────────────────────
-            Text('${t.kmRequired.toStringAsFixed(1)} km',
-                style: _raj(11, FontWeight.w700, _kCyan)),
-            const SizedBox(height: 2),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.monetization_on_rounded,
-                  size: 10, color: _kGoldDim),
-              const SizedBox(width: 3),
-              Text('+${t.rewardActual}',
-                  style: _raj(10, FontWeight.w600, _kGoldDim)),
-            ]),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-
   Widget _buildBotonCercanos() => GestureDetector(
     onTap: () {
       HapticFeedback.selectionClick();
@@ -4503,8 +4104,8 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         borderRadius: BorderRadius.circular(3))))
             : Text(
                 _state.cercanosVisible
-                    ? 'TERRITORIOS EN ZONA  ▲'
-                    : 'TERRITORIOS EN ZONA  ▼',
+                    ? 'TERRITORIOS EN ZONA  â–²'
+                    : 'TERRITORIOS EN ZONA  â–¼',
                 style: _raj(10, FontWeight.w700,
                     _state.cercanosVisible ? _shText : _kSub,
                     spacing: 1.5)),
@@ -4588,7 +4189,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   const SizedBox(width: 10),
                   Expanded(child: Text(
                     g.esMio
-                        ? '${g.nickname.toUpperCase()}  (TÚ)'
+                        ? '${g.nickname.toUpperCase()}  (TÃš)'
                         : g.nickname.toUpperCase(),
                     style: _raj(12, FontWeight.w800,
                         g.esMio ? _shText : _kSub, spacing: 1))),
@@ -4665,7 +4266,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     String est = 'ACTIVO';
     Color c = _state.modoSolitario ? _kSafe : _kBlue;
     if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroFuncional) {
-      est = 'CRÍTICO'; c = _kRed;
+      est = 'CRÃTICO'; c = _kRed;
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
       est = 'DESGASTE'; c = _kWarn;
     }
@@ -4730,7 +4331,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   }
 
   // ==========================================================================
-  // DIÁLOGO DETALLE TERRITORIO
+  // DIÃLOGO DETALLE TERRITORIO
   // ==========================================================================
   void _mostrarDialogo(_TerDet det, String ownerNick) {
     final esMio = det.ownerId == (_uid ?? '');
@@ -4748,7 +4349,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     String estado = 'activo';
     Color cEstado = _kSafe;
     if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroFuncional) {
-      estado = 'crítico'; cEstado = _kRed;
+      estado = 'crÃ­tico'; cEstado = _kRed;
     } else if (det.diasSinVisitar != null && det.diasSinVisitar! >= kDiasParaDeterioroVisual) {
       estado = 'con desgaste'; cEstado = _kWarn;
     }
@@ -4887,13 +4488,13 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               child: Row(children: [
                 _dStat(
                     'SIN VISITAR',
-                    det.diasSinVisitar != null ? '${det.diasSinVisitar}d' : '—',
+                    det.diasSinVisitar != null ? '${det.diasSinVisitar}d' : 'â€”',
                     _kText),
                 Container(width: 1, height: 32, color: _kBorder2),
                 _dStat('DISTANCIA',
                     '${det.dist.toStringAsFixed(1)} km', _kText),
                 Container(width: 1, height: 32, color: _kBorder2),
-                _dStat('VÉRTICES', '${det.puntos.length}', _kText),
+                _dStat('VÃ‰RTICES', '${det.puntos.length}', _kText),
               ]),
             ),
 
@@ -4943,7 +4544,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                         color: _kSub, size: 13),
                     const SizedBox(width: 8),
                     Expanded(child: Text(
-                      'Faltan ${kDiasParaDeterioroFuncional - (det.diasSinVisitar ?? 0)} días sin visita para conquistar.',
+                      'Faltan ${kDiasParaDeterioroFuncional - (det.diasSinVisitar ?? 0)} dÃ­as sin visita para conquistar.',
                       style: _raj(10, FontWeight.w500, _kSub),
                     )),
                   ]),
@@ -5006,7 +4607,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 docId: det.docId, nombre: nuevoNombre);
             if (!mounted) return;
             _mostrarExito(
-                '✏️ Territorio renombrado como "$nuevoNombre"');
+                'âœï¸ Territorio renombrado como "$nuevoNombre"');
             _MapState.invalidarDetallesCache();
             await _state.cargarDetalles(det.ownerId, modo: _state.modoSolitario ? 'solitario' : 'competitivo');
           } on FirebaseFunctionsException catch (e) {
