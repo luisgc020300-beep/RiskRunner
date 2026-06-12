@@ -5132,7 +5132,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     };
     final String nombre = (t.nombreTerritorio?.isNotEmpty == true)
         ? t.nombreTerritorio!
-        : t.docId.substring(0, 6).toUpperCase();
+        : t.docId.substring(0, t.docId.length.clamp(0, 6)).toUpperCase();
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
