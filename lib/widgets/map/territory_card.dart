@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
 
 import '../../services/territory_service.dart';
 import 'map_theme.dart';
@@ -62,9 +61,8 @@ class TerritoryCard extends StatelessWidget {
   final Color textColor;
   final Color borderColor;
   final Color surfColor;
-  final bool modoSolitario;
   final VoidCallback onCerrar;
-  final void Function(LatLng, double) onObservar;
+  final VoidCallback? onAtacar;
   final Widget Function(String docId) historialBuilder;
 
   const TerritoryCard({
@@ -75,9 +73,8 @@ class TerritoryCard extends StatelessWidget {
     required this.textColor,
     required this.borderColor,
     required this.surfColor,
-    required this.modoSolitario,
     required this.onCerrar,
-    required this.onObservar,
+    this.onAtacar,
     required this.historialBuilder,
   });
 
@@ -97,7 +94,6 @@ class TerritoryCard extends StatelessWidget {
     }
 
     final double hpFraction = t.hpActual / kHpMax.toDouble();
-    final bool rivalCompetitivo = !t.esMio && !modoSolitario;
 
     return ScaleTransition(
       scale: selAnim,
@@ -136,19 +132,11 @@ class TerritoryCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                   Text(
-                      t.esMio
-                          ? 'MI TERRITORIO'
-                          : rivalCompetitivo
-                              ? 'ZONA RIVAL'
-                              : t.ownerNickname.toUpperCase(),
+                      t.esMio ? 'MI TERRITORIO' : t.ownerNickname.toUpperCase(),
                       style: mapRaj(13, FontWeight.w900, textColor,
                           spacing: 1.5)),
                   Text(
-                      t.esMio
-                          ? 'ZONA CONTROLADA'
-                          : rivalCompetitivo
-                              ? 'INFORMACIÓN BLOQUEADA'
-                              : 'TERRITORIO RIVAL',
+                      t.esMio ? 'ZONA CONTROLADA' : 'TERRITORIO RIVAL',
                       style: mapRaj(8, FontWeight.w700,
                           t.esMio ? t.color : kMapSub,
                           spacing: 2)),
@@ -172,10 +160,7 @@ class TerritoryCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               child: Row(children: [
-                rivalCompetitivo
-                    ? _tcCardStat(
-                        Icons.lock_outline_rounded, 'OCULTO', kMapSub)
-                    : _tcCardStat(estadoIcon, estadoLabel, cEstado),
+                _tcCardStat(estadoIcon, estadoLabel, cEstado),
                 _tcVDiv(borderColor),
                 _tcCardStat(
                     Icons.flag_rounded, '${t.puntos.length} PTS', textColor),
@@ -184,121 +169,103 @@ class TerritoryCard extends StatelessWidget {
                     ? _tcCardStat(
                         Icons.shield_rounded, 'DEFENDER', kMapGold)
                     : GestureDetector(
-                        onTap: () {
-                          onCerrar();
-                          onObservar(t.centro, 16);
-                        },
+                        onTap: () => onAtacar?.call(),
                         child: _tcCardStat(
-                            Icons.visibility_rounded, 'OBSERVAR', kMapSub),
+                            Icons.flag_rounded, 'ATACAR', kMapRed),
                       ),
               ]),
             ),
 
             // ── Barra de vida ──────────────────────────────────────────
-            if (!rivalCompetitivo)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: cEstado,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                                color: cEstado.withValues(alpha: 0.6),
-                                blurRadius: 4)
-                          ],
-                        ),
-                        margin: const EdgeInsets.only(right: 6),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: cEstado,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                              color: cEstado.withValues(alpha: 0.6),
+                              blurRadius: 4)
+                        ],
                       ),
-                      Text(
-                        t.estadoHp == EstadoHp.saludable
-                            ? 'Territorio saludable'
-                            : t.estadoHp == EstadoHp.danado
-                                ? 'Territorio debilitado'
-                                : 'En estado crítico',
+                      margin: const EdgeInsets.only(right: 6),
+                    ),
+                    Text(
+                      t.estadoHp == EstadoHp.saludable
+                          ? 'Territorio saludable'
+                          : t.estadoHp == EstadoHp.danado
+                              ? 'Territorio debilitado'
+                              : 'En estado crítico',
+                      style: mapRaj(9, FontWeight.w700, cEstado,
+                          spacing: 0.5),
+                    ),
+                    const Spacer(),
+                    Text('${t.hpActual}/$kHpMax HP',
                         style: mapRaj(9, FontWeight.w700, cEstado,
-                            spacing: 0.5),
+                            spacing: 0.5)),
+                  ]),
+                  const SizedBox(height: 5),
+                  Stack(children: [
+                    Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: borderColor,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      const Spacer(),
-                      Text('${t.hpActual}/$kHpMax HP',
-                          style: mapRaj(9, FontWeight.w700, cEstado,
-                              spacing: 0.5)),
-                    ]),
-                    const SizedBox(height: 5),
-                    Stack(children: [
-                      Container(
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: hpFraction.clamp(0.0, 1.0),
+                      child: Container(
                         height: 4,
                         decoration: BoxDecoration(
-                          color: borderColor,
+                          color: cEstado,
                           borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                                color: cEstado.withValues(alpha: 0.5),
+                                blurRadius: 6)
+                          ],
                         ),
                       ),
-                      FractionallySizedBox(
-                        widthFactor: hpFraction.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 4,
+                    ),
+                  ]),
+                  if (!t.esMio) ...[
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.schedule_rounded,
+                          color: kMapSub, size: 11),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
+                        style: mapRaj(9, FontWeight.w600, kMapSub),
+                      ),
+                      if (t.esConquistableSinPasar) ...[
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: cEstado,
-                            borderRadius: BorderRadius.circular(2),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: cEstado.withValues(alpha: 0.5),
-                                  blurRadius: 6)
-                            ],
+                            color: kMapRed.withValues(alpha: 0.12),
+                            border: Border.all(
+                                color: kMapRed.withValues(alpha: 0.5)),
+                            borderRadius: BorderRadius.circular(3),
                           ),
+                          child: Text('CONQUISTABLE',
+                              style: mapRaj(8, FontWeight.w900, kMapRed)),
                         ),
-                      ),
+                      ],
                     ]),
-                    if (!t.esMio) ...[
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        const Icon(Icons.schedule_rounded,
-                            color: kMapSub, size: 11),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
-                          style: mapRaj(9, FontWeight.w600, kMapSub),
-                        ),
-                        if (t.esConquistableSinPasar) ...[
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: kMapRed.withValues(alpha: 0.12),
-                              border: Border.all(
-                                  color: kMapRed.withValues(alpha: 0.5)),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text('CONQUISTABLE',
-                                style: mapRaj(
-                                    8, FontWeight.w900, kMapRed)),
-                          ),
-                        ],
-                      ]),
-                    ],
                   ],
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                child: Row(children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: kMapSub, size: 12),
-                  const SizedBox(width: 6),
-                  Text(
-                      'Corre sobre este territorio para revelar su estado',
-                      style: mapRaj(9, FontWeight.w600, kMapSub,
-                          spacing: 0.3)),
-                ]),
+                ],
               ),
+            ),
 
             // ── Stats extra: dominio + velocidad + rey ──────────────────
             Padding(

@@ -1929,7 +1929,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       final coords = t.puntos.map((p) => [p.longitude, p.latitude]).toList();
       coords.add(coords.first);
 
-      final colorHex    = _colorToHex(t.esMio ? t.color : t.colorEstadoHp);
+      final colorHex    = _colorToHex(t.color);
       final borderWidth = t.esMio
           ? 3.2
           : switch (t.estadoHp) {
@@ -5207,7 +5207,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             userAgentPackageName: 'com.runner_risk.app'),
         if (_territorios.isNotEmpty) PolygonLayer(
           polygons: _territorios.map((t) {
-            final col = t.esMio ? t.color : t.colorEstadoHp;
+            final col = t.color;
             return Polygon(
               points: t.puntos,
               color: col.withValues(alpha: 0.22),

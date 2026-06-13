@@ -1161,6 +1161,58 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
+  Future<void> _atacarDesdeCard(TerritoryData t) async {
+    Position? pos;
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse) {
+        pos = await Geolocator.getCurrentPosition(
+            locationSettings:
+                const LocationSettings(accuracy: LocationAccuracy.high));
+      }
+    } catch (_) {}
+
+    if (pos == null) {
+      _mostrarError('No se pudo obtener tu ubicación.');
+      return;
+    }
+    if (!mounted) return;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DialogoConfirmarConquista(
+          ownerNick: t.ownerNickname,
+          diasSinVisitar: t.diasSinVisitar),
+    );
+    if (confirmar != true) return;
+    if (!mounted) return;
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const _DialogoConquistando());
+    try {
+      await TerritoryService.conquistarTerritorio(
+        docId: t.docId, duenoAnteriorId: t.ownerId,
+        latUsuario: pos.latitude, lngUsuario: pos.longitude,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _mostrarExito('¡Territorio conquistado!');
+      HapticFeedback.heavyImpact();
+      _cerrarSeleccion();
+      await _refrescarTerritorios();
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _mostrarError(e.message ?? 'No puedes conquistar este territorio');
+    } catch (e, st) {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'atacarDesdeCard');
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _mostrarError('Error inesperado. Inténtalo de nuevo.');
+    }
+  }
+
   // ==========================================================================
   // BUILD
   // ==========================================================================
@@ -1259,9 +1311,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   textColor: _shText,
                   borderColor: _shBorder,
                   surfColor: _shSurf,
-                  modoSolitario: _state.modoSolitario,
                   onCerrar: _cerrarSeleccion,
-                  onObservar: _moverCamara,
+                  onAtacar: _state.territorioSeleccionado!.esMio
+                      ? null
+                      : () => _atacarDesdeCard(_state.territorioSeleccionado!),
                   historialBuilder: _buildCardHistorial,
                 ),
               );
