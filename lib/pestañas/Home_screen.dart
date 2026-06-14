@@ -141,10 +141,10 @@ class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
-  // Paleta dinámica â€” se actualiza al inicio de cada build()
+  // Paleta dinámica — se actualiza al inicio de cada build()
   _TColors _T = _TColors.light;
 
-  // â”€â”€ Perfil
+  // ── Perfil
   String nickname = "Cargando...";
   int monedas = 0;
   int nivel = 1;
@@ -153,34 +153,34 @@ class _HomeScreenState extends State<HomeScreen>
 
   Color _accentColor = _TColors.light.bronze;
 
-  // â”€â”€ Amigos / Stories
+  // ── Amigos / Stories
   List<Map<String, dynamic>> _amigos = [];
   bool _amigosLoaded = false;
   Map<String, List<StoryModel>> _storiesPorAmigo = {};
   List<StoryModel> _misHistorias = [];
 
-  // â”€â”€ Retos
+  // ── Retos
   List<QueryDocumentSnapshot> _dailyChallenges = [];
   bool _loadingChallenges = true;
   List<Map<String, dynamic>> _completedChallengesCache = [];
   Timer? _dailyResetTimer;
   final _timeUntilReset = ValueNotifier<Duration>(Duration.zero);
 
-  // â”€â”€ Mapa
+  // ── Mapa
   StreamSubscription<QuerySnapshot>? _invasionListener;
 
-  // â”€â”€ Territorios cercanos
+  // ── Territorios cercanos
 
-  // â”€â”€ Notificaciones
+  // ── Notificaciones
   int _notifNoLeidas = 0;
   StreamSubscription<QuerySnapshot>? _notifCountListener;
 
-  // â”€â”€ Feed
+  // ── Feed
   List<FeedPost> _feedPosts = [];
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
 
-  // â”€â”€ Plan de entrenamiento
+  // ── Plan de entrenamiento
   UserPlanState? _userPlan;
   TrainingPlan?  _planActivo;
   // Cache de avatares con TTL de 5 min para reflejar cambios de foto
@@ -188,16 +188,16 @@ class _HomeScreenState extends State<HomeScreen>
   final Map<String, DateTime>  _avatarCacheTime = {};
   static const Duration _kAvatarTTL = Duration(minutes: 5);
 
-  // â”€â”€ Tab activa
+  // ── Tab activa
   int _tabIndex = 0;
   late PageController _pageController;
 
-  // â”€â”€ Header colapsable
+  // ── Header colapsable
   bool _headerCollapsed = false;
 
   StreamSubscription<User?>? _authListener;
 
-  // â”€â”€ Animaciones
+  // ── Animaciones
   late AnimationController _entradaCtrl;
   late AnimationController _loopCtrl;
   late AnimationController _scanCtrl;
@@ -324,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted && userId != null) _initializeData();
   }
 
-  // â”€â”€ Notificaciones
+  // ── Notificaciones
   void _escucharConteoNotificaciones() {
     if (userId == null) return;
     _notifCountListener?.cancel();
@@ -338,7 +338,7 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // â”€â”€ Feed
+  // ── Feed
   void _escucharFeed() {
     if (userId == null) return;
     if (mounted) setState(() => _loadingFeed = true);
@@ -579,7 +579,7 @@ class _HomeScreenState extends State<HomeScreen>
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                         Text('LÍMITE ALCANZADO (5/5)', style: _raj(11, FontWeight.w800, _T.white, spacing: 1)),
                         const SizedBox(height: 2),
-                        Text('Premium â†’ rutas ilimitadas. Toca para activar.', style: _raj(10, FontWeight.w500, _T.sub)),
+                        Text('Premium → rutas ilimitadas. Toca para activar.', style: _raj(10, FontWeight.w500, _T.sub)),
                       ]),
                     ),
                     Icon(Icons.chevron_right_rounded, color: _T.bronze),
@@ -641,7 +641,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // â”€â”€ Ubicación
+  // ── Ubicación
   Future<void> _getUserLocation() async {
     try {
       LocationPermission permission = await Geolocator.checkPermission();
@@ -657,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // â”€â”€ Init
+  // ── Init
   Future<void> _initializeData() async {
     if (userId == null) return;
     if (mounted) setState(() => isLoading = true);
@@ -752,7 +752,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // â”€â”€ Invasión â€” ROJO se mantiene porque son alertas
+  // ── Invasión — ROJO se mantiene porque son alertas
   void _escucharNotificacionesInvasion() {
     if (userId == null) return;
     _invasionListener?.cancel();
@@ -775,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // Banner de Invasión â€” ROJO se mantiene (es una alerta crítica)
+  // Banner de Invasión — ROJO se mantiene (es una alerta crítica)
   void _mostrarBannerInvasion(String mensaje, String notifId) {
     if (!mounted) return;
     FirebaseFirestore.instance.collection('notifications').doc(notifId).update({'read': true});
@@ -803,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen>
     ));
   }
 
-  // â”€â”€ Datos usuario
+  // ── Datos usuario
   Future<void> _loadUserData() async {
     final userDoc = await FirebaseFirestore.instance.collection('players').doc(userId).get();
     if (userDoc.exists && mounted) {
@@ -1515,7 +1515,7 @@ class _HomeScreenState extends State<HomeScreen>
                       Text(
                         isMe
                             ? (_misHistorias.isNotEmpty ? 'Mi historia' : 'Tú')
-                            : (label.length > 7 ? '${label.substring(0, 6)}â€¦' : label),
+                            : (label.length > 7 ? '${label.substring(0, 6)}…' : label),
                         style: _raj(9, hasStories && !allViewed ? FontWeight.w700 : FontWeight.w500,
                             hasStories && !allViewed ? _T.white : _T.sub),
                       ),
@@ -1797,7 +1797,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // â”€â”€ Header
+        // ── Header
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
           child: Row(children: [
@@ -1838,7 +1838,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ]),
         ),
-        // â”€â”€ Título + descripción
+        // ── Título + descripción
         if (post.titulo != null || post.descripcion != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
@@ -1853,15 +1853,15 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
             ]),
           ),
-        // â”€â”€ Stats carrera
+        // ── Stats carrera
         if (isRun && (post.distanciaKm != null || post.velocidadMedia != null || post.tiempo != null))
           _buildRunStatsBar(post),
-        // â”€â”€ Media / mapa
+        // ── Media / mapa
         if (post.mediaBase64 != null)
           _buildMediaImage(post)
         else if (isRun && post.ruta != null && post.ruta!.isNotEmpty)
           _buildRouteMap(post),
-        // â”€â”€ Acciones
+        // ── Acciones
         _buildPostActions(post),
       ]),
     );
@@ -2218,7 +2218,7 @@ class _LoaderPainter extends CustomPainter {
 // MODELOS AUXILIARES
 // =============================================================================
 // =============================================================================
-// COMMENT INPUT â€” StatefulWidget para ciclo de vida correcto del controller
+// COMMENT INPUT — StatefulWidget para ciclo de vida correcto del controller
 // =============================================================================
 class _CommentInput extends StatefulWidget {
   final String? fotoBase64;
