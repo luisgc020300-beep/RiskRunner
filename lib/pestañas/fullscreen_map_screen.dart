@@ -267,6 +267,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _globalEntryAnim = CurvedAnimation(
         parent: _globalEntryCtrl, curve: Curves.easeOutCubic);
 
+    _sheetCtrl.addListener(_onSheetChanged);
     _starfield = _StarfieldPainter.generate();
 
     // Pre-set mode BEFORE _initData() so streams and territory loading
@@ -384,6 +385,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     TerritoryService.stopRealtimeListener();
     _cameraDebounce?.cancel();
     _solCamDebounce?.cancel();
+    _sheetCtrl.removeListener(_onSheetChanged);
     _sheetCtrl.dispose();
     _barriosSearchCtrl.dispose();
     // Restore the mode that was active before this historical view opened
@@ -747,6 +749,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             curve: Curves.easeOut);
       }
     });
+  }
+
+  void _onSheetChanged() {
+    if (!_sheetCtrl.isAttached) return;
+    if (_sheetCtrl.size > 0.25 &&
+        (_state.territorioSeleccionado != null ||
+         _state.territorioGlobalSeleccionado != null)) {
+      _cerrarSeleccion();
+    }
   }
 
   void _cerrarSeleccion() {
