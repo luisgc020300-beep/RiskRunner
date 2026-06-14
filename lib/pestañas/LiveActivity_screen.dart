@@ -2658,10 +2658,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     return (kmReq - _session.distanciaTotal).clamp(0.0, kmReq);
   }
 
-  Future<void> _conquistarTerritorioGlobal(
-  String activityLogId, {
-  required double kmCorridosEnSesion,
-}) async {
+  Future<void> _conquistarTerritorioGlobal(String activityLogId) async {
   if (_globalConquistando) return;
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return;
@@ -2675,10 +2672,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
         .httpsCallable('conquistarTerritorioGlobal');
     final result = await callable.call({
-      'territorioId':        territorioId,
-      'activityLogId':       activityLogId,
-      'ownerColor':          _colorTerritorio.toARGB32(),
-      'kmCorridosEnSesion':  kmCorridosEnSesion,
+      'territorioId':  territorioId,
+      'activityLogId': activityLogId,
+      'ownerColor':    _colorTerritorio.toARGB32(),
     });
       if (!mounted) return;
       final data = result.data as Map<String, dynamic>;
@@ -3414,7 +3410,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
         if (logId != null) {
           if (_objetivoGlobal != null && _globalKmAlcanzados) {
-            await _conquistarTerritorioGlobal(logId, kmCorridosEnSesion: distanciaFinal);
+            await _conquistarTerritorioGlobal(logId);
           }
           if (rutaFinal.isNotEmpty) {
             StatsService.enriquecerLog(logId: logId, ruta: rutaFinal)

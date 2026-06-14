@@ -6,9 +6,12 @@ const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const { onDocumentCreated,
         onDocumentUpdated }  = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret }       = require('firebase-functions/params');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging }       = require('firebase-admin/messaging');
+
+const _anthropicKey = defineSecret('ANTHROPIC_API_KEY');
 
 initializeApp();
 const db = getFirestore();
@@ -799,16 +802,13 @@ exports.conquistarTerritorioGlobal = onCall(
     }
 
     const uid = request.auth.uid;
-    const { territorioId, activityLogId, ownerColor, kmCorridosEnSesion } = request.data;
+    const { territorioId, activityLogId, ownerColor } = request.data;
 
     if (!territorioId || typeof territorioId !== 'string') {
       throw new HttpsError('invalid-argument', 'territorioId inválido.');
     }
     if (!activityLogId || typeof activityLogId !== 'string') {
       throw new HttpsError('invalid-argument', 'activityLogId inválido.');
-    }
-    if (typeof kmCorridosEnSesion !== 'number' || kmCorridosEnSesion <= 0) {
-      throw new HttpsError('invalid-argument', 'kmCorridosEnSesion inválido.');
     }
 
     const [territorioSnap, logSnap] = await Promise.all([
@@ -836,6 +836,18 @@ exports.conquistarTerritorioGlobal = onCall(
 
     if (log.usado_conquista_global === true) {
       throw new HttpsError('failed-precondition', 'Este log ya fue usado.');
+    }
+
+    // ── km leídos del log en Firestore, no del cliente ─────────────────────
+    // El campo 'distancia' es el que escribe ActivityService.registrarSesion.
+    // Nunca confiamos en el valor que manda el cliente en request.data.
+    const kmCorridosEnSesion = typeof log.distancia === 'number' ? log.distancia : 0;
+
+    if (kmCorridosEnSesion <= 0) {
+      throw new HttpsError('failed-precondition', 'El log no registra distancia válida.');
+    }
+    if (kmCorridosEnSesion > 120) {
+      throw new HttpsError('failed-precondition', 'Distancia registrada fuera de rango.');
     }
 
     const territorio = territorioSnap.data();
@@ -1901,4 +1913,61 @@ function _nuevoTerritorioLibre(tier) {
     puntos:        [],
   };
 }
+// =============================================================================
+// 14. PLAN IA — proxy seguro hacia Anthropic (la API key nunca sale del server)
+// Setup: firebase functions:secrets:set ANTHROPIC_API_KEY
+// =============================================================================
+exports.generarPlanIA = onCall(
+  { region: 'europe-west1', secrets: [_anthropicKey] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+
+    const { system, messages } = request.data;
+
+    if (typeof system !== 'string' || !Array.isArray(messages)) {
+      throw new HttpsError('invalid-argument', 'Parámetros inválidos.');
+    }
+    if (messages.length > 50) {
+      throw new HttpsError('invalid-argument', 'Demasiados mensajes en el historial.');
+    }
+
+    const apiKey = _anthropicKey.value();
+    if (!apiKey) {
+      throw new HttpsError('internal', 'API key no configurada en el servidor.');
+    }
+
+    let res;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:  'POST',
+        headers: {
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: JSON.stringify({
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          system,
+          messages,
+        }),
+      });
+    } catch (e) {
+      console.error('generarPlanIA fetch error:', e);
+      throw new HttpsError('unavailable', 'No se pudo contactar con el servicio de IA.');
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`generarPlanIA Anthropic error ${res.status}:`, body);
+      throw new HttpsError('internal', `Error del servicio de IA: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return { reply: data.content[0].text };
+  }
+);
+
 // v7 — atacarTerritorio integrado

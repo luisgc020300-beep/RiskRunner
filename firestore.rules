@@ -20,12 +20,16 @@ service cloud.firestore {
 
     // ── territories ──────────────────────────────────────────────────────────
     // Lectura pública entre autenticados (mapa compartido).
-    // El cliente crea y actualiza solo sus propios territorios.
+    // El cliente crea territorios propios y actualiza solo campos seguros.
+    // Campos críticos (escudo, userId, puntos, nombre) solo via Cloud Functions.
     // Las Cloud Functions (admin SDK) ignoran estas reglas — tienen acceso total.
     match /territories/{docId} {
       allow read:   if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if isAuth()
+        && resource.data.userId == request.auth.uid
+        && onlyFields(['hp', 'ultimaActualizacionHp', 'ultima_visita',
+                       'rey_id', 'rey_nickname', 'rey_desde']);
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
 
       // Historial de conquistas — solo lectura, escritura exclusiva de Cloud Functions

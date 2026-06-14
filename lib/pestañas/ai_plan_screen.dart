@@ -1,12 +1,11 @@
 // lib/pestañas/ai_plan_screen.dart
 import 'dart:convert';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 
-import '../config/env.dart';
 import '../services/training_plan_service.dart';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
@@ -150,43 +149,28 @@ Reglas estrictas del JSON:
     _controller.clear();
     _scrollToBottom();
 
-    if (Env.anthropicApiKey.isEmpty) {
-      setState(() => _loading = false);
-      _showError('API key de Anthropic no configurada. Rellena Env.anthropicApiKey.');
-      return;
-    }
-
     try {
-      final res = await http.post(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-        headers: {
-          'x-api-key': Env.anthropicApiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': 'claude-haiku-4-5-20251001',
-          'max_tokens': 4096,
-          'system': _system,
-          'messages': _apiMessages(),
-        }),
-      );
-
-      if (res.statusCode == 200) {
-        final data  = jsonDecode(utf8.decode(res.bodyBytes));
-        final reply = (data['content'] as List).first['text'] as String;
-        final plan  = _tryParseJson(reply);
-        setState(() {
-          _messages.add(_AiMsg(isUser: false, text: reply));
-          _loading = false;
-          if (plan != null) _parsedPlan = plan;
-        });
-        _scrollToBottom();
-      } else {
-        setState(() => _loading = false);
-        _showError('Error ${res.statusCode}. Inténtalo de nuevo.');
-      }
+      final fn = FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('generarPlanIA');
+      final result = await fn.call<Map<String, dynamic>>({
+        'system':   _system,
+        'messages': _apiMessages(),
+      });
+      final reply = result.data['reply'] as String;
+      final plan  = _tryParseJson(reply);
+      if (!mounted) return;
+      setState(() {
+        _messages.add(_AiMsg(isUser: false, text: reply));
+        _loading = false;
+        if (plan != null) _parsedPlan = plan;
+      });
+      _scrollToBottom();
+    } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showError(e.message ?? 'Error del servidor. Inténtalo de nuevo.');
     } catch (_) {
+      if (!mounted) return;
       setState(() => _loading = false);
       _showError('Sin conexión. Comprueba internet.');
     }

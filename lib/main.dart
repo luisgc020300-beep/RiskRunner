@@ -10,6 +10,7 @@ import 'package:RiskRunner/services/subscription_service.dart';
 
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -62,8 +63,8 @@ void main() async {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
-  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!Env.isDebug);
-  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!Env.isDebug);
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode);
 
   await setupLocator();
   await LocalNotifService.init();

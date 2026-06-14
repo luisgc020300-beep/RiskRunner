@@ -122,7 +122,7 @@ class SubscriptionService {
   static Future<void> inicializar(String userId) async {
     try {
       await rc.Purchases.setLogLevel(
-        Env.isDebug ? rc.LogLevel.debug : rc.LogLevel.error,
+        kDebugMode ? rc.LogLevel.debug : rc.LogLevel.error,
       );
 
       final apiKey = Platform.isAndroid
