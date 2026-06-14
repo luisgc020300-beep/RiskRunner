@@ -1596,18 +1596,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: _kBg.withValues(alpha: 0.40),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _kBorder2),
-          ),
-          child: Row(children: [
+    return Row(children: [
             modeBtn(
               label: 'Competitivo',
               icon: Icons.location_on_rounded,
@@ -1671,10 +1660,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                     )
                   : null,
             ),
-          ]),
-        ),
-      ),
-    );
+    ]);
   }
 
   // ==========================================================================
@@ -2313,7 +2299,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         cameraOptions: mapbox.CameraOptions(
           center: mapbox.Point(coordinates: mapbox.Position(
               _state.centro.longitude, _state.centro.latitude)),
-          zoom: 13.0,
+          zoom: _kInitialZoom,
         ),
         gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
           Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
