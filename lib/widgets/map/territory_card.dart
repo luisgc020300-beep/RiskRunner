@@ -60,7 +60,6 @@ class TerritoryCard extends StatelessWidget {
   final Color bgColor;
   final Color textColor;
   final Color borderColor;
-  final Color surfColor;
   final VoidCallback onCerrar;
   final VoidCallback? onAtacar;
   final Widget Function(String docId) historialBuilder;
@@ -72,7 +71,6 @@ class TerritoryCard extends StatelessWidget {
     required this.bgColor,
     required this.textColor,
     required this.borderColor,
-    required this.surfColor,
     required this.onCerrar,
     this.onAtacar,
     required this.historialBuilder,
@@ -95,6 +93,11 @@ class TerritoryCard extends StatelessWidget {
 
     final double hpFraction = t.hpActual / kHpMax.toDouble();
 
+    // Para rivales usamos kMapRed como acento exterior — evita halos grises
+    // cuando el rival tiene un color desaturado. La barra vertical sigue
+    // mostrando t.color (identidad del rival).
+    final Color acento = t.esMio ? t.color : kMapRed;
+
     return ScaleTransition(
       scale: selAnim,
       child: FadeTransition(
@@ -102,10 +105,10 @@ class TerritoryCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: bgColor,
-            border: Border.all(color: t.color.withValues(alpha: 0.5)),
+            border: Border.all(color: acento.withValues(alpha: t.esMio ? 0.5 : 0.35)),
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
-              BoxShadow(color: t.color.withValues(alpha: 0.18), blurRadius: 20),
+              BoxShadow(color: acento.withValues(alpha: t.esMio ? 0.18 : 0.10), blurRadius: 20),
               const BoxShadow(color: Colors.black54, blurRadius: 16),
             ],
           ),
@@ -114,12 +117,12 @@ class TerritoryCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
               decoration: BoxDecoration(
-                color: t.color.withValues(alpha: 0.10),
+                color: acento.withValues(alpha: t.esMio ? 0.10 : 0.06),
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(8)),
                 border: Border(
                     bottom:
-                        BorderSide(color: t.color.withValues(alpha: 0.25))),
+                        BorderSide(color: acento.withValues(alpha: t.esMio ? 0.25 : 0.15))),
               ),
               child: Row(children: [
                 Container(
@@ -138,7 +141,7 @@ class TerritoryCard extends StatelessWidget {
                   Text(
                       t.esMio ? 'ZONA CONTROLADA' : 'TERRITORIO RIVAL',
                       style: mapRaj(8, FontWeight.w700,
-                          t.esMio ? t.color : kMapSub,
+                          t.esMio ? t.color : kMapRed,
                           spacing: 2)),
                 ])),
                 GestureDetector(
@@ -301,15 +304,10 @@ class TerritoryCard extends StatelessWidget {
             ),
 
             // ── Historial de conquistas ───────────────────────────────
+            // El Container con fondo lo gestiona el builder para no mostrar
+            // un fondo gris vacío mientras carga desde Firestore.
             if (!t.esFantasma)
-              Container(
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                decoration: BoxDecoration(
-                  color: surfColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: historialBuilder(t.docId),
-              ),
+              historialBuilder(t.docId),
           ]),
         ),
       ),

@@ -1321,7 +1321,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   bgColor: _shBg,
                   textColor: _shText,
                   borderColor: _shBorder,
-                  surfColor: _shSurf,
                   onCerrar: _cerrarSeleccion,
                   onAtacar: _state.territorioSeleccionado!.esMio
                       ? null
@@ -3353,21 +3352,27 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // HISTORIAL DE CONQUISTAS (tarjeta de territorio)
   // ==========================================================================
   Widget _buildCardHistorial(String docId) {
+    Widget wrap(List<Map<String, dynamic>> entries) {
+      if (entries.isEmpty) return const SizedBox.shrink();
+      return Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        decoration: BoxDecoration(
+          color: _shSurf,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: _historialContent(entries),
+      );
+    }
+
     final cached = _historialCache[docId];
-    if (cached != null) return _historialContent(cached);
+    if (cached != null) return wrap(cached);
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: ActivityService.obtenerHistorialTerritorio(docId),
       builder: (ctx, snap) {
+        // Sin placeholder gris mientras carga — el card no muestra área vacía
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Center(
-              child: SizedBox(
-                  width: 12, height: 12,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 1.2, color: _kSub)),
-            ),
-          );
+          return const SizedBox.shrink();
         }
         final entries = snap.data ?? [];
         if (entries.isNotEmpty) {
@@ -3377,7 +3382,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             }
           });
         }
-        return _historialContent(entries);
+        return wrap(entries);
       },
     );
   }
