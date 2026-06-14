@@ -2032,7 +2032,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
     _actualizarJugadoresCiudad();
     await (_centroListo ?? Future.value());
-    if (mounted) {
+    if (mounted && _gpsResuelto) {
       _mapboxCiudadMap?.flyTo(
         mapbox.CameraOptions(center: mapbox.Point(coordinates: mapbox.Position(_state.centro.longitude, _state.centro.latitude)), zoom: 13.0),
         mapbox.MapAnimationOptions(duration: 400),
