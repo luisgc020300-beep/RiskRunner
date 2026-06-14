@@ -732,7 +732,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     HapticFeedback.lightImpact();
     _state.seleccionarTerritorio(t);
     _selCtrl.forward(from: 0);
-    _moverCamara(t.centro, 15);
+    if (t.esMio) _moverCamara(t.centro, 15);
   }
 
   void _onGlobalTerritoryTap(GlobalTerritory t) {
