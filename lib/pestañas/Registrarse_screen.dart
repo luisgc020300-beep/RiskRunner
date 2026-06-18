@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA — iOS Dark
@@ -524,7 +525,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   Widget _buildPerks() {
     final perks = [
       (Icons.shield_outlined,         const Color(0xFF0A84FF), '7 días de escudo',   'Tu territorio no puede ser robado al inicio'),
-      (Icons.toll_outlined,           const Color(0xFFFFD60A), '100 monedas',        'Para empezar la conquista'),
+      (Icons.toll_outlined,           AppColors.gold, '100 monedas',        'Para empezar la conquista'),
       (Icons.location_on_outlined,    const Color(0xFF30D158), 'Acceso inmediato',   'Empieza a conquistar desde el minuto uno'),
     ];
 

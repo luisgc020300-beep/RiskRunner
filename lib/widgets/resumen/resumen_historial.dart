@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 const _kBright  = Color(0xFF1C1C1E);
 const _kGrey    = Color(0xFF636366);
 const _kGreyDim = Color(0xFF8E8E93);
-const _kGold    = Color(0xFFFFD60A);
+const _kGold    = AppColors.gold;
 const _kGoldDim = Color(0xFFAEAEB2);
 const _kBorder  = Color(0xFFC6C6C8);
 const _kBorder2 = Color(0xFFD1D1D6);

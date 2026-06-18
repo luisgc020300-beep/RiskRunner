@@ -1,4 +1,4 @@
-// lib/Pestañas/clan_screen.dart
+﻿// lib/Pestañas/clan_screen.dart
 // ═══════════════════════════════════════════════════════════
 //  CLAN SCREEN — Pantalla principal del clan del usuario
 // ═══════════════════════════════════════════════════════════
@@ -11,12 +11,13 @@ import '../services/clan_service.dart';
 import 'create_clan_screen.dart';
 import 'clan_war_screen.dart';
 import 'clan_invite_screen.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // Fixed accent colors — never change with theme
-const _kAccent = Color(0xFFE02020);
-const _kBlue   = Color(0xFFE02020);
+const _kAccent = AppColors.red;
+const _kBlue   = AppColors.red;
 const _kGreen  = Color(0xFF30D158);
-const _kGold   = Color(0xFFFFD60A);
+const _kGold   = AppColors.gold;
 
 // Adaptive palette
 class _CP {

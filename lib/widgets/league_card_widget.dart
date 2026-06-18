@@ -1,8 +1,9 @@
-// lib/widgets/league_card_widget.dart
+﻿// lib/widgets/league_card_widget.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../services/league_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 class LeagueCard extends StatefulWidget {
   final String userId;
@@ -131,7 +132,7 @@ class _LeagueCardState extends State<LeagueCard> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 16),
+                      const Icon(Icons.monetization_on_rounded, color: AppColors.gold, size: 16),
                     ]),
                     const SizedBox(height: 4),
                     if (!esUltima && siguienteLiga != null)

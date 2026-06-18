@@ -1,4 +1,4 @@
-// lib/services/territory_service.dart
+﻿// lib/services/territory_service.dart
 //
 // ── v7: SISTEMA DE HP ─────────────────────────────────────────────────────────
 //
@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 import 'league_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 /// userId reservado para territorios fantasma (bots de relleno).
@@ -1427,7 +1428,7 @@ class TerritoryService {
 
 const Color kTierColorSmall  = Color(0xFF30D158);
 const Color kTierColorMedium = Color(0xFF636366);
-const Color kTierColorLegend = Color(0xFFFFD60A);
+const Color kTierColorLegend = AppColors.gold;
 
 enum TerritoryTier { pequeno, mediano, legendario }
 

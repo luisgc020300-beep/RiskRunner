@@ -1,4 +1,4 @@
-// lib/pestañas/settings_screen.dart
+﻿// lib/pestañas/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +10,7 @@ import '../services/zona_service.dart';
 import '../scripts/seed_fantasmas_granada.dart';
 import 'avatar_customizer_screen.dart';
 import 'historial_guerra_screen.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Colores de territorio disponibles ──────────────────────────────���─────────
 const _kTerritoryColors = [
@@ -152,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFD60A), size: 18),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.gold, size: 18),
           const SizedBox(width: 10),
           Text('Cerrar ${temporada.label}',
               style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: textPri)),
@@ -164,16 +165,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFD60A).withValues(alpha: 0.06),
+              color: AppColors.gold.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFFFFD60A).withValues(alpha: 0.20)),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.20)),
             ),
             child: Row(children: [
-              const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
+              const Icon(Icons.monetization_on_rounded, color: AppColors.gold, size: 12),
               const SizedBox(width: 5),
               Expanded(child: Text(
                 'Recompensa: ${temporada.monedasBase} monedas + corona',
-                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFFFD60A)),
+                style: GoogleFonts.inter(fontSize: 11, color: AppColors.gold),
               )),
             ]),
           ),
@@ -205,7 +206,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
             child: Text('CERRAR TEMPORADA',
-                style: GoogleFonts.inter(color: const Color(0xFFFFD60A), fontWeight: FontWeight.w700)),
+                style: GoogleFonts.inter(color: AppColors.gold, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -568,7 +569,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _Divider(color: border),
               _NavTile(
                 icon: Icons.emoji_events_rounded,
-                iconColor: const Color(0xFFFFD60A),
+                iconColor: AppColors.gold,
                 title: 'Cerrar temporada',
                 textPri: textPri,
                 textSec: textSec,

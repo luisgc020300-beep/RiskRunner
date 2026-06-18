@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -26,6 +26,7 @@ import '../widgets/resumen/guerra_global_banner.dart';
 import '../widgets/resumen/resumen_map_section.dart';
 import '../widgets/resumen/resumen_context_cards.dart';
 import '../widgets/resumen/resumen_historial.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA — OPERATIVE DARK · ROJO ACENTO
@@ -34,12 +35,12 @@ const _kBg       = Color(0xFFE8E8ED);
 const _kSurface  = Color(0xFFFFFFFF);
 const _kSurface2 = Color(0xFFE5E5EA);
 const _kBorder2  = Color(0xFFD1D1D6);
-const _kRed      = Color(0xFFE02020);
+const _kRed      = AppColors.red;
 const _kBright   = Color(0xFF1C1C1E);
 const _kWhite    = Color(0xFF1C1C1E);
 const _kGrey     = Color(0xFF636366);
 const _kGreyDim  = Color(0xFF8E8E93);
-const _kGold     = Color(0xFFFFD60A);
+const _kGold     = AppColors.gold;
 
 // =============================================================================
 // PANTALLA
@@ -582,11 +583,11 @@ class _ResumenScreenState extends State<ResumenScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD60A).withValues(alpha: 0.15),
+                color: AppColors.gold.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text('$_rachaActual días de racha', style: const TextStyle(
-                color: Color(0xFFFFD60A),
+                color: AppColors.gold,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               )),
@@ -1494,7 +1495,7 @@ class _ResumenScreenState extends State<ResumenScreen>
           isDark: isDark, icon: Icons.rocket_launch_rounded, iconColor: const Color(0xFFFF9500))),
         const SizedBox(width: 8),
         Expanded(child: _metricTileSmall(mejorKm, 'MEJOR KM',
-            isDark: isDark, icon: Icons.emoji_events_rounded, iconColor: const Color(0xFFFFD60A))),
+            isDark: isDark, icon: Icons.emoji_events_rounded, iconColor: AppColors.gold)),
         const SizedBox(width: 8),
         Expanded(child: _metricTileSmall(
           widget.elevacionGanada > 0
@@ -1725,7 +1726,7 @@ class _ResumenScreenState extends State<ResumenScreen>
 
       // Sombra glow roja
       final glowPaint = Paint()
-        ..color   = const Color(0xFFE02020).withValues(alpha: 0.18)
+        ..color   = AppColors.red.withValues(alpha: 0.18)
         ..strokeWidth = 14
         ..style   = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
@@ -1755,7 +1756,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       canvas.drawCircle(ptInicio, 10,
           Paint()..color = const Color(0xFF30D158));
       canvas.drawCircle(ptFin,    10,
-          Paint()..color = const Color(0xFFE02020));
+          Paint()..color = AppColors.red);
 
       // Textos
       final horas   = widget.tiempo.inSeconds / 3600;
@@ -1789,7 +1790,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       // RISKRUNNER logo
       drawText('RISKRUNNER', size / 2, 40,
           fontSize: 36, letterSpacing: 8,
-          color: const Color(0xFFE02020));
+          color: AppColors.red);
 
       // Distancia grande
       drawText('${widget.distancia.toStringAsFixed(2)} KM',
@@ -1881,7 +1882,7 @@ class _ResumenScreenState extends State<ResumenScreen>
             const SizedBox(width: 10),
             _legendDot(const Color(0xFFFF9500), '<5\'30"'),
             const SizedBox(width: 10),
-            _legendDot(const Color(0xFFFFD60A), '<6\'30"'),
+            _legendDot(AppColors.gold, '<6\'30"'),
             const SizedBox(width: 10),
             _legendDot(const Color(0xFF30D158), '<7\'30"'),
             const SizedBox(width: 10),
@@ -2016,7 +2017,7 @@ class _PaceBarPainter extends CustomPainter {
   static Color _zoneColor(double pace) {
     if (pace < 4.5) return const Color(0xFFE63030);
     if (pace < 5.5) return const Color(0xFFFF9500);
-    if (pace < 6.5) return const Color(0xFFFFD60A);
+    if (pace < 6.5) return AppColors.gold;
     if (pace < 7.5) return const Color(0xFF30D158);
     return const Color(0xFF636366);
   }

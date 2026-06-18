@@ -1,4 +1,4 @@
-// lib/screens/desafios_screen.dart
+﻿// lib/screens/desafios_screen.dart
 //
 // Pantalla de desafíos: activos con marcador en vivo, pendientes y historial.
 
@@ -9,12 +9,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/desafios_service.dart';
 import '../services/game_state_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA ADAPTATIVA (dark / light)
 // =============================================================================
-const _kRed   = Color(0xFFE02020);
-const _kGold  = Color(0xFFFFD60A);
+const _kRed   = AppColors.red;
+const _kGold  = AppColors.gold;
 const _kGreen = Color(0xFF30D158);
 
 class _DP {

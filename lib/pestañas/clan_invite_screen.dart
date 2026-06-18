@@ -1,4 +1,4 @@
-// lib/Pestañas/clan_invite_screen.dart
+﻿// lib/Pestañas/clan_invite_screen.dart
 // ═══════════════════════════════════════════════════════════
 //  CLAN INVITE SCREEN — Invitaciones + buscar amigos para invitar
 // ═══════════════════════════════════════════════════════════
@@ -8,8 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
-const _kAccent = Color(0xFFE02020);
+const _kAccent = AppColors.red;
 
 class _CP {
   final Color bg, surface, line, line2, dim, subtext, text;

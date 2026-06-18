@@ -1,4 +1,4 @@
-// lib/theme/app_colors.dart
+﻿// lib/theme/app_colors.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Paleta de colores centralizada v2

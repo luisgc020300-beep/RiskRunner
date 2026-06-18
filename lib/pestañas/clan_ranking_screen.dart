@@ -1,4 +1,4 @@
-// lib/Pestañas/clan_ranking_screen.dart
+﻿// lib/Pestañas/clan_ranking_screen.dart
 //
 // Pantalla de ranking de clanes: semanal y total acumulado.
 // Se accede desde la ClanScreen con un botón de trofeo.
@@ -9,14 +9,15 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/clan_service.dart';
 import '../widgets/custom_navbar.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Paleta iOS ───────────────────────────────────────────────────────────────���
 const _kSurface = Color(0xFFFFFFFF);
 const _kSep     = Color(0xFFC6C6C8);
 const _kDim     = Color(0xFFAEAEB2);
 const _kWhite   = Color(0xFF1C1C1E);
-const _kBlue    = Color(0xFFE02020);
-const _kGold    = Color(0xFFFFD60A);
+const _kBlue    = AppColors.red;
+const _kGold    = AppColors.gold;
 
 TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
@@ -260,7 +261,7 @@ class _ClanRankCard extends StatelessWidget {
     final esPodio  = pos <= 3;
 
     final podioColor = pos == 1
-        ? const Color(0xFFFFD60A)  // iOS gold
+        ? AppColors.gold  // iOS gold
         : pos == 2
             ? const Color(0xFFAEAEB2)  // iOS secondary
             : const Color(0xFFBF8B5E); // bronze

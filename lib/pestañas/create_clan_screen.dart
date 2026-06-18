@@ -1,4 +1,4 @@
-// lib/Pestañas/create_clan_screen.dart
+﻿// lib/Pestañas/create_clan_screen.dart
 // ═══════════════════════════════════════════════════════════
 //  CREATE / EDIT CLAN SCREEN
 //  Estética: "Cuartel General" — oscuro, táctico, acero
@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 const _kSurface  = Color(0xFFFFFFFF);
 const _kLine     = Color(0xFFC6C6C8);
@@ -17,7 +18,7 @@ const _kLine2    = Color(0xFFD1D1D6);
 const _kDim      = Color(0xFFAEAEB2);
 const _kSubtext  = Color(0xFF8E8E93);
 const _kWhite    = Color(0xFF1C1C1E);
-const _kAccent   = Color(0xFFE02020);
+const _kAccent   = AppColors.red;
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);

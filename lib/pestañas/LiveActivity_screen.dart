@@ -58,8 +58,8 @@ part 'live_territory_ui.dart';
 // =============================================================================
 // PALETA
 // =============================================================================
-const _kGold       = Color(0xFFFFD60A);
-const _kGoldLight  = Color(0xFFFFD60A);
+const _kGold       = AppColors.gold;
+const _kGoldLight  = AppColors.gold;
 const _kWater      = Color(0xFF5BA3A0);
 const _kWaterLight = Color(0xFF8ECFCC);
 const _kVerde      = Color(0xFF8FAF4A);
@@ -1801,7 +1801,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (t == null) return const SizedBox.shrink();
 
     final Color hpColor = t.estadoHp == EstadoHp.critico
-        ? const Color(0xFFE02020)
+        ? AppColors.red
         : t.estadoHp == EstadoHp.danado
             ? const Color(0xFFFF9800)
             : const Color(0xFF30D158);

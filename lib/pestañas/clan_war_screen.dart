@@ -1,4 +1,4 @@
-// lib/Pestañas/clan_war_screen.dart
+﻿// lib/Pestañas/clan_war_screen.dart
 // ═══════════════════════════════════════════════════════════
 //  CLAN WAR SCREEN — Pantalla de guerra en curso
 // ═══════════════════════════════════════════════════════════
@@ -7,13 +7,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/clan_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 const _kSurface  = Color(0xFFFFFFFF);
 const _kSubtext  = Color(0xFF8E8E93);
 const _kText     = Color(0xFF3C3C43);
 const _kWhite    = Color(0xFF1C1C1E);
-const _kAccent   = Color(0xFFE02020);
-const _kBlue     = Color(0xFFE02020);
+const _kAccent   = AppColors.red;
+const _kBlue     = AppColors.red;
 
 TextStyle _dm(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.dmSans(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);

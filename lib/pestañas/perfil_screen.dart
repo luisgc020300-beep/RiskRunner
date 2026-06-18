@@ -1,4 +1,4 @@
-// lib/screens/perfil_screen.dart
+﻿// lib/screens/perfil_screen.dart
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
 import 'training_plans_screen.dart';
@@ -36,6 +36,7 @@ import '../widgets/perfil/perfil_theme.dart';
 import '../widgets/perfil/perfil_posts_tab.dart';
 import '../widgets/perfil/perfil_duelos_tab.dart';
 import '../widgets/perfil/perfil_social_sheets.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 part 'perfil_helpers.dart';
 
@@ -826,11 +827,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                 const SizedBox(height: 12),
                 Row(children: [
                   GestureDetector(onTap: () => setModal(() => apuesta = (apuesta - 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.remove, color: Colors.white, size: 16))),
-                  Expanded(child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('$apuesta', style: _rajdhani(28, FontWeight.w900, _p.title)), const SizedBox(width: 4), const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 14)]))),
+                  Expanded(child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('$apuesta', style: _rajdhani(28, FontWeight.w900, _p.title)), const SizedBox(width: 4), const Icon(Icons.monetization_on_rounded, color: AppColors.gold, size: 14)]))),
                   GestureDetector(onTap: () => setModal(() => apuesta = (apuesta + 25).clamp(25, misMonedas)), child: Container(width: 36, height: 36, color: _p.muted, child: const Icon(Icons.add, color: Colors.white, size: 16))),
                 ]),
                 const SizedBox(height: 8),
-                Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Tienes $misMonedas', style: _rajdhani(10, FontWeight.w500, _p.sub)), const SizedBox(width: 3), const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 10), Text(' disponibles', style: _rajdhani(10, FontWeight.w500, _p.sub))])),
+                Center(child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Tienes $misMonedas', style: _rajdhani(10, FontWeight.w500, _p.sub)), const SizedBox(width: 3), const Icon(Icons.monetization_on_rounded, color: AppColors.gold, size: 10), Text(' disponibles', style: _rajdhani(10, FontWeight.w500, _p.sub))])),
               ]),
             ),
             const SizedBox(height: 12),
@@ -1674,7 +1675,7 @@ class _PerfilScreenState extends State<PerfilScreen>
         child: Row(children: [
           Container(width: 2, height: 13,
               color: _kGold, margin: const EdgeInsets.only(right: 8)),
-          const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFD60A), size: 11),
+          const Icon(Icons.auto_awesome_rounded, color: AppColors.gold, size: 11),
           const SizedBox(width: 6),
           Text('ANÁLISIS AVANZADO',
               style: _rajdhani(10, FontWeight.w900, _kGold, spacing: 2)),
@@ -2355,9 +2356,9 @@ class _PerfilScreenState extends State<PerfilScreen>
           border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.monetization_on_rounded, color: Color(0xFFFFD60A), size: 12),
+          const Icon(Icons.monetization_on_rounded, color: AppColors.gold, size: 12),
           const SizedBox(width: 4),
-          Text('$monedas', style: const TextStyle(color: Color(0xFFFFD60A), fontSize: 12, fontWeight: FontWeight.w800)),
+          Text('$monedas', style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.w800)),
           if (isOwnProfile) ...[
             const SizedBox(width: 4),
             Icon(Icons.add_circle_outline_rounded, color: Colors.amber.withValues(alpha: 0.60), size: 12),
@@ -2633,7 +2634,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildHitosPanel() {
     final hitos = <_Hito>[
       // Corredor
-      _Hito('Primera carrera',   Icons.directions_run_rounded,     const Color(0xFFE02020), _totalCarreras >= 1,  progreso: _totalCarreras.toDouble(), meta: 1),
+      _Hito('Primera carrera',   Icons.directions_run_rounded,     AppColors.red, _totalCarreras >= 1,  progreso: _totalCarreras.toDouble(), meta: 1),
       _Hito('10 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 10,     progreso: _kmTotales,                meta: 10),
       _Hito('50 km totales',     Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 50,     progreso: _kmTotales,                meta: 50),
       _Hito('100 km totales',    Icons.route_rounded,              const Color(0xFFFF7B1A), _kmTotales >= 100,    progreso: _kmTotales,                meta: 100),

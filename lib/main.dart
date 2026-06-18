@@ -1,4 +1,4 @@
-// lib/main.dart
+﻿// lib/main.dart
 import 'package:RiskRunner/pesta%C3%B1as/coin_shop_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/fullscreen_map_screen.dart';
 import 'package:RiskRunner/services/territory_service.dart' show TerritoryData;
@@ -39,6 +39,7 @@ import 'widgets/operative_bg.dart';
 import 'widgets/offline_banner.dart';
 import 'core/service_locator.dart';
 import 'shell/app_shell.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -348,7 +349,7 @@ class _SplashLoadingState extends State<_SplashLoading>
   Widget build(BuildContext context) {
     const bg     = Color(0xFFE8E8ED);
     const dark   = Color(0xFF1C1C1E);
-    const red    = Color(0xFFE02020);
+    const red    = AppColors.red;
     const dimmed = Color(0xFF8E8E93);
 
     return Scaffold(

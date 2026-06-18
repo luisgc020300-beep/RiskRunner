@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Colores fijos (accent + tiers) ──────────────────────────────────────────
-const Color kSocAccent     = Color(0xFFE02020);
+const Color kSocAccent     = AppColors.red;
 const Color kSocAccentGlow = Color(0x33E02020);
 const Color kSocGreen      = Color(0xFF1A4A35);
 const Color kSocGreenFg    = Color(0xFF3DBF82);

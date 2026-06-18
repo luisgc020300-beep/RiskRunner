@@ -1,8 +1,9 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA (iOS light — coherente con Map y Resumen)
@@ -12,7 +13,7 @@ const _kSurface  = Color(0xFFFFFFFF);
 const _kBorder   = Color(0xFFC6C6C8);
 const _kDim      = Color(0xFF8E8E93);
 const _kText     = Color(0xFF1C1C1E);
-const _kAccent   = Color(0xFFE02020);
+const _kAccent   = AppColors.red;
 
 // =============================================================================
 // MODELO DE SLIDE

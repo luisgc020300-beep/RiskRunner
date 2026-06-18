@@ -1,7 +1,8 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../services/stats_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA (coherente con War Room / ResumenScreen)
@@ -11,7 +12,7 @@ const _kSurface = Color(0xFFFFFFFF);
 const _kBorder  = Color(0xFFC6C6C8);
 const _kMuted   = Color(0xFFAEAEB2);
 const _kDim     = Color(0xFF8E8E93);
-const _kOrange  = Color(0xFFE02020);
+const _kOrange  = AppColors.red;
 
 // =============================================================================
 // PANTALLA PRINCIPAL
@@ -209,9 +210,9 @@ class _StatsScreenState extends State<StatsScreen>
   // ── Desglose por modo ───────────────────────────────────────────────────────
   Widget _buildDesgloseModos() {
     const modos = [
-      ('competitivo',  'COMPETITIVO',  Icons.shield_rounded,        Color(0xFFE02020)),
+      ('competitivo',  'COMPETITIVO',  Icons.shield_rounded,        AppColors.red),
       ('solitario',    'SOLITARIO',    Icons.explore_rounded,        Color(0xFF30D158)),
-      ('guerra_global','GLOBAL',       Icons.public_rounded,         Color(0xFFFFD60A)),
+      ('guerra_global','GLOBAL',       Icons.public_rounded,         AppColors.gold),
       ('ruta',         'RUTAS',        Icons.route_rounded,          Color(0xFF64D2FF)),
     ];
 

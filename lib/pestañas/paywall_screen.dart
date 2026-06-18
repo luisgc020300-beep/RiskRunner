@@ -1,4 +1,4 @@
-// lib/Pestañas/paywall_screen.dart
+﻿// lib/Pestañas/paywall_screen.dart
 //
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Paywall Premium v2
@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import '../services/subscription_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA
@@ -19,7 +20,7 @@ class _C {
   static const bg2     = Color(0xFFE5E5EA);
   static const parch   = Color(0xFF1C1C1E);
   static const bronze  = Color(0xFF636366);
-  static const gold    = Color(0xFFFFD60A);
+  static const gold    = AppColors.gold;
   static const silver  = Color(0xFFB0BEC5);
   static const border  = Color(0x1FC6C6C8);
   static const t1      = Color(0xFF1C1C1E);

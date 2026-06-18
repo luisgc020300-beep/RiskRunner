@@ -1,4 +1,4 @@
-// lib/Pestañas/coin_shop_screen.dart
+﻿// lib/Pestañas/coin_shop_screen.dart
 // ══════════════════════════════════════════════════════════════════════════════
 //  RUNNER RISK — Tienda de Monedas v2
 //  Diseño limpio, minimalista, coherente con la estética de la app.
@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:purchases_flutter/purchases_flutter.dart' as rc;
 import '../widgets/custom_navbar.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // =============================================================================
 // PALETA
@@ -26,7 +27,7 @@ import '../widgets/custom_navbar.dart';
 class _C {
   // Fixed accent colors — never change with theme
   static const bronze = Color(0xFF636366);
-  static const gold   = Color(0xFFFFD60A);
+  static const gold   = AppColors.gold;
   static const silver = Color(0xFFB0BEC5);
   static const green  = Color(0xFF4CAF50);
 

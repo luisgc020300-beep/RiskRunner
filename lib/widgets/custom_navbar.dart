@@ -1,4 +1,4 @@
-// lib/widgets/custom_navbar.dart
+﻿// lib/widgets/custom_navbar.dart
 // ignore_for_file: deprecated_member_use
 import 'dart:async';
 import 'package:RiskRunner/pesta%C3%B1as/create_post_screen.dart';
@@ -182,8 +182,8 @@ class _NavbarContent extends StatelessWidget {
               _SheetOption(
                 icon: Icons.logout_rounded,
                 label: 'Cerrar sesión',
-                color: const Color(0xFFE02020),
-                textColor: const Color(0xFFE02020),
+                color: AppColors.red,
+                textColor: AppColors.red,
                 divColor: divColor,
                 onTap: () async {
                   Navigator.pop(sheetCtx);

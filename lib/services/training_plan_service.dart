@@ -1,6 +1,7 @@
-// lib/services/training_plan_service.dart
+﻿// lib/services/training_plan_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Tipos de sesión ───────────────────────────────────────────────────────────
 enum SessionType { rest, easy, intervals, tempo, longRun, race }
@@ -35,7 +36,7 @@ extension SessionTypeX on SessionType {
       case SessionType.intervals: return const Color(0xFFFF9500);
       case SessionType.tempo:     return const Color(0xFF0A84FF);
       case SessionType.longRun:   return const Color(0xFFBF5AF2);
-      case SessionType.race:      return const Color(0xFFE02020);
+      case SessionType.race:      return AppColors.red;
     }
   }
 

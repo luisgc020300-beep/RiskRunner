@@ -1,4 +1,4 @@
-// lib/pestañas/create_post_screen.dart
+﻿// lib/pestañas/create_post_screen.dart
 
 import 'dart:convert';
 import 'dart:io';
@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/story_service.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Adaptive palette
 class _CP {
@@ -64,7 +65,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool    _publicando       = false;
   String  _errorMsg         = '';
 
-  Color _accentColor = const Color(0xFFE02020);
+  Color _accentColor = AppColors.red;
 
   _CP get _p => _CP.of(context);
 
