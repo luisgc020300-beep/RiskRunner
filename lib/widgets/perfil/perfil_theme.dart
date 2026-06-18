@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-const kPerfilAccent  = Color(0xFFE02020);
-const kPerfilGold    = Color(0xFFFFD60A);
+const kPerfilAccent  = Color(0xFFCC2222);
+const kPerfilGold    = Color(0xFFD4A84C);
 const kPerfilMorado  = Color(0xFF6A4A9B);
 
 class PerfilPalette {

@@ -141,7 +141,7 @@ class _HomeRetosTabState extends State<HomeRetosTab> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(color: T.bg2, border: Border.all(color: T.border2)),
           child: Text('+${data['recompensa']}',
-              style: homeStyle(12, FontWeight.w900, T.gold)),
+              style: homeStyle(12, FontWeight.w800, T.gold)),
         ),
       ]),
     )).toList());
@@ -240,7 +240,7 @@ class _HomeRetosTabState extends State<HomeRetosTab> {
                     border: Border.all(color: goldColor.withValues(alpha: 0.4)),
                   ),
                   child: Text(' PREMIUM',
-                      style: homeStyle(7, FontWeight.w900, goldColor, spacing: 0.8)),
+                      style: homeStyle(7, FontWeight.w800, goldColor, spacing: 0.8)),
                 ),
               ],
               Expanded(child: Text(title,

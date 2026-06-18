@@ -34,13 +34,13 @@ class HomePalette {
   static const dark = HomePalette._(
     bg0: Color(0xFF090807), bg1: Color(0xFF1C1C1E), bg2: Color(0xFF2C2C2E),
     bg3: Color(0xFF090807), bg4: Color(0xFF1C1C1E),
-    parch: Color(0xFFEAD9AA), gold: Color(0xFFFFD60A),
+    parch: Color(0xFFEAD9AA), gold: Color(0xFFD4A84C),
     bronze: Color(0xFF8E8E93), terra: Color(0xFF636366),
     white: Color(0xFFEEEEEE), text: Color(0xFFD1D1D6),
     sub: Color(0xFF8E8E93), dim: Color(0xFF636366), muted: Color(0xFF48484A),
     border: Color(0xFF38383A), border2: Color(0xFF2C2C2E),
     safe: Color(0xFF30D158), warn: Color(0xFFFF9800),
-    red: Color(0xFFE02020), redD: Color(0xFFFF6B6B), redGlow: Color(0x22E02020),
+    red: Color(0xFFCC2222), redD: Color(0xFFFF6B6B), redGlow: Color(0x22CC2222),
   );
 
   static HomePalette of(BuildContext ctx) =>
