@@ -207,7 +207,14 @@ class _ChatScreenState extends State<ChatScreen> {
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 2),
       ));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error silenciar conversación: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo silenciar. Inténtalo de nuevo.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   Future<void> _marcarNoLeido() async {
@@ -215,7 +222,14 @@ class _ChatScreenState extends State<ChatScreen> {
       await _chatRef.set({'unread_${widget.currentUserId}': 1}, SetOptions(merge: true));
       if (!mounted) return;
       Navigator.pop(context);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error marcar no leído: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo actualizar. Inténtalo de nuevo.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   Future<void> _confirmarEliminar() async {
@@ -242,7 +256,14 @@ class _ChatScreenState extends State<ChatScreen> {
       await _chatRef.set({'deleted_${widget.currentUserId}': true}, SetOptions(merge: true));
       if (!mounted) return;
       Navigator.pop(context);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error eliminar conversación: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo eliminar. Inténtalo de nuevo.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   // ── Helpers de agrupación ─────────────────────────────────────────────────

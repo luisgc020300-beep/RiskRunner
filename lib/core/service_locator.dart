@@ -11,7 +11,9 @@
 // cada servicio por separado.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get_it/get_it.dart';
 
@@ -53,7 +55,10 @@ Future<void> _saveFcmToken() async {
         .collection('players')
         .doc(uid)
         .set({'fcm_token': token}, SetOptions(merge: true));
-  } catch (_) {}
+  } catch (e, st) {
+    debugPrint('FCM token save failed: $e');
+    FirebaseCrashlytics.instance.recordError(e, st, reason: 'saveFcmToken');
+  }
 }
 
 Future<void> _updateFcmToken(String token) async {
@@ -64,5 +69,8 @@ Future<void> _updateFcmToken(String token) async {
         .collection('players')
         .doc(uid)
         .set({'fcm_token': token}, SetOptions(merge: true));
-  } catch (_) {}
+  } catch (e, st) {
+    debugPrint('FCM token update failed: $e');
+    FirebaseCrashlytics.instance.recordError(e, st, reason: 'updateFcmToken');
+  }
 }
