@@ -249,6 +249,11 @@ class TerritoryService {
   static final Map<String, DateTime> _playerCacheTs = {};
   static const Duration _kPlayerCacheTTL = Duration(minutes: 30);
 
+  // Reconexión con backoff exponencial ante errores del stream
+  static int _reconnectAttempts = 0;
+  static Timer? _reconnectTimer;
+  static const int _kMaxReconnectAttempts = 4;
+
   /// Inicia el listener Firestore en tiempo real alrededor de [centro].
   /// Si ya existe un listener y el centro no cambió >3 km, no reinicia.
   /// Usar conteo de referencias: llamar [stopRealtimeListener] por cada llamada.
@@ -278,6 +283,7 @@ class TerritoryService {
         .limit(500)
         .snapshots()
         .listen((snap) async {
+          _reconnectAttempts = 0; // stream vivo — resetear contador
           final myUid = user.uid;
 
           final docs = snap.docs.where((doc) {
@@ -337,16 +343,34 @@ class TerritoryService {
           debugPrint(
               '🔴 LIVE ${all.length} territories @ ${centro.latitude.toStringAsFixed(3)}');
         },
-        onError: (e) => debugPrint('Territory realtime error: $e'));
+        onError: (e) {
+          debugPrint('Territory realtime error: $e');
+          if (_listenerRefCount > 0 &&
+              _realtimeCenter != null &&
+              _reconnectAttempts < _kMaxReconnectAttempts) {
+            _reconnectAttempts++;
+            final delay = Duration(seconds: 5 * _reconnectAttempts);
+            _reconnectTimer?.cancel();
+            _reconnectTimer = Timer(delay, () {
+              if (_listenerRefCount > 0 && _realtimeCenter != null) {
+                _reiniciarRealtimeListener(_realtimeCenter!);
+              }
+            });
+            debugPrint('Territory stream: reintento $_reconnectAttempts en ${delay.inSeconds}s');
+          }
+        });
   }
 
   /// Decrementa el conteo de referencias. Cancela el listener al llegar a 0.
   static void stopRealtimeListener() {
     _listenerRefCount = math.max(0, _listenerRefCount - 1);
     if (_listenerRefCount == 0) {
+      _reconnectTimer?.cancel();
+      _reconnectTimer    = null;
+      _reconnectAttempts = 0;
       _realtimeListener?.cancel();
-      _realtimeListener = null;
-      _realtimeCenter   = null;
+      _realtimeListener  = null;
+      _realtimeCenter    = null;
     }
   }
 

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -115,7 +115,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     try {
       final snap = await FirebaseFirestore.instance.collection('players')
           .where('nickname', isGreaterThanOrEqualTo: q)
-          .where('nickname', isLessThanOrEqualTo: '$q')
+          .where('nickname', isLessThan: '$q')
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
       final futures = snap.docs.where((d) => d.id != currentUserId).map(_procesarResultado).toList();
@@ -143,7 +143,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     try {
       final snap = await FirebaseFirestore.instance.collection('players')
           .where('nickname', isGreaterThanOrEqualTo: q)
-          .where('nickname', isLessThanOrEqualTo: '$q')
+          .where('nickname', isLessThan: '$q')
           .startAfterDocument(_ultimoDocBusqueda!)
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
