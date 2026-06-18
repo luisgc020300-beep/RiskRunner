@@ -88,18 +88,22 @@ extension _LiveSessionControls on _LiveActivityScreenState {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 Text(_session.distanciaTotal.toStringAsFixed(2),
-                    style: const TextStyle(color: Colors.white,
-                        fontWeight: FontWeight.w300, fontSize: 15,
+                    style: GoogleFonts.rajdhani(color: Colors.white,
+                        fontWeight: FontWeight.w700, fontSize: 18,
                         letterSpacing: 0.5,
-                        fontFeatures: [FontFeature.tabularFigures()])),
-                const Text(' km', style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11)),
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+                Text(' km', style: GoogleFonts.rajdhani(
+                    color: AppColors.gold.withValues(alpha: 0.65),
+                    fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
                 Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
                 Text(_ritmoStr,
-                    style: const TextStyle(color: Colors.white,
-                        fontWeight: FontWeight.w300, fontSize: 15,
+                    style: GoogleFonts.rajdhani(color: Colors.white,
+                        fontWeight: FontWeight.w700, fontSize: 18,
                         letterSpacing: 0.5,
-                        fontFeatures: [FontFeature.tabularFigures()])),
-                const Text(' /km', style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11)),
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+                Text(' /km', style: GoogleFonts.rajdhani(
+                    color: AppColors.gold.withValues(alpha: 0.65),
+                    fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
                 if (_objetivoGlobal != null) ...[
                   Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
                   Text('${(_progresoGlobal * 100).toInt()}%',
@@ -133,15 +137,15 @@ extension _LiveSessionControls on _LiveActivityScreenState {
 
   Widget _hudStat(String label, String valor, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(label, style: const TextStyle(
-            color: Color(0xFF8E8E93), fontSize: 9,
-            fontWeight: FontWeight.w500, letterSpacing: 1.2)),
-        const SizedBox(height: 3),
-        Text(valor, style: TextStyle(
-            color: Colors.white,
-            fontSize: valor.length > 5 ? 14 : 19,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 1.0,
+        Text(label, style: GoogleFonts.rajdhani(
+            color: AppColors.gold.withValues(alpha: 0.65),
+            fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+        const SizedBox(height: 2),
+        Text(valor, style: GoogleFonts.rajdhani(
+            color: color,
+            fontSize: valor.length > 5 ? 16 : 26,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
             fontFeatures: const [FontFeature.tabularFigures()])),
       ]);
 
@@ -170,12 +174,12 @@ extension _LiveSessionControls on _LiveActivityScreenState {
             ),
             child: Text(
               '${remaining.hours.toString().padLeft(2,'0')}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
-              style: const TextStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w200,
+              style: GoogleFonts.rajdhani(
+                fontSize: 44,
+                fontWeight: FontWeight.w700,
                 color: Colors.white,
                 letterSpacing: 4,
-                fontFeatures: [FontFeature.tabularFigures()],
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),

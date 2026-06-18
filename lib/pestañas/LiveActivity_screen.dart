@@ -23,6 +23,7 @@ import '../services/territory_service.dart';
 import '../services/game_state_service.dart';
 import '../services/route_service.dart';
 import '../widgets/custom_navbar.dart';
+import '../widgets/app_icon.dart';
 import '../services/anticheat_service.dart';
 import '../services/stats_service.dart';
 import '../services/local_notif_service.dart';
@@ -1834,8 +1835,8 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(children: [
-                Container(width: 3, height: 16, color: t.color,
-                    margin: const EdgeInsets.only(right: 8)),
+                AppIcon(type: AppIconType.territory, color: t.color, size: 15),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     t.esMio ? 'TU TERRITORIO' : t.ownerNickname.toUpperCase(),
@@ -1853,28 +1854,38 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               if (!_modoSolitario) ...[
                 const SizedBox(height: 8),
                 Row(children: [
-                  Container(
-                    width: 6, height: 6, margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      color: hpColor, shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: hpColor.withValues(alpha: 0.6), blurRadius: 4)],
-                    ),
-                  ),
+                  AppIcon(type: AppIconType.hp, color: hpColor, size: 12, filled: true),
+                  const SizedBox(width: 6),
                   Expanded(child: Text(hpLabel,
                       style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
                           fontWeight: FontWeight.w700, letterSpacing: 0.8))),
-                  Text('${t.hpActual}/$kHpMax HP',
+                  Text('${t.hpActual}/$kHpMax',
                       style: GoogleFonts.rajdhani(color: hpColor, fontSize: 10,
                           fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 3),
+                  AppIcon(type: AppIconType.hp, color: hpColor.withValues(alpha: 0.7), size: 9),
                 ]),
                 const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: (t.hpActual / kHpMax).clamp(0.0, 1.0),
-                    backgroundColor: Colors.white12,
-                    valueColor: AlwaysStoppedAnimation<Color>(hpColor),
-                    minHeight: 3,
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: (t.hpActual / kHpMax).clamp(0.0, 1.0)),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOut,
+                  builder: (_, value, __) => ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: Stack(children: [
+                      Container(height: 6, color: Colors.white.withValues(alpha: 0.08)),
+                      FractionallySizedBox(
+                        widthFactor: value,
+                        child: Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: hpColor,
+                            boxShadow: [BoxShadow(
+                              color: hpColor.withValues(alpha: 0.55), blurRadius: 6)],
+                          ),
+                        ),
+                      ),
+                    ]),
                   ),
                 ),
               ],

@@ -44,6 +44,16 @@ import 'package:RiskRunner/theme/app_colors.dart';
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+PageRoute<T> _fadeRoute<T>(RouteSettings settings, Widget child) =>
+    PageRouteBuilder<T>(
+      settings: settings,
+      transitionDuration: const Duration(milliseconds: 180),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (_, __, ___) => child,
+      transitionsBuilder: (_, animation, __, child) =>
+          FadeTransition(opacity: animation, child: child),
+    );
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -185,10 +195,7 @@ class _MyAppState extends State<MyApp> {
         switch (settings.name) {
 
           case '/login':
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const LoginScreen(),
-            );
+            return _fadeRoute(settings, const LoginScreen());
 
           case '/home':
             return PageRouteBuilder(
@@ -215,95 +222,68 @@ class _MyAppState extends State<MyApp> {
             );
 
           case '/notificaciones':
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const NotificationsScreen(),
-            );
+            return _fadeRoute(settings, const NotificationsScreen());
 
           case '/clan':
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const ClanScreen(),
-            );
+            return _fadeRoute(settings, const ClanScreen());
 
           case '/desafios':
             final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => DesafiosScreen(
-                desafioId: args?['desafioId'] as String?,
-              ),
-            );
+            return _fadeRoute(settings, DesafiosScreen(
+              desafioId: args?['desafioId'] as String?,
+            ));
 
           case '/correr':
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const LiveActivityScreen(),
-            );
+            return _fadeRoute(settings, const LiveActivityScreen());
 
           case '/resumen':
             final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => ResumenScreen(
-                distancia:              (args?['distancia']     as double?)   ?? 0.0,
-                tiempo:                 (args?['tiempo']        as Duration?)  ?? Duration.zero,
-                ruta:                   (args?['ruta']          as List?)?.cast<LatLng>() ?? [],
-                esDesdeCarrera:         (args?['esDesdeCarrera'] as bool?)    ?? false,
-                territoriosConquistados:(args?['territoriosConquistados'] as int?) ?? 0,
-                puntosLigaGanados:      (args?['puntosLigaGanados']      as int?) ?? 0,
-                objetivoGlobal:         args?['objetivoGlobal']  as Map<String, dynamic>?,
-                globalConquistado:      (args?['globalConquistado'] as bool?) ?? false,
-                nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
-                modoRuta:               (args?['modoRuta']      as bool?)     ?? false,
-                monedasRuta:            (args?['monedasRuta']   as int?)      ?? 0,
-                modoInicial:            args?['modoInicial']    as String?,
-                splitsPorKm:            (args?['splitsPorKm']   as List?)?.cast<double>(),
-                velocidadMaxima:        (args?['velocidadMaxima'] as double?) ?? 0.0,
-                elevacionGanada:        (args?['elevacionGanada'] as double?) ?? 0.0,
-                elevacionPerdida:       (args?['elevacionPerdida'] as double?) ?? 0.0,
-              ),
-            );
+            return _fadeRoute(settings, ResumenScreen(
+              distancia:              (args?['distancia']     as double?)   ?? 0.0,
+              tiempo:                 (args?['tiempo']        as Duration?)  ?? Duration.zero,
+              ruta:                   (args?['ruta']          as List?)?.cast<LatLng>() ?? [],
+              esDesdeCarrera:         (args?['esDesdeCarrera'] as bool?)    ?? false,
+              territoriosConquistados:(args?['territoriosConquistados'] as int?) ?? 0,
+              puntosLigaGanados:      (args?['puntosLigaGanados']      as int?) ?? 0,
+              objetivoGlobal:         args?['objetivoGlobal']  as Map<String, dynamic>?,
+              globalConquistado:      (args?['globalConquistado'] as bool?) ?? false,
+              nuevaClausula:          (args?['nuevaClausula'] as num?)?.toDouble(),
+              modoRuta:               (args?['modoRuta']      as bool?)     ?? false,
+              monedasRuta:            (args?['monedasRuta']   as int?)      ?? 0,
+              modoInicial:            args?['modoInicial']    as String?,
+              splitsPorKm:            (args?['splitsPorKm']   as List?)?.cast<double>(),
+              velocidadMaxima:        (args?['velocidadMaxima'] as double?) ?? 0.0,
+              elevacionGanada:        (args?['elevacionGanada'] as double?) ?? 0.0,
+              elevacionPerdida:       (args?['elevacionPerdida'] as double?) ?? 0.0,
+            ));
 
           case '/mapa':
             final args = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => FullscreenMapScreen(
-                territorios:     (args?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
-                colorTerritorio: (args?['colorTerritorio'] as Color?)
-                    ?? const Color(0xFFD4722A),
-                centroInicial:   args?['centroInicial'] as LatLng?,
-                ruta:            (args?['ruta']         as List?)?.cast<LatLng>() ?? [],
-                mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
-              ),
-            );
+            return _fadeRoute(settings, FullscreenMapScreen(
+              territorios:     (args?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
+              colorTerritorio: (args?['colorTerritorio'] as Color?)
+                  ?? const Color(0xFFD4722A),
+              centroInicial:   args?['centroInicial'] as LatLng?,
+              ruta:            (args?['ruta']         as List?)?.cast<LatLng>() ?? [],
+              mostrarRuta:     (args?['mostrarRuta']  as bool?) ?? false,
+            ));
 
           case '/ver-mapa':
             final verMapaArgs = settings.arguments as Map<String, dynamic>?;
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => FullscreenMapScreen(
-                territorios:     (verMapaArgs?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
-                colorTerritorio: (verMapaArgs?['colorTerritorio'] as Color?)
-                    ?? const Color(0xFFD4722A),
-                centroInicial:   verMapaArgs?['centroInicial'] as LatLng?,
-                ruta:            (verMapaArgs?['ruta']         as List?)?.cast<LatLng>() ?? [],
-                mostrarRuta:     (verMapaArgs?['mostrarRuta']  as bool?) ?? false,
-              ),
-            );
+            return _fadeRoute(settings, FullscreenMapScreen(
+              territorios:     (verMapaArgs?['territorios']     as List?)?.cast<TerritoryData>() ?? [],
+              colorTerritorio: (verMapaArgs?['colorTerritorio'] as Color?)
+                  ?? const Color(0xFFD4722A),
+              centroInicial:   verMapaArgs?['centroInicial'] as LatLng?,
+              ruta:            (verMapaArgs?['ruta']         as List?)?.cast<LatLng>() ?? [],
+              mostrarRuta:     (verMapaArgs?['mostrarRuta']  as bool?) ?? false,
+            ));
 
           case '/tienda':
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const CoinShopScreen(),
-            );
+            return _fadeRoute(settings, const CoinShopScreen());
 
           default:
-            return MaterialPageRoute(
-              settings: settings,
-              builder: (_) => const HomeScreen(),
-            );
+            return _fadeRoute(settings, const HomeScreen());
         }
       },
     );
