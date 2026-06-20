@@ -20,6 +20,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../core/app_error.dart';
 import '../services/territory_service.dart';
 import '../services/game_state_service.dart';
 import '../services/activity_service.dart';
@@ -398,24 +399,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     super.dispose();
   }
 
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(children: [
-        const Icon(Icons.warning_amber_rounded, color: _kWarn, size: 16),
-        const SizedBox(width: 10),
-        Expanded(child: Text(mensaje, style: _raj(12, FontWeight.w600, _kWhite))),
-      ]),
-      backgroundColor: _kSurface,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: const BorderSide(color: _kWarn, width: 1),
-      ),
-      duration: const Duration(seconds: 3),
-    ));
-  }
+  void _mostrarError(String mensaje) => AppError.show(context, mensaje);
 
   void _mostrarExito(String mensaje) {
     if (!mounted) return;

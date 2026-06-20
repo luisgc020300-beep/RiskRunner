@@ -3,10 +3,13 @@ import 'package:RiskRunner/pesta%C3%B1as/coin_shop_screen.dart';
 import 'package:RiskRunner/pesta%C3%B1as/fullscreen_map_screen.dart';
 import 'package:RiskRunner/services/territory_service.dart' show TerritoryData;
 import 'package:RiskRunner/pesta%C3%B1as/onboarding_slides_screen.dart';
+import 'package:RiskRunner/pestañas/onboarding_gps_gate.dart';
 import 'package:RiskRunner/services/notification_service.dart';
 import 'package:RiskRunner/services/local_notif_service.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:RiskRunner/services/subscription_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:ui';
 
@@ -40,6 +43,7 @@ import 'widgets/offline_banner.dart';
 import 'core/service_locator.dart';
 import 'shell/app_shell.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
+import 'core/app_error.dart';
 
 // Clave global para navegar desde notificaciones sin context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -77,6 +81,10 @@ void main() async {
   await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(!kDebugMode);
 
+  // Custom keys visibles en todos los crashes del panel Crashlytics
+  await AppError.setKey('env',    kDebugMode ? 'debug' : 'prod');
+  await AppError.setKey('flavor', const String.fromEnvironment('FLAVOR', defaultValue: 'dev'));
+
   await setupLocator();
   await LocalNotifService.init();
   mapbox.MapboxOptions.setAccessToken(Env.mapboxPublicToken);
@@ -85,9 +93,20 @@ void main() async {
 
   FirebaseAuth.instance.authStateChanges().listen((user) {
     if (user != null) {
+      // Vincula el UID a todos los crashes que ocurran durante esta sesión
+      AppError.setUser(user.uid, email: user.email);
+      AppError.log('Auth: sesión iniciada uid=${user.uid}');
+      final created  = user.metadata.creationTime;
+      final lastSign = user.metadata.lastSignInTime;
+      if (created != null && lastSign != null &&
+          lastSign.difference(created).inSeconds < 30) {
+        FirebaseAnalytics.instance.logEvent(name: 'user_registered');
+      }
       NotificationService.inicializar();
       SubscriptionService.inicializar(user.uid);
       DesafiosService.verificarExpirados(user.uid);
+    } else {
+      AppError.clearUser();
     }
   });
 
@@ -457,6 +476,7 @@ class _OnboardingGate extends StatefulWidget {
 class _OnboardingGateState extends State<_OnboardingGate> {
   OnboardingState? _state;
   bool _loading = true;
+  bool _showGpsGate = false;
 
   @override
   void initState() {
@@ -466,24 +486,47 @@ class _OnboardingGateState extends State<_OnboardingGate> {
 
   Future<void> _cargarEstado() async {
     final state = await OnboardingService.cargarEstado();
-    if (mounted) setState(() { _state = state; _loading = false; });
+    bool showGps = false;
+    if (state.slidesVistos) {
+      showGps = await _debesMostrarGpsGate();
+    }
+    if (mounted) setState(() { _state = state; _showGpsGate = showGps; _loading = false; });
   }
 
-  void _onSlidesCompleto() {
-    setState(() {
-      _state = OnboardingState(
-        slidesVistos:    true,
-        runActual:       _state?.runActual ?? 0,
-        tooltipsVistos:  _state?.tooltipsVistos ?? {},
-      );
-    });
+  // VoidCallback requerido por OnboardingSlidesScreen — dispara el async sin awaitar.
+  void _onSlidesCompleto() => _transicionarTrasSlides();
+
+  Future<void> _transicionarTrasSlides() async {
+    final showGps = await _debesMostrarGpsGate();
+    if (mounted) {
+      setState(() {
+        _state = OnboardingState(
+          slidesVistos:   true,
+          runActual:      _state?.runActual ?? 0,
+          tooltipsVistos: _state?.tooltipsVistos ?? {},
+        );
+        _showGpsGate = showGps;
+      });
+    }
   }
+
+  Future<bool> _debesMostrarGpsGate() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('gps_gate_shown') ?? false) return false;
+    final perm = await Geolocator.checkPermission();
+    return perm == LocationPermission.denied;
+  }
+
+  void _onGpsContinue() => setState(() => _showGpsGate = false);
 
   @override
   Widget build(BuildContext context) {
     if (_loading || _state == null) return const _SplashLoading();
     if (!_state!.slidesVistos) {
       return OnboardingSlidesScreen(onComplete: _onSlidesCompleto);
+    }
+    if (_showGpsGate) {
+      return OnboardingGpsGate(onContinue: _onGpsContinue);
     }
     return const AppShell();
   }

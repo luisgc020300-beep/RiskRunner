@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/app_error.dart';
 import '../widgets/custom_navbar.dart';
 import '../shell/app_shell.dart';
 import '../services/territory_service.dart';
@@ -531,19 +532,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _snackError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration: const Duration(seconds: 3),
-      backgroundColor: _T.redD.withValues(alpha: 0.95),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      content: Row(children: [
-        Icon(Icons.wifi_off_rounded, color: _T.white, size: 16),
-        const SizedBox(width: 10),
-        Text(msg, style: _raj(12, FontWeight.w600, _T.white)),
-      ]),
-    ));
-  }
+  void _snackError(String msg) => AppError.show(context, msg);
 
   Future<void> _guardarRuta(FeedPost post) async {
     if (userId == null || post.ruta == null) return;

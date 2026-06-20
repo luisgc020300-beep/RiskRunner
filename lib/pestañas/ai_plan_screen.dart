@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../core/app_error.dart';
 import '../services/training_plan_service.dart';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
@@ -176,13 +177,7 @@ Reglas estrictas del JSON:
     }
   }
 
-  void _showError(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: _t(13, FontWeight.w500, _kWhite)),
-      backgroundColor: _kSurface,
-    ));
-  }
+  void _showError(String msg) => AppError.show(context, msg);
 
   Future<void> _guardarPlan() async {
     if (_parsedPlan == null || _saving) return;

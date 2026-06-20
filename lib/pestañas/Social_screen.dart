@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'package:RiskRunner/pestañas/clan_screen.dart';
 import 'package:RiskRunner/pestañas/settings_screen.dart';
+import '../core/app_error.dart';
 import '../widgets/custom_navbar.dart';
 import '../shell/app_shell.dart';
 import '../services/league_service.dart';
@@ -246,14 +247,11 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   }
 
   void _snack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: TextStyle(color: _p.text1, fontSize: 13)),
-      backgroundColor: _p.surface3, behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: error ? kSocAccent.withValues(alpha: 0.5) : kSocGreenFg.withValues(alpha: 0.5))),
-      duration: Duration(seconds: error ? 3 : 2)));
+    if (error) {
+      AppError.show(context, msg);
+    } else {
+      AppError.showInfo(context, msg);
+    }
   }
 
   void _abrirChat(String friendId, String nick, String? foto) {

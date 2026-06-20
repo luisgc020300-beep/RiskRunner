@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_error.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -404,12 +405,7 @@ class _ResumenScreenState extends State<ResumenScreen>
                   await TrainingPlanService.markSession(userId, sesion.key, true);
                   if (mounted) setState(() => _planSesionConfirmada = true);
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.redAccent,
-                    ));
-                  }
+                  if (mounted) AppError.show(context, 'Error: $e');
                 }
               },
               child: Container(
@@ -944,11 +940,7 @@ class _ResumenScreenState extends State<ResumenScreen>
       )));
     } catch (e) {
       debugPrint('Error abriendo resumen desde logro: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No se pudo abrir el resumen de esta sesión.'),
-        ));
-      }
+      if (mounted) AppError.show(context, 'No se pudo abrir el resumen de esta sesión.');
     }
   }
 

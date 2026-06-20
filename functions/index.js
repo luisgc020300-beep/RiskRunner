@@ -5,11 +5,12 @@
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const { onDocumentCreated,
         onDocumentUpdated }  = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret }       = require('firebase-functions/params');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging }       = require('firebase-admin/messaging');
+const { getAuth }            = require('firebase-admin/auth');
 
 const _anthropicKey = defineSecret('ANTHROPIC_API_KEY');
 
@@ -1971,3 +1972,226 @@ exports.generarPlanIA = onCall(
 );
 
 // v7 — atacarTerritorio integrado
+
+// =============================================================================
+// DASHBOARD — getDashboardSummary
+// Endpoint HTTP seguro para el dashboard web del CEO.
+// Nunca devuelve documentos crudos. Solo el usuario autenticado puede consultar sus propios datos.
+//
+// CORS: cambia _DASHBOARD_ORIGIN al origen real antes de exponer en producción.
+//       null = bloquea todo origen (seguro por defecto).
+// =============================================================================
+
+/**
+ * Orígenes permitidos para getDashboardSummary:
+ *   - sin header Origin (curl, Postman, peticiones no-CORS)
+ *   - Origin: null  → file:// en Chrome/Edge/Firefox
+ *   - http://localhost:<cualquier puerto>  → servidor de desarrollo local
+ * Cualquier otro origen queda bloqueado (el navegador verá la ausencia del header CORS).
+ */
+function _isDashboardOriginAllowed(originHeader) {
+  if (originHeader === undefined) return { ok: true, echo: 'null' };   // sin header
+  if (originHeader === 'null')    return { ok: true, echo: 'null' };   // file://
+  if (/^http:\/\/localhost(:\d+)?$/.test(originHeader))
+    return { ok: true, echo: originHeader };                           // localhost:*
+  return { ok: false, echo: null };
+}
+
+/** Rangos de liga — espejo de league_service.dart */
+function _getLeague(pts) {
+  if (pts >= 12000) return 'leyenda';
+  if (pts >= 7000)  return 'diamante';
+  if (pts >= 3500)  return 'platino';
+  if (pts >= 1500)  return 'oro';
+  if (pts >= 500)   return 'plata';
+  return 'bronce';
+}
+
+exports.getDashboardSummary = onRequest(
+  { region: 'europe-west1' },
+  async (req, res) => {
+    // ── CORS ─────────────────────────────────────────────────────────────────
+    const { ok: corsOk, echo: corsOrigin } = _isDashboardOriginAllowed(req.headers.origin);
+
+    if (corsOk) {
+      res.set('Access-Control-Allow-Origin',  corsOrigin);
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.status(corsOk ? 204 : 403).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Método no permitido' });
+      return;
+    }
+
+    // ── Auth: verificar ID token ──────────────────────────────────────────────
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Token de autenticación requerido' });
+      return;
+    }
+    const idToken = authHeader.slice(7);
+    let decodedToken;
+    try {
+      decodedToken = await getAuth().verifyIdToken(idToken);
+    } catch (e) {
+      console.warn('getDashboardSummary: token inválido', e.message);
+      res.status(401).json({ error: 'Token inválido o expirado' });
+      return;
+    }
+
+    // ── Validar userId en query ───────────────────────────────────────────────
+    const userId = req.query.userId;
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'Parámetro userId requerido' });
+      return;
+    }
+    if (decodedToken.uid !== userId) {
+      res.status(403).json({ error: 'Acceso denegado: userId no coincide con el token' });
+      return;
+    }
+
+    try {
+      // ── Consultas en paralelo ─────────────────────────────────────────────
+      const [
+        playerSnap,
+        territoriesSnap,
+        totalPlayersSnap,
+        rankSnap,
+        desafiosRet,
+        desafiosDef,
+        dailyChallengeSnap,
+      ] = await Promise.all([
+        // 1. Datos del jugador
+        db.collection('players').doc(userId).get(),
+
+        // 2. Territorios propios
+        db.collection('territories')
+          .where('userId', '==', userId)
+          .select('area_m2', 'hp', 'hpMax', 'centroLat', 'centroLng')
+          .get(),
+
+        // 3. Total de jugadores (para ranking)
+        db.collection('players').count().get(),
+
+        // 4. Jugadores con más puntos_liga que el usuario (calculado después de tener player data)
+        // → se hace en dos pasos: primero el jugador, luego el rank
+        // Placeholder — se resuelve abajo con los datos del jugador
+        Promise.resolve(null),
+
+        // 5. Desafíos como retador
+        db.collection('desafios')
+          .where('retadorId', '==', userId)
+          .select('retadoId', 'estado', 'apuesta')
+          .limit(20)
+          .get(),
+
+        // 6. Desafíos como retado
+        db.collection('desafios')
+          .where('retadoId', '==', userId)
+          .select('retadorId', 'estado', 'apuesta')
+          .limit(20)
+          .get(),
+
+        // 7. Reto diario activo para el nivel del jugador (se refina abajo)
+        Promise.resolve(null),
+      ]);
+
+      if (!playerSnap.exists) {
+        res.status(404).json({ error: 'Jugador no encontrado' });
+        return;
+      }
+
+      const player = playerSnap.data();
+      const puntos  = player.puntos_liga  ?? 0;
+      const nivel   = player.nivel        ?? 0;
+      const nick    = player.nickname     ?? userId;
+
+      // ── Ranking: jugadores con más puntos que yo ──────────────────────────
+      const [rankAboveSnap, dailySnap] = await Promise.all([
+        db.collection('players')
+          .where('puntos_liga', '>', puntos)
+          .count()
+          .get(),
+        db.collection('daily_challenges')
+          .where('rango_requerido', '<=', nivel)
+          .orderBy('rango_requerido', 'desc')
+          .limit(1)
+          .get(),
+      ]);
+
+      const rankPosition    = (rankAboveSnap.data().count ?? 0) + 1;
+      const totalPlayers    = totalPlayersSnap.data().count ?? 0;
+
+      // ── Calcular métricas de territorios ─────────────────────────────────
+      let totalAreaM2   = 0;
+      let hpTotalActual = 0;
+      let hpTotalMax    = 0;
+      for (const doc of territoriesSnap.docs) {
+        const t = doc.data();
+        totalAreaM2   += (t.area_m2 ?? 0);
+        hpTotalActual += (t.hp      ?? 0);
+        hpTotalMax    += (t.hpMax   ?? 1);
+      }
+
+      // ── Desafíos: unir y resumir ──────────────────────────────────────────
+      const allDesafios = [
+        ...desafiosRet.docs.map(d => ({ id: d.id, role: 'retador', ...d.data() })),
+        ...desafiosDef.docs.map(d => ({ id: d.id, role: 'retado',  ...d.data() })),
+      ];
+      const desafiosPendientes = allDesafios.filter(d => d.estado === 'pendiente').length;
+      const desafiosActivos    = allDesafios.filter(d => d.estado === 'activo').length;
+      const desafiosGanados    = allDesafios.filter(d =>
+        (d.role === 'retador' && d.estado === 'victoria_retador') ||
+        (d.role === 'retado'  && d.estado === 'victoria_retado')
+      ).length;
+
+      // ── Reto diario ───────────────────────────────────────────────────────
+      let retoDiario = null;
+      if (!dailySnap.empty) {
+        const reto = dailySnap.docs[0].data();
+        retoDiario = {
+          titulo:          reto.titulo          ?? null,
+          objetivoValor:   reto.objetivo_valor  ?? null,
+          recompensas:     reto.recompensas_monedas ?? null,
+        };
+      }
+
+      // ── Respuesta filtrada ────────────────────────────────────────────────
+      res.status(200).json({
+        jugador: {
+          nickname:    nick,
+          puntos_liga: puntos,
+          nivel,
+          liga:        _getLeague(puntos),
+          ranking:     { posicion: rankPosition, total: totalPlayers },
+        },
+        territorios: {
+          cantidad:   territoriesSnap.size,
+          totalAreaM2: Math.round(totalAreaM2),
+          hp: {
+            actual: hpTotalActual,
+            max:    hpTotalMax,
+            pct:    hpTotalMax > 0 ? Math.round((hpTotalActual / hpTotalMax) * 100) : 0,
+          },
+        },
+        desafios: {
+          pendientes: desafiosPendientes,
+          activos:    desafiosActivos,
+          ganados:    desafiosGanados,
+        },
+        retoDiario,
+        generadoEn: new Date().toISOString(),
+      });
+
+    } catch (e) {
+      console.error('getDashboardSummary error:', e);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  }
+);

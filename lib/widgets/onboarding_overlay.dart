@@ -1,3 +1,4 @@
+import 'package:RiskRunner/core/app_error.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -241,6 +242,7 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
         .toList();
 
     if (_pending.isNotEmpty) {
+      AppError.log('tooltip:mostrar ids=${_pending.map((t) => t.id).join(",")}');
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) {
           setState(() => _visible = true);
@@ -259,6 +261,7 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
 
   Future<void> _siguiente() async {
     HapticFeedback.selectionClick();
+    AppError.log('tooltip:vista id=${_pending[_currentIdx].id}');
     await OnboardingService.marcarTooltipVisto(_pending[_currentIdx].id);
 
     if (_currentIdx < _pending.length - 1) {
@@ -274,6 +277,7 @@ class _OnboardingOverlayWrapperState extends State<OnboardingOverlayWrapper>
 
   Future<void> _saltarTodos() async {
     HapticFeedback.lightImpact();
+    AppError.log('tooltip:skip_all desde=${_pending[_currentIdx].id}');
     final ids = _pending.map((t) => t.id).toList();
     await OnboardingService.marcarTooltipsVistos(ids);
     await _animCtrl.reverse();

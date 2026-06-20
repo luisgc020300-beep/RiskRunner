@@ -19,6 +19,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:custom_timer/custom_timer.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 
+import '../core/app_error.dart';
 import '../services/territory_service.dart';
 import '../services/game_state_service.dart';
 import '../services/route_service.dart';
@@ -50,6 +51,8 @@ import '../theme/app_colors.dart';
 import '../services/run_session_notifier.dart';
 import '../services/tracking_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 part 'live_selector_modo.dart';
 part 'live_globe_overlay.dart';
@@ -2773,23 +2776,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   }
 
   void _mostrarError(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration: const Duration(seconds: 4),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      content: _snackWrap(
-        color:  _p.parchMid,
-        border: Border.all(color: _p.globalRed.withValues(alpha: 0.5)),
-        child: Row(children: [
-          Icon(CupertinoIcons.exclamationmark_triangle, color: _p.globalRed, size: 18),
-          const SizedBox(width: 10),
-          Expanded(child: Text(msg,
-              style: GoogleFonts.inter(color: _kGoldLight,
-                  fontSize: 12, fontWeight: FontWeight.w600))),
-        ]),
-      ),
-    ));
+    AppError.show(context, msg);
   }
 
   // ==========================================================================
@@ -3102,6 +3089,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       return;
     }
     _session.startSession();
+
+    // Metric: tiempo desde onboarding_complete hasta primera carrera. Fires once.
+    SharedPreferences.getInstance().then((prefs) {
+      final ts = prefs.getInt('onboarding_complete_ts');
+      if (ts != null) {
+        final minutes = (DateTime.now().millisecondsSinceEpoch - ts) / 60000;
+        FirebaseAnalytics.instance.logEvent(
+          name: 'time_to_first_run',
+          parameters: {'minutes': minutes.round()},
+        );
+        prefs.remove('onboarding_complete_ts');
+      }
+    });
+
     _modeCtrl.resetParaSesion();
     setState(() {
       _bearing                 = 0;

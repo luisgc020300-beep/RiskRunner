@@ -9,6 +9,7 @@ import '../services/subscription_service.dart';
 import '../widgets/perfil/perfil_theme.dart';
 import '../widgets/avatar_painter.dart';
 import 'paywall_screen.dart';
+import '../core/app_error.dart';
 
 const _kAccent = kPerfilAccent;
 const _kGold   = kPerfilGold;
@@ -96,21 +97,11 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
   }
 
   void _mostrarSnack(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration: const Duration(seconds: 3),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      content: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: _p.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: error ? _kAccent.withValues(alpha: 0.4) : _p.border),
-        ),
-        child: Text(msg, style: _s(13, FontWeight.w500, _p.sub)),
-      ),
-    ));
+    if (error) {
+      AppError.show(context, msg);
+    } else {
+      AppError.showInfo(context, msg);
+    }
   }
 
   void _animarCambio() => _previewAnim.forward(from: 0);

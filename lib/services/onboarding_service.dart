@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Estado del onboarding de un usuario.
 /// - [slidesVistos]: si ya vio los slides iniciales (se muestran solo una vez)
@@ -43,30 +44,38 @@ class OnboardingService {
 
   static String? get _uid => _auth.currentUser?.uid;
 
-  /// Lee el estado actual del onboarding desde Firestore
+  /// Lee el estado actual del onboarding desde Firestore.
+  /// Usa SharedPreferences como fallback local si la red falla o tarda >3s.
   static Future<OnboardingState> cargarEstado() async {
     final uid = _uid;
     if (uid == null) {
       return const OnboardingState(slidesVistos: false, runActual: 0, tooltipsVistos: {});
     }
+    final prefs = await SharedPreferences.getInstance();
+    final slidesLocal = prefs.getBool('slides_vistos') ?? false;
     try {
-      final doc = await _db.collection('players').doc(uid).get();
+      final doc = await _db.collection('players').doc(uid).get()
+          .timeout(const Duration(seconds: 3));
       if (!doc.exists) {
-        return const OnboardingState(slidesVistos: false, runActual: 0, tooltipsVistos: {});
+        return OnboardingState(slidesVistos: slidesLocal, runActual: 0, tooltipsVistos: {});
       }
       final data = doc.data()!;
-      final slides  = (data['onboarding_slides_vistos'] as bool?) ?? false;
+      final slides  = (data['onboarding_slides_vistos'] as bool?) ?? slidesLocal;
       final run     = (data['onboarding_run_actual']    as num?)?.toInt() ?? 0;
       final tvRaw   = (data['onboarding_tooltips_vistos'] as List<dynamic>?) ?? [];
       final tv      = tvRaw.map((e) => e.toString()).toSet();
       return OnboardingState(slidesVistos: slides, runActual: run, tooltipsVistos: tv);
-    } catch (e) {
-      return const OnboardingState(slidesVistos: false, runActual: 0, tooltipsVistos: {});
+    } catch (_) {
+      // Red lenta o sin conexión — usar estado local para no bloquear el arranque
+      return OnboardingState(slidesVistos: slidesLocal, runActual: 0, tooltipsVistos: {});
     }
   }
 
-  /// Marca los slides como vistos
+  /// Marca los slides como vistos. Escribe en local primero para que si
+  /// la red falla el usuario no vuelva a ver los slides al reabrir.
   static Future<void> marcarSlidesVistos() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('slides_vistos', true);
     final uid = _uid;
     if (uid == null) return;
     await _db.collection('players').doc(uid).set(

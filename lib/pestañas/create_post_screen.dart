@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import '../core/app_error.dart';
 import '../services/story_service.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
 
@@ -109,7 +110,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       final kb = bytes.lengthInBytes / 1024;
       if (kb > 900) {
         if (mounted) {
-          _showSnack('La imagen es demasiado grande (${kb.toInt()} KB). Máx ~900 KB.');
+          _showSnack('La imagen es demasiado grande (${kb.toInt()} KB). Máx ~900 KB.', error: true);
         }
         return;
       }
@@ -122,7 +123,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
     } catch (e) {
       debugPrint('Error seleccionando media: $e');
-      if (mounted) _showSnack('Error al cargar el archivo. Inténtalo de nuevo.');
+      if (mounted) _showSnack('Error al cargar el archivo. Inténtalo de nuevo.', error: true);
     }
   }
 
@@ -130,7 +131,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Future<void> _publicar() async {
     if (userId == null) return;
     if (_tituloCtrl.text.trim().isEmpty && _mediaBase64 == null) {
-      _showSnack('Añade un título o contenido multimedia');
+      _showSnack('Añade un título o contenido multimedia', error: true);
       return;
     }
     setState(() { _publicando = true; _errorMsg = ''; });
@@ -144,7 +145,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       debugPrint('Error publicando: $e');
       if (mounted) {
         setState(() { _publicando = false; _errorMsg = 'Error al publicar. Inténtalo de nuevo.'; });
-        _showSnack('Error al publicar. Inténtalo de nuevo.');
+        _showSnack('Error al publicar. Inténtalo de nuevo.', error: true);
       }
     }
   }
@@ -194,24 +195,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration: const Duration(seconds: 3),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      content: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: _p.surface2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _p.line),
-          boxShadow: [BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12), blurRadius: 16)],
-        ),
-        child: Text(msg, style: GoogleFonts.inter(
-            color: _p.text1, fontWeight: FontWeight.w600, fontSize: 13)),
-      ),
-    ));
+  void _showSnack(String msg, {bool error = false}) {
+    if (error) {
+      AppError.show(context, msg);
+    } else {
+      AppError.showInfo(context, msg);
+    }
   }
 
   // ===========================================================================

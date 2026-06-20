@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
+import '../core/app_error.dart';
 
 const _kAccent = AppColors.red;
 
@@ -333,16 +334,7 @@ class _AmigoTileState extends State<_AmigoTile> {
 
       if (mounted) setState(() => _enviada = true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', ''),
-              style: GoogleFonts.inter(color: Colors.white)),
-          backgroundColor: _kAccent,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ));
-      }
+      if (mounted) AppError.show(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -460,14 +452,11 @@ class _InviteTileState extends State<_InviteTile> {
   }
 
   void _snack(String msg, {bool ok = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 13)),
-      backgroundColor: ok ? const Color(0xFF1A4A35) : _kAccent,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ));
+    if (ok) {
+      AppError.showInfo(context, msg);
+    } else {
+      AppError.show(context, msg);
+    }
   }
 
   @override

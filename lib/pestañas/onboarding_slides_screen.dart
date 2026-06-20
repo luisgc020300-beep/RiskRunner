@@ -1,9 +1,12 @@
 ﻿import 'dart:math' as math;
 
+import 'package:RiskRunner/core/app_error.dart';
 import 'package:RiskRunner/services/onboarding_service.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // =============================================================================
 // PALETA (iOS light — coherente con Map y Resumen)
@@ -146,6 +149,11 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
     setState(() => _currentPage = i);
     _slideAnimCtrl.forward(from: 0);
     HapticFeedback.selectionClick();
+    AppError.log('onboarding:slide_$i ${_slides[i].tag}');
+    FirebaseAnalytics.instance.logEvent(
+      name: 'onboarding_slide_view',
+      parameters: {'slide_index': i, 'slide_tag': _slides[i].tag},
+    );
   }
 
   void _nextPage() {
@@ -162,6 +170,11 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
 
   void _skipToLast() {
     HapticFeedback.lightImpact();
+    AppError.log('onboarding:skip from=$_currentPage');
+    FirebaseAnalytics.instance.logEvent(
+      name: 'onboarding_skip',
+      parameters: {'from_slide': _currentPage},
+    );
     _slideAnimCtrl.reset();
     _pageCtrl.animateToPage(_slides.length - 1,
         duration: const Duration(milliseconds: 500),
@@ -170,6 +183,10 @@ class _OnboardingSlidesScreenState extends State<OnboardingSlidesScreen>
 
   Future<void> _completar() async {
     HapticFeedback.mediumImpact();
+    AppError.log('onboarding:complete');
+    FirebaseAnalytics.instance.logEvent(name: 'onboarding_complete');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('onboarding_complete_ts', DateTime.now().millisecondsSinceEpoch);
     await OnboardingService.marcarSlidesVistos();
     if (mounted) widget.onComplete();
   }

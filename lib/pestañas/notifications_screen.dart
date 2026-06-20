@@ -7,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
+import '../core/app_error.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_button.dart';
@@ -220,7 +221,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('posts').doc(postId).get();
       if (!mounted) return;
       if (!doc.exists) {
-        _snack('Esta publicación ya no existe', _kMuted);
+        _snack('Esta publicación ya no existe');
         return;
       }
       _mostrarPopUpPost(doc.data()!);
@@ -357,7 +358,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('territories').doc(territoryId).get();
       if (!mounted) return;
       if (!doc.exists) {
-        _snack('Este territorio ya no existe', _kMuted);
+        _snack('Este territorio ya no existe');
         return;
       }
       final data = doc.data()!;
@@ -845,9 +846,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('notifications').doc(item.id)
           .update({'read': true});
 
-      if (mounted) _snack('Contrapropuesta enviada', _kRed);
+      if (mounted) _snack('Contrapropuesta enviada');
     } catch (e) {
-      if (mounted) _snack('Error al enviar la contrapropuesta', Colors.redAccent);
+      if (mounted) _snack('Error al enviar la contrapropuesta', error: true);
     }
   }
 
@@ -911,14 +912,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       });
 
       if (mounted) {
-        _snack('¡Desafío aceptado! Tienes ${horas}h para ganar', _kRed);
+        _snack('¡Desafío aceptado! Tienes ${horas}h para ganar');
         Navigator.pushNamed(context, '/desafios', arguments: {'desafioId': targetId});
       }
     } catch (e) {
       if (e == 'insufficient_coins') {
-        if (mounted) _snack('No tienes suficientes monedas', Colors.redAccent);
+        if (mounted) _snack('No tienes suficientes monedas', error: true);
       } else {
-        if (mounted) _snack('Error al aceptar el desafío', Colors.redAccent);
+        if (mounted) _snack('Error al aceptar el desafío', error: true);
       }
     }
   }
@@ -946,9 +947,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('notifications').doc(item.id)
           .update({'read': true});
 
-      if (mounted) _snack('Desafío rechazado', Colors.black54);
+      if (mounted) _snack('Desafío rechazado');
     } catch (e) {
-      if (mounted) _snack('Error al rechazar el desafío', Colors.redAccent);
+      if (mounted) _snack('Error al rechazar el desafío', error: true);
     }
   }
 
@@ -975,9 +976,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('notifications').doc(item.id)
           .update({'read': true});
 
-      if (mounted) _snack('Desafío cancelado — monedas devueltas', Colors.black54);
+      if (mounted) _snack('Desafío cancelado — monedas devueltas');
     } catch (e) {
-      if (mounted) _snack('Error al cancelar el desafío', Colors.redAccent);
+      if (mounted) _snack('Error al cancelar el desafío', error: true);
     }
   }
 
@@ -990,15 +991,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return snap.docs.isNotEmpty ? snap.docs.first.id : null;
   }
 
-  void _snack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: _raj(13, FontWeight.w700, Colors.white)),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(6))),
-    ));
+  void _snack(String msg, {bool error = false}) {
+    if (error) {
+      AppError.show(context, msg);
+    } else {
+      AppError.showInfo(context, msg);
+    }
   }
 
   // =============================================================================

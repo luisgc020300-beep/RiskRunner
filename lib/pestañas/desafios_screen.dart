@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/app_error.dart';
 import '../services/desafios_service.dart';
 import '../services/game_state_service.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
@@ -523,11 +524,7 @@ class _CardPendiente extends StatelessWidget {
       await FirebaseFirestore.instance
           .collection('desafios').doc(info.id)
           .update({'estado': 'cancelado'});
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Desafío cancelado — monedas devueltas'),
-            backgroundColor: Color.fromRGBO(255, 69, 58, 0.15)));
-      }
+      if (context.mounted) AppError.showInfo(context, 'Desafío cancelado — monedas devueltas');
     } catch (e) {
       debugPrint('Error cancelando: $e');
     }

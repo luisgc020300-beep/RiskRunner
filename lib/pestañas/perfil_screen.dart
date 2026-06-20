@@ -1,4 +1,5 @@
 ﻿// lib/screens/perfil_screen.dart
+import '../core/app_error.dart';
 import 'settings_screen.dart';
 import 'Resumen_screen.dart';
 import 'training_plans_screen.dart';
@@ -1076,13 +1077,7 @@ class _PerfilScreenState extends State<PerfilScreen>
       }
     } catch (e) {
       debugPrint('Error stats: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error cargando estadísticas: $e'),
-          duration: const Duration(seconds: 15),
-          backgroundColor: Colors.red[900],
-        ));
-      }
+      if (mounted) AppError.show(context, 'Error cargando estadísticas: $e');
     }
   }
 
@@ -1170,13 +1165,11 @@ class _PerfilScreenState extends State<PerfilScreen>
 
 
   void _mostrarSnackbar(String msg, {bool error = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: _rajdhani(13, FontWeight.w700, Colors.black)),
-      backgroundColor: error ? Colors.redAccent : _kAccent,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    ));
+    if (error) {
+      AppError.show(context, msg);
+    } else {
+      AppError.showInfo(context, msg);
+    }
   }
 
   void _mostrarDialogoEditarNickname() {

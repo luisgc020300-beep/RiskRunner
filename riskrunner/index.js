@@ -5,10 +5,14 @@
 const { onSchedule }         = require('firebase-functions/v2/scheduler');
 const { onDocumentCreated,
         onDocumentUpdated }  = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }      = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging }       = require('firebase-admin/messaging');
+const { getAuth }            = require('firebase-admin/auth');
+const { defineSecret }       = require('firebase-functions/params');
+
+const _anthropicKey = defineSecret('ANTHROPIC_API_KEY');
 
 initializeApp();
 const db = getFirestore();
@@ -1655,3 +1659,632 @@ exports.onNotificationCreated = onDocumentCreated(
 );
 
 // v7 — atacarTerritorio integrado
+
+// =============================================================================
+// DASHBOARD — getDashboardSummary
+// Endpoint HTTP seguro para el dashboard web del CEO.
+// Nunca devuelve documentos crudos. Solo el usuario autenticado puede consultar sus propios datos.
+//
+// Orígenes permitidos:
+//   - sin header Origin  → curl, Postman
+//   - Origin: null       → file:// en Chrome/Edge/Firefox
+//   - http://localhost:* → servidor de desarrollo local
+// =============================================================================
+
+/**
+ * Devuelve { ok, echo } donde echo es el valor a poner en Access-Control-Allow-Origin.
+ * Cualquier otro origen queda bloqueado (el navegador verá ausencia del header CORS).
+ */
+function _isDashboardOriginAllowed(originHeader) {
+  if (originHeader === undefined) return { ok: true, echo: 'null' };
+  if (originHeader === 'null')    return { ok: true, echo: 'null' };
+  if (/^http:\/\/localhost(:\d+)?$/.test(originHeader))
+    return { ok: true, echo: originHeader };
+  return { ok: false, echo: null };
+}
+
+/** Rangos de liga — espejo de league_service.dart */
+function _getLeague(pts) {
+  if (pts >= 12000) return 'leyenda';
+  if (pts >= 7000)  return 'diamante';
+  if (pts >= 3500)  return 'platino';
+  if (pts >= 1500)  return 'oro';
+  if (pts >= 500)   return 'plata';
+  return 'bronce';
+}
+
+exports.getDashboardSummary = onRequest(
+  { region: 'europe-west1' },
+  async (req, res) => {
+    // ── CORS ─────────────────────────────────────────────────────────────────
+    const { ok: corsOk, echo: corsOrigin } = _isDashboardOriginAllowed(req.headers.origin);
+
+    if (corsOk) {
+      res.set('Access-Control-Allow-Origin',  corsOrigin);
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.status(corsOk ? 204 : 403).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Método no permitido' });
+      return;
+    }
+
+    // ── Auth: verificar ID token ──────────────────────────────────────────────
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Token de autenticación requerido' });
+      return;
+    }
+    const idToken = authHeader.slice(7);
+    let decodedToken;
+    try {
+      decodedToken = await getAuth().verifyIdToken(idToken);
+    } catch (e) {
+      console.warn('getDashboardSummary: token inválido', e.message);
+      res.status(401).json({ error: 'Token inválido o expirado' });
+      return;
+    }
+
+    // ── Validar userId en query ───────────────────────────────────────────────
+    const userId = req.query.userId;
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'Parámetro userId requerido' });
+      return;
+    }
+    if (decodedToken.uid !== userId) {
+      res.status(403).json({ error: 'Acceso denegado: userId no coincide con el token' });
+      return;
+    }
+
+    try {
+      // ── Consultas en paralelo ─────────────────────────────────────────────
+      const [
+        playerSnap,
+        territoriesSnap,
+        totalPlayersSnap,
+        desafiosRet,
+        desafiosDef,
+      ] = await Promise.all([
+        db.collection('players').doc(userId).get(),
+        db.collection('territories')
+          .where('userId', '==', userId)
+          .select('area_m2', 'hp', 'hpMax')
+          .get(),
+        db.collection('players').count().get(),
+        db.collection('desafios')
+          .where('retadorId', '==', userId)
+          .select('retadoId', 'estado', 'apuesta')
+          .limit(20)
+          .get(),
+        db.collection('desafios')
+          .where('retadoId', '==', userId)
+          .select('retadorId', 'estado', 'apuesta')
+          .limit(20)
+          .get(),
+      ]);
+
+      if (!playerSnap.exists) {
+        res.status(404).json({ error: 'Jugador no encontrado' });
+        return;
+      }
+
+      const player = playerSnap.data();
+      const puntos  = player.puntos_liga  ?? 0;
+      const nivel   = player.nivel        ?? 0;
+      const nick    = player.nickname     ?? userId;
+
+      // ── Ranking + reto diario (segunda ronda) ─────────────────────────────
+      const [rankAboveSnap, dailySnap] = await Promise.all([
+        db.collection('players')
+          .where('puntos_liga', '>', puntos)
+          .count()
+          .get(),
+        db.collection('daily_challenges')
+          .where('rango_requerido', '<=', nivel)
+          .orderBy('rango_requerido', 'desc')
+          .limit(1)
+          .get(),
+      ]);
+
+      const rankPosition = (rankAboveSnap.data().count ?? 0) + 1;
+      const totalPlayers = totalPlayersSnap.data().count ?? 0;
+
+      // ── Métricas de territorios ───────────────────────────────────────────
+      let totalAreaM2   = 0;
+      let hpTotalActual = 0;
+      let hpTotalMax    = 0;
+      for (const doc of territoriesSnap.docs) {
+        const t = doc.data();
+        totalAreaM2   += (t.area_m2 ?? 0);
+        hpTotalActual += (t.hp      ?? 0);
+        hpTotalMax    += (t.hpMax   ?? 1);
+      }
+
+      // ── Desafíos ─────────────────────────────────────────────────────────
+      const allDesafios = [
+        ...desafiosRet.docs.map(d => ({ role: 'retador', ...d.data() })),
+        ...desafiosDef.docs.map(d => ({ role: 'retado',  ...d.data() })),
+      ];
+      const desafiosPendientes = allDesafios.filter(d => d.estado === 'pendiente').length;
+      const desafiosActivos    = allDesafios.filter(d => d.estado === 'activo').length;
+      const desafiosGanados    = allDesafios.filter(d =>
+        (d.role === 'retador' && d.estado === 'victoria_retador') ||
+        (d.role === 'retado'  && d.estado === 'victoria_retado')
+      ).length;
+
+      // ── Reto diario ───────────────────────────────────────────────────────
+      let retoDiario = null;
+      if (!dailySnap.empty) {
+        const reto = dailySnap.docs[0].data();
+        retoDiario = {
+          titulo:        reto.titulo              ?? null,
+          objetivoValor: reto.objetivo_valor      ?? null,
+          recompensas:   reto.recompensas_monedas ?? null,
+        };
+      }
+
+      // ── Respuesta filtrada ────────────────────────────────────────────────
+      res.status(200).json({
+        jugador: {
+          nickname:    nick,
+          puntos_liga: puntos,
+          nivel,
+          liga:        _getLeague(puntos),
+          ranking:     { posicion: rankPosition, total: totalPlayers },
+        },
+        territorios: {
+          cantidad:    territoriesSnap.size,
+          totalAreaM2: Math.round(totalAreaM2),
+          hp: {
+            actual: hpTotalActual,
+            max:    hpTotalMax,
+            pct:    hpTotalMax > 0 ? Math.round((hpTotalActual / hpTotalMax) * 100) : 0,
+          },
+        },
+        desafios: {
+          pendientes: desafiosPendientes,
+          activos:    desafiosActivos,
+          ganados:    desafiosGanados,
+        },
+        retoDiario,
+        generadoEn: new Date().toISOString(),
+      });
+
+    } catch (e) {
+      console.error('getDashboardSummary error:', e);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  }
+);
+
+// =============================================================================
+// JARVIS ENTERPRISE OS — jarvisChat
+// Callable seguro: Claude actúa como director ejecutivo AI de RiskRunner.
+// =============================================================================
+
+exports.jarvisChat = onCall(
+  { region: 'europe-west1', secrets: [_anthropicKey], timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticación requerida');
+
+    const uid = request.auth.uid;
+    const { message, department, history = [], attachment = null } = request.data;
+    if (typeof message !== 'string' || message.length > 8000) {
+      throw new HttpsError('invalid-argument', 'Mensaje inválido o demasiado largo (máx. 8000 caracteres)');
+    }
+    if (!message && !attachment) {
+      throw new HttpsError('invalid-argument', 'Se requiere mensaje o adjunto');
+    }
+    const ALLOWED_MEDIA = ['image/png','image/jpeg','image/gif','image/webp','application/pdf'];
+    if (attachment && !ALLOWED_MEDIA.includes(attachment.mediaType)) {
+      throw new HttpsError('invalid-argument', 'Tipo de archivo no soportado');
+    }
+
+    const today = new Date().toLocaleDateString('es-ES', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const deptMap = {
+      strategy:   'Estrategia corporativa, visión, OKRs, posicionamiento de mercado, decisiones de negocio',
+      marketing:  'Marketing digital, ASO App Store/Play Store, redes sociales, campañas, branding, contenido',
+      growth:     'Adquisición de usuarios, retención, métricas de crecimiento, funnels de conversión',
+      finance:    'Finanzas, presupuesto, costes operativos (Firebase, servidores, licencias), proyecciones de revenue, P&L',
+      product:    'Desarrollo del producto Flutter, roadmap de features, bugs críticos, UX/UI, lanzamiento septiembre 2026',
+      operations: 'Operaciones técnicas, infraestructura Firebase (Firestore, Functions, Auth), rendimiento, CI/CD',
+      intel:      'Inteligencia competitiva, análisis de mercado running/gamificación, tendencias, oportunidades de negocio',
+    };
+
+    const deptNames = {
+      strategy: 'ESTRATEGIA', marketing: 'MARKETING', growth: 'GROWTH',
+      finance: 'FINANZAS', product: 'PRODUCTO', operations: 'OPERACIONES', intel: 'INTEL',
+    };
+
+    // ── Leer datos actuales de todos los departamentos en paralelo ────────────
+    const deptKeys = Object.keys(deptMap);
+    const deptSnaps = await Promise.all(
+      deptKeys.map(d => db.collection('jarvis_hq').doc(uid).collection('departments').doc(d).get())
+    );
+
+    let companyContext = '\n\n=== ESTADO ACTUAL DE LA EMPRESA (datos introducidos por el CEO) ===\n';
+    let anyData = false;
+    for (let i = 0; i < deptKeys.length; i++) {
+      const key  = deptKeys[i];
+      const snap = deptSnaps[i];
+      if (!snap.exists) continue;
+      const d = snap.data();
+
+      const kpis    = Array.isArray(d.kpis)    ? d.kpis.filter(k => k && k.value)    : [];
+      const actions = Array.isArray(d.actions) ? d.actions.filter(a => a && a.text)  : [];
+      const notes   = typeof d.notes === 'string' ? d.notes.trim() : '';
+
+      if (!kpis.length && !actions.length && !notes) continue;
+      anyData = true;
+
+      companyContext += `\n[${deptNames[key]}]\n`;
+      if (kpis.length) {
+        companyContext += 'KPIs: ' + kpis.map((k, idx) => `KPI${idx + 1}="${k.value}"${k.sub ? ` (${k.sub})` : ''}`).join(' | ') + '\n';
+      }
+      if (actions.length) {
+        const priLabel = { high: 'ALTA', medium: 'MEDIA', low: 'BAJA' };
+        companyContext += 'Acciones:\n' + actions.map(a => `  [${priLabel[a.priority] || a.priority}] ${a.text}`).join('\n') + '\n';
+      }
+      if (notes) {
+        companyContext += `Notas del CEO: ${notes}\n`;
+      }
+    }
+    if (!anyData) {
+      companyContext += '(El CEO aún no ha introducido datos en el panel. Recomiéndale que empiece a rellenar los KPIs y notas de cada departamento.)\n';
+    }
+    companyContext += '=== FIN DEL ESTADO EMPRESARIAL ===\n';
+
+    const kpiLabels = {
+      strategy:   ['Año lanzamiento','Runway (meses)','OKRs activos','Hitos completados'],
+      marketing:  ['CAC','LTV','Campañas activas','Conversión landing'],
+      growth:     ['Usuarios registrados','DAU','Retención D30','Canales activos'],
+      finance:    ['MRR','Burn rate','Runway (meses)','Margen bruto'],
+      product:    ['Features shipped','NPS','Bugs críticos','Velocidad sprint'],
+      operations: ['Uptime','Deploys/semana','MTTR','Cobertura tests'],
+      intel:      ['Competidores monitorizados','Señales detectadas','Alertas activas','Informes generados'],
+    };
+
+    const systemPrompt = `Eres JARVIS, el sistema operativo de inteligencia artificial ejecutiva de RiskRunner, una startup de aplicación móvil de conquista territorial de running. Trabajas directamente con el CEO y eres su mano derecha ejecutiva en todas las decisiones del negocio.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXTO DE LA EMPRESA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RiskRunner es una app móvil de gamificación territorial de running. Los usuarios corren por zonas físicas reales conquistando territorios en un mapa, batallan contra otros jugadores y suben de liga.
+
+Stack técnico: Flutter/Dart, Firebase (Firestore, Auth, Functions, Crashlytics, FCM), Mapbox.
+Estado: Desarrollo activo. Lanzamiento previsto septiembre 2026.
+Diferenciación: Única app con gamificación territorial hiperlocal + sistema de apuestas de monedas entre usuarios.
+Fase actual: Semana 1/13 — Preparación beta y captación de testers en Granada.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TU IDENTIDAD Y ROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Eres el Director Ejecutivo AI de RiskRunner. No eres un asistente genérico — eres un socio estratégico con criterio propio, ambición real por el éxito del proyecto y capacidad de anticiparte a problemas antes de que ocurran.
+
+Tu misión es ayudar al CEO a tomar las mejores decisiones posibles en producto, tecnología, marketing, finanzas, operaciones y estrategia para que RiskRunner sea un éxito comercial masivo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SKILLS Y CAPACIDADES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TÉCNICAS:
+- Flutter/Dart: arquitectura, patrones (BLoC, Riverpod, Provider), rendimiento, testing y releases.
+- Firebase: Firestore (queries, índices, seguridad, costes), Cloud Functions, Auth, Crashlytics, FCM y Performance Monitoring.
+- Mapbox SDK: capas, fuentes, rendering eficiente en móvil, gestión de coordenadas GPS y anticheat de geolocalización.
+- App Store Connect y Google Play Console: proceso de revisión, metadata, screenshots, políticas de monetización y gestión de beta testers (TestFlight / Internal Testing).
+- Seguridad en apps móviles: autenticación, reglas Firestore, transacciones atómicas, detección de trampas GPS.
+- CI/CD para Flutter: GitHub Actions, fastlane, flavors (dev/staging/prod), versionado semántico.
+
+PRODUCTO Y UX:
+- Diseño de mecánicas de juego: retención, loops de engagement, sistemas de recompensa, PvP territorial y economía de monedas virtuales.
+- Definición y análisis de funnels de onboarding.
+- Métricas de producto: DAU, MAU, retención D7/D30, NPS, churn rate.
+- Priorización de features con criterio (impacto vs esfuerzo).
+- Detección de deuda técnica crítica vs cosmética.
+
+NEGOCIO Y ESTRATEGIA:
+- Modelado financiero básico: MRR, burn rate, runway, proyecciones de revenue, unit economics (CAC, LTV).
+- Estrategia de lanzamiento en stores: ASO, captación de primeros usuarios, beta cerrada y abierta.
+- Conocimiento del ecosistema competitivo: Strava, Zombies Run!, Nike Run Club y apps de gamificación de fitness.
+- Identificación de riesgos legales y fiscales en sistemas de apuestas y monedas virtuales en España y la UE.
+- Estrategia de crecimiento orgánico: comunidades locales, micro-influencers, referidos y boca a boca.
+
+MARKETING Y GROWTH:
+- Estrategia de contenido para redes sociales orientada a nichos específicos (runners urbanos, comunidades locales).
+- Growth hacking en fase pre-lanzamiento: captación de beta testers, listas de espera, comunidades de Discord/WhatsApp.
+- Análisis de métricas de marketing: reach, engagement, conversión, CAC.
+- Identificación de canales de adquisición con mayor ROI para una startup sin presupuesto de paid ads.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CUALIDADES Y FORMA DE TRABAJAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- DIRECTO Y EJECUTIVO: Vas al grano. Nunca das rodeos. Cada respuesta tiene un propósito claro y accionable.
+- PROACTIVO: Detectas riesgos, cuellos de botella y oportunidades aunque el CEO no te los pregunte explícitamente.
+- AMBICIOSO: Quieres que RiskRunner sea un éxito masivo y lo demuestras en cada recomendación. No te conformas con "suficiente".
+- HONESTO Y CRÍTICO: Si algo está mal o hay un riesgo real, lo dices sin suavizarlo. El CEO necesita la verdad, no validación.
+- BASADO EN DATOS: Nunca inventas métricas. Si no hay datos, lo indicas y recomiendas cómo obtenerlos.
+- MEMORIA DE CONTEXTO: Recuerdas y refieres el estado actual del proyecto en cada respuesta relevante.
+- CRITERIO TÉCNICO: Cuando el CEO te pide código o arquitectura, das la solución más limpia, escalable y mantenible posible, adaptada al stack de RiskRunner.
+- CRITERIO DE NEGOCIO: Cada decisión técnica la conectas con su impacto en producto, usuarios e ingresos.
+- TONO EJECUTIVO: Hablas en español. Ocasionalmente te diriges al CEO como "señor" para mantener el tono profesional.
+- CONCISO PERO SUSTANCIAL: Máximo 4 párrafos en respuestas generales. Más detalle solo si se solicita explícitamente.
+- PLANES DE ACCIÓN NUMERADOS: Cuando propones algo, lo estructuras en pasos concretos, ejecutables y ordenados por prioridad.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OBJETIVO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tu norte es que RiskRunner llegue al lanzamiento en septiembre 2026 con una base de usuarios sólida, monetización clara y ventaja competitiva defensible. Cada interacción debe acercar al CEO a ese objetivo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXTO OPERATIVO ACTUAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Hoy es ${today}.
+Departamento activo en consulta: ${deptMap[department] || 'Dirección general'}.
+${companyContext}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CAPACIDAD DE ACTUALIZAR EL PANEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tienes acceso a dos herramientas para escribir directamente en el panel empresarial:
+
+1. update_department — actualiza KPIs, notas y planes de acción de cualquier departamento.
+   - Úsala cuando el CEO te pida rellenar, actualizar o modificar campos del panel.
+   - Si no tienes suficiente información para un campo concreto, pregunta primero antes de inventarlo.
+   - Puedes actualizar KPIs individuales (por índice 0-3), notas y añadir planes de acción.
+
+2. update_mission — actualiza el widget "Objetivo activo" visible en el panel lateral.
+   - Muestra al CEO: de dónde viene (start), dónde está (current), adónde va (goal) y el porcentaje de progreso.
+   - Úsala cuando el CEO te pida definir o actualizar el objetivo general de la empresa/proyecto.
+   - También úsala proactivamente si el CEO menciona un hito conseguido que justifique subir el progreso.
+
+SIEMPRE tienes en cuenta los datos del panel empresarial cuando existen — refiérete a ellos explícitamente.
+Tras cualquier actualización, confirma brevemente qué has modificado.`;
+
+    // Leer historial desde Firestore (server-authoritative; no depender del cliente)
+    const memRef   = db.collection('jarvis_hq').doc(uid).collection('memory');
+    const histSnap = await memRef.orderBy('ts', 'desc').limit(16).get();
+    const rawHistory = histSnap.docs.reverse().map(d => ({
+      role:    d.data().role,
+      content: d.data().content,
+    }));
+    // Garantizar alternancia user/assistant (requisito Anthropic)
+    const cleanHistory = [];
+    for (const msg of rawHistory) {
+      if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].role !== msg.role) {
+        cleanHistory.push(msg);
+      }
+    }
+
+    // Construir contenido del mensaje (texto plano o multimodal con adjunto)
+    let userContent;
+    if (attachment) {
+      const mediaBlock = attachment.mediaType === 'application/pdf'
+        ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: attachment.data } }
+        : { type: 'image',    source: { type: 'base64', media_type: attachment.mediaType, data: attachment.data } };
+      userContent = [mediaBlock];
+      if (message) userContent.push({ type: 'text', text: message });
+    } else {
+      userContent = message;
+    }
+
+    const messages = [
+      ...cleanHistory,
+      { role: 'user', content: userContent }
+    ];
+
+    // Guardar mensaje del usuario ANTES de llamar a Anthropic.
+    // Así queda en Firestore aunque la API falle, y el CEO no pierde su pregunta.
+    const userMemContent = attachment
+      ? `[Adjunto: ${attachment.name || attachment.mediaType}]${message ? ' ' + message : ''}`
+      : message;
+    const userMsgRef = await memRef.add({
+      role: 'user', content: userMemContent, department, ts: FieldValue.serverTimestamp(),
+    });
+
+    const missionTool = {
+      name: 'update_mission',
+      description: `Actualiza el objetivo activo visible en el panel lateral de JARVIS.
+Muestra al CEO en todo momento: de dónde viene, dónde está y adónde va, con una barra de progreso.
+Úsalo cuando el CEO te pida actualizar el objetivo, el punto de partida, el estado actual o el progreso.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          start:    { type: 'string', description: 'Punto de partida / dónde empezamos (ej: "App sin usuarios, código en local")' },
+          current:  { type: 'string', description: 'Estado actual (ej: "MVP funcional, 0 beta testers, JARVIS operativo")' },
+          goal:     { type: 'string', description: 'Objetivo (ej: "Lanzamiento App Store + Google Play, sept 2026")' },
+          progress: { type: 'integer', minimum: 0, maximum: 100, description: 'Porcentaje de progreso hacia el objetivo (0-100)' },
+        },
+      },
+    };
+
+    const updateTool = {
+      name: 'update_department',
+      description: `Actualiza KPIs, notas o planes de acción de un departamento del panel empresarial.
+KPIs disponibles por departamento (índices 0-3):
+- strategy:   [0] Año lanzamiento | [1] Runway (meses) | [2] OKRs activos | [3] Hitos completados
+- marketing:  [0] CAC | [1] LTV | [2] Campañas activas | [3] Conversión landing
+- growth:     [0] Usuarios registrados | [1] DAU | [2] Retención D30 | [3] Canales activos
+- finance:    [0] MRR | [1] Burn rate | [2] Runway (meses) | [3] Margen bruto
+- product:    [0] Features shipped | [1] NPS | [2] Bugs críticos | [3] Velocidad sprint
+- operations: [0] Uptime | [1] Deploys/semana | [2] MTTR | [3] Cobertura tests
+- intel:      [0] Competidores monitorizados | [1] Señales detectadas | [2] Alertas activas | [3] Informes generados`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          department: {
+            type: 'string',
+            enum: ['strategy','marketing','growth','finance','product','operations','intel'],
+            description: 'Departamento a actualizar',
+          },
+          kpis: {
+            type: 'array',
+            description: 'KPIs a actualizar. Cada elemento especifica el índice (0-3), el valor y un subtexto opcional.',
+            items: {
+              type: 'object',
+              properties: {
+                index: { type: 'integer', minimum: 0, maximum: 3 },
+                value: { type: 'string', description: 'Valor del KPI (ej: "Septiembre 2026", "18", "€45K")' },
+                sub:   { type: 'string', description: 'Subtexto opcional (ej: "+12% vs mes anterior")' },
+              },
+              required: ['index', 'value'],
+            },
+          },
+          notes: {
+            type: 'string',
+            description: 'Texto completo de las notas del departamento. Reemplaza el contenido actual.',
+          },
+          add_actions: {
+            type: 'array',
+            description: 'Nuevos planes de acción a añadir al departamento.',
+            items: {
+              type: 'object',
+              properties: {
+                text:     { type: 'string' },
+                priority: { type: 'string', enum: ['high','medium','low'] },
+              },
+              required: ['text','priority'],
+            },
+          },
+        },
+        required: ['department'],
+      },
+    };
+
+    const anthropicHeaders = {
+      'x-api-key':         _anthropicKey.value(),
+      'anthropic-version': '2023-06-01',
+      'content-type':      'application/json',
+    };
+
+    async function callClaude(msgs, maxTokens = 2048) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:  'POST',
+        headers: anthropicHeaders,
+        body: JSON.stringify({
+          model:      'claude-sonnet-4-6',
+          max_tokens: maxTokens,
+          system:     systemPrompt,
+          tools:      [updateTool, missionTool],
+          messages:   msgs,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error('jarvisChat Anthropic error:', res.status, body);
+        // Incluir HTTP status en el mensaje para que el cliente pueda diagnosticar:
+        // 401 = API key incorrecta o no configurada en Secret Manager
+        // 404 = model ID no existe
+        // 429 = rate limit
+        // 529 = Anthropic sobrecargado
+        throw new HttpsError('internal', `Error del servicio de IA (HTTP ${res.status})`);
+      }
+      return res.json();
+    }
+
+    // Ejecutar un tool call de departamento en Firestore
+    async function execDeptCall(input) {
+      const dRef  = db.collection('jarvis_hq').doc(uid).collection('departments').doc(input.department);
+      const dSnap = await dRef.get();
+      const dData = dSnap.exists ? dSnap.data() : {};
+      const patch = { updatedAt: FieldValue.serverTimestamp() };
+
+      if (Array.isArray(input.kpis) && input.kpis.length > 0) {
+        const kpis = dData.kpis || Array(4).fill(null);
+        while (kpis.length < 4) kpis.push(null);
+        for (const k of input.kpis) {
+          if (k.index >= 0 && k.index <= 3) {
+            kpis[k.index] = { value: String(k.value), sub: k.sub || '' };
+          }
+        }
+        patch.kpis = kpis;
+      }
+      if (typeof input.notes === 'string') patch.notes = input.notes;
+      if (Array.isArray(input.add_actions) && input.add_actions.length > 0) {
+        const actions = dData.actions || [];
+        for (const a of input.add_actions) {
+          actions.push({ text: a.text, priority: a.priority, done: false, createdAt: new Date().toISOString() });
+        }
+        patch.actions = actions;
+      }
+      await dRef.set(patch, { merge: true });
+      return input.department;
+    }
+
+    // Ejecutar un tool call de misión en Firestore
+    async function execMissionCall(input) {
+      const mRef  = db.collection('jarvis_hq').doc(uid).collection('config').doc('mission');
+      const patch = { updatedAt: FieldValue.serverTimestamp() };
+      if (typeof input.start    === 'string') patch.start    = input.start;
+      if (typeof input.current  === 'string') patch.current  = input.current;
+      if (typeof input.goal     === 'string') patch.goal     = input.goal;
+      if (typeof input.progress === 'number') patch.progress = Math.min(100, Math.max(0, input.progress));
+      await mRef.set(patch, { merge: true });
+    }
+
+    // ── Bucle de tool use: sigue hasta end_turn o max 10 rondas ─────────────
+    const updatedDepts  = [];
+    let   missionUpdated = false;
+    let   currentMsgs   = [...messages];
+    let   reply         = 'Sin respuesta.';
+
+    try {
+      for (let round = 0; round < 10; round++) {
+        const data       = await callClaude(currentMsgs);
+        const toolBlocks = data.content.filter(b => b.type === 'tool_use');
+
+        if (toolBlocks.length === 0 || data.stop_reason === 'end_turn') {
+          reply = data.content.find(b => b.type === 'text')?.text || reply;
+          break;
+        }
+
+        // Ejecutar todos los tool calls de esta ronda en paralelo
+        const toolResults = await Promise.all(
+          toolBlocks.map(async (tb) => {
+            try {
+              if (tb.name === 'update_mission') {
+                await execMissionCall(tb.input);
+                missionUpdated = true;
+                return { type: 'tool_result', tool_use_id: tb.id, content: 'Objetivo activo actualizado.' };
+              } else {
+                const dept = await execDeptCall(tb.input);
+                if (!updatedDepts.includes(dept)) updatedDepts.push(dept);
+                return { type: 'tool_result', tool_use_id: tb.id, content: `${dept} actualizado.` };
+              }
+            } catch(e) {
+              console.error('tool call error', tb.name, e);
+              return { type: 'tool_result', tool_use_id: tb.id, content: `Error: ${e.message}`, is_error: true };
+            }
+          })
+        );
+
+        // Acumular texto parcial si lo hay antes del tool_use
+        const partialText = data.content.find(b => b.type === 'text')?.text;
+        if (partialText) reply = partialText;
+
+        currentMsgs = [
+          ...currentMsgs,
+          { role: 'assistant', content: data.content },
+          { role: 'user',      content: toolResults },
+        ];
+      }
+    } catch(apiErr) {
+      // Si Anthropic falla, eliminar el mensaje del usuario que ya se guardó.
+      // Dejarlo huérfano rompería el historial (dos user consecutivos en la siguiente llamada).
+      await userMsgRef.delete().catch(() => {});
+      throw apiErr;
+    }
+
+    // Guardar respuesta del asistente (el mensaje del usuario ya fue guardado antes del loop)
+    await memRef.add({ role: 'assistant', content: reply, department, ts: FieldValue.serverTimestamp() });
+
+    return { reply, updatedDepts, missionUpdated };
+  }
+);

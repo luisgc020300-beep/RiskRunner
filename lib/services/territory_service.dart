@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 import 'league_service.dart';
+import 'package:RiskRunner/core/app_error.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -435,6 +436,10 @@ class TerritoryService {
       );
     }
 
+    AppError.log('ataque:inicio id=$territorioDefensorId vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h puntos=${rutaAtacante.length}');
+    AppError.setKey('last_action', 'atacar_territorio');
+    AppError.setKey('last_territory_id', territorioDefensorId);
+
     const noReintentar = {'permission-denied', 'not-found', 'invalid-argument', 'unauthenticated'};
     FirebaseFunctionsException? lastFcnError;
 
@@ -455,16 +460,20 @@ class TerritoryService {
             Map<String, dynamic>.from(result.data as Map));
 
         if (ataque.conquistoAlgo) invalidarCache();
+        AppError.log('ataque:ok accion=${ataque.accion} hp=${ataque.hpAntes}->${ataque.hpDespues} monedas=${ataque.monedasBotin}');
         return ataque;
 
       } on FirebaseFunctionsException catch (e) {
         if (noReintentar.contains(e.code)) {
+          AppError.record(e, StackTrace.current, reason: 'ataque_${e.code}');
           debugPrint('❌ atacarTerritorio [${e.code}]: ${e.message}');
           rethrow;
         }
+        AppError.record(e, StackTrace.current, reason: 'ataque_reintento_$intento');
         lastFcnError = e;
         debugPrint('⚠️ atacarTerritorio intento $intento [${e.code}], reintentando...');
-      } catch (e) {
+      } catch (e, st) {
+        AppError.record(e, st, reason: 'ataque_inesperado');
         debugPrint('❌ Error inesperado en atacarTerritorio: $e');
         return AtaqueResult(
           ok: false, accion: 'sin_daño', hpAntes: 0, hpDespues: 0,
@@ -485,6 +494,9 @@ class TerritoryService {
   // REFORZAR TERRITORIO PROPIO — sube HP a 100 al visitarlo
   // ══════════════════════════════════════════════════════════════════════════
  static Future<void> reforzarTerritorio(String docId) async {
+  AppError.log('refuerzo:inicio id=$docId');
+  AppError.setKey('last_action', 'reforzar_territorio');
+  AppError.setKey('last_territory_id', docId);
   try {
     // Primero leemos el HP actual para decidir a dónde sube
     final doc = await _db.collection('territories').doc(docId).get();
@@ -513,9 +525,11 @@ class TerritoryService {
       'ultima_visita':         FieldValue.serverTimestamp(),
     });
     invalidarCache();
+    AppError.log('refuerzo:ok id=$docId hp=$hpActual->$nuevoHp');
     debugPrint('🛡️ Territorio $docId reforzado: $hpActual → $nuevoHp HP');
     await _comprobarYCoronarRey(docId);
-  } catch (e) {
+  } catch (e, st) {
+    AppError.record(e, st, reason: 'reforzar_territorio');
     debugPrint('Error reforzando territorio: $e');
   }
 }
@@ -535,6 +549,9 @@ class TerritoryService {
       debugPrint('Área insuficiente: ${areaM2.toStringAsFixed(0)} m²');
       return null;
     }
+
+    AppError.log('crear:solitario area=${areaM2.toStringAsFixed(0)}m² vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
+    AppError.setKey('last_action', 'crear_territorio_solitario');
 
     try {
       final puntosList = ruta
@@ -569,8 +586,10 @@ class TerritoryService {
       });
 
       invalidarCache();
+      AppError.log('crear:solitario ok id=${ref.id}');
       return ref.id;
-    } catch (e) {
+    } catch (e, st) {
+      AppError.record(e, st, reason: 'crear_territorio_solitario');
       debugPrint('❌ Error creando territorio: $e');
       return null;
     }
@@ -591,6 +610,9 @@ class TerritoryService {
       debugPrint('Área insuficiente (competitivo): ${areaM2.toStringAsFixed(0)} m²');
       return null;
     }
+
+    AppError.log('crear:competitivo area=${areaM2.toStringAsFixed(0)}m² vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
+    AppError.setKey('last_action', 'crear_territorio_competitivo');
 
     try {
       final puntosList = ruta
@@ -623,8 +645,10 @@ class TerritoryService {
       });
 
       invalidarCache();
+      AppError.log('crear:competitivo ok id=${ref.id}');
       return ref.id;
-    } catch (e) {
+    } catch (e, st) {
+      AppError.record(e, st, reason: 'crear_territorio_competitivo');
       debugPrint('❌ Error creando territorio competitivo: $e');
       return null;
     }
@@ -1002,6 +1026,10 @@ class TerritoryService {
       return true;
     }
 
+    AppError.log('conquista:inicio id=$docId');
+    AppError.setKey('last_action', 'conquistar_territorio');
+    AppError.setKey('last_territory_id', docId);
+
     try {
       final callable = FirebaseFunctions.instance
           .httpsCallable('conquistarTerritorio');
@@ -1018,13 +1046,16 @@ class TerritoryService {
 
       if (ok) {
         invalidarCache();
+        AppError.log('conquista:ok accion=$accion id=$docId');
         debugPrint('⚔️ Conquista exitosa: $accion en $docId');
       }
       return ok;
     } on FirebaseFunctionsException catch (e) {
+      AppError.record(e, StackTrace.current, reason: 'conquistar_territorio_${e.code}');
       debugPrint('❌ conquistarTerritorio [${e.code}]: ${e.message}');
       rethrow;
-    } catch (e) {
+    } catch (e, st) {
+      AppError.record(e, st, reason: 'conquistar_territorio_inesperado');
       debugPrint('❌ Error inesperado en conquistarTerritorio: $e');
       return false;
     }

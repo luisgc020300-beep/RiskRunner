@@ -293,6 +293,21 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── jarvis_hq ─────────────────────────────────────────────────────────────
+    // Panel empresarial JARVIS. Solo el propio usuario accede a sus datos.
+    match /jarvis_hq/{uid}/departments/{dept} {
+      allow read, write: if isOwner(uid);
+    }
+    // Historial de chat: el cliente solo lee; las Cloud Functions escriben (admin SDK).
+    match /jarvis_hq/{uid}/memory/{msgId} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+    // Configuración de usuario (misión activa, preferencias, etc.).
+    match /jarvis_hq/{uid}/config/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+
     // ── Denegar todo lo demás ─────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

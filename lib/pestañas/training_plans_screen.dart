@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/env.dart';
+import '../core/app_error.dart';
 import '../services/subscription_service.dart';
 import '../services/training_plan_service.dart';
 import 'ai_plan_screen.dart';
@@ -234,12 +235,7 @@ class _PlanCard extends StatelessWidget {
                         if (ctx.mounted) Navigator.pop(ctx);
                       } catch (e) {
                         setModal(() => loading = false);
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                            content: Text('Error al iniciar el plan: $e'),
-                            backgroundColor: Colors.redAccent,
-                          ));
-                        }
+                        if (ctx.mounted) AppError.show(ctx, 'Error al iniciar el plan: $e');
                       }
                     },
                     child: Container(
@@ -621,12 +617,7 @@ class _ActivePlanView extends StatelessWidget {
               try {
                 await TrainingPlanService.completePlan(uid, state, plan);
               } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Error al finalizar: $e'),
-                    backgroundColor: Colors.redAccent,
-                  ));
-                }
+                if (context.mounted) AppError.show(context, 'Error al finalizar: $e');
               }
             },
             child: Text('Finalizar',

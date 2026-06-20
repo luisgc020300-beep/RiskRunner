@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../core/app_error.dart';
 
 import '../widgets/social/social_theme.dart';
 import '../widgets/social/social_shared.dart';
@@ -202,18 +203,11 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await _chatRef.set({'muted_${widget.currentUserId}': true}, SetOptions(merge: true));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Conversación silenciada'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ));
+      AppError.showInfo(context, 'Conversación silenciada');
     } catch (e) {
       debugPrint('Error silenciar conversación: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No se pudo silenciar. Inténtalo de nuevo.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppError.show(context, 'No se pudo silenciar. Inténtalo de nuevo.');
     }
   }
 
@@ -225,10 +219,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('Error marcar no leído: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No se pudo actualizar. Inténtalo de nuevo.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppError.show(context, 'No se pudo actualizar. Inténtalo de nuevo.');
     }
   }
 
@@ -259,10 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('Error eliminar conversación: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No se pudo eliminar. Inténtalo de nuevo.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppError.show(context, 'No se pudo eliminar. Inténtalo de nuevo.');
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../core/app_error.dart';
 
 import '../../services/league_service.dart';
 import 'social_theme.dart';
@@ -494,20 +495,7 @@ class _SocialPlayerCardState extends State<SocialPlayerCard> {
       }
     } catch (e) {
       debugPrint('Error follow: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-          backgroundColor: Colors.redAccent.withValues(alpha: 0.95),
-          content: const Row(children: [
-            Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
-            SizedBox(width: 10),
-            Text('No se pudo completar la acción',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
-          ]),
-        ));
-      }
+      if (mounted) AppError.show(context, 'No se pudo completar la acción');
     }
     finally { if (mounted) setState(() => _loadingFollow = false); }
   }

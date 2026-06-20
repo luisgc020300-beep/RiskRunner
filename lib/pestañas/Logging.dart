@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../core/app_error.dart';
 import 'Home_screen.dart';
 import 'Registrarse_screen.dart';
 
@@ -227,22 +228,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      duration:        const Duration(seconds: 3),
-      backgroundColor: Colors.transparent,
-      elevation:       0,
-      content: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color:        _kSurf,
-          borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: _kBorder),
-        ),
-        child: Text(msg, style: _t(13, _kSub, weight: FontWeight.w500)),
-      ),
-    ));
-  }
+  void _showSnack(String msg) => AppError.showInfo(context, msg);
 
   // ── BUILD ─────────────────────────────────────────────────────────────────
   @override

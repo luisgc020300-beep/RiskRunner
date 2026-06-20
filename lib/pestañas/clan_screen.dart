@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/app_error.dart';
 import '../services/clan_service.dart';
 import 'create_clan_screen.dart';
 import 'clan_war_screen.dart';
@@ -343,13 +344,7 @@ class _ClanScreenState extends State<ClanScreen>
         try {
           await ClanService.abandonarClan(clan);
         } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', ''),
-                style: _raj(13, FontWeight.w700, Colors.white)),
-            backgroundColor: _kAccent,
-          ));
-          }
+          if (mounted) AppError.show(context, e.toString().replaceAll('Exception: ', ''));
         }
       },
       child: Container(
@@ -822,13 +817,7 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString().replaceAll('Exception: ', ''),
-            style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: _kAccent,
-      ));
-      }
+      if (mounted) AppError.show(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
