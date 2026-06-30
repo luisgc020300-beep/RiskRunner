@@ -1,4 +1,4 @@
-// lib/pestañas/live_session_controls.dart
+﻿// lib/pestañas/live_session_controls.dart
 // HUD, chip builders, botonera, control buttons, global territory management.
 // ignore_for_file: invalid_use_of_protected_member, unqualified_reference_to_static_member_of_extended_type
 part of 'LiveActivity_screen.dart';
@@ -420,16 +420,16 @@ extension _LiveSessionControls on _LiveActivityScreenState {
               '"geometry":{"type":"Point","coordinates":[${t.center.longitude},${t.center.latitude}]}}';
         }).join(',');
         final gj = '{"type":"FeatureCollection","features":[$feats]}';
-        await _mapboxMap!.style.addSource(mapbox.GeoJsonSource(id: _globalesSourceId, data: gj));
-        await _mapboxMap!.style.addLayer(mapbox.CircleLayer(id: _globalesLayerId, sourceId: _globalesSourceId));
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-color', '#08080B');
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-opacity', 0.90);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-radius',
+        await _mapboxMap!.style.addSource(mapbox.GeoJsonSource(id: _LiveActivityScreenState._globalesSourceId, data: gj));
+        await _mapboxMap!.style.addLayer(mapbox.CircleLayer(id: _LiveActivityScreenState._globalesLayerId, sourceId: _LiveActivityScreenState._globalesSourceId));
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-color', '#08080B');
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-opacity', 0.90);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-radius',
             ['interpolate', ['linear'], ['zoom'], 0, 4.0, 3, 8.0, 6, 7.0, 18, 6.0]);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-width', 2.0);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-color', ['get', 'color']);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-stroke-opacity', 0.92);
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'circle-blur', 0.0);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-stroke-width', 2.0);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-stroke-color', ['get', 'color']);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-stroke-opacity', 0.92);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'circle-blur', 0.0);
         _globalesLayerCreated = true;
       } else {
         if (visible && _terrGlobales.isNotEmpty) {
@@ -439,10 +439,10 @@ extension _LiveSessionControls on _LiveActivityScreenState {
                 '"geometry":{"type":"Point","coordinates":[${t.center.longitude},${t.center.latitude}]}}';
           }).join(',');
           final gj = '{"type":"FeatureCollection","features":[$feats]}';
-          final src = await _mapboxMap!.style.getSource(_globalesSourceId) as mapbox.GeoJsonSource?;
+          final src = await _mapboxMap!.style.getSource(_LiveActivityScreenState._globalesSourceId) as mapbox.GeoJsonSource?;
           await src?.updateGeoJSON(gj);
         }
-        await _mapboxMap!.style.setStyleLayerProperty(_globalesLayerId, 'visibility', vis);
+        await _mapboxMap!.style.setStyleLayerProperty(_LiveActivityScreenState._globalesLayerId, 'visibility', vis);
       }
     } catch (e, st) {
       FirebaseCrashlytics.instance.recordError(e, st, reason: 'globales_globo');
@@ -458,7 +458,7 @@ extension _LiveSessionControls on _LiveActivityScreenState {
       if (_globalesSelLayerCreated) {
         try {
           await _mapboxMap!.style.setStyleLayerProperty(
-              _globalesSelLayerId, 'visibility', 'none');
+              _LiveActivityScreenState._globalesSelLayerId, 'visibility', 'none');
         } catch (_) {}
       }
       return;
@@ -471,33 +471,33 @@ extension _LiveSessionControls on _LiveActivityScreenState {
 
     try {
       if (!_globalesSelLayerCreated) {
-        try { await _mapboxMap!.style.removeStyleLayer(_globalesSelLayerId); } catch (_) {}
-        try { await _mapboxMap!.style.removeStyleSource(_globalesSelSourceId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleLayer(_LiveActivityScreenState._globalesSelLayerId); } catch (_) {}
+        try { await _mapboxMap!.style.removeStyleSource(_LiveActivityScreenState._globalesSelSourceId); } catch (_) {}
         await _mapboxMap!.style.addSource(
-            mapbox.GeoJsonSource(id: _globalesSelSourceId, data: gj));
+            mapbox.GeoJsonSource(id: _LiveActivityScreenState._globalesSelSourceId, data: gj));
         await _mapboxMap!.style.addLayer(
-            mapbox.CircleLayer(id: _globalesSelLayerId, sourceId: _globalesSelSourceId));
+            mapbox.CircleLayer(id: _LiveActivityScreenState._globalesSelLayerId, sourceId: _LiveActivityScreenState._globalesSelSourceId));
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-color', 'rgba(0,0,0,0)');
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-color', 'rgba(0,0,0,0)');
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-stroke-width', 2.5);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-stroke-width', 2.5);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-blur', 0.2);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-blur', 0.2);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-radius', 14.0);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-radius', 14.0);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-stroke-opacity', 0.7);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-stroke-opacity', 0.7);
         _globalesSelLayerCreated = true;
       } else {
         final src = await _mapboxMap!.style
-            .getSource(_globalesSelSourceId) as mapbox.GeoJsonSource?;
+            .getSource(_LiveActivityScreenState._globalesSelSourceId) as mapbox.GeoJsonSource?;
         await src?.updateGeoJSON(gj);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-stroke-color', ['get', 'color']);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'visibility', 'visible');
+            _LiveActivityScreenState._globalesSelLayerId, 'visibility', 'visible');
       }
     } catch (e, st) {
       FirebaseCrashlytics.instance.recordError(e, st, reason: 'sel_globales_layer');
@@ -514,9 +514,9 @@ extension _LiveSessionControls on _LiveActivityScreenState {
       final op = 0.50 + 0.40 * math.sin(_globalesPulseT);
       try {
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-radius', r);
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-radius', r);
         await _mapboxMap!.style.setStyleLayerProperty(
-            _globalesSelLayerId, 'circle-stroke-opacity', op.clamp(0.0, 1.0));
+            _LiveActivityScreenState._globalesSelLayerId, 'circle-stroke-opacity', op.clamp(0.0, 1.0));
       } catch (_) {}
       _globalesPulseUpdating = false;
     });
@@ -645,3 +645,4 @@ extension _LiveSessionControls on _LiveActivityScreenState {
         ),
       ]);
 }
+
