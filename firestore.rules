@@ -307,6 +307,20 @@ service cloud.firestore {
     match /jarvis_hq/{uid}/config/{doc} {
       allow read, write: if isOwner(uid);
     }
+    // Alertas temporizadas creadas por JARVIS o el CEO.
+    match /jarvis_hq/{uid}/alerts/{alertId} {
+      allow read, write: if isOwner(uid);
+    }
+    // Calendario de tareas y eventos.
+    match /jarvis_hq/{uid}/calendar/{eventId} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── beta_candidates ───────────────────────────────────────────────────────
+    // Solo Cloud Functions (admin SDK) pueden leer/escribir. El cliente nunca toca esta colección.
+    match /beta_candidates/{docId} {
+      allow read, write: if false;
+    }
 
     // ── Denegar todo lo demás ─────────────────────────────────────────────────
     match /{document=**} {

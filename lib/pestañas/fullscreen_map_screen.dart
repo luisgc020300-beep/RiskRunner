@@ -469,7 +469,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           .collection('players').doc(uid).get();
       final colorInt = (doc.data()?['territorio_color'] as num?)?.toInt();
       if (colorInt != null) _state.colorJugador = Color(colorInt);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_cargarColorJugador: $e');
+    }
   }
 
   // Refresca _state.centro con la última posición GPS conocida (instantáneo).
@@ -481,7 +483,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _state.setCentro(LatLng(last.latitude, last.longitude));
         _gpsResuelto = true;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_refrescarCentroGps: $e');
+    }
   }
 
   Future<void> _resolverCentro() async {
@@ -499,7 +503,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           _state.setCentro(LatLng(pos.latitude, pos.longitude));
           _gpsResuelto = true;
           return;
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('getCurrentPosition resolverCentro fallback: $e');
+        }
         // Fallback: última posición conocida si getCurrentPosition falla
         final last = await Geolocator.getLastKnownPosition();
         if (last != null) {
@@ -1116,7 +1122,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             locationSettings:
                 const LocationSettings(accuracy: LocationAccuracy.high));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('_ejecutarConquista GPS: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'ejecutarConquista_GPS');
+    }
 
     if (pos == null) {
       _mostrarError('No se pudo obtener tu ubicación.');
@@ -1168,7 +1177,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             locationSettings:
                 const LocationSettings(accuracy: LocationAccuracy.high));
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('_atacarDesdeCard GPS: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'atacarDesdeCard_GPS');
+    }
 
     if (pos == null) {
       _mostrarError('No se pudo obtener tu ubicación.');
@@ -2053,7 +2065,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           hillshadeExaggeration: 0.35,
           hillshadeShadowColor: 0xFF101828,
           hillshadeHighlightColor: 0xFFFFFFFF));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_setupTerrain terrain/hillshade: $e');
+    }
 
     try {
       try { await map.style.removeStyleLayer('$prefix-buildings'); } catch (_) {}
@@ -2080,7 +2094,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           '$prefix-buildings', 'fill-extrusion-ambient-occlusion-intensity', 0.25);
       await map.style.setStyleLayerProperty(
           '$prefix-buildings', 'fill-extrusion-ambient-occlusion-radius', 3.0);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_setupTerrain buildings: $e');
+    }
   }
 
   Future<void> _dibujarTerritoriosCiudad() async {
@@ -2188,7 +2204,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           lineOpacity: 0.85,
         ));
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_setupCiudadRuta: $e');
+    }
   }
 
   Future<void> _actualizarJugadoresCiudad() async {
@@ -2217,7 +2235,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           iconSize: 0.6,
         ));
         _ciudadJugMarkers[id] = ann;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('_actualizarJugadoresCiudad marker: $e');
+      }
     }
   }
 
@@ -2616,7 +2636,10 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         lineColorExpression: ['get', 'lineColor'],
         lineWidth: 2.8,
       ));
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('_dibujarTerritoriosSolitario: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujarTerritoriosSolitario');
+    }
   }
 
   void _onSolCameraIdle(mapbox.MapContentGestureContext _) {

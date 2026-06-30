@@ -120,7 +120,9 @@ class _MapDataService {
               .collection('players')
               .where(FieldPath.documentId, whereIn: chunk)
               .get();
-        } catch (_) {
+        } catch (e, st) {
+          debugPrint('cargarGruposCercanos Firestore: $e');
+          FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargarGruposCercanos_players');
           return null;
         }
       }),

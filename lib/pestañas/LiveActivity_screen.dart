@@ -733,7 +733,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ),
         ),
       ));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('_applyPuckFrame: $e');
+    }
     _puckUpdating = false;
   }
 
@@ -768,7 +770,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         }
         final av = data['avatar_config'] as Map<String, dynamic>?;
         if (av != null) {
-          try { _avatarConfig = AvatarConfig.fromMap(av); } catch (_) {}
+          try { _avatarConfig = AvatarConfig.fromMap(av); } catch (e) { debugPrint('AvatarConfig.fromMap: $e'); }
           if (_mapboxMap != null && mounted) _buildAvatarPuckFrames();
         }
         // Tutorial de primer uso
@@ -784,7 +786,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         try {
           final last = await Geolocator.getLastKnownPosition();
           if (last != null) centro = LatLng(last.latitude, last.longitude);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('getLastKnownPosition LiveActivity: $e');
+        }
       }
       // Arrancar listener en tiempo real en cuanto tenemos posición
       if (centro != null) TerritoryService.startRealtimeListener(centro: centro);
@@ -817,7 +821,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               ).timeout(const Duration(seconds: 6));
               centro = LatLng(pos.latitude, pos.longitude);
               if (mounted) setState(() => _currentPosition = pos);
-            } catch (_) {}
+            } catch (e, st) {
+              debugPrint('getCurrentPosition LiveActivity: $e');
+              FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargarDatosIniciales_GPS');
+            }
           }
           final lista = await TerritoryService.cargarTodosLosTerritorios(
               centro: centro, modo: modo);
@@ -1428,7 +1435,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               .setStyleLayerProperty(id, 'fill-color', '#030D1C');
           await _mapboxMap!.style
               .setStyleLayerProperty(id, 'fill-opacity', 0.97);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('_mejorarAgua style: $e');
+        }
       }
     } else {
       for (final id in ids) {
@@ -1437,7 +1446,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
               .setStyleLayerProperty(id, 'fill-color', '#1A6DAE');
           await _mapboxMap!.style
               .setStyleLayerProperty(id, 'fill-opacity', 0.90);
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('_mejorarAgua style: $e');
+        }
       }
     }
   }
@@ -1452,7 +1463,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           tileSize: 512,
           maxzoom: 14.0,
         ));
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('_addBuildings3D DEM source: $e');
+      }
 
       try {
         await _mapboxMap!.style.setStyleTerrain(

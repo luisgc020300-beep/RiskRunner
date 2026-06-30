@@ -440,7 +440,11 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
 
     if (recompensa.puntosLiga > 0) {
       LeagueService.sumarPuntosLiga(user.uid, recompensa.puntosLiga)
-          .catchError((e) { debugPrint('LeagueService ruta: $e'); return null; });
+          .catchError((Object e, StackTrace st) {
+            debugPrint('LeagueService ruta: $e');
+            FirebaseCrashlytics.instance.recordError(e, st, reason: 'sumarPuntosLiga_ruta');
+            return null;
+          });
     }
 
     if (_retoActivo != null) {
@@ -461,7 +465,10 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
     // Si era una ruta guiada, registrar que fue corrida
     if (_rutaGuiada != null) {
       RouteService.registrarCorrida(_rutaGuiada!.id)
-          .catchError((e) { debugPrint('registrarCorrida: $e'); });
+          .catchError((Object e, StackTrace st) {
+            debugPrint('registrarCorrida: $e');
+            FirebaseCrashlytics.instance.recordError(e, st, reason: 'registrarCorrida_ruta');
+          });
     }
 
     _stopping = false;

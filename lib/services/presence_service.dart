@@ -40,6 +40,8 @@ class PresenceService {
   static Future<void> eliminar(String uid) async {
     try {
       await _db.collection('presencia_activa').doc(uid).delete();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PresenceService.eliminar error: $e');
+    }
   }
 }
