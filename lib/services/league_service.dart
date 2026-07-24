@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 // lib/services/league_service.dart
@@ -6,11 +7,11 @@ import 'package:flutter/material.dart';
 // Fuente única de verdad para todo lo relacionado con ligas.
 // Importar desde: social_screen.dart, perfil_screen.dart, live_activity_screen.dart
 //
-// Uso rápido:
-//   await LeagueService.sumarPuntosLiga(userId, 25);   // conquistar territorio
-//   await LeagueService.sumarPuntosLiga(userId, -10);  // perder territorio
-//   await LeagueService.sumarPuntosLiga(userId, 15);   // crear territorio nuevo
-//   await LeagueService.sumarPuntosLiga(userId, 5);    // completar reto
+// La suma de puntos de liga por carrera competitiva o ruta guardada se
+// calcula en el servidor (Cloud Function 'sumarPuntosLigaJugador') — el
+// cliente solo manda el motivo y los datos brutos de la actividad, nunca
+// un delta ya calculado. Las recompensas de guerra global y conquista de
+// territorio se escriben directamente desde otras Cloud Functions.
 
 // =============================================================================
 // MODELO
@@ -265,39 +266,62 @@ class LeagueService {
     }
   }
 
-  // ── Sumar / restar puntos de liga ──────────────────────────────────────────
+  // ── Sumar puntos de liga — Cloud Function transaccional ─────────────────────
+  //
+  //  El servidor calcula el delta a partir de los datos brutos de la
+  //  actividad (nunca confía en un número ya calculado por el cliente) y
+  //  aplica el mismo umbral de liga que LeagueSystem.calcularLigaPorPuntos.
+  //
+  static final _functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
 
-  static Future<LeagueInfo?> sumarPuntosLiga(
-      String userId, int delta) async {
+  static Future<LeagueInfo?> sumarPuntosLigaCarrera({
+    required String userId,
+    required double distanciaKm,
+    required int territoriosConquistados,
+  }) async {
     try {
-      final ref = _db.collection('players').doc(userId);
-
-      return await _db.runTransaction<LeagueInfo?>((tx) async {
-        final snap = await tx.get(ref);
-        if (!snap.exists) return null;
-
-        final data = snap.data()!;
-        final int ptsActuales =
-            (data['puntos_liga'] as num?)?.toInt() ?? 0;
-        final String ligaActual =
-            (data['liga'] as String? ?? 'bronce').toLowerCase();
-
-        final int ptsNuevos =
-            (ptsActuales + delta).clamp(0, 999999);
-        final LeagueInfo nuevaLiga =
-            LeagueSystem.calcularLigaPorPuntos(ptsNuevos);
-
-        final Map<String, dynamic> updates = {'puntos_liga': ptsNuevos};
-        if (nuevaLiga.id != ligaActual) updates['liga'] = nuevaLiga.id;
-
-        tx.update(ref, updates);
-
-        return nuevaLiga.id != ligaActual ? nuevaLiga : null;
+      final result = await _functions.httpsCallable('sumarPuntosLigaJugador').call({
+        'motivo':                  'carrera_competitiva',
+        'distanciaKm':             distanciaKm,
+        'territoriosConquistados': territoriosConquistados,
       });
+      return _leagueInfoSiCambio(result.data);
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Error sumarPuntosLigaCarrera (${e.code}): ${e.message}');
+      return null;
     } catch (e) {
-      debugPrint('Error en sumarPuntosLiga ($userId, $delta): $e');
+      debugPrint('Error sumarPuntosLigaCarrera: $e');
       return null;
     }
+  }
+
+  static Future<LeagueInfo?> sumarPuntosLigaRuta({
+    required String userId,
+    required double distanciaKm,
+    required double ritmoMinKm,
+  }) async {
+    try {
+      final result = await _functions.httpsCallable('sumarPuntosLigaJugador').call({
+        'motivo':      'ruta_guardada',
+        'distanciaKm': distanciaKm,
+        'ritmoMinKm':  ritmoMinKm,
+      });
+      return _leagueInfoSiCambio(result.data);
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Error sumarPuntosLigaRuta (${e.code}): ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('Error sumarPuntosLigaRuta: $e');
+      return null;
+    }
+  }
+
+  static LeagueInfo? _leagueInfoSiCambio(Map<Object?, Object?> data) {
+    if (data['ligaCambio'] != true) return null;
+    return LeagueSystem.ligas.firstWhere(
+      (l) => l.id == data['liga'],
+      orElse: () => LeagueSystem.ligas.first,
+    );
   }
 
   // ── Datos completos de liga para UI ───────────────────────────────────────

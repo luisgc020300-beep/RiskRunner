@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/territory_service.dart';
+import '../services/racha_service.dart';
 import '../services/stats_service.dart';
 import '../services/onboarding_service.dart';
 import '../services/training_plan_service.dart';
@@ -718,33 +719,12 @@ class _ResumenScreenState extends State<ResumenScreen>
 
   Future<void> _actualizarRacha() async {
     if (userId.isEmpty) return;
-    try {
-      final ref  = FirebaseFirestore.instance.collection('players').doc(userId);
-      final doc  = await ref.get();
-      if (!doc.exists) return;
-      final data  = doc.data()!;
-      final racha = (data['racha_actual'] as num?)?.toInt() ?? 0;
-      final ts    = data['ultima_fecha_actividad'] as Timestamp?;
-      final hoy   = DateTime.now();
-      final hoySH = DateTime(hoy.year, hoy.month, hoy.day);
-      int nueva;
-      if (ts == null) {
-        nueva = 1;
-      } else {
-        final u   = ts.toDate();
-        final uSH = DateTime(u.year, u.month, u.day);
-        final d   = hoySH.difference(uSH).inDays;
-        if (d == 0)      { if (mounted) setState(() => _rachaActual = racha); return; }
-        else if (d == 1) { nueva = racha + 1; }
-        else             { nueva = 1; }
-      }
-      await ref.update({
-        'racha_actual':           nueva,
-        'ultima_fecha_actividad': Timestamp.now(),
-      });
-      if (mounted) setState(() => _rachaActual = nueva);
-      if (mounted && nueva > 1) _mostrarBannerRacha(nueva);
-    } catch (e) { debugPrint('Error racha: $e'); }
+    final resultado = await RachaService.actualizarRachaDiaria();
+    if (resultado == null || !mounted) return;
+    setState(() => _rachaActual = resultado.racha);
+    if (!resultado.yaContadaHoy && resultado.racha > 1) {
+      _mostrarBannerRacha(resultado.racha);
+    }
   }
 
   void _mostrarBannerRacha(int r) =>

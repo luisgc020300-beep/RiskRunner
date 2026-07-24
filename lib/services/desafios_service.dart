@@ -22,6 +22,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 
 class DesafioInfo {
@@ -179,6 +180,49 @@ class DesafiosService {
     } catch (e) {
       debugPrint('Error acumularPuntos: $e');
     }
+  }
+
+  // ── ENVIAR DESAFÍO — Cloud Function transaccional ───────────────────────────
+  //
+  //  El servidor valida el saldo y descuenta la apuesta atómicamente.
+  //  Lanza FirebaseFunctionsException con mensaje legible si algo falla.
+  //
+  static Future<String> enviarDesafio({
+    required String retadoId,
+    required int apuesta,
+    required int horas,
+  }) async {
+    final callable = _functions.httpsCallable('enviarDesafio');
+    final result = await callable.call({
+      'retadoId': retadoId,
+      'apuesta':  apuesta,
+      'horas':    horas,
+    });
+    try {
+      FirebaseAnalytics.instance.logEvent(
+        name: 'desafio_enviado',
+        parameters: {'apuesta': apuesta, 'horas': horas},
+      );
+    } catch (_) {} // Analytics nunca debe invalidar un desafío ya enviado
+    return result.data['desafioId'] as String;
+  }
+
+  // ── ACEPTAR DESAFÍO — Cloud Function transaccional ──────────────────────────
+  //
+  //  Antes la verificación de saldo y el descuento se hacían en una
+  //  transacción del cliente: un cliente modificado podía saltársela porque
+  //  las reglas de Firestore no impedían escribir 'monedas' en negativo ni
+  //  forzar 'estado: activo' directamente. Ahora todo ocurre en el servidor.
+  //
+  static Future<String> aceptarDesafio({String? desafioId}) async {
+    final callable = _functions.httpsCallable('aceptarDesafio');
+    final result = await callable.call({
+      if (desafioId != null) 'desafioId': desafioId,
+    });
+    try {
+      FirebaseAnalytics.instance.logEvent(name: 'desafio_aceptado');
+    } catch (_) {} // Analytics nunca debe invalidar un desafío ya aceptado
+    return result.data['desafioId'] as String;
   }
 
   // ── VERIFICAR EXPIRADOS — ya no hace nada en el cliente ─────────────────────

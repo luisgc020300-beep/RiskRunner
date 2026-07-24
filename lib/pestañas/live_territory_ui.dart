@@ -439,8 +439,11 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
     }
 
     if (recompensa.puntosLiga > 0) {
-      LeagueService.sumarPuntosLiga(user.uid, recompensa.puntosLiga)
-          .catchError((Object e, StackTrace st) {
+      LeagueService.sumarPuntosLigaRuta(
+        userId: user.uid,
+        distanciaKm: distanciaKm,
+        ritmoMinKm: ritmoMinKm,
+      ).catchError((Object e, StackTrace st) {
             debugPrint('LeagueService ruta: $e');
             FirebaseCrashlytics.instance.recordError(e, st, reason: 'sumarPuntosLiga_ruta');
             return null;

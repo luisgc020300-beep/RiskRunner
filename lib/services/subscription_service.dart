@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -202,6 +203,12 @@ class SubscriptionService {
         await _activarFeaturesPremium();
       }
 
+      try {
+        FirebaseAnalytics.instance.logEvent(
+          name: 'compra_suscripcion',
+          parameters: {'package_id': package.identifier},
+        );
+      } catch (_) {} // Analytics nunca debe reportar como fallida una compra ya cobrada
       return BuyResult.success(status);
     } on PlatformException catch (e) {
       final errorCode = rc.PurchasesErrorHelper.getErrorCode(e);

@@ -3592,18 +3592,22 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (!mounted) { _stopping = false; return; }
 
-    final puntosLigaGanados = _modoSolitario
-        ? 0
-        : _objetivoGlobal != null
-            ? 0
-            : (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25);
+    final cuentaParaLiga = !_modoSolitario && _objetivoGlobal == null;
+    // Solo para mostrar en la pantalla de resumen — el cálculo real y
+    // autoritativo de los puntos de liga ocurre en el servidor.
+    final puntosLigaGanadosDisplay = cuentaParaLiga
+        ? (distanciaFinal > 0 ? 15 : 0) + (conquistados * 25)
+        : 0;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       DesafiosService.verificarExpirados(user.uid);
-      if (puntosLigaGanados > 0) {
-        LeagueService.sumarPuntosLiga(user.uid, puntosLigaGanados)
-            .catchError((e) { debugPrint('LeagueService competitivo: $e'); return null; });
+      if (cuentaParaLiga && (distanciaFinal > 0 || conquistados > 0)) {
+        LeagueService.sumarPuntosLigaCarrera(
+          userId: user.uid,
+          distanciaKm: distanciaFinal,
+          territoriosConquistados: conquistados,
+        ).catchError((e) { debugPrint('LeagueService competitivo: $e'); return null; });
       }
       // Puntos ranking semanal para modo Global (5 pts/km + 50 bonus si conquista)
       if (_objetivoGlobal != null && distanciaFinal > 0) {
@@ -3641,7 +3645,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       'ruta':                    rutaFinal,
       'esDesdeCarrera':          true,
       'territoriosConquistados': conquistados,
-      'puntosLigaGanados':       puntosLigaGanados,
+      'puntosLigaGanados':       puntosLigaGanadosDisplay,
       'retoCompletado':          _retoCompletado ? _retoActivo : null,
       'objetivoGlobal':          _objetivoGlobal,
       'globalConquistado':       _globalConquistado,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/theme_notifier.dart';
 import '../models/avatar_config.dart';
 import '../services/league_service.dart';
@@ -236,6 +237,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() => _perfilPrivado = !val);
     }
     if (mounted) setState(() => _savingPrivado = false);
+  }
+
+  Future<void> _abrirUrl(String url) async {
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir el enlace.')),
+      );
+    }
   }
 
   Future<void> _guardarColor(Color color) async {
@@ -539,7 +550,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Política de privacidad',
               textPri: textPri,
               textSec: textSec,
-              onTap: () {},
+              onTap: () => _abrirUrl('https://fastidious-salmiakki-235a71.netlify.app/privacy.html'),
             ),
             _Divider(color: border),
             _NavTile(
@@ -548,7 +559,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Términos de uso',
               textPri: textPri,
               textSec: textSec,
-              onTap: () {},
+              onTap: () => _abrirUrl('https://fastidious-salmiakki-235a71.netlify.app/terms.html'),
             ),
           ]),
 

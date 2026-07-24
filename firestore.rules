@@ -7,6 +7,10 @@ service cloud.firestore {
     function isOwner(uid)    { return request.auth.uid == uid; }
     function isAdmin()       { return request.auth.token.admin == true; }
     function onlyFields(keys){ return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function fieldLocked(field) {
+      return !(field in resource.data) || !(field in request.resource.data) ||
+             request.resource.data[field] == resource.data[field];
+    }
 
     // ── players ───────────────────────────────────────────────────────────────
     // Cualquier usuario autenticado puede leer perfiles (rivals, ranking, etc.)
@@ -14,7 +18,24 @@ service cloud.firestore {
     match /players/{uid} {
       allow read:   if isAuth();
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      // 'monedas' nunca puede bajar desde el cliente — todo descuento
+      // (aceptar/enviar desafío, atacar, escudo...) pasa por Cloud Functions
+      // transaccionales, que usan el Admin SDK y no están sujetas a esta regla.
+      // 'puntos_liga', 'liga', 'racha_actual' y 'ultima_fecha_actividad' quedan
+      // completamente bloqueados en update: solo se escriben desde Cloud
+      // Functions (sumarPuntosLigaJugador, actualizarRachaDiaria y las
+      // funciones de territorio/guerra global). 'nivel' y 'victorias' también
+      // se bloquean: hoy no tienen ninguna escritura legítima del cliente.
+      allow update: if isOwner(uid) && (
+        !('monedas' in resource.data) ||
+        !('monedas' in request.resource.data) ||
+        request.resource.data.monedas >= resource.data.monedas
+      ) && fieldLocked('puntos_liga')
+        && fieldLocked('liga')
+        && fieldLocked('racha_actual')
+        && fieldLocked('ultima_fecha_actividad')
+        && fieldLocked('nivel')
+        && fieldLocked('victorias');
       allow delete: if false;
     }
 
@@ -78,11 +99,14 @@ service cloud.firestore {
         resource.data.retadorId == request.auth.uid ||
         resource.data.retadoId  == request.auth.uid
       );
-      allow create: if isAuth() && request.resource.data.retadorId == request.auth.uid;
+      // La creación (enviar desafío) y la activación (aceptar desafío) implican
+      // cobrar la apuesta — solo las Cloud Functions transaccionales
+      // (Admin SDK, no sujetas a estas reglas) pueden hacerlo.
+      allow create: if false;
       allow update: if isAuth() && (
         resource.data.retadorId == request.auth.uid ||
         resource.data.retadoId  == request.auth.uid
-      );
+      ) && request.resource.data.estado != 'activo';
       allow delete: if false;
     }
 

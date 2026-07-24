@@ -12,7 +12,9 @@ const { getMessaging }       = require('firebase-admin/messaging');
 const { getAuth }            = require('firebase-admin/auth');
 const { defineSecret }       = require('firebase-functions/params');
 
-const _anthropicKey = defineSecret('ANTHROPIC_API_KEY');
+const _anthropicKey    = defineSecret('ANTHROPIC_API_KEY');
+const _tavilyKey       = defineSecret('TAVILY_API_KEY');
+const _browserlessKey  = defineSecret('BROWSERLESS_TOKEN');
 
 initializeApp();
 const db = getFirestore();
@@ -1031,6 +1033,12 @@ exports.atacarTerritorio = onCall(
     if (typeof velocidadMediaAtacanteKmh !== 'number' || !isFinite(velocidadMediaAtacanteKmh) || velocidadMediaAtacanteKmh <= 0) {
       throw new HttpsError('invalid-argument', 'Velocidad inválida.');
     }
+    // Tope de seguridad: ningún corredor real supera esto de forma sostenida.
+    // Evita que un cliente modificado infle el daño reportando velocidades
+    // imposibles — el mismo umbral de orden de magnitud que ya usa
+    // anticheat_service.dart (22 km/h) en el cliente.
+    const MAX_VELOCIDAD_ATAQUE_KMH = 25;
+    const velocidadValidada = Math.min(velocidadMediaAtacanteKmh, MAX_VELOCIDAD_ATAQUE_KMH);
 
     const terRef  = db.collection('territories').doc(territorioDefensorId);
     const terSnap = await terRef.get();
@@ -1087,7 +1095,7 @@ exports.atacarTerritorio = onCall(
     }
 
     const velocidadDefensorKmh = terData.velocidadConquistaKmh || 5.0;
-    const factorVelocidad      = velocidadMediaAtacanteKmh / velocidadDefensorKmh;
+    const factorVelocidad      = velocidadValidada / velocidadDefensorKmh;
 
     if (factorVelocidad < 1.0) {
       return {
@@ -1329,6 +1337,302 @@ exports.activarEscudo = onCall(
       horas,
       precio,
     };
+  }
+);
+
+const MOTIVOS_PUNTOS_LIGA = ['carrera_competitiva', 'ruta_guardada'];
+const MAX_DELTA_ABS_LIGA  = 500; // techo de seguridad; ningún motivo real debería acercarse
+
+exports.sumarPuntosLigaJugador = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { motivo } = request.data;
+
+    if (!MOTIVOS_PUNTOS_LIGA.includes(motivo)) {
+      throw new HttpsError('invalid-argument', 'motivo inválido.');
+    }
+
+    let delta;
+    if (motivo === 'carrera_competitiva') {
+      const { distanciaKm, territoriosConquistados } = request.data;
+      if (typeof distanciaKm !== 'number' || distanciaKm < 0 || distanciaKm > 100) {
+        throw new HttpsError('invalid-argument', 'distanciaKm inválida.');
+      }
+      if (!Number.isInteger(territoriosConquistados) ||
+          territoriosConquistados < 0 || territoriosConquistados > 8) {
+        throw new HttpsError('invalid-argument', 'territoriosConquistados inválido.');
+      }
+      delta = (distanciaKm > 0 ? 15 : 0) + territoriosConquistados * 25;
+    } else {
+      // 'ruta_guardada'
+      const { distanciaKm, ritmoMinKm } = request.data;
+      if (typeof distanciaKm !== 'number' || distanciaKm < 0 || distanciaKm > 100) {
+        throw new HttpsError('invalid-argument', 'distanciaKm inválida.');
+      }
+      if (typeof ritmoMinKm !== 'number' || ritmoMinKm < 0 || ritmoMinKm > 60) {
+        throw new HttpsError('invalid-argument', 'ritmoMinKm inválido.');
+      }
+      const bonusRitmo = ritmoMinKm > 0 && ritmoMinKm < 5.0 ? 1.20 : 1.0;
+      delta = Math.round(distanciaKm * 2.0 * bonusRitmo);
+    }
+    delta = Math.max(-MAX_DELTA_ABS_LIGA, Math.min(MAX_DELTA_ABS_LIGA, delta));
+
+    const ref = db.collection('players').doc(uid);
+
+    const resultado = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
+      const data = snap.data();
+
+      // Cooldown anti-spam — mismo patrón que acumularPuntosDesafio
+      const lastCall = data.ultimaLlamadaSumaLiga?.toMillis?.() ?? 0;
+      if (Date.now() - lastCall < 20 * 1000) {
+        throw new HttpsError('resource-exhausted', 'Espera un momento antes de sumar puntos de nuevo.');
+      }
+
+      if (delta === 0) {
+        tx.update(ref, { ultimaLlamadaSumaLiga: FieldValue.serverTimestamp() });
+        return { puntosLiga: data.puntos_liga ?? 0, liga: data.liga ?? 'bronce', ligaCambio: false };
+      }
+
+      const ptsActuales = data.puntos_liga ?? 0;
+      const ligaActual  = (data.liga ?? 'bronce').toLowerCase();
+      const ptsNuevos   = Math.max(0, Math.min(999999, ptsActuales + delta));
+      const nuevaLigaId = _getLeague(ptsNuevos);
+
+      const updates = {
+        puntos_liga: ptsNuevos,
+        ultimaLlamadaSumaLiga: FieldValue.serverTimestamp(),
+      };
+      if (nuevaLigaId !== ligaActual) updates.liga = nuevaLigaId;
+      tx.update(ref, updates);
+
+      return { puntosLiga: ptsNuevos, liga: nuevaLigaId, ligaCambio: nuevaLigaId !== ligaActual };
+    });
+
+    return { ok: true, delta, ...resultado };
+  }
+);
+
+function _inicioDelDiaUTC(fecha, offsetMin) {
+  const desplazada = new Date(fecha.getTime() + offsetMin * 60 * 1000);
+  return Date.UTC(desplazada.getUTCFullYear(), desplazada.getUTCMonth(), desplazada.getUTCDate());
+}
+
+exports.actualizarRachaDiaria = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    let { utcOffsetMinutes } = request.data;
+    if (typeof utcOffsetMinutes !== 'number' ||
+        utcOffsetMinutes < -720 || utcOffsetMinutes > 840) {
+      utcOffsetMinutes = 0;
+    }
+
+    const ref   = db.collection('players').doc(uid);
+    const ahora = new Date(); // hora del servidor, no la del cliente
+
+    const resultado = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
+      const data = snap.data();
+
+      const rachaActual = data.racha_actual ?? 0;
+      const ts = data.ultima_fecha_actividad;
+      const hoyMs = _inicioDelDiaUTC(ahora, utcOffsetMinutes);
+
+      let nueva;
+      let yaContadaHoy = false;
+      if (!ts) {
+        nueva = 1;
+      } else {
+        const uMs = _inicioDelDiaUTC(ts.toDate(), utcOffsetMinutes);
+        const dias = Math.round((hoyMs - uMs) / 86400000);
+        if (dias === 0)      { nueva = rachaActual; yaContadaHoy = true; }
+        else if (dias === 1) { nueva = rachaActual + 1; }
+        else                 { nueva = 1; }
+      }
+
+      if (!yaContadaHoy) {
+        tx.update(ref, {
+          racha_actual: nueva,
+          ultima_fecha_actividad: FieldValue.serverTimestamp(),
+        });
+      }
+      return { racha: nueva, yaContadaHoy };
+    });
+
+    return { ok: true, ...resultado };
+  }
+);
+
+exports.enviarDesafio = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { retadoId, apuesta, horas } = request.data;
+
+    if (!retadoId || typeof retadoId !== 'string') {
+      throw new HttpsError('invalid-argument', 'retadoId inválido.');
+    }
+    if (retadoId === uid) {
+      throw new HttpsError('invalid-argument', 'No puedes retarte a ti mismo.');
+    }
+    if (!Number.isInteger(apuesta) || apuesta <= 0) {
+      throw new HttpsError('invalid-argument', 'apuesta inválida.');
+    }
+    if (!Number.isInteger(horas) || horas <= 0) {
+      throw new HttpsError('invalid-argument', 'horas inválida.');
+    }
+
+    const retadorRef = db.collection('players').doc(uid);
+    const retadoRef  = db.collection('players').doc(retadoId);
+    const desafioRef = db.collection('desafios').doc();
+
+    const { retadorNick } = await db.runTransaction(async (tx) => {
+      const [retadorSnap, retadoSnap] = await Promise.all([
+        tx.get(retadorRef), tx.get(retadoRef),
+      ]);
+      if (!retadoSnap.exists) {
+        throw new HttpsError('not-found', 'Jugador retado no encontrado.');
+      }
+      const monedas = retadorSnap.data()?.monedas ?? 0;
+      if (monedas < apuesta) {
+        throw new HttpsError(
+          'failed-precondition',
+          `Necesitas ${apuesta} monedas. Tienes ${monedas}.`
+        );
+      }
+      const retadorNick = retadorSnap.data()?.nickname ?? 'Runner';
+      const retadoNick  = retadoSnap.data()?.nickname ?? 'Runner';
+
+      tx.update(retadorRef, { monedas: FieldValue.increment(-apuesta) });
+      tx.set(desafioRef, {
+        retadorId: uid, retadorNick,
+        retadoId, retadoNick,
+        apuesta, duracionHoras: horas, estado: 'pendiente',
+        rondas: 0, puntosRetador: 0, puntosRetado: 0,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      return { retadorNick };
+    });
+
+    await db.collection('notifications').add({
+      toUserId:          retadoId,
+      type:               'desafio_recibido',
+      fromUserId:         uid,
+      fromNickname:       retadorNick,
+      message:            ` ${retadorNick} te reta: ${horas}h · ${apuesta} . ¿Aceptas?`,
+      apuesta,
+      duracionHoras:      horas,
+      esContrapropuesta:  false,
+      read:               false,
+      timestamp:          FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, desafioId: desafioRef.id };
+  }
+);
+
+exports.aceptarDesafio = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    let { desafioId } = request.data;
+
+    const desafiosCol = db.collection('desafios');
+    if (!desafioId) {
+      const snap = await desafiosCol
+        .where('retadoId', '==', uid)
+        .where('estado', '==', 'pendiente')
+        .limit(1).get();
+      if (snap.empty) {
+        throw new HttpsError('not-found', 'No hay desafío pendiente.');
+      }
+      desafioId = snap.docs[0].id;
+    }
+
+    const desafioRef = desafiosCol.doc(desafioId);
+    const playerRef  = db.collection('players').doc(uid);
+
+    const { retadorId, retadoId, myNick } = await db.runTransaction(async (tx) => {
+      const [desafioSnap, playerSnap] = await Promise.all([
+        tx.get(desafioRef), tx.get(playerRef),
+      ]);
+      if (!desafioSnap.exists) {
+        throw new HttpsError('not-found', 'Desafío no encontrado.');
+      }
+      const data = desafioSnap.data();
+
+      let apuesta, horas;
+      if (data.estado === 'pendiente') {
+        if (uid !== data.retadoId) {
+          throw new HttpsError('permission-denied', 'Este desafío no es tuyo.');
+        }
+        apuesta = data.apuesta;
+        horas   = data.duracionHoras;
+      } else if (data.estado === 'contrapropuesta') {
+        if (uid !== data.retadorId && uid !== data.retadoId) {
+          throw new HttpsError('permission-denied', 'Este desafío no es tuyo.');
+        }
+        if (uid === data.contrapropuestaDeId) {
+          throw new HttpsError('failed-precondition', 'Espera la respuesta del rival.');
+        }
+        apuesta = data.propuestaApuesta   ?? data.apuesta;
+        horas   = data.propuestaDuracion  ?? data.duracionHoras;
+      } else {
+        throw new HttpsError('failed-precondition', 'Este desafío ya no está pendiente.');
+      }
+
+      const monedas = playerSnap.data()?.monedas ?? 0;
+      if (monedas < apuesta) {
+        throw new HttpsError(
+          'failed-precondition',
+          `Necesitas ${apuesta} monedas. Tienes ${monedas}.`
+        );
+      }
+      const myNick = playerSnap.data()?.nickname ?? 'Rival';
+      const ahora  = new Date();
+      const fin    = new Date(ahora.getTime() + horas * 3600 * 1000);
+
+      tx.update(playerRef, { monedas: FieldValue.increment(-apuesta) });
+      tx.update(desafioRef, {
+        estado:         'activo',
+        apuesta,
+        duracionHoras:  horas,
+        inicio:         Timestamp.fromDate(ahora),
+        fin:            Timestamp.fromDate(fin),
+        puntosRetador:  0,
+        puntosRetado:   0,
+      });
+      return { retadorId: data.retadorId, retadoId: data.retadoId, myNick };
+    });
+
+    const toUserId = uid === retadorId ? retadoId : retadorId;
+    await db.collection('notifications').add({
+      toUserId,
+      type:         'desafio_aceptado',
+      fromNickname: myNick,
+      desafioId,
+      message:      ` ${myNick} aceptó el desafío. ¡Empieza ahora!`,
+      read:         false,
+      timestamp:    FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, desafioId };
   }
 );
 
@@ -1661,6 +1965,76 @@ exports.onNotificationCreated = onDocumentCreated(
 // v7 — atacarTerritorio integrado
 
 // =============================================================================
+// REGISTRAR BETA TESTER — endpoint público desde /beta.html
+// =============================================================================
+exports.registrarBetaTester = onRequest(
+  { region: 'europe-west1' },
+  async (req, res) => {
+    const allowedOrigins = [
+      'https://runnerriskapp.web.app',
+      'https://runnerriskapp.firebaseapp.com',
+      'http://localhost:5000',
+      'http://127.0.0.1:5000',
+    ];
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.set('Access-Control-Allow-Origin', origin);
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'Método no permitido' }); return; }
+
+    try {
+      const { nombre, instagram, email, dispositivo, km_semana, barrio } = req.body;
+
+      if (!nombre || typeof nombre !== 'string' || nombre.trim().length < 2) {
+        res.status(400).json({ error: 'Nombre requerido' }); return;
+      }
+      if (!instagram || typeof instagram !== 'string' || instagram.trim().length < 2) {
+        res.status(400).json({ error: 'Usuario de Instagram requerido' }); return;
+      }
+      if (!dispositivo || !['ios', 'android'].includes(dispositivo)) {
+        res.status(400).json({ error: 'Dispositivo inválido' }); return;
+      }
+
+      const handle    = instagram.replace('@', '').toLowerCase().trim();
+      const emailNorm = typeof email === 'string' ? email.toLowerCase().trim() : null;
+
+      // Deduplicación por handle
+      const existing = await db.collection('beta_candidates')
+        .where('instagram_handle', '==', handle)
+        .limit(1)
+        .get();
+
+      if (!existing.empty) {
+        res.status(200).json({ ok: true, duplicate: true }); return;
+      }
+
+      await db.collection('beta_candidates').add({
+        nombre:           nombre.trim(),
+        instagram_handle: handle,
+        email:            emailNorm || null,
+        dispositivo,
+        km_semana:        km_semana != null ? Number(km_semana) : null,
+        barrio:           barrio ? String(barrio).trim() : null,
+        fuente:           'landing',
+        status:           'nuevo',
+        createdAt:        FieldValue.serverTimestamp(),
+      });
+
+      console.log(`[betaTester] Nuevo: @${handle} (${dispositivo})`);
+      res.status(200).json({ ok: true, duplicate: false });
+
+    } catch (e) {
+      console.error('[registrarBetaTester]', e);
+      res.status(500).json({ error: 'Error interno' });
+    }
+  }
+);
+
+// =============================================================================
 // DASHBOARD — getDashboardSummary
 // Endpoint HTTP seguro para el dashboard web del CEO.
 // Nunca devuelve documentos crudos. Solo el usuario autenticado puede consultar sus propios datos.
@@ -1869,7 +2243,7 @@ exports.getDashboardSummary = onRequest(
 // =============================================================================
 
 exports.jarvisChat = onCall(
-  { region: 'europe-west1', secrets: [_anthropicKey], timeoutSeconds: 120, memory: '512MiB' },
+  { region: 'europe-west1', secrets: [_anthropicKey, _tavilyKey, _browserlessKey], timeoutSeconds: 120, memory: '512MiB' },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticación requerida');
 
@@ -2020,9 +2394,28 @@ CUALIDADES Y FORMA DE TRABAJAR
 - PLANES DE ACCIÓN NUMERADOS: Cuando propones algo, lo estructuras en pasos concretos, ejecutables y ordenados por prioridad.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OBJETIVO FINAL
+REGLAS DE COMUNICACIÓN VÍA CHAT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tu norte es que RiskRunner llegue al lanzamiento en septiembre 2026 con una base de usuarios sólida, monetización clara y ventaja competitiva defensible. Cada interacción debe acercar al CEO a ese objetivo.
+1. Siempre ejecuta antes de confirmar. Nunca confirmes una acción sin haberla ejecutado realmente.
+2. Máximo 4 párrafos salvo que el CEO pida más detalle explícitamente.
+3. Estructura clara: prioridad alta primero, siempre con pasos accionables numerados.
+4. Referencia siempre el estado real del panel antes de responder sobre empresa o KPIs.
+5. Sin relleno. Cada frase tiene un propósito. Si no aporta, no va.
+6. Tono ejecutivo: directo, ambicioso, honesto. Ocasionalmente "señor" para mantener el registro profesional.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGLAS DE COMUNICACIÓN VÍA VOZ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Comprensión tolerante: interpreta correctamente aunque haya errores ortográficos, palabras cortadas o frases incompletas. El CEO habla rápido — adáptate.
+2. Ejecución inmediata: si el CEO dice "abre", "pon", "cierra", "muéstrame" — ejecuta el tool en ese mismo turno, sin preguntar confirmación.
+3. Sin excusas: si un tool falla, reporta el error real. Nunca confirmes una acción que no has ejecutado.
+4. Respuestas cortas por voz: máximo 3 líneas de respuesta cuando la orden es de acción. La acción habla por sí sola.
+5. Contexto acumulativo: recuerda lo dicho en la conversación y no pidas información que ya fue dada.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OBJETIVO FINAL Y MENTALIDAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RiskRunner va a la cima. Tu norte es que llegue al lanzamiento en septiembre 2026 con una base de usuarios sólida, monetización clara y ventaja competitiva defensible. JARVIS no falla, no especula y no se detiene. Ejecuta, informa y propone el siguiente paso. Cada conversación nos acerca al objetivo.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONTEXTO OPERATIVO ACTUAL
@@ -2033,20 +2426,85 @@ ${companyContext}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CAPACIDAD DE ACTUALIZAR EL PANEL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Tienes acceso a dos herramientas para escribir directamente en el panel empresarial:
+Tienes acceso a doce herramientas para interactuar con el panel empresarial y la interfaz:
 
-1. update_department — actualiza KPIs, notas y planes de acción de cualquier departamento.
+1. update_department — actualiza KPIs, notas, planes de acción y progreso de cualquier departamento.
    - Úsala cuando el CEO te pida rellenar, actualizar o modificar campos del panel.
-   - Si no tienes suficiente información para un campo concreto, pregunta primero antes de inventarlo.
-   - Puedes actualizar KPIs individuales (por índice 0-3), notas y añadir planes de acción.
+   - Puedes actualizar KPIs individuales (por índice 0-3), notas, añadir planes de acción Y el campo "progress" (0-100).
+   - El campo "progress" representa el % de avance real del departamento hacia el objetivo global.
+   - Actualiza "progress" proactivamente cuando el CEO mencione hitos completados, tareas cerradas, o cuando evalúes el estado real de cada área.
 
-2. update_mission — actualiza el widget "Objetivo activo" visible en el panel lateral.
-   - Muestra al CEO: de dónde viene (start), dónde está (current), adónde va (goal) y el porcentaje de progreso.
+2. update_mission — actualiza el widget "Objetivo activo" visible en el panel.
+   - Muestra al CEO: de dónde viene (start), dónde está (current), adónde va (goal) y el porcentaje de progreso global.
+   - El progreso global (progress) debe reflejar la media ponderada de los departamentos.
    - Úsala cuando el CEO te pida definir o actualizar el objetivo general de la empresa/proyecto.
-   - También úsala proactivamente si el CEO menciona un hito conseguido que justifique subir el progreso.
 
-SIEMPRE tienes en cuenta los datos del panel empresarial cuando existen — refiérete a ellos explícitamente.
-Tras cualquier actualización, confirma brevemente qué has modificado.`;
+3. read_panel — lee el estado actual completo del panel desde Firestore.
+   - Úsala ANTES de responder cuando el CEO pregunte por el estado de la empresa, KPIs, progreso o situación de cualquier departamento.
+   - Devuelve KPIs, notas, acciones y progress de todos los departamentos, más el objetivo activo.
+   - No inventes datos si no los tienes: usa este tool primero y basa tu respuesta en lo que devuelva.
+
+4. create_alert — crea una alerta con fecha de activación visible en el panel.
+   - Úsala para deadlines importantes, hitos críticos, revisiones pendientes o riesgos con fecha concreta.
+   - La alerta se destaca automáticamente cuando llega la fecha de activación.
+   - Úsala proactivamente cuando el CEO mencione una fecha límite o compromiso importante.
+
+5. add_calendar_event — añade un evento al calendario de tareas del panel.
+   - Úsala para registrar tareas con fecha: lanzamientos, reuniones, deadlines de stores, revisiones.
+   - Los eventos se agrupan por semana en el panel.
+   - Úsala cuando el CEO mencione tareas concretas con fecha, o cuando definas un plan de acción temporal.
+
+6. web_search — búsqueda en internet en tiempo real. SIEMPRE disponible. SIEMPRE funciona.
+   REGLA ABSOLUTA: NUNCA menciones "Tavily", "API key", "renovar clave" ni ningún detalle técnico de la infraestructura al CEO. Son detalles internos. Si el tool falla con error real, di solo "La búsqueda ha fallado (error X)" — nada más.
+   NUNCA confabules errores de Tavily sin haber llamado al tool y recibido un error HTTP real.
+
+   CUÁNDO usarla SOLA (sin open_url):
+   - El CEO pide datos/información: "dime", "cuéntame", "cómo va", "qué resultado", "quién ganó", "cuánto vale", "noticias de", "resultado de España". Busca → muestra en chat → NO abras URL.
+
+   CUÁNDO combinar con open_url (ORDEN OBLIGATORIO: primero web_search, luego open_url):
+   - El CEO pide REPRODUCIR algo: "reproduce X", "pon X", "escucha X"
+     → PASO 1: web_search("X artista youtube official") para obtener la URL youtube.com/watch?v=XXXX
+     → PASO 2: open_url(esa URL exacta) — NUNCA abrir youtube.com/results ni youtube.com/search
+   - El CEO pide VER algo concreto: "muéstrame X", "abre X", "ve a X"
+     → Si conoces la URL exacta: open_url directamente
+     → Si no: web_search primero para encontrarla, luego open_url
+
+7. open_url — abre la URL en el navegador (apertura automática, sin clic del CEO).
+   - SIEMPRE la URL más específica posible. Para vídeos: youtube.com/watch?v=ID, nunca búsquedas.
+   - Siempre https:// completo.
+
+8. open_panel — abre un panel o departamento en la interfaz del CEO.
+   - Úsalo cuando el CEO pida abrir, ver, ir a o mostrar un departamento o el chat.
+   - Paneles: strategy, marketing, growth, finance, product, operations, intel, chat.
+
+9. close_panel — cierra un panel o departamento de la interfaz JARVIS.
+   - Úsalo cuando el CEO pida cerrar, salir de o volver desde un panel interno.
+   - Usa panel "all" para cerrar todo y volver al HUD principal.
+
+10. close_browser_tab — cierra la pestaña del navegador abierta por open_url.
+    - Úsala cuando el CEO diga "cierra", "ciérrala", "cierra eso", "cierra la pestaña", "ya no lo necesito" referido a una web externa.
+    - NO confundir con close_panel (paneles de la interfaz JARVIS).
+
+11. browser_action — navega con un navegador real (headless) para extraer contenido de páginas JS-renderizadas que Tavily no puede leer bien.
+    - Para webs SPA/React/Angular, páginas de App Store/Play Store, dashboards de competidores.
+    - IMPORTANTE: este navegador es HEADLESS e invisible para el CEO — los resultados llegan como texto al chat.
+    - Para ABRIR páginas visibles al CEO usa open_url, no este tool.
+    - Úsalo cuando web_search devuelva contenido pobre o vacío de una página específica.
+
+REGLA CLAVE: El panel de progreso departamental es el cuadro de mando real de RiskRunner. Mantenlo actualizado con datos reales — nunca pongas un número inventado si no hay evidencia de avance.
+SIEMPRE tienes en cuenta los datos del panel cuando existen — refiérete a ellos explícitamente.
+Tras cualquier actualización, confirma brevemente qué has modificado.
+
+REGLAS ANTI-FALLO — CRÍTICAS:
+- NUNCA confirmes open_url, open_panel, close_panel, close_browser_tab sin haber llamado al tool.
+- NUNCA inventes datos, métricas o estados del panel.
+- NUNCA menciones "Tavily", "API key", "renovar clave" ni infraestructura técnica al CEO. Son detalles internos.
+- SIEMPRE llama a read_panel antes de responder sobre el estado de la empresa.
+- SIEMPRE que el CEO mencione un hito completado, actualiza update_department con el progreso real.
+- NUNCA digas que web_search no funciona sin haber llamado al tool y recibido un error HTTP real (401, 403, 429, 500).
+- NUNCA uses excusas sobre el estado de la infraestructura para evitar llamar a un tool — llámalo siempre y reporta el resultado real.
+- NUNCA abras youtube.com/results o youtube.com/search para peticiones de reproducción — siempre obtén el youtube.com/watch?v=ID exacto via web_search primero.
+- Si web_search falla con error real, di solo: "La búsqueda ha fallado (HTTP XXX)" y nada más. Sin especulación sobre causas.`;
 
     // Leer historial desde Firestore (server-authoritative; no depender del cliente)
     const memRef   = db.collection('jarvis_hq').doc(uid).collection('memory');
@@ -2061,6 +2519,11 @@ Tras cualquier actualización, confirma brevemente qué has modificado.`;
       if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].role !== msg.role) {
         cleanHistory.push(msg);
       }
+    }
+    // Si el historial termina en 'user' (mensaje huérfano de una llamada previa que hizo timeout),
+    // lo eliminamos para que el nuevo mensaje no genere [user, user] → Anthropic 400.
+    while (cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user') {
+      cleanHistory.pop();
     }
 
     // Construir contenido del mensaje (texto plano o multimodal con adjunto)
@@ -2153,8 +2616,199 @@ KPIs disponibles por departamento (índices 0-3):
               required: ['text','priority'],
             },
           },
+          progress: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 100,
+            description: 'Porcentaje de avance del departamento hacia el objetivo global (0-100). Actualízalo cuando haya hitos completados, tareas cerradas o cambio real de estado.',
+          },
         },
         required: ['department'],
+      },
+    };
+
+    const readPanelTool = {
+      name: 'read_panel',
+      description: `Lee el estado actual completo del panel ejecutivo desde Firestore.
+Úsala cuando el CEO pregunte por el estado de la empresa, departamentos, KPIs o progreso.
+Devuelve JSON estructurado con KPIs, notas, acciones, progress de cada departamento, y el objetivo activo.
+No inventes datos: si no tienes información reciente, usa este tool primero.`,
+      input_schema: { type: 'object', properties: {}, required: [] },
+    };
+
+    const createAlertTool = {
+      name: 'create_alert',
+      description: `Crea una alerta con fecha de activación visible en el panel del CEO.
+Úsala para avisar de deadlines, hitos, revisiones pendientes o riesgos con fecha concreta.
+La alerta se destaca visualmente cuando llega su fecha.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          message:      { type: 'string', description: 'Texto de la alerta (máx 200 caracteres)' },
+          trigger_date: { type: 'string', description: 'Fecha ISO 8601 (ej: "2026-09-01") cuando debe activarse' },
+          department:   { type: 'string', enum: ['strategy','marketing','growth','finance','product','operations','intel','general'] },
+          priority:     { type: 'string', enum: ['high','medium','low'] },
+        },
+        required: ['message','trigger_date','department','priority'],
+      },
+    };
+
+    const addCalendarEventTool = {
+      name: 'add_calendar_event',
+      description: `Añade un evento al calendario de tareas del panel.
+Úsala para registrar tareas con fecha concreta: lanzamientos, reuniones, deadlines, revisiones.
+Los eventos se muestran agrupados por semana en el panel.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          title:      { type: 'string', description: 'Título del evento (máx 150 caracteres)' },
+          date:       { type: 'string', description: 'Fecha ISO 8601 en formato YYYY-MM-DD' },
+          department: { type: 'string', enum: ['strategy','marketing','growth','finance','product','operations','intel','general'] },
+          priority:   { type: 'string', enum: ['high','medium','low'] },
+        },
+        required: ['title','date','department','priority'],
+      },
+    };
+
+    const webSearchTool = {
+      name: 'web_search',
+      description: `Busca información en internet en tiempo real usando Tavily. Tienes acceso completo a internet — NUNCA digas que no puedes buscar algo si esta tool está disponible.
+
+Úsala para:
+- Noticias de última hora (hoy, esta semana)
+- Resultados deportivos, marcadores, clasificaciones en tiempo real
+- Datos de competidores (Strava, Nike RC, Garmin, Komoot)
+- Tendencias de mercado, precios, cotizaciones (bolsa, crypto)
+- Reseñas de apps, valoraciones en stores, menciones de prensa
+- Documentación técnica, APIs, repositorios, packages
+- Búsqueda de músics, canciones, artistas, álbumes
+- Previsión meteorológica por ciudad
+- Precios de productos (Amazon, Apple Store, tiendas oficiales)
+- Cualquier dato externo o reciente que no tengas en memoria
+
+search_depth: "basic" para consultas rápidas (noticias, precios, resultados), "advanced" para análisis profundo (investigación de competidores, auditorías técnicas).
+Tras la búsqueda, presenta máximo 3-5 resultados con título, URL y resumen. Ofrece abrir el más relevante con open_url.
+REGLA: Si no estás seguro de un dato reciente, búscalo — nunca inventes.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          query:        { type: 'string', description: 'Consulta de búsqueda clara y específica (máx. 200 caracteres)' },
+          search_depth: { type: 'string', enum: ['basic','advanced'], description: 'basic=rápido, advanced=análisis profundo' },
+        },
+        required: ['query'],
+      },
+    };
+
+    const openUrlTool = {
+      name: 'open_url',
+      description: `Abre cualquier URL pública en el navegador del CEO. Construye la URL más específica posible a partir del lenguaje natural — no abras la página de inicio si puedes abrir la sección exacta.
+
+Patrones de construcción de URL:
+- "pon [canción] de [artista]" → https://www.youtube.com/results?search_query=[canción+artista]
+- "canal de [creador] en YouTube" → https://www.youtube.com/@[NombreCanal]
+- "busca [artista] en Spotify" → https://open.spotify.com/search/[artista]
+- "abre [marca] [modelo]" → busca primero la URL exacta del producto con web_search
+- "Instagram de [usuario]" → https://www.instagram.com/[usuario]/
+- "noticias de [tema]" → https://news.google.com/search?q=[tema]&hl=es
+- "precio de [producto] en Amazon" → https://www.amazon.es/s?k=[producto]
+
+Casos de uso: "abre YouTube", "pon Angels de December Avenue", "canal de Willyrex", "abre la web de Strava", "muéstrame el precio del iPhone 16", "abre Firebase Console", "noticias de RiskRunner".
+Siempre incluye https:// completo. Si la URL es ambigua, usa web_search primero para obtener la URL exacta.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          url:    { type: 'string', description: 'URL completa incluyendo https://' },
+          reason: { type: 'string', description: 'Descripción breve de qué se abre (máx. 80 caracteres)' },
+        },
+        required: ['url'],
+      },
+    };
+
+    const githubQueryTool = {
+      name: 'github_query',
+      description: `Consulta el repositorio GitHub de RiskRunner (luisgc020300-beep).
+Úsala cuando el CEO pregunte sobre commits, PRs, issues, estado de CI/CD, ramas o código.
+Ejemplos: "¿cuál es el último commit?", "¿hay PRs abiertos?", "estado de los workflows".`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          query_type: {
+            type: 'string',
+            enum: ['commits', 'pulls', 'issues', 'workflows', 'branches', 'readme'],
+            description: 'Tipo de consulta a GitHub',
+          },
+          limit: { type: 'number', description: 'Número de resultados (máx 10)', default: 5 },
+        },
+        required: ['query_type'],
+      },
+    };
+
+    const PANELS = ['strategy', 'marketing', 'growth', 'finance', 'product', 'operations', 'intel', 'chat'];
+
+    const openPanelTool = {
+      name: 'open_panel',
+      description: `Abre un panel o departamento en la interfaz JARVIS del CEO.
+Úsalo cuando el CEO pida abrir, ver, ir a, mostrar o navegar a un departamento o al chat.
+Paneles disponibles: strategy, marketing, growth, finance, product, operations, intel, chat.
+Ejemplos: "abre estrategia", "muéstrame marketing", "ve a finanzas", "abre el chat".`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          panel: {
+            type: 'string',
+            enum: PANELS,
+            description: 'Nombre del panel a abrir',
+          },
+        },
+        required: ['panel'],
+      },
+    };
+
+    const closePanelTool = {
+      name: 'close_panel',
+      description: `Cierra un panel o departamento abierto en la interfaz JARVIS.
+Úsalo cuando el CEO pida cerrar, salir de, o volver desde un panel.
+Usa "all" para cerrar todo lo que esté abierto y volver al HUD principal.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          panel: {
+            type: 'string',
+            enum: [...PANELS, 'all'],
+            description: 'Panel a cerrar. "all" cierra todo.',
+          },
+        },
+        required: ['panel'],
+      },
+    };
+
+    const closeBrowserTabTool = {
+      name: 'close_browser_tab',
+      description: `Cierra la pestaña del navegador que JARVIS abrió previamente con open_url.
+Úsala cuando el CEO diga "cierra", "ciérrala", "cierra eso", "cierra la pestaña", "ya no lo necesito", "quita eso" referido a una web abierta.
+No confundir con close_panel (que cierra paneles de la interfaz JARVIS). Esta tool cierra el navegador externo.`,
+      input_schema: { type: 'object', properties: {}, required: [] },
+    };
+
+    const browserActionTool = {
+      name: 'browser_action',
+      description: `Navega a una URL con un navegador real (Chrome headless) y extrae el contenido renderizado con JavaScript.
+Útil para webs SPA/React/Angular, páginas de App Store/Play Store, dashboards de competidores o cualquier página donde web_search devuelva contenido pobre.
+
+IMPORTANTE: este navegador es headless e INVISIBLE para el CEO — los resultados llegan como texto al chat.
+Para ABRIR páginas visibles al CEO usa open_url, no este tool.
+
+Casos de uso:
+- "lee la página X y dime qué dice" → browser_action
+- "qué rating tiene [app] en el App Store" → browser_action
+- "qué pone en la web de [competidor]" → browser_action
+- Cualquier web JS-heavy que Tavily no indexe correctamente`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL completa incluyendo https:// a visitar' },
+        },
+        required: ['url'],
       },
     };
 
@@ -2172,7 +2826,7 @@ KPIs disponibles por departamento (índices 0-3):
           model:      'claude-sonnet-4-6',
           max_tokens: maxTokens,
           system:     systemPrompt,
-          tools:      [updateTool, missionTool],
+          tools:      [updateTool, missionTool, readPanelTool, createAlertTool, addCalendarEventTool, webSearchTool, openUrlTool, githubQueryTool, openPanelTool, closePanelTool, closeBrowserTabTool, browserActionTool],
           messages:   msgs,
         }),
       });
@@ -2206,7 +2860,8 @@ KPIs disponibles por departamento (índices 0-3):
         }
         patch.kpis = kpis;
       }
-      if (typeof input.notes === 'string') patch.notes = input.notes;
+      if (typeof input.notes    === 'string') patch.notes    = input.notes;
+      if (typeof input.progress === 'number') patch.progress = Math.min(100, Math.max(0, Math.round(input.progress)));
       if (Array.isArray(input.add_actions) && input.add_actions.length > 0) {
         const actions = dData.actions || [];
         for (const a of input.add_actions) {
@@ -2229,9 +2884,177 @@ KPIs disponibles por departamento (índices 0-3):
       await mRef.set(patch, { merge: true });
     }
 
+    // Leer todo el estado del panel desde Firestore
+    async function execReadPanel() {
+      const DEPT_KEYS = ['strategy','marketing','growth','finance','product','operations','intel'];
+      const [deptSnaps, mSnap] = await Promise.all([
+        Promise.all(DEPT_KEYS.map(d => db.collection('jarvis_hq').doc(uid).collection('departments').doc(d).get())),
+        db.collection('jarvis_hq').doc(uid).collection('config').doc('mission').get(),
+      ]);
+      const departments = {};
+      DEPT_KEYS.forEach((key, i) => {
+        const d = deptSnaps[i].exists ? deptSnaps[i].data() : {};
+        departments[key] = {
+          kpis:     (d.kpis || []).map((k, idx) => k ? { index: idx, value: k.value, sub: k.sub || '' } : null).filter(Boolean),
+          notes:    d.notes   || '',
+          actions:  (d.actions || []).map(a => ({ text: a.text, priority: a.priority, done: !!a.done })),
+          progress: typeof d.progress === 'number' ? d.progress : null,
+        };
+      });
+      const m = mSnap.exists ? mSnap.data() : {};
+      return JSON.stringify({
+        departments,
+        mission: {
+          start:    m.start    || null,
+          current:  m.current  || null,
+          goal:     m.goal     || null,
+          progress: typeof m.progress === 'number' ? m.progress : null,
+        },
+        readAt: new Date().toISOString(),
+      });
+    }
+
+    // Crear alerta en Firestore
+    async function execCreateAlert(input) {
+      const ref = db.collection('jarvis_hq').doc(uid).collection('alerts').doc();
+      await ref.set({
+        message:      String(input.message).slice(0, 200),
+        trigger_date: input.trigger_date,
+        department:   input.department,
+        priority:     input.priority,
+        active:       true,
+        createdAt:    FieldValue.serverTimestamp(),
+      });
+      return ref.id;
+    }
+
+    // Crear evento de calendario en Firestore
+    async function execAddCalendarEvent(input) {
+      const ref = db.collection('jarvis_hq').doc(uid).collection('calendar').doc();
+      await ref.set({
+        title:      String(input.title).slice(0, 150),
+        date:       input.date,
+        department: input.department,
+        priority:   input.priority,
+        done:       false,
+        createdAt:  FieldValue.serverTimestamp(),
+      });
+      return ref.id;
+    }
+
+    // Búsqueda web via Tavily
+    async function execWebSearch(input) {
+      const query = String(input.query || '').slice(0, 200);
+      const depth = input.search_depth === 'advanced' ? 'advanced' : 'basic';
+      const res = await fetch('https://api.tavily.com/search', {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${_tavilyKey.value().replace(/^﻿/, '')}`,
+        },
+        body: JSON.stringify({ query, search_depth: depth, max_results: 5, include_answer: true }),
+      });
+      if (!res.ok) throw new Error(`Tavily ${res.status}: ${await res.text().catch(() => '')}`);
+      const data = await res.json();
+      const results = (data.results || []).map(r => ({ title: r.title, url: r.url, snippet: (r.content || '').slice(0, 300) }));
+      return JSON.stringify({ answer: data.answer || null, results, query, searchedAt: new Date().toISOString() });
+    }
+
+    // Abrir URL en el navegador del CEO
+    async function execOpenUrl(input) {
+      try { new URL(input.url); } catch { throw new Error('URL inválida'); }
+      return input.url;
+    }
+
+    // GitHub API query — usa token opcional o acceso público
+    async function execGithubQuery(input) {
+      const OWNER = 'luisgc020300-beep';
+      const REPO  = 'mi_app';
+      const limit = Math.min(input.limit || 5, 10);
+      const headers = { 'Accept': 'application/vnd.github+json', 'User-Agent': 'JARVIS-RiskRunner' };
+
+      const ENDPOINTS = {
+        commits:   `/repos/${OWNER}/${REPO}/commits?per_page=${limit}`,
+        pulls:     `/repos/${OWNER}/${REPO}/pulls?state=open&per_page=${limit}`,
+        issues:    `/repos/${OWNER}/${REPO}/issues?state=open&per_page=${limit}`,
+        workflows: `/repos/${OWNER}/${REPO}/actions/runs?per_page=${limit}`,
+        branches:  `/repos/${OWNER}/${REPO}/branches?per_page=${limit}`,
+        readme:    `/repos/${OWNER}/${REPO}/readme`,
+      };
+      const path = ENDPOINTS[input.query_type] || ENDPOINTS.commits;
+      const res = await fetch(`https://api.github.com${path}`, { headers });
+      if (!res.ok) return JSON.stringify({ error: `GitHub ${res.status}`, path });
+      const data = await res.json();
+
+      if (input.query_type === 'commits') {
+        const commits = (Array.isArray(data) ? data : []).map(c => ({
+          sha: c.sha?.slice(0,7), message: c.commit?.message?.split('\n')[0],
+          author: c.commit?.author?.name, date: c.commit?.author?.date,
+        }));
+        return JSON.stringify({ commits, repo: REPO, queriedAt: new Date().toISOString() });
+      }
+      if (input.query_type === 'workflows') {
+        const runs = (data.workflow_runs || []).map(r => ({
+          id: r.id, name: r.name, status: r.status, conclusion: r.conclusion,
+          branch: r.head_branch, created_at: r.created_at,
+        }));
+        return JSON.stringify({ runs, queriedAt: new Date().toISOString() });
+      }
+      if (input.query_type === 'readme') {
+        const content = Buffer.from(data.content || '', 'base64').toString('utf8').slice(0, 2000);
+        return JSON.stringify({ content, encoding: 'utf8' });
+      }
+      return JSON.stringify(Array.isArray(data) ? data.slice(0, limit) : data);
+    }
+
+    // Automatización headless via Browserless.io
+    async function execBrowserAction(input) {
+      const { url } = input;
+      if (!url) throw new Error('url requerida para browser_action');
+      try { new URL(url); } catch { throw new Error('URL inválida'); }
+
+      let tokenVal;
+      try { tokenVal = _browserlessKey.value(); } catch {
+        throw new Error('BROWSERLESS_TOKEN no configurado en Secret Manager. Añádelo en Firebase Console → Secret Manager.');
+      }
+      if (!tokenVal) throw new Error('BROWSERLESS_TOKEN vacío');
+
+      const code = 'module.exports = async ({ page, context }) => {' +
+        'await page.goto(context.url, { waitUntil: "domcontentloaded", timeout: 30000 });' +
+        'await new Promise(r => setTimeout(r, 1500));' +
+        'const data = await page.evaluate(() => {' +
+        '  const metaEl = document.querySelector("meta[name=\'description\']") || document.querySelector("meta[property=\'og:description\']");' +
+        '  return {' +
+        '    title: document.title,' +
+        '    url: window.location.href,' +
+        '    text: document.body ? document.body.innerText.slice(0, 5000) : "",' +
+        '    metaDesc: metaEl ? metaEl.content : "",' +
+        '  };' +
+        '});' +
+        'return { data: JSON.stringify(data), type: "application/json" };' +
+        '}';
+
+      const res = await fetch(`https://chrome.browserless.io/function?token=${tokenVal}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ code, context: { url } }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Browserless ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      const result = await res.json();
+      return typeof result.data === 'string' ? result.data : JSON.stringify(result);
+    }
+
     // ── Bucle de tool use: sigue hasta end_turn o max 10 rondas ─────────────
     const updatedDepts  = [];
-    let   missionUpdated = false;
+    let   missionUpdated  = false;
+    let   alertCreated    = false;
+    let   calendarUpdated = false;
+    let   openUrl         = null;
+    const toolsUsed       = [];
+    const uiActions       = [];
     let   currentMsgs   = [...messages];
     let   reply         = 'Sin respuesta.';
 
@@ -2253,6 +3076,43 @@ KPIs disponibles por departamento (índices 0-3):
                 await execMissionCall(tb.input);
                 missionUpdated = true;
                 return { type: 'tool_result', tool_use_id: tb.id, content: 'Objetivo activo actualizado.' };
+              } else if (tb.name === 'read_panel') {
+                const panelJson = await execReadPanel();
+                return { type: 'tool_result', tool_use_id: tb.id, content: panelJson };
+              } else if (tb.name === 'create_alert') {
+                const alertId = await execCreateAlert(tb.input);
+                alertCreated = true;
+                return { type: 'tool_result', tool_use_id: tb.id, content: `Alerta creada (id: ${alertId}).` };
+              } else if (tb.name === 'add_calendar_event') {
+                const eventId = await execAddCalendarEvent(tb.input);
+                calendarUpdated = true;
+                return { type: 'tool_result', tool_use_id: tb.id, content: `Evento añadido al calendario (id: ${eventId}).` };
+              } else if (tb.name === 'web_search') {
+                if (!toolsUsed.includes('web_search')) toolsUsed.push('web_search');
+                const searchJson = await execWebSearch(tb.input);
+                return { type: 'tool_result', tool_use_id: tb.id, content: searchJson };
+              } else if (tb.name === 'github_query') {
+                if (!toolsUsed.includes('github_query')) toolsUsed.push('github_query');
+                const ghJson = await execGithubQuery(tb.input);
+                return { type: 'tool_result', tool_use_id: tb.id, content: ghJson };
+              } else if (tb.name === 'open_url') {
+                if (!toolsUsed.includes('open_url')) toolsUsed.push('open_url');
+                const url = await execOpenUrl(tb.input);
+                openUrl = url;
+                return { type: 'tool_result', tool_use_id: tb.id, content: `URL lista para abrir: ${url}` };
+              } else if (tb.name === 'open_panel') {
+                uiActions.push({ action: 'open_panel', panel: tb.input.panel });
+                return { type: 'tool_result', tool_use_id: tb.id, content: `Panel "${tb.input.panel}" abierto en la interfaz.` };
+              } else if (tb.name === 'close_panel') {
+                uiActions.push({ action: 'close_panel', panel: tb.input.panel });
+                return { type: 'tool_result', tool_use_id: tb.id, content: `Panel "${tb.input.panel}" cerrado en la interfaz.` };
+              } else if (tb.name === 'close_browser_tab') {
+                uiActions.push({ action: 'close_tab' });
+                return { type: 'tool_result', tool_use_id: tb.id, content: 'Pestaña del navegador cerrada.' };
+              } else if (tb.name === 'browser_action') {
+                if (!toolsUsed.includes('browser_action')) toolsUsed.push('browser_action');
+                const pageContent = await execBrowserAction(tb.input);
+                return { type: 'tool_result', tool_use_id: tb.id, content: pageContent };
               } else {
                 const dept = await execDeptCall(tb.input);
                 if (!updatedDepts.includes(dept)) updatedDepts.push(dept);
@@ -2285,6 +3145,6 @@ KPIs disponibles por departamento (índices 0-3):
     // Guardar respuesta del asistente (el mensaje del usuario ya fue guardado antes del loop)
     await memRef.add({ role: 'assistant', content: reply, department, ts: FieldValue.serverTimestamp() });
 
-    return { reply, updatedDepts, missionUpdated };
+    return { reply, updatedDepts, missionUpdated, alertCreated, calendarUpdated, openUrl, toolsUsed, uiActions };
   }
 );

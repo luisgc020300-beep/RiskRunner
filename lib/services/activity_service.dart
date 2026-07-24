@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -210,6 +211,16 @@ class ActivityService {
         ...datos,
         'timestamp': FieldValue.serverTimestamp(),
       });
+      try {
+        FirebaseAnalytics.instance.logEvent(
+          name: 'carrera_completada',
+          parameters: {
+            'modo':              (datos['modo'] as String?) ?? 'desconocido',
+            'distancia_km':      (datos['distancia'] as num?)?.toDouble() ?? 0.0,
+            'duracion_segundos': (datos['tiempo_segundos'] as num?)?.toInt() ?? 0,
+          },
+        );
+      } catch (_) {} // Analytics nunca debe impedir que la sesión se guarde
       return ref.id;
     } catch (e) {
       debugPrint('ActivityService.registrarSesion error: $e');

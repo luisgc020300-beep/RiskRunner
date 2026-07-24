@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -27,6 +28,7 @@ import '../services/league_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
+import '../services/desafios_service.dart';
 import '../services/zona_service.dart';
 import 'importar_carrera_screen.dart';
 import '../services/subscription_service.dart';
@@ -883,41 +885,17 @@ class _PerfilScreenState extends State<PerfilScreen>
       return;
     }
     try {
-      final db     = FirebaseFirestore.instance;
-      final myDoc  = await db.collection('players').doc(myUserId).get();
-      final myNick = myDoc.data()?['nickname'] as String? ?? 'Runner';
-
-      // Transacción atómica: verificar saldo y descontar en un solo paso
-      await db.runTransaction((tx) async {
-        final snap       = await tx.get(db.collection('players').doc(myUserId!));
-        final misMonedas = (snap.data()?['monedas'] as num?)?.toInt() ?? 0;
-        if (misMonedas < apuesta) throw 'insufficient_coins';
-        tx.update(snap.reference, {'monedas': FieldValue.increment(-apuesta)});
-      });
-
-      await db.collection('desafios').add({
-        'retadorId': myUserId, 'retadorNick': myNick,
-        'retadoId': viewedUserId, 'retadoNick': nickname,
-        'apuesta': apuesta, 'duracionHoras': horas, 'estado': 'pendiente',
-        'rondas': 0, 'puntosRetador': 0, 'puntosRetado': 0,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-      await db.collection('notifications').add({
-        'toUserId': viewedUserId, 'type': 'desafio_recibido',
-        'fromUserId': myUserId, 'fromNickname': myNick,
-        'message': ' $myNick te reta: ${horas}h · $apuesta . ¿Aceptas?',
-        'apuesta': apuesta, 'duracionHoras': horas,
-        'esContrapropuesta': false, 'read': false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await DesafiosService.enviarDesafio(
+        retadoId: viewedUserId!,
+        apuesta:  apuesta,
+        horas:    horas,
+      );
       _ultimoReto = DateTime.now();
       _mostrarSnackbar('¡Desafío enviado!');
+    } on FirebaseFunctionsException catch (e) {
+      _mostrarSnackbar(e.message ?? 'Error al enviar el desafío', error: true);
     } catch (e) {
-      if (e == 'insufficient_coins') {
-        _mostrarSnackbar('No tienes suficientes monedas', error: true);
-      } else {
-        _mostrarSnackbar('Error al enviar el desafío', error: true);
-      }
+      _mostrarSnackbar('Error al enviar el desafío', error: true);
     }
   }
 

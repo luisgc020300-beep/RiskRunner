@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -64,8 +66,30 @@ class TrackingService {
 
   void start() {
     _sub?.cancel();
-    _sub = _positionStreamFactory()
-        .listen(_onPosition, onError: (_) => _controller.add(GpsErrorEvent()));
+    try {
+      _sub = _positionStreamFactory().listen(
+        _onPosition,
+        onError: (Object e, StackTrace st) {
+          _controller.add(GpsErrorEvent());
+          _recordErrorSeguro(e, st, 'tracking_service_stream');
+        },
+      );
+    } catch (e, st) {
+      debugPrint('TrackingService.start: $e');
+      _controller.add(GpsErrorEvent());
+      _recordErrorSeguro(e, st, 'tracking_service_start');
+    }
+  }
+
+  // Reportar a Crashlytics es diagnóstico, no crítico — un fallo aquí (ej.
+  // Firebase sin inicializar en tests) nunca debe impedir que el evento de
+  // error ya emitido llegue a sus listeners.
+  void _recordErrorSeguro(Object e, StackTrace st, String reason) {
+    try {
+      FirebaseCrashlytics.instance.recordError(e, st, reason: reason);
+    } catch (_) {
+      debugPrint('TrackingService: Crashlytics no disponible ($reason)');
+    }
   }
 
   void pause() {
@@ -91,7 +115,17 @@ class TrackingService {
 
   void _onPosition(Position pos) {
     if (_session.isPaused) return;
+    try {
+      _procesarPosicion(pos);
+    } catch (e, st) {
+      // Un punto GPS malformado no debe tirar abajo el resto de la sesión
+      // de tracking en vivo — se registra y se sigue escuchando.
+      debugPrint('TrackingService._onPosition: $e');
+      _recordErrorSeguro(e, st, 'tracking_service_onPosition');
+    }
+  }
 
+  void _procesarPosicion(Position pos) {
     final acResultado = _antiCheat.analizarPunto(pos);
     if (!acResultado.esValido) {
       if (_antiCheat.sesionCancelada) {

@@ -20,6 +20,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
@@ -703,7 +704,9 @@ class TerritoryService {
             _playerDataCache[user.uid] = playerDoc.data()!;
             _playerCacheTs[user.uid] = DateTime.now();
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('TerritoryService: error cargando datos del jugador propio: $e');
+        }
       }
       final propios = _parsearDocs(snap.docs, user.uid, playerDataMap);
       debugPrint('🗺️ TerritoryService solitario: ${propios.length} territorios propios');
@@ -1048,6 +1051,12 @@ class TerritoryService {
         invalidarCache();
         AppError.log('conquista:ok accion=$accion id=$docId');
         debugPrint('⚔️ Conquista exitosa: $accion en $docId');
+        try {
+          FirebaseAnalytics.instance.logEvent(
+            name: 'territorio_conquistado',
+            parameters: {'accion': accion},
+          );
+        } catch (_) {} // Analytics nunca debe invalidar una conquista real
       }
       return ok;
     } on FirebaseFunctionsException catch (e) {
