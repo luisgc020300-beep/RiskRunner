@@ -611,6 +611,10 @@ exports.conquistarTerritorio = onCall(async (request) => {
         });
       }
 
+      batch.update(db.collection('players').doc(uid), {
+        xp: FieldValue.increment(XP_POR_CONQUISTA_LOCAL),
+      });
+
       await batch.commit();
 
       // Notificar a jugadores cercanos activos para que refresquen el globo
@@ -849,7 +853,10 @@ exports.conquistarTerritorioGlobal = onCall(
         territorio_conquistado: territorioId,
       });
       // Contador atómico en el documento del jugador
-      tx.update(playerRef, { global_territories_count: FieldValue.increment(1) });
+      tx.update(playerRef, {
+        global_territories_count: FieldValue.increment(1),
+        xp: FieldValue.increment(XP_POR_CONQUISTA_GLOBAL),
+      });
       // Decrementar contador del dueño anterior solo si tiene al menos 1 (evita underflow)
       if (anteriorDueno && anteriorDueno !== uid && anteriorCount > 0) {
         tx.update(db.collection('players').doc(anteriorDueno), { global_territories_count: FieldValue.increment(-1) });
@@ -1343,6 +1350,47 @@ exports.activarEscudo = onCall(
 const MOTIVOS_PUNTOS_LIGA = ['carrera_competitiva', 'ruta_guardada'];
 const MAX_DELTA_ABS_LIGA  = 500; // techo de seguridad; ningún motivo real debería acercarse
 
+// =============================================================================
+// XP Y NIVEL DE JUGADOR
+// xp = distancia corrida + territorios conquistados + desafíos ganados.
+// Cada nivel cuesta un 15% más de XP que el anterior (curva RPG estándar).
+// =============================================================================
+const XP_POR_KM               = 5;
+const XP_POR_CONQUISTA_LOCAL  = 40;
+const XP_POR_CONQUISTA_GLOBAL = 60;
+const XP_POR_VICTORIA_DESAFIO = 25;
+
+function _nivelDesdeXp(xp) {
+  let nivel           = 1;
+  let costeAcumulado  = 0;
+  let costeNivel      = 100; // XP para pasar de nivel 1 a 2
+  while (xp >= costeAcumulado + costeNivel) {
+    costeAcumulado += costeNivel;
+    nivel          += 1;
+    costeNivel      = Math.round(costeNivel * 1.15);
+  }
+  return nivel;
+}
+
+// Único punto que escribe 'nivel': reacciona a cualquier cambio de 'xp'
+// (carrera, conquista local/global, victoria de desafío) sin duplicar la
+// fórmula de nivel en cada call site que otorga XP.
+exports.onPlayerXpChanged = onDocumentUpdated(
+  { document: 'players/{uid}', region: 'europe-west1' },
+  async (event) => {
+    const antes   = event.data.before.data();
+    const despues = event.data.after.data();
+    const xpAntes   = antes.xp   ?? 0;
+    const xpDespues = despues.xp ?? 0;
+    if (xpAntes === xpDespues) return;
+
+    const nivelNuevo = _nivelDesdeXp(xpDespues);
+    if (nivelNuevo === (despues.nivel ?? 1)) return;
+
+    await event.data.after.ref.update({ nivel: nivelNuevo });
+  }
+);
+
 exports.sumarPuntosLigaJugador = onCall(
   { region: 'europe-west1' },
   async (request) => {
@@ -1381,6 +1429,9 @@ exports.sumarPuntosLigaJugador = onCall(
     }
     delta = Math.max(-MAX_DELTA_ABS_LIGA, Math.min(MAX_DELTA_ABS_LIGA, delta));
 
+    // request.data.distanciaKm ya fue validado arriba en ambas ramas de motivo
+    const xpGanada = Math.round((request.data.distanciaKm ?? 0) * XP_POR_KM);
+
     const ref = db.collection('players').doc(uid);
 
     const resultado = await db.runTransaction(async (tx) => {
@@ -1409,6 +1460,7 @@ exports.sumarPuntosLigaJugador = onCall(
         ultimaLlamadaSumaLiga: FieldValue.serverTimestamp(),
       };
       if (nuevaLigaId !== ligaActual) updates.liga = nuevaLigaId;
+      if (xpGanada > 0) updates.xp = FieldValue.increment(xpGanada);
       tx.update(ref, updates);
 
       return { puntosLiga: ptsNuevos, liga: nuevaLigaId, ligaCambio: nuevaLigaId !== ligaActual };
@@ -1753,11 +1805,11 @@ async function _resolverDesafio(desafioId) {
       ganadorId,
       resolvedAt : FieldValue.serverTimestamp(),
     });
-    if (premio > 0) {
-      tx.update(db.collection('players').doc(ganadorId), {
-        monedas: FieldValue.increment(premio),
-      });
-    }
+    tx.update(db.collection('players').doc(ganadorId), {
+      monedas   : FieldValue.increment(premio),
+      victorias : FieldValue.increment(1),
+      xp        : FieldValue.increment(XP_POR_VICTORIA_DESAFIO),
+    });
     setImmediate(() => _enviarNotificacionesDesafio({
       desafioId, ganadorId, perdedorId,
       ganadorNick, perdedorNick, premio,
@@ -2234,6 +2286,65 @@ exports.getDashboardSummary = onRequest(
       console.error('getDashboardSummary error:', e);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
+  }
+);
+
+// =============================================================================
+// PLAN DE ENTRENAMIENTO IA — generarPlanIA
+// Callable seguro: proxy a Anthropic para el chat de generación de planes
+// (lib/pestañas/ai_plan_screen.dart). Reutiliza _anthropicKey ya provisionado.
+// =============================================================================
+
+exports.generarPlanIA = onCall(
+  { region: 'europe-west1', secrets: [_anthropicKey] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+
+    const { system, messages } = request.data;
+
+    if (typeof system !== 'string' || !Array.isArray(messages)) {
+      throw new HttpsError('invalid-argument', 'Parámetros inválidos.');
+    }
+    if (messages.length > 50) {
+      throw new HttpsError('invalid-argument', 'Demasiados mensajes en el historial.');
+    }
+
+    const apiKey = _anthropicKey.value();
+    if (!apiKey) {
+      throw new HttpsError('internal', 'API key no configurada en el servidor.');
+    }
+
+    let res;
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:  'POST',
+        headers: {
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: JSON.stringify({
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          system,
+          messages,
+        }),
+      });
+    } catch (e) {
+      console.error('generarPlanIA fetch error:', e);
+      throw new HttpsError('unavailable', 'No se pudo contactar con el servicio de IA.');
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`generarPlanIA Anthropic error ${res.status}:`, body);
+      throw new HttpsError('internal', `Error del servicio de IA: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return { reply: data.content[0].text };
   }
 );
 

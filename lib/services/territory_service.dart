@@ -720,8 +720,9 @@ class TerritoryService {
           .where('userId', isEqualTo: user.uid)
           .get();
       final propios = _parsearDocs(snap.docs, user.uid, {});
-      _cachedTerritorios = propios;
-      _cacheTimestamp    = DateTime.now();
+      // No cachear: es un resultado parcial (solo propios), no el listado
+      // completo del radio geográfico. Cachearlo aquí envenenaría cargas
+      // posteriores con posición GPS real durante el TTL de 2 min.
       return modo != null ? _filtrarPorModo(propios, modo, user.uid) : propios;
     }
 

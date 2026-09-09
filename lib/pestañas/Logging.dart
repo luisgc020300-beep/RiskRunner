@@ -194,6 +194,7 @@ class _LoginScreenState extends State<LoginScreen>
           'email':            user.email ?? '',
           'victorias':        0,
           'nivel':            1,
+          'xp':               0,
           'monedas':          100,
           'fecha_registro':   FieldValue.serverTimestamp(),
           'proteccion_hasta': Timestamp.fromDate(
