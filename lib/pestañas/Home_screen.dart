@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
 import '../core/app_error.dart';
 import '../widgets/custom_navbar.dart';
 import '../shell/app_shell.dart';
@@ -467,6 +468,35 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  Future<void> _compartirPost(FeedPost post) async {
+    HapticFeedback.selectionClick();
+    final buffer = StringBuffer();
+    if (post.titulo != null && post.titulo!.isNotEmpty) {
+      buffer.writeln(post.titulo);
+    }
+    if (post.distanciaKm != null) {
+      String tiempoStr = '';
+      if (post.tiempo != null) {
+        final h = post.tiempo!.inHours;
+        final m = post.tiempo!.inMinutes.remainder(60);
+        final s = post.tiempo!.inSeconds.remainder(60);
+        tiempoStr = h > 0
+            ? ' en ${h}h ${m.toString().padLeft(2, '0')}m'
+            : ' en ${m}m ${s.toString().padLeft(2, '0')}s';
+      }
+      buffer.writeln('${post.distanciaKm!.toStringAsFixed(2)} km$tiempoStr');
+    } else if (post.descripcion != null && post.descripcion!.isNotEmpty) {
+      buffer.writeln(post.descripcion);
+    }
+    buffer.write('— ${post.userNickname} en RiskRunner');
+    try {
+      await SharePlus.instance.share(ShareParams(text: buffer.toString().trim()));
+    } catch (e) {
+      debugPrint('Error compartiendo post: $e');
+      if (mounted) _snackError('No se pudo compartir');
+    }
+  }
+
 
   void _mostrarMenuPost(FeedPost post) {
     final esPropio = userId != null && post.userId == userId;
@@ -530,15 +560,30 @@ class _HomeScreenState extends State<HomeScreen>
                 leading: Icon(Icons.flag_outlined, color: _T.sub),
                 title: Text('Reportar publicación',
                     style: _raj(14, FontWeight.w600, _T.white)),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Publicación reportada',
-                        style: _raj(13, FontWeight.w500, _T.white)),
-                    backgroundColor: _T.bg2,
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2),
-                  ));
+                  if (userId == null) return;
+                  try {
+                    await FirebaseFirestore.instance.collection('reportes_posts').add({
+                      'postId':       post.id,
+                      'autorId':      post.userId,
+                      'reportanteId': userId,
+                      'estado':       'pendiente',
+                      'timestamp':    FieldValue.serverTimestamp(),
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text('Publicación reportada. Gracias por avisarnos.',
+                            style: _raj(13, FontWeight.w500, _T.white)),
+                        backgroundColor: _T.bg2,
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
+                      ));
+                    }
+                  } catch (e) {
+                    debugPrint('Error reportando post: $e');
+                    if (mounted) _snackError('No se pudo enviar el reporte');
+                  }
                 },
               ),
             const SizedBox(height: 8),
@@ -2015,7 +2060,7 @@ class _HomeScreenState extends State<HomeScreen>
           color: _T.sub,
           onTap: () => _mostrarComentariosSheet(post),
         ),
-        _actionBtn(icon: Icons.share_outlined, color: _T.sub, onTap: () {}),
+        _actionBtn(icon: Icons.share_outlined, color: _T.sub, onTap: () => _compartirPost(post)),
         const Spacer(),
         if (post.ruta != null && post.ruta!.isNotEmpty)
           _actionBtn(icon: Icons.route_outlined, color: _T.sub, onTap: () => _guardarRuta(post)),

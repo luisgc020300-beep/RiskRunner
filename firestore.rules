@@ -310,6 +310,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── reportes_posts ───────────────────────────────────────────────────────
+    // Denuncias de publicaciones del feed ("..." > Reportar publicación).
+    // Solo un admin puede leerlas — el cliente nunca ve reportes.
+    match /reportes_posts/{id} {
+      allow read:   if isAdmin();
+      allow create: if isAuth() && request.resource.data.reportanteId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ── daily_challenges ─────────────────────────────────────────────────────
     match /daily_challenges/{id} {
       allow read:  if isAuth();
