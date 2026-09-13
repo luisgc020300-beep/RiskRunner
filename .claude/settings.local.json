@@ -6,7 +6,10 @@
       "Bash(git push *)",
       "Bash(dart analyze *)",
       "Bash(flutter analyze *)",
-      "Bash(firebase deploy *)"
+      "Bash(firebase deploy *)",
+      "WebFetch(domain:github.com)",
+      "Bash(flutter test *)",
+      "Bash(node --check index.js)"
     ]
   }
 }

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RiskRunner — Beta Testers Granada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0D0D12;--bg2:#13131A;--bg3:#1A1A24;
+  --border:#2A2A3A;--border-active:#CC2222;
+  --red:#CC2222;--gold:#D4A84C;
+  --text:#F0F0F0;--text-dim:#6B6B80;--text-mid:#9090A8;
+  --radius:10px;--radius-sm:6px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+
+/* HEADER */
+.header{padding:24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.logo-mark{width:36px;height:36px;background:var(--red);display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:20px;height:20px;fill:white}
+.logo-text{font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;letter-spacing:1.5px;color:var(--text)}
+
+/* HERO */
+.hero{padding:48px 24px 32px;max-width:560px;margin:0 auto;width:100%}
+.badge{display:inline-flex;align-items:center;gap:6px;background:rgba(204,34,34,0.12);border:1px solid rgba(204,34,34,0.3);color:var(--red);font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;padding:4px 10px;border-radius:var(--radius-sm);margin-bottom:20px}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:var(--red)}
+h1{font-family:'Rajdhani',sans-serif;font-size:32px;font-weight:700;line-height:1.2;margin-bottom:12px;letter-spacing:0.5px}
+h1 span{color:var(--red)}
+.tagline{color:var(--text-mid);font-size:15px;line-height:1.7;margin-bottom:32px}
+
+/* STATS BAR */
+.stats{display:flex;gap:24px;margin-bottom:32px;padding-bottom:32px;border-bottom:1px solid var(--border)}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat-num{font-family:'Rajdhani',sans-serif;font-size:24px;font-weight:700;color:var(--gold)}
+.stat-label{font-size:11px;color:var(--text-dim);letter-spacing:1px}
+
+/* FORM */
+.form-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:560px;margin:0 auto 48px;width:100%}
+.form-title{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:20px}
+.field{margin-bottom:16px}
+label{display:block;font-size:12px;font-weight:500;color:var(--text-mid);margin-bottom:6px;letter-spacing:0.5px}
+input,select{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);font-family:'Inter',sans-serif;font-size:14px;
+  padding:11px 14px;border-radius:var(--radius-sm);outline:none;
+  transition:border-color .15s;appearance:none;
+}
+input::placeholder{color:var(--text-dim)}
+input:focus,select:focus{border-color:var(--red)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B6B80' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer}
+select option{background:var(--bg2)}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.btn-submit{
+  width:100%;margin-top:8px;
+  background:var(--red);color:white;border:none;
+  font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;
+  padding:14px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;
+}
+.btn-submit:hover{background:#aa1c1c;transform:translateY(-1px)}
+.btn-submit:disabled{opacity:.6;cursor:default;transform:none}
+
+/* DISCLAIMER */
+.disclaimer{margin-top:12px;font-size:11px;color:var(--text-dim);text-align:center;line-height:1.6}
+
+/* SUCCESS STATE */
+.success-state{display:none;text-align:center;padding:40px 20px}
+.success-icon{width:56px;height:56px;background:rgba(204,34,34,0.15);border:2px solid var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+.success-icon svg{width:24px;height:24px;stroke:var(--red);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.success-title{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;margin-bottom:8px}
+.success-body{color:var(--text-mid);font-size:14px;line-height:1.7}
+
+/* HOW IT WORKS */
+.how{max-width:560px;margin:0 auto;padding:0 24px 48px}
+.section-title{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--text-dim);margin-bottom:20px}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step-num{width:28px;height:28px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;color:var(--red);flex-shrink:0;margin-top:1px}
+.step-text{font-size:14px;color:var(--text-mid);line-height:1.6}
+.step-text strong{color:var(--text);font-weight:500}
+
+/* FOOTER */
+.footer{margin-top:auto;padding:20px 24px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--text-dim)}
+
+/* ERROR */
+.field-error{font-size:11px;color:var(--red);margin-top:4px;display:none}
+
+@media(max-width:480px){
+  .row{grid-template-columns:1fr}
+  h1{font-size:26px}
+  .stats{flex-wrap:wrap;gap:16px}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo-mark">
+    <svg viewBox="0 0 20 20"><polygon points="10,2 18,7 18,13 10,18 2,13 2,7"/></svg>
+  </div>
+  <span class="logo-text">RISKRUNNER</span>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="badge"><div class="badge-dot"></div>BETA CERRADA — GRANADA</div>
+  <h1>Corre. Conquista.<br><span>Domina tu barrio.</span></h1>
+  <p class="tagline">
+    La primera app donde cada kilómetro que corres cambia el mapa real.
+    Conquista territorios en Granada, ataca los de otros runners y sube de liga.
+    Buscamos los primeros 100 testers antes del lanzamiento.
+  </p>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">100</div>
+      <div class="stat-label">PLAZAS BETA</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">0€</div>
+      <div class="stat-label">COSTE ACCESO</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">5 JUL</div>
+      <div class="stat-label">APERTURA</div>
+    </div>
+  </div>
+</div>
+
+<!-- FORM -->
+<div class="form-card" id="formCard">
+  <div class="form-title">SOLICITAR ACCESO BETA</div>
+  <form id="betaForm" novalidate>
+
+    <div class="field">
+      <label for="nombre">Nombre</label>
+      <input type="text" id="nombre" name="nombre" placeholder="Tu nombre" autocomplete="given-name">
+      <div class="field-error" id="err-nombre">Introduce tu nombre</div>
+    </div>
+
+    <div class="field">
+      <label for="instagram">Usuario de Instagram</label>
+      <input type="text" id="instagram" name="instagram" placeholder="@tu_usuario">
+      <div class="field-error" id="err-instagram">Introduce tu usuario de Instagram</div>
+    </div>
+
+    <div class="field">
+      <label for="email">Email (opcional)</label>
+      <input type="email" id="email" name="email" placeholder="para avisos de acceso">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="dispositivo">Dispositivo</label>
+        <select id="dispositivo" name="dispositivo">
+          <option value="" disabled selected>Selecciona</option>
+          <option value="ios">iPhone (iOS)</option>
+          <option value="android">Android</option>
+        </select>
+        <div class="field-error" id="err-dispositivo">Selecciona tu dispositivo</div>
+      </div>
+      <div class="field">
+        <label for="km_semana">Km/semana aprox.</label>
+        <select id="km_semana" name="km_semana">
+          <option value="" disabled selected>Selecciona</option>
+          <option value="5">Menos de 5 km</option>
+          <option value="15">5 a 20 km</option>
+          <option value="35">20 a 50 km</option>
+          <option value="60">Más de 50 km</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="barrio">Barrio donde sueles correr</label>
+      <input type="text" id="barrio" name="barrio" placeholder="ej: Zaidín, Albaicín, Genil...">
+    </div>
+
+    <button type="submit" class="btn-submit" id="btnSubmit">QUIERO SER BETA TESTER</button>
+    <div class="disclaimer">Al registrarte aceptas recibir información sobre el acceso beta de RiskRunner. Sin spam.</div>
+  </form>
+
+  <!-- SUCCESS -->
+  <div class="success-state" id="successState">
+    <div class="success-icon">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="success-title">Solicitud recibida</div>
+    <p class="success-body">
+      Estás en la lista. Te contactaremos por Instagram cuando se abra el acceso beta el 5 de julio.
+      <br><br>Mientras tanto, sigue corriendo.
+    </p>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="how">
+  <div class="section-title">CÓMO FUNCIONA</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text"><strong>Sal a correr</strong> — la app registra tu ruta GPS en tiempo real.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text"><strong>Conquista territorios</strong> — el área que rodeas con tu carrera queda marcada en el mapa como tuya.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text"><strong>Ataca y defiende</strong> — otros runners pueden invadir tus zonas. Corre más rápido o más lejos para resistir.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text"><strong>Sube de liga</strong> — ranking semanal por barrio. El que más territorio controle el lunes gana las recompensas.</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">RiskRunner &copy; 2026 — Granada</div>
+
+<script>
+const FUNCTION_URL = 'https://europe-west1-runnerriskapp.cloudfunctions.net/registrarBetaTester';
+
+document.getElementById('betaForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  // Clear errors
+  document.querySelectorAll('.field-error').forEach(el => el.style.display = 'none');
+
+  const nombre      = document.getElementById('nombre').value.trim();
+  const instagram   = document.getElementById('instagram').value.trim();
+  const email       = document.getElementById('email').value.trim();
+  const dispositivo = document.getElementById('dispositivo').value;
+  const km_semana   = document.getElementById('km_semana').value;
+  const barrio      = document.getElementById('barrio').value.trim();
+
+  let valid = true;
+  if (!nombre) { showErr('nombre'); valid = false; }
+  if (!instagram) { showErr('instagram'); valid = false; }
+  if (!dispositivo) { showErr('dispositivo'); valid = false; }
+  if (!valid) return;
+
+  const btn = document.getElementById('btnSubmit');
+  btn.textContent = 'ENVIANDO...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, instagram, email, dispositivo, km_semana: km_semana ? Number(km_semana) : null, barrio }),
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      document.getElementById('betaForm').style.display = 'none';
+      document.getElementById('successState').style.display = 'block';
+    } else {
+      throw new Error(data.error || 'Error desconocido');
+    }
+  } catch (err) {
+    btn.textContent = 'QUIERO SER BETA TESTER';
+    btn.disabled = false;
+    alert('Error al enviar. Inténtalo de nuevo o escríbenos por Instagram @riskrunner_app');
+  }
+});
+
+function showErr(id) {
+  document.getElementById('err-' + id).style.display = 'block';
+}
+</script>
+</body>
+</html>

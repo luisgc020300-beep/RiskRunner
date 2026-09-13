@@ -49,3 +49,6 @@ app.*.map.json
 # Agent .env con API keys
 riskrunner/agent/.env
 riskrunner/agent/reports/
+
+# Caché local del Firebase CLI (hosting) — no es código
+.firebase/
