@@ -10,6 +10,7 @@ import '../services/league_service.dart';
 import '../services/zona_service.dart';
 import '../scripts/seed_fantasmas_granada.dart';
 import 'avatar_customizer_screen.dart';
+import 'blocked_users_screen.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Colores de territorio disponibles ──────────────────────────────���─────────
@@ -60,6 +61,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   AvatarConfig _avatarConfig    = const AvatarConfig();
   int          _monedas         = 0;
 
+  bool get _tieneAuthPassword => FirebaseAuth.instance.currentUser?.providerData
+          .any((p) => p.providerId == 'password') ??
+      false;
+
+  final Map<String, bool> _notifPrefs = {
+    'social':      true,
+    'desafios':    true,
+    'clanes':      true,
+    'territorios': true,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +95,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _esAdmin       = d['esAdmin'] as bool? ?? false;
           _monedas       = (d['monedas'] as num?)?.toInt() ?? 0;
           _perfilPrivado = d['perfilPrivado'] as bool? ?? false;
+          final prefsGuardadas = d['notifPrefs'] as Map<String, dynamic>?;
+          if (prefsGuardadas != null) {
+            for (final k in _notifPrefs.keys) {
+              if (prefsGuardadas[k] is bool) _notifPrefs[k] = prefsGuardadas[k] as bool;
+            }
+          }
           if (avatarJson != null) {
             try { _avatarConfig = AvatarConfig.fromMap(avatarJson); } catch (_) {}
           }
@@ -236,6 +254,215 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) setState(() => _perfilPrivado = !val);
     }
     if (mounted) setState(() => _savingPrivado = false);
+  }
+
+  Future<void> _cambiarContrasena(Color surface, Color textPri, Color textSec) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return;
+
+    final actualCtrl   = TextEditingController();
+    final nuevaCtrl    = TextEditingController();
+    final confirmarCtrl = TextEditingController();
+    final loading      = ValueNotifier(false);
+    final error        = ValueNotifier<String?>(null);
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => ValueListenableBuilder<bool>(
+        valueListenable: loading,
+        builder: (_, cargando, __) => AlertDialog(
+          backgroundColor: surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Text('Cambiar contraseña',
+              style: GoogleFonts.inter(color: textPri, fontSize: 17, fontWeight: FontWeight.w700)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: actualCtrl,
+              obscureText: true,
+              style: GoogleFonts.inter(color: textPri, fontSize: 14),
+              decoration: InputDecoration(
+                  labelText: 'Contraseña actual',
+                  labelStyle: GoogleFonts.inter(color: textSec, fontSize: 13)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: nuevaCtrl,
+              obscureText: true,
+              style: GoogleFonts.inter(color: textPri, fontSize: 14),
+              decoration: InputDecoration(
+                  labelText: 'Nueva contraseña (mín. 6 caracteres)',
+                  labelStyle: GoogleFonts.inter(color: textSec, fontSize: 13)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: confirmarCtrl,
+              obscureText: true,
+              style: GoogleFonts.inter(color: textPri, fontSize: 14),
+              decoration: InputDecoration(
+                  labelText: 'Confirmar nueva contraseña',
+                  labelStyle: GoogleFonts.inter(color: textSec, fontSize: 13)),
+            ),
+            ValueListenableBuilder<String?>(
+              valueListenable: error,
+              builder: (_, msg, __) => msg == null
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(msg,
+                          style: GoogleFonts.inter(color: const Color(0xFFFF453A), fontSize: 12)),
+                    ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+              onPressed: cargando ? null : () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: GoogleFonts.inter(color: textSec, fontWeight: FontWeight.w500)),
+            ),
+            TextButton(
+              onPressed: cargando ? null : () async {
+                final actual    = actualCtrl.text;
+                final nueva     = nuevaCtrl.text;
+                final confirmar = confirmarCtrl.text;
+                if (nueva.length < 6) {
+                  error.value = 'La nueva contraseña debe tener al menos 6 caracteres.';
+                  return;
+                }
+                if (nueva != confirmar) {
+                  error.value = 'Las contraseñas no coinciden.';
+                  return;
+                }
+                loading.value = true;
+                error.value   = null;
+                try {
+                  final cred = EmailAuthProvider.credential(email: user.email!, password: actual);
+                  await user.reauthenticateWithCredential(cred);
+                  await user.updatePassword(nueva);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Contraseña actualizada correctamente.')));
+                  }
+                } on FirebaseAuthException catch (e) {
+                  loading.value = false;
+                  error.value = switch (e.code) {
+                    'wrong-password' || 'invalid-credential' => 'La contraseña actual no es correcta.',
+                    'weak-password' => 'La nueva contraseña es demasiado débil.',
+                    'requires-recent-login' => 'Por seguridad, cierra sesión y vuelve a entrar antes de cambiarla.',
+                    _ => 'Error: ${e.message}',
+                  };
+                } catch (_) {
+                  loading.value = false;
+                  error.value = 'Error al cambiar la contraseña. Inténtalo de nuevo.';
+                }
+              },
+              child: cargando
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text('Cambiar', style: GoogleFonts.inter(color: const Color(0xFFCC2222), fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleNotifPref(String categoria, bool val) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    setState(() => _notifPrefs[categoria] = val);
+    try {
+      await FirebaseFirestore.instance
+          .collection('players')
+          .doc(uid)
+          .update({'notifPrefs.$categoria': val});
+    } catch (_) {
+      if (mounted) setState(() => _notifPrefs[categoria] = !val);
+    }
+  }
+
+  Future<void> _reportarProblema(Color surface, Color textPri, Color textSec) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final ctrl    = TextEditingController();
+    final loading = ValueNotifier(false);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (bCtx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: MediaQuery.of(bCtx).viewInsets.bottom + 28,
+        ),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: loading,
+          builder: (_, cargando, __) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Reportar un problema',
+                  style: GoogleFonts.inter(color: textPri, fontSize: 17, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text('Cuéntanos qué ha fallado. Lo revisaremos lo antes posible.',
+                  style: GoogleFonts.inter(color: textSec, fontSize: 12)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: ctrl,
+                maxLines: 5,
+                maxLength: 500,
+                style: GoogleFonts.inter(color: textPri, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Describe el problema...',
+                  hintStyle: GoogleFonts.inter(color: textSec, fontSize: 13),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: cargando ? null : () async {
+                    final mensaje = ctrl.text.trim();
+                    if (mensaje.isEmpty) return;
+                    loading.value = true;
+                    try {
+                      await FirebaseFirestore.instance.collection('soporte_mensajes').add({
+                        'uid':       uid,
+                        'email':     FirebaseAuth.instance.currentUser?.email,
+                        'mensaje':   mensaje,
+                        'estado':    'pendiente',
+                        'timestamp': FieldValue.serverTimestamp(),
+                      });
+                      if (bCtx.mounted) Navigator.pop(bCtx);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Gracias, hemos recibido tu reporte.')));
+                      }
+                    } catch (_) {
+                      loading.value = false;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('No se pudo enviar. Inténtalo de nuevo.'),
+                          backgroundColor: Color(0xFFFF453A),
+                        ));
+                      }
+                    }
+                  },
+                  child: cargando
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Enviar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _abrirUrl(String url) async {
@@ -421,6 +648,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // ── NOTIFICACIONES ─────────────────────────────────────────
+          _SectionHeader(text: 'NOTIFICACIONES', color: textSec),
+          _SettingsGroup(surface: surface, border: border, children: [
+            _SwitchTile(
+              icon: Icons.people_alt_rounded,
+              iconColor: const Color(0xFF30D158),
+              title: 'Social',
+              subtitle: 'Seguidores, likes y comentarios',
+              value: _notifPrefs['social']!,
+              textPri: textPri,
+              textSec: textSec,
+              accentColor: accent,
+              onChanged: (v) => _toggleNotifPref('social', v),
+            ),
+            _Divider(color: border),
+            _SwitchTile(
+              icon: Icons.sports_kabaddi_rounded,
+              iconColor: const Color(0xFFFF9F0A),
+              title: 'Desafíos',
+              subtitle: 'Retos 1v1 recibidos y resueltos',
+              value: _notifPrefs['desafios']!,
+              textPri: textPri,
+              textSec: textSec,
+              accentColor: accent,
+              onChanged: (v) => _toggleNotifPref('desafios', v),
+            ),
+            _Divider(color: border),
+            _SwitchTile(
+              icon: Icons.groups_rounded,
+              iconColor: const Color(0xFF5E5CE6),
+              title: 'Clanes',
+              subtitle: 'Invitaciones y guerras de clan',
+              value: _notifPrefs['clanes']!,
+              textPri: textPri,
+              textSec: textSec,
+              accentColor: accent,
+              onChanged: (v) => _toggleNotifPref('clanes', v),
+            ),
+            _Divider(color: border),
+            _SwitchTile(
+              icon: Icons.flag_rounded,
+              iconColor: Colors.redAccent,
+              title: 'Territorios',
+              subtitle: 'Ataques, conquistas y Guerra Global',
+              value: _notifPrefs['territorios']!,
+              textPri: textPri,
+              textSec: textSec,
+              accentColor: accent,
+              onChanged: (v) => _toggleNotifPref('territorios', v),
+            ),
+          ]),
+
+          const SizedBox(height: 24),
+
           // ── JUEGO ──────────────────────────────────────────────────
           _SectionHeader(text: 'JUEGO', color: textSec),
           _SettingsGroup(surface: surface, border: border, children: [
@@ -500,6 +781,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               textSec: textSec,
               onTap: _abrirCustomizador,
             ),
+            if (_tieneAuthPassword) ...[
+              _Divider(color: border),
+              _NavTile(
+                icon: Icons.password_rounded,
+                iconColor: const Color(0xFF5E5CE6),
+                title: 'Cambiar contraseña',
+                textPri: textPri,
+                textSec: textSec,
+                onTap: () => _cambiarContrasena(surface, textPri, textSec),
+              ),
+            ],
           ]),
 
           const SizedBox(height: 24),
@@ -522,6 +814,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _Divider(color: border),
             _NavTile(
+              icon: Icons.block_rounded,
+              iconColor: const Color(0xFFFF453A),
+              title: 'Usuarios bloqueados',
+              textPri: textPri,
+              textSec: textSec,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const BlockedUsersScreen())),
+            ),
+            _Divider(color: border),
+            _NavTile(
               icon: Icons.shield_outlined,
               iconColor: const Color(0xFF636AE8),
               title: 'Política de privacidad',
@@ -537,6 +839,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               textPri: textPri,
               textSec: textSec,
               onTap: () => _abrirUrl('https://fastidious-salmiakki-235a71.netlify.app/terms.html'),
+            ),
+          ]),
+
+          const SizedBox(height: 24),
+
+          // ── AYUDA ──────────────────────────────────────────────────
+          _SectionHeader(text: 'AYUDA', color: textSec),
+          _SettingsGroup(surface: surface, border: border, children: [
+            _NavTile(
+              icon: Icons.flag_outlined,
+              iconColor: const Color(0xFFFF9F0A),
+              title: 'Reportar un problema',
+              textPri: textPri,
+              textSec: textSec,
+              onTap: () => _reportarProblema(surface, textPri, textSec),
             ),
           ]),
 

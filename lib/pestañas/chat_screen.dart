@@ -25,7 +25,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? _tipChat;
   String? _initiatorId;
-  bool    _esMutual = false;
+  bool    _esMutual  = false;
+  bool    _bloqueado = false;
 
   bool get _esSolicitudRecibida =>
       _tipChat == 'solicitud' && _initiatorId != null && _initiatorId != widget.currentUserId;
@@ -39,6 +40,22 @@ class _ChatScreenState extends State<ChatScreen> {
     _msgsRef = _chatRef.collection('messages');
     _marcarLeido();
     _cargarEstadoChat();
+    _comprobarBloqueo();
+  }
+
+  Future<void> _comprobarBloqueo() async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final results = await Future.wait([
+        db.collection('players').doc(widget.currentUserId).get(),
+        db.collection('players').doc(widget.friendId).get(),
+      ]);
+      final misBloqueados    = (results[0].data()?['bloqueados'] as List<dynamic>?) ?? [];
+      final susBloqueados    = (results[1].data()?['bloqueados'] as List<dynamic>?) ?? [];
+      final bloqueado = misBloqueados.contains(widget.friendId) ||
+          susBloqueados.contains(widget.currentUserId);
+      if (mounted) setState(() => _bloqueado = bloqueado);
+    } catch (_) {}
   }
 
   Future<void> _cargarEstadoChat() async {
@@ -85,6 +102,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatRef.set({'unread_${widget.currentUserId}': 0}, SetOptions(merge: true));
 
   Future<void> _send() async {
+    if (_bloqueado) return;
     final texto = _msgCtrl.text.trim();
     if (texto.isEmpty) return;
     _msgCtrl.clear();
@@ -449,7 +467,24 @@ class _ChatScreenState extends State<ChatScreen> {
         },
       )),
 
-      // ── Barra de entrada ───────────────────────────────────────────────
+      // ── Barra de entrada (o aviso de bloqueo) ────────────────────────────
+      if (_bloqueado)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: _p.bg,
+            border: Border(top: BorderSide(color: _p.line, width: 0.5)),
+          ),
+          child: SafeArea(top: false, child: Row(children: [
+            Icon(Icons.block_rounded, color: _p.dim, size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              'No puedes escribir en esta conversación.',
+              style: TextStyle(color: _p.subtext, fontSize: 12),
+            )),
+          ])),
+        )
+      else
       Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
         decoration: BoxDecoration(

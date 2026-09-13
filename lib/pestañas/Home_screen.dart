@@ -180,6 +180,7 @@ class _HomeScreenState extends State<HomeScreen>
   List<FeedPost> _feedPosts = [];
   bool _loadingFeed = true;
   StreamSubscription<QuerySnapshot>? _feedListener;
+  final Set<String> _bloqueados = {};
 
   // ── Plan de entrenamiento
   UserPlanState? _userPlan;
@@ -257,9 +258,23 @@ class _HomeScreenState extends State<HomeScreen>
     _initializeData();
     _escucharNotificacionesInvasion();
     _escucharConteoNotificaciones();
-    _escucharFeed();
+    _cargarBloqueadosYEscucharFeed();
     _cargarPlan();
     _verificarPermisoNotificaciones();
+  }
+
+  Future<void> _cargarBloqueadosYEscucharFeed() async {
+    final uid = userId;
+    if (uid != null) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('players').doc(uid).get();
+        final raw = (doc.data()?['bloqueados'] as List<dynamic>?) ?? [];
+        _bloqueados
+          ..clear()
+          ..addAll(raw.map((e) => e.toString()));
+      } catch (_) {}
+    }
+    _escucharFeed();
   }
 
   Future<void> _cargarPlan() async {
@@ -360,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (uid == null) return;
       final posts = snap.docs
           .map((doc) => FeedPost.fromFirestore(doc, uid))
+          .where((p) => !_bloqueados.contains(p.userId))
           .toList();
       if (mounted) {
         setState(() {

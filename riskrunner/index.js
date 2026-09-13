@@ -1963,6 +1963,34 @@ const _FCM_TITLES = {
   amistad_aceptada:            'Solicitud aceptada',
 };
 
+// Categorías de Ajustes > Notificaciones — deben reflejar exactamente las
+// mismas claves que lib/pestañas/settings_screen.dart (_notifPrefs).
+const _CATEGORIA_POR_TIPO = {
+  follow:                      'social',
+  follow_request:              'social',
+  post_comment:                'social',
+  post_like:                   'social',
+  amistad_aceptada:            'social',
+  desafio_recibido:            'desafios',
+  desafio_aceptado:            'desafios',
+  desafio_ganado:              'desafios',
+  desafio_perdido:             'desafios',
+  clan_invite:                 'clanes',
+  clan_war_declared:           'clanes',
+  territory_lost:              'territorios',
+  territory_weakened:          'territorios',
+  territory_under_attack:      'territorios',
+  territory_bitten:            'territorios',
+  territory_king_lost:         'territorios',
+  territory_king:              'territorios',
+  territory_invasion:          'territorios',
+  barrio_completado:           'territorios',
+  titulo_rey:                  'territorios',
+  global_territory_conquered:  'territorios',
+  global_territory_lost:       'territorios',
+  guerra_global_recompensa:    'territorios',
+};
+
 exports.onNotificationCreated = onDocumentCreated(
   { document: 'notifications/{notifId}', region: 'europe-west1' },
   async (event) => {
@@ -1978,7 +2006,11 @@ exports.onNotificationCreated = onDocumentCreated(
     const token = playerSnap.data()?.fcm_token;
     if (!token || typeof token !== 'string') return;
 
-    const tipo  = data.type || 'info';
+    const tipo      = data.type || 'info';
+    const categoria = _CATEGORIA_POR_TIPO[tipo];
+    // Sin categoría reconocida (info de cuenta/compras) → siempre se envía.
+    if (categoria && playerSnap.data()?.notifPrefs?.[categoria] === false) return;
+
     const title = _FCM_TITLES[tipo] || 'Risk Runner';
     const body  = data.message || '';
 

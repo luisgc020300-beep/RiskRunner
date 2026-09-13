@@ -54,6 +54,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
   StreamSubscription? _solicitudesStream;
   StreamSubscription? _mensajesStream;
   final Set<String> _solicitudesEnviadas = {};
+  final Set<String> _bloqueados = {};
 
   final GlobalKey<RefreshIndicatorState> _rkRanking  = GlobalKey();
   final GlobalKey<RefreshIndicatorState> _rkAliados  = GlobalKey();
@@ -96,16 +97,27 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
       final c    = (data['territorio_color'] as num?)?.toInt();
       final pts  = (data['puntos_liga'] as num? ?? 0).toInt();
       final info = LeagueHelper.getLeague(pts);
+      final bloqueadosRaw = (data['bloqueados'] as List<dynamic>?) ?? [];
       setState(() {
         if (c != null) _accent = Color(c);
         _misPuntosLiga    = pts;
         _miLiga           = info.name;
         _ligaSeleccionada = null;
+        _bloqueados
+          ..clear()
+          ..addAll(bloqueadosRaw.map((e) => e.toString()));
       });
     } catch (e) { debugPrint('Error cargando datos propios: $e'); }
   }
 
   static const int _kBusquedaLimit = 15;
+
+  bool _esVisible(QueryDocumentSnapshot d) {
+    if (d.id == currentUserId || _bloqueados.contains(d.id)) return false;
+    final data = d.data() as Map<String, dynamic>;
+    final susBloqueados = (data['bloqueados'] as List<dynamic>?) ?? const [];
+    return !susBloqueados.contains(currentUserId);
+  }
 
   Future<void> _buscar() async {
     final q = _searchQuery;
@@ -119,7 +131,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           .where('nickname', isLessThan: '$q')
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
-      final futures = snap.docs.where((d) => d.id != currentUserId).map(_procesarResultado).toList();
+      final futures = snap.docs.where(_esVisible).map(_procesarResultado).toList();
       final results = await Future.wait(futures);
       if (mounted && _searchQuery == q) {
         setState(() {
@@ -148,7 +160,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
           .startAfterDocument(_ultimoDocBusqueda!)
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
-      final futures = snap.docs.where((d) => d.id != currentUserId).map(_procesarResultado).toList();
+      final futures = snap.docs.where(_esVisible).map(_procesarResultado).toList();
       final results = await Future.wait(futures);
       if (mounted && _searchQuery == q) {
         setState(() {

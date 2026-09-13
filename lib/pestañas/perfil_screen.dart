@@ -1177,6 +1177,110 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+  void _mostrarMenuUsuario() {
+    final otroUid = viewedUserId;
+    if (otroUid == null) return;
+    showModalBottomSheet(
+      context: context, backgroundColor: _p.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          Container(width: 36, height: 3, decoration: BoxDecoration(color: _p.muted, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.block_rounded, color: Color(0xFFFF453A)),
+            title: Text('Bloquear a $nickname', style: _rajdhani(14, FontWeight.w600, _p.text)),
+            onTap: () { Navigator.pop(ctx); _confirmarBloquear(otroUid); },
+          ),
+          ListTile(
+            leading: Icon(Icons.flag_outlined, color: _p.sub),
+            title: Text('Denunciar a $nickname', style: _rajdhani(14, FontWeight.w600, _p.text)),
+            onTap: () { Navigator.pop(ctx); _mostrarDialogoDenunciar(otroUid); },
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _confirmarBloquear(String otroUid) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _p.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text('Bloquear a $nickname', style: _rajdhani(16, FontWeight.w700, _p.title)),
+        content: Text(
+            'No verás sus publicaciones ni podrá escribirte. Podrás desbloquearlo cuando quieras desde Ajustes.',
+            style: _rajdhani(13, FontWeight.w400, _p.sub)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancelar', style: _rajdhani(13, FontWeight.w600, _p.sub))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: Text('BLOQUEAR', style: _rajdhani(13, FontWeight.w700, const Color(0xFFFF453A)))),
+        ],
+      ),
+    );
+    if (confirmar != true || myUserId == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('players').doc(myUserId).update({
+        'bloqueados': FieldValue.arrayUnion([otroUid]),
+      });
+      if (mounted) {
+        AppError.showInfo(context, 'Usuario bloqueado.');
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) AppError.show(context, 'No se pudo bloquear. Inténtalo de nuevo.');
+    }
+  }
+
+  void _mostrarDialogoDenunciar(String otroUid) {
+    const motivos = ['Spam', 'Acoso o comportamiento abusivo', 'Contenido inapropiado', 'Suplantación de identidad', 'Otro'];
+    String motivoSeleccionado = motivos.first;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setM) => AlertDialog(
+          backgroundColor: _p.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Text('Denunciar a $nickname', style: _rajdhani(16, FontWeight.w700, _p.title)),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: motivos.map((m) => RadioListTile<String>(
+              value: m, groupValue: motivoSeleccionado,
+              dense: true, contentPadding: EdgeInsets.zero,
+              title: Text(m, style: _rajdhani(13, FontWeight.w400, _p.text)),
+              onChanged: (v) => setM(() => motivoSeleccionado = v!),
+            )).toList(),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancelar', style: _rajdhani(13, FontWeight.w600, _p.sub))),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  await FirebaseFirestore.instance.collection('reportes_usuarios').add({
+                    'reportadoId':   otroUid,
+                    'reportanteId':  myUserId,
+                    'motivo':        motivoSeleccionado,
+                    'estado':        'pendiente',
+                    'timestamp':     FieldValue.serverTimestamp(),
+                  });
+                  if (mounted) AppError.showInfo(context, 'Denuncia enviada. Gracias por avisarnos.');
+                } catch (_) {
+                  if (mounted) AppError.show(context, 'No se pudo enviar la denuncia.');
+                }
+              },
+              child: Text('DENUNCIAR', style: _rajdhani(13, FontWeight.w700, const Color(0xFFFF453A))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _formatTiempo(Duration d) {
     final h = d.inHours; final m = d.inMinutes.remainder(60);
     return h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}m' : '${m}m';
@@ -1254,7 +1358,13 @@ class _PerfilScreenState extends State<PerfilScreen>
           onPressed: () => SettingsScreen.mostrar(context),
         ),
         const SizedBox(width: 4),
-      ] : [],
+      ] : [
+        IconButton(
+          icon: Icon(Icons.more_vert_rounded, color: iconColor, size: 20),
+          onPressed: _mostrarMenuUsuario,
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 

@@ -292,6 +292,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ── soporte_mensajes ─────────────────────────────────────────────────────
+    // Reportes de "Ayuda > Reportar un problema". El usuario crea el suyo;
+    // solo un admin puede leerlos (revisión manual, sin panel de cliente).
+    match /soporte_mensajes/{id} {
+      allow read:   if isAdmin();
+      allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ── reportes_usuarios ────────────────────────────────────────────────────
+    // Denuncias de "Bloquear/Denunciar" en el perfil de otro jugador. Solo un
+    // admin puede leerlas — el cliente nunca ve denuncias, ni las propias.
+    match /reportes_usuarios/{id} {
+      allow read:   if isAdmin();
+      allow create: if isAuth() && request.resource.data.reportanteId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
     // ── daily_challenges ─────────────────────────────────────────────────────
     match /daily_challenges/{id} {
       allow read:  if isAuth();
