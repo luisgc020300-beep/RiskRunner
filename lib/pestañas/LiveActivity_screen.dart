@@ -116,6 +116,7 @@ const double _kPitchPausado = 65.0;
 const double _kZoomCorrer   = 18.5;
 const double _kZoomPausado  = 15.5;
 const double _kZoomGlobo   = 5;
+const double _kZoomGloboCompleto = 1.8; // vista de entrada: el globo completo, no la ubicación
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 
@@ -296,6 +297,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   late AnimationController _globoAnim;
   int _dedosEnGlobo = 0;
+  bool _globoZoomLocal = false; // false = globo completo, true = centrado en mi ubicación
 
   // ── Capas de mapa
   static const String _routeSourceId       = 'route-source';
@@ -616,6 +618,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   // HELPERS
   // ==========================================================================
+  void _toggleZoomGlobo() {
+    if (_currentPosition == null) return;
+    final aLocal = !_globoZoomLocal;
+    setState(() => _globoZoomLocal = aLocal);
+    _moverCamara(
+      lat: _currentPosition!.latitude,
+      lng: _currentPosition!.longitude,
+      zoom: aLocal ? _kZoomGlobo : _kZoomGloboCompleto,
+      forzar: true,
+      duracion: 1100,
+    );
+  }
+
   void _rotarGlobo() {
     if (_session.isTracking) return;
     if (kIsWeb) return;
@@ -1242,7 +1257,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     await _moverCamara(
       lat: _currentPosition?.latitude ?? 40.4167,
       lng: _currentPosition?.longitude ?? -3.70325,
-      zoom: _kZoomGlobo,
+      zoom: _kZoomGloboCompleto,
       bearing: 0,
       pitch: _kPitchNormal,
       animated: false,
@@ -3366,14 +3381,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (mounted) {
       _session.stopSession();
-      setState(() { _hudMinimizado = false; });
+      setState(() { _hudMinimizado = false; _globoZoomLocal = false; });
     }
     await _mapboxMap?.gestures.updateSettings(
         mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
     await _moverCamara(
       lat: _currentPosition?.latitude  ?? 40.4167,
       lng: _currentPosition?.longitude ?? -3.70325,
-      zoom: _kZoomGlobo, bearing: 0, pitch: _kPitchNormal,
+      zoom: _kZoomGloboCompleto, bearing: 0, pitch: _kPitchNormal,
       animated: true, duracion: 1200,
     );
 

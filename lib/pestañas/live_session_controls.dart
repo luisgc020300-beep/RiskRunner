@@ -251,6 +251,14 @@ extension _LiveSessionControls on _LiveActivityScreenState {
   Widget _buildBotonesMapa() => Column(children: [
         _botonMapa(_modoNoche ? Icons.dark_mode_rounded : Icons.wb_sunny_rounded,
             _modoNoche ? _kGoldLight : _kGold, _toggleModoNoche),
+        if (!_session.isTracking) ...[
+          const SizedBox(height: 10),
+          _botonMapa(
+            _globoZoomLocal ? Icons.public_rounded : Icons.my_location_rounded,
+            _p.terracotta,
+            _toggleZoomGlobo,
+          ),
+        ],
         if (_session.isTracking) ...[
           const SizedBox(height: 10),
           _botonMapa(Icons.my_location_rounded, _p.terracotta, () {
