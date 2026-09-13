@@ -1245,7 +1245,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             builder: (_, __) {
               final mios = _state.territorios.where((t) => t.esMio).length;
               final det  = _state.territorios
-                  .where((t) => t.esMio && t.estaDeterirado).length;
+                  .where((t) => t.esMio && t.estadoHp == EstadoHp.danado).length;
               final pel  = _state.territorios
                   .where((t) => t.esMio && t.esConquistableSinPasar).length;
               return _buildFloatingBar(mios, det, pel);
@@ -1273,7 +1273,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                   final mios = _state.territorios
                       .where((t) => t.esMio).length;
                   final det  = _state.territorios
-                      .where((t) => t.esMio && t.estaDeterirado).length;
+                      .where((t) => t.esMio && t.estadoHp == EstadoHp.danado).length;
                   final pel  = _state.territorios
                       .where((t) => t.esMio && t.esConquistableSinPasar)
                       .length;
