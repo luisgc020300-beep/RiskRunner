@@ -195,6 +195,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void>? _centroListo;
   bool _gpsResuelto         = false;
   bool _recargandoSilencioso = false;
+  // Incrementa en cada _cargarTerritorios(): si una llamada más nueva arranca
+  // mientras otra más vieja sigue esperando a Firestore, la vieja se anula al
+  // volver — así nunca puede pisar el estado (ni dejar el spinner colgado)
+  // con datos ya obsoletos.
+  int _territoriosLoadGen = 0;
 
   // ── Filtro de mapa + actividad ────────────────────────────────────────────
   _FiltroMapa _filtroActivo = _FiltroMapa.todos;
@@ -549,11 +554,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
 
     // 3. Sin datos — mostrar spinner y esperar Firestore
+    final gen = ++_territoriosLoadGen;
     _state.setLoadingTerritorios(true);
     try {
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
+      // Una llamada más reciente ha arrancado mientras esperábamos — esta ya
+      // no manda, que decida la nueva (evita pisar datos frescos con viejos
+      // y evita dejar el spinner encendido si la nueva ya lo apagó).
+      if (gen != _territoriosLoadGen) return;
       // Si el modo cambió mientras esperábamos, guardamos en caché pero no
       // actualizamos la UI (ya habrá otra carga en curso para el modo actual).
       final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
@@ -575,17 +585,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     } catch (e, st) {
       debugPrint('FullscreenMap cargarTerritorios error: $e');
       FirebaseCrashlytics.instance.recordError(e, st, reason: 'cargarTerritorios');
-      _state.setError('No se pudieron cargar los territorios');
+      if (gen == _territoriosLoadGen) _state.setError('No se pudieron cargar los territorios');
     }
   }
 
   Future<void> _recargarSilencioso(String modo) async {
     if (_recargandoSilencioso) return;
     _recargandoSilencioso = true;
+    final gen = ++_territoriosLoadGen;
     try {
       final lista = await TerritoryService.cargarTodosLosTerritorios(
           centro: _state.centro, modo: modo);
       if (!mounted) return;
+      if (gen != _territoriosLoadGen) return;
       final modoActual = _state.modoSolitario ? 'solitario' : 'competitivo';
       if (modoActual != modo) return;
       _state.setTerritorios(lista);
@@ -1333,8 +1345,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         // "SIN TERRITORIOS" se muestra en el sheet, no como overlay sobre el mapa
 
         ListenableBuilder(
-          listenable: _state,
+          listenable: Listenable.merge([_state, _sheetCtrl]),
           builder: (_, __) {
+            // Con la hoja desplegada casi del todo, el FAB taparía su contenido
+            // — se oculta en vez de quedarse encima.
+            final sheetExtent = _sheetCtrl.isAttached ? _sheetCtrl.size : 0.13;
+            if (sheetExtent > 0.20) return const SizedBox.shrink();
             final screenH = MediaQuery.of(context).size.height;
             final hasCard = _state.modoGlobal
                 ? _state.territorioGlobalSeleccionado != null
