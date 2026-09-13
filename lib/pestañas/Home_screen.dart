@@ -1592,7 +1592,7 @@ class _HomeScreenState extends State<HomeScreen>
             width: 1,
           ),
         ),
-        child: Stack(clipBehavior: Clip.none, children: [
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text(label,
             style: GoogleFonts.inter(
               fontSize: 13,
@@ -1600,16 +1600,15 @@ class _HomeScreenState extends State<HomeScreen>
               color: isActive ? _T.bronze : _T.dim,
               height: 1,
             )),
-          if (badge != null)
-            Positioned(
-              right: -10, top: -4,
-              child: Container(
-                width: 14, height: 14,
-                decoration: BoxDecoration(color: _T.bronze, shape: BoxShape.circle),
-                child: Center(child: Text(badge,
-                    style: _raj(7, FontWeight.w900, _T.bg0))),
-              ),
+          if (badge != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              width: 14, height: 14,
+              decoration: BoxDecoration(color: _T.bronze, shape: BoxShape.circle),
+              child: Center(child: Text(badge,
+                  style: _raj(7, FontWeight.w900, _T.bg0))),
             ),
+          ],
         ]),
       ),
     );
