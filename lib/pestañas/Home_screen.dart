@@ -1770,7 +1770,8 @@ class _HomeScreenState extends State<HomeScreen>
   // POST CARD
   // =============================================================================
   Widget _buildPostCard(FeedPost post) {
-    final isRun  = post.tipo == 'run' || post.tipo == 'territorio';
+    final isRun  = post.tipo == 'run' || post.tipo == 'territorio'
+        || post.tipo == 'competitivo' || post.tipo == 'solitario' || post.tipo == 'ruta';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
