@@ -10,7 +10,6 @@ import '../services/league_service.dart';
 import '../services/zona_service.dart';
 import '../scripts/seed_fantasmas_granada.dart';
 import 'avatar_customizer_screen.dart';
-import 'historial_guerra_screen.dart';
 import 'package:RiskRunner/theme/app_colors.dart';
 
 // ── Colores de territorio disponibles ──────────────────────────────���─────────
@@ -500,28 +499,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               textPri: textPri,
               textSec: textSec,
               onTap: _abrirCustomizador,
-            ),
-            _Divider(color: border),
-            _NavTile(
-              icon: Icons.history_rounded,
-              iconColor: Colors.redAccent,
-              title: 'Historial de guerra',
-              textPri: textPri,
-              textSec: textSec,
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const HistorialGuerraScreen())),
-            ),
-            _Divider(color: border),
-            _NavTile(
-              icon: Icons.notifications_none_rounded,
-              iconColor: const Color(0xFFFF9F0A),
-              title: 'Notificaciones',
-              textPri: textPri,
-              textSec: textSec,
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/notificaciones');
-              },
             ),
           ]),
 
