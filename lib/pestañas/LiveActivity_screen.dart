@@ -295,6 +295,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   late Animation<double>   _pulso;
 
   late AnimationController _globoAnim;
+  int _dedosEnGlobo = 0;
 
   // ── Capas de mapa
   static const String _routeSourceId       = 'route-source';
@@ -619,6 +620,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (_session.isTracking) return;
     if (kIsWeb) return;
     if (_mapboxMap == null) return;
+    if (_dedosEnGlobo > 0) return;
     final bearing = _globoAnim.value * 360.0;
     _mapboxMap!.setCamera(mapbox.CameraOptions(bearing: bearing));
   }
@@ -4157,22 +4159,32 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   Widget _buildMapbox() {
     if (kIsWeb) return _buildWebMap();
-    return mapbox.MapWidget(
-      styleUri: _mapStyle,
-      cameraOptions: mapbox.CameraOptions(
-        center: mapbox.Point(coordinates: mapbox.Position(
-            _currentPosition?.longitude ?? -3.70325,
-            _currentPosition?.latitude  ?? 40.4167)),
-        zoom: _kZoomGlobo, pitch: _kPitchNormal,
+    // Listener (eventos de puntero en bruto) para saber si hay dedos apoyados
+    // en el globo: no compite por el gesto con Mapbox, solo cuenta. Mientras
+    // haya al menos un dedo tocando, _rotarGlobo() se pausa — si no, la
+    // rotación automática pelea contra el dedo del usuario en cada fotograma
+    // y el globo se siente "duro" de manejar.
+    return Listener(
+      onPointerDown: (_) => _dedosEnGlobo++,
+      onPointerUp: (_) => _dedosEnGlobo = _dedosEnGlobo > 0 ? _dedosEnGlobo - 1 : 0,
+      onPointerCancel: (_) => _dedosEnGlobo = _dedosEnGlobo > 0 ? _dedosEnGlobo - 1 : 0,
+      child: mapbox.MapWidget(
+        styleUri: _mapStyle,
+        cameraOptions: mapbox.CameraOptions(
+          center: mapbox.Point(coordinates: mapbox.Position(
+              _currentPosition?.longitude ?? -3.70325,
+              _currentPosition?.latitude  ?? 40.4167)),
+          zoom: _kZoomGlobo, pitch: _kPitchNormal,
+        ),
+        // Cede los gestos al MapWidget antes de que Flutter los intercepte
+        gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+          Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
+        },
+        onMapCreated: _onMapCreated,
+        onStyleLoadedListener: _onStyleLoaded,
+        onCameraChangeListener: _onCameraChanged,
+        onTapListener: _onMapTap,
       ),
-      // Cede los gestos al MapWidget antes de que Flutter los intercepte
-      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-        Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
-      },
-      onMapCreated: _onMapCreated,
-      onStyleLoadedListener: _onStyleLoaded,
-      onCameraChangeListener: _onCameraChanged,
-      onTapListener: _onMapTap,
     );
   }
 
