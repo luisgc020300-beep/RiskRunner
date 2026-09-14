@@ -301,7 +301,7 @@ class SocialFriendCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Stack(children: [
+        child: SocialPress(onTap: onPerfil, child: Stack(children: [
           Container(
             padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
             decoration: BoxDecoration(
@@ -339,14 +339,6 @@ class SocialFriendCard extends StatelessWidget {
                   SocialPill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
                 ]),
               ])),
-              SocialPress(onTap: onPerfil, child: Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.10),
-                  border: Border.all(color: accent.withValues(alpha: 0.25)),
-                  borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.person_outline_rounded, color: accent.withValues(alpha: 0.8), size: 15))),
-              const SizedBox(width: 6),
               SocialPress(onTap: onChat, child: Container(
                 width: 38, height: 38,
                 decoration: BoxDecoration(
@@ -360,7 +352,7 @@ class SocialFriendCard extends StatelessWidget {
                 color: tc.withValues(alpha: 0.6),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12), bottomLeft: Radius.circular(12))))),
-        ])));
+        ]))));
   }
 }
 
