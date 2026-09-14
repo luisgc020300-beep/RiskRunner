@@ -58,9 +58,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   final TextEditingController _tituloCtrl = TextEditingController();
-  final TextEditingController _descCtrl   = TextEditingController();
 
-  String  _destino          = 'feed';
   String  _tipoSeleccionado = 'video';
   String? _mediaBase64;
   bool    _publicando       = false;
@@ -89,7 +87,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   void dispose() {
     _tituloCtrl.dispose();
-    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -136,11 +133,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
     setState(() { _publicando = true; _errorMsg = ''; });
     try {
-      if (_destino == 'historia') {
-        await _publicarComoHistoria();
-      } else {
-        await _publicarEnFeed();
-      }
+      await _publicarComoHistoria();
     } catch (e) {
       debugPrint('Error publicando: $e');
       if (mounted) {
@@ -150,44 +143,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  Future<void> _publicarEnFeed() async {
-    final playerDoc = await FirebaseFirestore.instance
-        .collection('players').doc(userId).get();
-    final pd             = playerDoc.data() ?? {};
-    final String  nick   = pd['nickname']    ?? 'Runner';
-    final int     niv    = (pd['nivel'] as num?)?.toInt() ?? 1;
-    final String? avatar = pd['foto_base64'] as String?;
-
-    await FirebaseFirestore.instance.collection('posts').add({
-      'userId':           userId,
-      'userNickname':     nick,
-      'userNivel':        niv,
-      'userAvatarBase64': avatar,
-      'tipo':             _tipoSeleccionado,
-      'titulo':           _tituloCtrl.text.trim(),
-      'descripcion':      _descCtrl.text.trim(),
-      'mediaBase64':      _mediaBase64,
-      'likes':            [],
-      'saved':            [],
-      'comentariosCount': 0,
-      'timestamp':        FieldValue.serverTimestamp(),
-    });
-
-    if (mounted) {
-      Navigator.pop(context);
-      _showSnack('¡Publicado en el feed!');
-    }
-  }
-
   Future<void> _publicarComoHistoria() async {
     await StoryService.uploadStory(
       tipo:        _tipoSeleccionado,
       mediaBase64: _mediaBase64,
-      caption:     _tituloCtrl.text.trim().isNotEmpty
-                       ? _tituloCtrl.text.trim()
-                       : _descCtrl.text.trim().isNotEmpty
-                           ? _descCtrl.text.trim()
-                           : null,
+      caption:     _tituloCtrl.text.trim().isNotEmpty ? _tituloCtrl.text.trim() : null,
     );
     if (mounted) {
       Navigator.pop(context);
@@ -216,16 +176,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Feed / Historia
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-              child: _buildDestinoSelector(),
-            ),
-            const SizedBox(height: 20),
-
             // ── Tipo
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
               child: _buildTipoSelector(),
             ),
 
@@ -246,7 +199,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             // ── Tip
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _destino == 'feed' ? _buildInfoTip() : _buildHistoriaTip(),
+              child: _buildHistoriaTip(),
             ),
           ],
         ),
@@ -278,7 +231,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             color: blue, fontSize: 15, fontWeight: FontWeight.w400)),
       ),
       title: Text(
-        _destino == 'historia' ? 'Nueva historia' : 'Nueva publicación',
+        'Nueva historia',
         style: GoogleFonts.inter(
             color: _p.text1, fontSize: 16, fontWeight: FontWeight.w600),
       ),
@@ -301,7 +254,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      _destino == 'historia' ? 'Subir' : 'Publicar',
+                      'Subir',
                       style: GoogleFonts.inter(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -314,81 +267,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   // ===========================================================================
-  // DESTINO SELECTOR — iOS segmented control exacto
-  // ===========================================================================
-  Widget _buildDestinoSelector() {
-    final isDark      = Theme.of(context).brightness == Brightness.dark;
-    final containerBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA);
-    final activeBg    = isDark ? const Color(0xFF3A3A3C) : Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: containerBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(children: [
-        _destinoTab('feed',     'Feed',     Icons.dynamic_feed_rounded,
-            activeBg: activeBg),
-        _destinoTab('historia', 'Historia', Icons.auto_stories_rounded,
-            activeBg: activeBg),
-      ]),
-    );
-  }
-
-  Widget _destinoTab(String id, String label, IconData icon,
-      {required Color activeBg}) {
-    final selected = _destino == id;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() {
-          _destino = id;
-          if (id == 'historia' && _tipoSeleccionado == 'texto') {
-            _tipoSeleccionado = 'photo';
-            _mediaBase64 = null;
-          }
-        }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: BoxDecoration(
-            color: selected ? activeBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-            boxShadow: selected
-                ? [BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.09),
-                    blurRadius: 8, offset: const Offset(0, 2))]
-                : null,
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 15,
-                color: selected ? _accentColor : _p.subtext),
-            const SizedBox(width: 6),
-            Text(label, style: GoogleFonts.inter(
-              color: selected ? _p.text1 : _p.subtext,
-              fontSize: 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            )),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
   // TIPO SELECTOR
   // ===========================================================================
   Widget _buildTipoSelector() {
-    final tipos = _destino == 'historia'
-        ? [
+    final tipos = [
             {'id': 'photo', 'label': 'Foto',  'icon': Icons.photo_camera_rounded},
             {'id': 'video', 'label': 'Video', 'icon': Icons.videocam_rounded},
-          ]
-        : [
-            {'id': 'video', 'label': 'Video', 'icon': Icons.videocam_rounded},
-            {'id': 'photo', 'label': 'Foto',  'icon': Icons.photo_camera_rounded},
-            {'id': 'texto', 'label': 'Texto', 'icon': Icons.edit_rounded},
           ];
 
     return Row(
@@ -555,13 +439,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           style: GoogleFonts.inter(
               color: _p.text2, fontSize: 15, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Text(
-          _destino == 'historia'
-              ? 'Visible durante 24 horas'
-              : esVideo
-                  ? 'Máx. 10 min · cámara o galería'
-                  : 'Desde cámara o galería',
-          style: GoogleFonts.inter(color: _p.subtext, fontSize: 12)),
+        const Text(
+          'Visible durante 24 horas',
+          style: TextStyle(color: Color(0xFF8E8E93), fontSize: 12)),
         const SizedBox(height: 18),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           _mediaActionBtn(
@@ -729,19 +609,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               maxLength: 80,
               maxLines: 1,
             ),
-            if (_destino == 'feed') ...[
-              Container(
-                  height: 0.5,
-                  margin: const EdgeInsets.only(left: 16),
-                  color: _p.line),
-              _buildFieldRow(
-                label: 'DESCRIPCIÓN',
-                controller: _descCtrl,
-                hint: 'Cuéntale a la comunidad sobre esta carrera...',
-                maxLength: 400,
-                maxLines: 4,
-              ),
-            ],
           ],
         ),
       ),
@@ -789,34 +656,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   // ===========================================================================
   // TIPS
   // ===========================================================================
-  Widget _buildInfoTip() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _p.surface2.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _p.line.withValues(alpha: 0.5)),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: _p.surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.lightbulb_outline_rounded,
-              color: _p.dim, size: 14)),
-        const SizedBox(width: 12),
-        Expanded(child: Text(
-          'Para videos tipo vlog: edítalos fuera de la app y '
-          'súbelos desde la galería. Los posts de carrera con GPS '
-          'los puedes compartir directamente desde la pantalla de Resumen.',
-          style: GoogleFonts.inter(
-              color: _p.subtext, fontSize: 12, height: 1.5))),
-      ]),
-    );
-  }
-
   Widget _buildHistoriaTip() {
     return Container(
       padding: const EdgeInsets.all(14),
