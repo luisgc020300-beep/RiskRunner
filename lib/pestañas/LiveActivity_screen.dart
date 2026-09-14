@@ -3345,6 +3345,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     }
   }
 
+  // Navega a Resumen. Si esta pantalla se abrió como ruta aparte (p.ej.
+  // "iniciar carrera con reto") la reemplaza, igual que siempre. Si está
+  // embebida en el AppShell no hay nada que reemplazar — un pushReplacement
+  // ahí se llevaría por delante todo el AppShell, así que en ese caso se
+  // apila Resumen encima dejando el shell intacto debajo.
+  void _navegarAResumen(Map<String, dynamic> args) {
+    if (!mounted) return;
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pushReplacementNamed('/resumen', arguments: args);
+    } else {
+      nav.pushNamed('/resumen', arguments: args);
+    }
+  }
+
   Future<void> stopTracking() async {
     if (_stopping) return;
     _stopping = true;
@@ -3369,7 +3384,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     final rutaFinal      = List<LatLng>.from(routePoints);
     final distanciaFinal = _session.distanciaTotal;
 
-    if (distanciaFinal < 0.2) {
+    // El mínimo de 200 m solo aplica a los modos que compiten por territorio
+    // (competitivo/solitario/global) — Ruta Libre tiene su propio umbral,
+    // más permisivo, dentro de _guardarRutaLibre (cualquier distancia > 0).
+    if (!_modoRuta && distanciaFinal < 0.2) {
       _stopping = false;
       WakelockPlus.disable();
       if (!mounted) return;
@@ -3396,9 +3414,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
           ]),
         ),
       ));
-      // Solo popear si hay una ruta a la que volver; si estamos embebidos en
-      // el IndexedStack no hay nada que popear y la pantalla ya muestra idle.
-      if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+      // Si esta pantalla se abrió como ruta aparte (p.ej. "iniciar carrera
+      // con reto"), volvemos atrás. Si está embebida en el AppShell no hay
+      // nada que popear — solo un setState para reflejar que _session ya
+      // no está en isTracking y volver a mostrar el globo de reposo.
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else if (mounted) {
+        setState(() {});
+      }
       return;
     }
 
@@ -3679,7 +3703,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       ));
     }
 
-    Navigator.pushReplacementNamed(context, '/resumen', arguments: {
+    _navegarAResumen({
       'distancia':               distanciaFinal,
       'tiempo':                  tiempoFinal,
       'ruta':                    rutaFinal,

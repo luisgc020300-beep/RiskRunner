@@ -349,11 +349,16 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
     if (user == null || distanciaKm <= 0) {
       _stopping = false;
       if (mounted) {
+        _session.stopSession();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Sesión no guardada: inicia sesión para registrar tu actividad.'),
           backgroundColor: Colors.red,
         ));
-        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          setState(() {});
+        }
       }
       return;
     }
@@ -477,7 +482,7 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
     _stopping = false;
 
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/resumen', arguments: {
+      _navegarAResumen({
         'distancia':            distanciaKm,
         'tiempo':               tiempo,
         'ruta':                 ruta,
