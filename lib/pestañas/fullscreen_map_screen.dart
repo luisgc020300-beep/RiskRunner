@@ -195,6 +195,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   Future<void>? _centroListo;
   bool _gpsResuelto         = false;
   bool _recargandoSilencioso = false;
+  // Referencia al ScrollController interno del sheet activo (lo asigna el
+  // builder de DraggableScrollableSheet). Se usa para resetear su offset al
+  // colapsar el sheet, si no, el drag para volver a desplegarlo puede
+  // quedar "capturado" por el scroll interno en vez de por el sheet.
+  ScrollController? _sheetScrollCtrl;
+  // Modo Global: false = vista de globo completo (por defecto), true =
+  // centrado en mi ubicación. El FAB alterna entre los dos.
+  bool _globalZoomLocal = false;
+  bool _tickerModeAnterior = true;
   // Incrementa en cada _cargarTerritorios(): si una llamada más nueva arranca
   // mientras otra más vieja sigue esperando a Firestore, la vieja se anula al
   // volver — así nunca puede pisar el estado (ni dejar el spinner colgado)
@@ -240,6 +249,24 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // Modo guardado antes de abrir una vista histórica (modoInicial != null).
   // Se restaura en dispose para que el mapa live no herede el modo histórico.
   String? _prevGameStateMode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Esta pantalla vive dentro de un IndexedStack (AppShell) y nunca se
+    // destruye al cambiar de pestaña — TickerMode es la señal que indica
+    // que hemos vuelto a ella. Si seguíamos en modo Global, la cámara se
+    // había quedado donde la dejamos (p.ej. centrada en un territorio);
+    // se restablece a la vista de globo completo por defecto.
+    final activo = TickerMode.of(context);
+    if (activo && !_tickerModeAnterior && _state.modoGlobal) {
+      _globalZoomLocal = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _moverCamara(_kGlobalCenter, 2.5);
+      });
+    }
+    _tickerModeAnterior = activo;
+  }
 
   @override
   void initState() {
@@ -714,6 +741,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     HapticFeedback.mediumImpact();
     _state.toggleModoGlobal();
     if (_state.modoGlobal) {
+      _globalZoomLocal = false;
       _toggleCtrl.forward();
       _globalEntryCtrl.forward(from: 0);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -747,6 +775,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _selCtrl.forward(from: 0);
     _moverCamara(t.center, 5);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Si la lista interna quedó desplazada, un drag para volver a abrir
+      // el sheet se lo queda el scroll interno en vez del propio sheet.
+      final sc = _sheetScrollCtrl;
+      if (sc != null && sc.hasClients && sc.offset != 0) {
+        sc.jumpTo(0);
+      }
       if (_sheetCtrl.isAttached) {
         _sheetCtrl.animateTo(0.08,
             duration: const Duration(milliseconds: 350),
@@ -1282,6 +1316,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                 snap: true,
                 snapSizes: const [0.08, 0.13, 0.70],
                 builder: (ctx, scrollCtrl) {
+                  _sheetScrollCtrl = scrollCtrl;
                   final mios = _state.territorios
                       .where((t) => t.esMio).length;
                   final det  = _state.territorios
@@ -3111,7 +3146,28 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       HapticFeedback.mediumImpact();
 
       if (_state.modoGlobal) {
-        _moverCamara(_kGlobalCenter, 2.5);
+        if (_globalZoomLocal) {
+          setState(() => _globalZoomLocal = false);
+          _moverCamara(_kGlobalCenter, 2.5);
+          return;
+        }
+        setState(() => _globalZoomLocal = true);
+        try {
+          final perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse) {
+            final pos = await Geolocator.getCurrentPosition(
+                locationSettings: const LocationSettings(
+                    accuracy: LocationAccuracy.low));
+            if (!mounted) return;
+            _moverCamara(LatLng(pos.latitude, pos.longitude), _kLocateZoom);
+          } else {
+            _moverCamara(_state.centro, _kLocateZoom);
+          }
+        } catch (_) {
+          await _refrescarCentroGps();
+          _moverCamara(_state.centro, _kLocateZoom);
+        }
         return;
       }
 
@@ -3156,7 +3212,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
             ),
             child: Icon(
               _state.modoGlobal
-                  ? Icons.public_rounded
+                  ? (_globalZoomLocal ? Icons.public_rounded : Icons.my_location_rounded)
                   : Icons.my_location_rounded,
               color: _state.modoGlobal ? _kGold : _kRed,
               size: 18,
