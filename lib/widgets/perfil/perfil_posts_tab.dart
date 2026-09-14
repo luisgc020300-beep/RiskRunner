@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -72,6 +73,9 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     final titulo = (data['titulo'] as String? ?? '').trim();
     final ts     = data['timestamp'] as Timestamp?;
     final route  = _parseRoute(data['ruta']);
+    final mediaB64 = data['mediaBase64'] as String?;
+    final tieneMedia = mediaB64 != null && mediaB64.isNotEmpty;
+    final esCarrera = route.length > 1 || dist > 0;
     final mins   = tiempo ~/ 60;
     final secs   = tiempo % 60;
 
@@ -134,8 +138,18 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
           ]),
           const SizedBox(height: 20),
 
+          // Foto/vídeo de la publicación
+          if (tieneMedia) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(base64Decode(mediaB64),
+                  width: double.infinity, height: 260, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Mini mapa con tiles reales
-          if (route.length > 1) ...[
+          if (!tieneMedia && route.length > 1) ...[
             Container(
               height: 200,
               decoration: BoxDecoration(
@@ -174,16 +188,17 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
             const SizedBox(height: 16),
           ],
 
-          // Stats
-          Row(children: [
-            _postStat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
-            _postDivider(p),
-            _postStat(p,
-                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
-                'TIEMPO'),
-            _postDivider(p),
-            _postStat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
-          ]),
+          // Stats — solo tienen sentido en publicaciones de carrera
+          if (esCarrera)
+            Row(children: [
+              _postStat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
+              _postDivider(p),
+              _postStat(p,
+                  '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                  'TIEMPO'),
+              _postDivider(p),
+              _postStat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
+            ]),
 
           // Descripción
           if (desc.isNotEmpty) ...[
@@ -322,6 +337,8 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     final likes    = (data['likes'] as List<dynamic>?)?.length ?? 0;
     final comments = (data['comentariosCount'] as num?)?.toInt() ?? 0;
     final route = _parseRoute(data['ruta']);
+    final mediaB64 = data['mediaBase64'] as String?;
+    final tieneMedia = mediaB64 != null && mediaB64.isNotEmpty;
 
     // Offset route para el painter (sin tiles, solo la forma)
     final offsetRoute = (data['ruta'] as List<dynamic>?)?.map((pt) {
@@ -334,8 +351,11 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
       child: Container(
         color: const Color(0xFFE5E5EA),
         child: Stack(fit: StackFit.expand, children: [
-          // Fondo: mapa con tiles reales si hay ruta
-          if (route.length > 1)
+          // Fondo: foto/vídeo si es una publicación de medios, mapa con
+          // tiles reales si hay ruta, o un icono para publicaciones de texto.
+          if (tieneMedia)
+            Image.memory(base64Decode(mediaB64), fit: BoxFit.cover)
+          else if (route.length > 1)
             FlutterMap(
               options: MapOptions(
                 backgroundColor: const Color(0xFFE5E5EA),
@@ -362,7 +382,12 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
             )
           else if (offsetRoute.length > 1)
             CustomPaint(
-                painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio)),
+                painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio))
+          else
+            Container(
+              color: p.surface2,
+              child: Icon(Icons.notes_rounded, color: p.dim, size: 28),
+            ),
           // Gradiente inferior para texto
           Positioned.fill(
             child: DecoratedBox(
@@ -376,10 +401,11 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
               ),
             ),
           ),
-          Positioned(
-            bottom: 6, left: 7,
-            child: Text('${dist.toStringAsFixed(1)} km',
-                style: perfilStyle(11, FontWeight.w800, Colors.white))),
+          if (!tieneMedia && (route.length > 1 || offsetRoute.length > 1))
+            Positioned(
+              bottom: 6, left: 7,
+              child: Text('${dist.toStringAsFixed(1)} km',
+                  style: perfilStyle(11, FontWeight.w800, Colors.white))),
           Positioned(
             bottom: 6, right: 6,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -532,6 +558,9 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
     final titulo = (data['titulo'] as String? ?? '').trim();
     final ts     = data['timestamp'] as Timestamp?;
     final route  = _parseRoute(data['ruta']);
+    final mediaB64 = data['mediaBase64'] as String?;
+    final tieneMedia = mediaB64 != null && mediaB64.isNotEmpty;
+    final esCarrera = route.length > 1 || dist > 0;
     final mins   = tiempo ~/ 60;
     final secs   = tiempo % 60;
 
@@ -582,7 +611,15 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
             ),
           ]),
           const SizedBox(height: 20),
-          if (route.length > 1) ...[
+          if (tieneMedia) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(base64Decode(mediaB64),
+                  width: double.infinity, height: 260, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (!tieneMedia && route.length > 1) ...[
             Container(
               height: 200,
               decoration: BoxDecoration(
@@ -612,13 +649,14 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
             ),
             const SizedBox(height: 16),
           ],
-          Row(children: [
-            _stat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
-            Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
-            _stat(p, '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}', 'TIEMPO'),
-            Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
-            _stat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
-          ]),
+          if (esCarrera)
+            Row(children: [
+              _stat(p, '${dist.toStringAsFixed(2)} km', 'DISTANCIA'),
+              Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
+              _stat(p, '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}', 'TIEMPO'),
+              Container(width: 0.5, height: 32, color: p.border2, margin: const EdgeInsets.symmetric(horizontal: 4)),
+              _stat(p, '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD'),
+            ]),
           if (desc.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(height: 0.5, color: p.border2),
@@ -696,13 +734,17 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
               final m = pt as Map;
               return Offset((m['lng'] as num).toDouble(), (m['lat'] as num).toDouble());
             }).toList() ?? <Offset>[];
+            final mediaB64 = data['mediaBase64'] as String?;
+            final tieneMedia = mediaB64 != null && mediaB64.isNotEmpty;
 
             return GestureDetector(
               onTap: () => _mostrarDetalle(context, doc.id, data),
               child: Container(
                 color: const Color(0xFFE5E5EA),
                 child: Stack(fit: StackFit.expand, children: [
-                  if (route.length > 1)
+                  if (tieneMedia)
+                    Image.memory(base64Decode(mediaB64), fit: BoxFit.cover)
+                  else if (route.length > 1)
                     FlutterMap(
                       options: MapOptions(
                         backgroundColor: const Color(0xFFE5E5EA),
@@ -720,16 +762,22 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
                       ],
                     )
                   else if (offsetRoute.length > 1)
-                    CustomPaint(painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio)),
+                    CustomPaint(painter: _RouteMiniPainter(offsetRoute, widget.colorTerritorio))
+                  else
+                    Container(
+                      color: p.surface2,
+                      child: Icon(Icons.notes_rounded, color: p.dim, size: 28),
+                    ),
                   Positioned.fill(child: DecoratedBox(decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter, end: Alignment.bottomCenter,
                       colors: [Colors.transparent, Colors.black.withValues(alpha: 0.65)],
                       stops: const [0.45, 1.0]),
                   ))),
-                  Positioned(bottom: 6, left: 7,
-                      child: Text('${dist.toStringAsFixed(1)} km',
-                          style: perfilStyle(11, FontWeight.w800, Colors.white))),
+                  if (!tieneMedia && (route.length > 1 || offsetRoute.length > 1))
+                    Positioned(bottom: 6, left: 7,
+                        child: Text('${dist.toStringAsFixed(1)} km',
+                            style: perfilStyle(11, FontWeight.w800, Colors.white))),
                   Positioned(top: 6, right: 6,
                       child: Text(date,
                           style: perfilStyle(8, FontWeight.w500, Colors.white.withValues(alpha: 0.7)))),

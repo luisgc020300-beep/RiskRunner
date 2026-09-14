@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:RiskRunner/widgets/mini_mapa_notif.dart';
 import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter/material.dart';
@@ -257,11 +258,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final ts     = data['timestamp'] as Timestamp?;
     final mins   = tiempo ~/ 60;
     final secs   = tiempo % 60;
+    final mediaB64 = data['mediaBase64'] as String?;
+    final tieneMedia = mediaB64 != null && mediaB64.isNotEmpty;
 
     final List<LatLng> puntos = ((data['ruta'] as List<dynamic>?) ?? []).map((p) {
       final m = p as Map;
       return LatLng((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
     }).toList();
+    final esCarrera = puntos.length > 1 || dist > 0;
 
     showModalBottomSheet(
       context: context,
@@ -296,7 +300,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ]),
             const SizedBox(height: 16),
           ],
-          if (puntos.length > 1) ...[
+          if (tieneMedia) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(base64Decode(mediaB64),
+                  width: double.infinity, height: 220, fit: BoxFit.cover),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (!tieneMedia && puntos.length > 1) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: SizedBox(
@@ -329,19 +341,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          Row(children: [
-            _postStatCell(
-                '${dist.toStringAsFixed(2)} km', 'DISTANCIA', txtColor),
-            Container(width: 1, height: 32,
-                color: isDark ? const Color(0xFF38383A) : _kBorder2),
-            _postStatCell(
-                '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
-                'TIEMPO', txtColor),
-            Container(width: 1, height: 32,
-                color: isDark ? const Color(0xFF38383A) : _kBorder2),
-            _postStatCell(
-                '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD', txtColor),
-          ]),
+          if (esCarrera)
+            Row(children: [
+              _postStatCell(
+                  '${dist.toStringAsFixed(2)} km', 'DISTANCIA', txtColor),
+              Container(width: 1, height: 32,
+                  color: isDark ? const Color(0xFF38383A) : _kBorder2),
+              _postStatCell(
+                  '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                  'TIEMPO', txtColor),
+              Container(width: 1, height: 32,
+                  color: isDark ? const Color(0xFF38383A) : _kBorder2),
+              _postStatCell(
+                  '${vel.toStringAsFixed(1)} km/h', 'VELOCIDAD', txtColor),
+            ]),
           if (desc.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(height: 0.5,
