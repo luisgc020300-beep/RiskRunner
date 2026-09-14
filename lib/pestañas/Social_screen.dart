@@ -325,33 +325,18 @@ class _SocialScreenState extends State<SocialScreen>
                   fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
             ]),
           ])),
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: p.surface,
-                border: Border.all(color: p.line2),
-                borderRadius: BorderRadius.circular(6)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('$_misPuntosLiga',
-                  style: TextStyle(color: p.text1,
-                    fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5, height: 1)),
-                Text('PTS LIGA', style: TextStyle(
-                  color: p.subtext, fontSize: 7, letterSpacing: 2, fontWeight: FontWeight.w700)),
-              ]),
-            ),
-            const SizedBox(width: 10),
+          Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('$_misPuntosLiga',
+                style: TextStyle(color: p.text1,
+                  fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5, height: 1)),
+              Text('PTS LIGA', style: TextStyle(
+                color: p.subtext, fontSize: 7, letterSpacing: 2, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(width: 14),
             GestureDetector(
               onTap: () => SettingsScreen.mostrar(context),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: p.surface,
-                  border: Border.all(color: p.line2),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(Icons.settings_outlined, color: p.text1, size: 18),
-              ),
+              child: Icon(Icons.settings_outlined, color: p.text1, size: 22),
             ),
           ]),
         ])),
