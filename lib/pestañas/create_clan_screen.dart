@@ -183,7 +183,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _esEdicion ? 'EDITAR CUARTEL' : 'FUNDAR CLAN',
+          _esEdicion ? 'EDITAR' : 'FUNDAR CLAN',
           style: _raj(13, FontWeight.w900, cp.white, sp: 3),
         ),
         bottom: PreferredSize(
@@ -459,7 +459,8 @@ class _CreateClanScreenState extends State<CreateClanScreen>
             ? const Center(child: SizedBox(width: 20, height: 20,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(_esEdicion ? '⚔️' : '🏴', style: const TextStyle(fontSize: 18)),
+                Icon(_esEdicion ? Icons.save_rounded : Icons.flag_rounded,
+                    color: Colors.white, size: 18),
                 const SizedBox(width: 12),
                 Text(
                   _esEdicion ? 'GUARDAR CAMBIOS' : 'FUNDAR EL CLAN',
