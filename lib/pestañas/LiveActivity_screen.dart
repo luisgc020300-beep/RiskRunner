@@ -1280,6 +1280,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _mejorarAgua(),
       _dibujarTerritoriosEnMapa(),
       if (_objetivoGlobal != null) _cargarYMostrarPuntosGlobo(),
+      // Puntos de objetivos de Guerra Global en el selector: se dibujan al
+      // entrar en el modo (_elegirTerritorioGlobal), pero un cambio de tema
+      // recarga el estilo entero y los borra — sin esto no se recuperaban.
+      if (_seleccionandoGlobal) _actualizarGlobalesEnGlobo(visible: true),
       if (_objetivoGlobal != null) Future.sync(() {
         _timerRefreshGlobo?.cancel();
         _timerRefreshGlobo = Timer.periodic(const Duration(minutes: 5), (_) {
