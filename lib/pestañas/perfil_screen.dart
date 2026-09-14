@@ -734,30 +734,7 @@ class _PerfilScreenState extends State<PerfilScreen>
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildBotonRetar() {
-    return Semantics(
-      label: 'Retar a $nickname',
-      button: true,
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          _mostrarModalReto();
-        },
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.sports_mma_rounded, color: Colors.white, size: 15),
-            const SizedBox(width: 7),
-            Text('Retar', style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
-          ]),
-        ),
-      ),
-    );
+    return _perfilActionBtn('Retar', Icons.sports_mma_rounded, _mostrarModalReto);
   }
 
   Future<void> _mostrarModalReto({
@@ -2236,11 +2213,11 @@ class _PerfilScreenState extends State<PerfilScreen>
                     _perfilActionBtn('Personalizar', Icons.palette_outlined, _abrirCustomizador),
                   ])
                 : Row(children: [
-                    Expanded(flex: 3, child: _buildFollowButton()),
+                    _buildFollowButton(),
                     const SizedBox(width: 8),
-                    Expanded(flex: 3, child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat, outlined: true)),
+                    _perfilActionBtn('Mensaje', Icons.chat_bubble_outline_rounded, _abrirChat),
                     const SizedBox(width: 8),
-                    Expanded(flex: 2, child: _buildBotonRetar()),
+                    _buildBotonRetar(),
                   ]),
           ),
 
@@ -3486,43 +3463,18 @@ class _PerfilScreenState extends State<PerfilScreen>
   Widget _buildFollowButton() {
     if (_loadingFollow) return const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 1.5)));
     if (_esSiguiendo) {
-      return _socialBtn('Siguiendo', Icons.how_to_reg_rounded, _p.dim, _dejarDeSeguir, outlined: true);
+      return _perfilActionBtn('Siguiendo', Icons.how_to_reg_rounded, _dejarDeSeguir);
     }
     if (_solicitudPendiente) {
-      return _socialBtn('Solicitado', Icons.schedule_rounded, _p.dim, _cancelarSolicitud, outlined: true);
+      return _perfilActionBtn('Solicitado', Icons.schedule_rounded, _cancelarSolicitud);
     }
-    return _socialBtn('Seguir', Icons.person_add_rounded, _colorTerritorio, _seguir);
+    return _perfilActionBtn('Seguir', Icons.person_add_rounded, _seguir);
   }
 
-  Widget _socialBtn(String label, IconData icon, Color accent, VoidCallback onTap, {bool outlined = false}) {
-    return Semantics(
-      label: label,
-      button: true,
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        child: Container(
-          width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-          ),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: Colors.white, size: 15),
-            const SizedBox(width: 7),
-            Text(label, style: _rajdhani(13, FontWeight.w600, Colors.white, spacing: 0.2)),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  // Botón compacto (ajustado al contenido, no ocupa todo el ancho) para
-  // acciones secundarias del propio perfil — estilo Instagram, con colores
-  // adaptativos para que se distinga del fondo tanto en claro como oscuro.
+  // Botón compacto (ajustado al contenido, no ocupa todo el ancho) para las
+  // acciones del perfil — propio (Editar/Personalizar) o ajeno
+  // (Seguir/Mensaje/Retar) — estilo Instagram, con colores adaptativos
+  // para que se distinga del fondo tanto en claro como oscuro.
   Widget _perfilActionBtn(String label, IconData icon, VoidCallback onTap) {
     return Semantics(
       label: label,
