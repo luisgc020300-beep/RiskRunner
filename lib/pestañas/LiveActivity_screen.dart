@@ -288,7 +288,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   late AnimationController _hudAnim;
   late Animation<double>   _hudFade;
-  bool _hudMinimizado = false;
 
   late AnimationController _bounceAnim;
 
@@ -1307,17 +1306,20 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     ]);
   }
 
+  // La primera carga en frío del estilo puede dejar la fuente 'composite'
+  // aún no consultable justo cuando onStyleLoaded dispara (el estilo
+  // personalizado tarda más que los estilos base de Mapbox) — _addBuildings3D
+  // falla en silencio esa vez y solo se recuperaba al recargar el estilo
+  // (p.ej. cambiando de modo claro/oscuro). Reintentos más largos y
+  // numerosos cubren también conexiones lentas en el primer arranque.
+  static const List<int> _kBuildingsRetryDelaysMs = [200, 600, 1500, 3000, 5000];
+
   Future<void> _cargarBuildings3DConRetry() async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
-    await _addBuildings3D();
-    if (!_buildings3dCreated) {
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (mounted) await _addBuildings3D();
-    }
-    if (!_buildings3dCreated) {
-      await Future.delayed(const Duration(milliseconds: 2000));
-      if (mounted) await _addBuildings3D();
+    for (final delay in _kBuildingsRetryDelaysMs) {
+      if (_buildings3dCreated) return;
+      await Future.delayed(Duration(milliseconds: delay));
+      if (!mounted) return;
+      await _addBuildings3D();
     }
   }
 
@@ -2929,7 +2931,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         WakelockPlus.disable();
         _session.stopSession();
         setState(() {
-          _hudMinimizado = false;
           routePoints.clear();
         });
         await _limpiarPresenciaFirestore();
@@ -3146,7 +3147,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _territoriosNotificadosEnSesion.clear();
       _territoriosVisitadosEnSesion.clear();
       _ultimaNotifRival.clear();
-      _hudMinimizado           = true;
     });
     _limpiarPreviewTerritorio();
     _antiCheat.resetear();
@@ -3294,7 +3294,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void togglePause() {
     final nowPaused = !_session.isPaused;
     _session.setPaused(nowPaused);
-    setState(() { _hudMinimizado = !nowPaused; });
     if (nowPaused) {
       _timerController.pause();
       _stopwatch.stop();
@@ -3354,7 +3353,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       WakelockPlus.disable();
       if (!mounted) return;
       _session.stopSession();
-      setState(() { _hudMinimizado = false; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         duration: const Duration(seconds: 3),
         backgroundColor: Colors.transparent,
@@ -3385,7 +3383,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
     if (mounted) {
       _session.stopSession();
-      setState(() { _hudMinimizado = false; _globoZoomLocal = false; });
+      setState(() { _globoZoomLocal = false; });
     }
     await _mapboxMap?.gestures.updateSettings(
         mapbox.GesturesSettings(rotateEnabled: true, pitchEnabled: false));
@@ -4117,18 +4115,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
             ],
           ),
         ),
-        // Avatar se muestra en el puck de Mapbox (posición GPS real)
-        if (_session.isTracking)
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            alignment: _session.isPaused
-                ? const Alignment(0, -0.1)
-                : (_hudMinimizado
-                    ? const Alignment(0, -0.78)
-                    : const Alignment(0, -0.50)),
-            child: _buildTimerGrande(),
-          ),
         if (_mapaDesactualizado)
           Positioned(
             bottom: _session.isTracking ? 180 : 100, left: 0, right: 0,

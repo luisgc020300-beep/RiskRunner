@@ -7,14 +7,11 @@ extension _LiveSessionControls on _LiveActivityScreenState {
 
   Widget _buildHUD() {
     if (!_session.isTracking) return const SizedBox.shrink();
-    if (_hudMinimizado && !_session.isPaused) return _buildHUDMiniClasico();
     return _buildHUDClasico();
   }
 
   Widget _buildHUDClasico() {
-    return GestureDetector(
-      onTap: () => setState(() => _hudMinimizado = true),
-      child: FadeTransition(
+    return FadeTransition(
       opacity: _hudFade,
       child: AnimatedBuilder(
         animation: _pulsoAnim,
@@ -69,71 +66,8 @@ extension _LiveSessionControls on _LiveActivityScreenState {
           ],
         ),
       ),
-    ),
     );
   }
-
-  Widget _buildHUDMiniClasico() => Padding(
-        padding: const EdgeInsets.fromLTRB(18, 50, 18, 0),
-        child: GestureDetector(
-          onTap: () => setState(() => _hudMinimizado = false),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.60),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Text(_session.distanciaTotal.toStringAsFixed(2),
-                    style: GoogleFonts.rajdhani(color: Colors.white,
-                        fontWeight: FontWeight.w700, fontSize: 18,
-                        letterSpacing: 0.5,
-                        fontFeatures: const [FontFeature.tabularFigures()])),
-                Text(' km', style: GoogleFonts.rajdhani(
-                    color: AppColors.gold.withValues(alpha: 0.65),
-                    fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
-                Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                Text(_ritmoStr,
-                    style: GoogleFonts.rajdhani(color: Colors.white,
-                        fontWeight: FontWeight.w700, fontSize: 18,
-                        letterSpacing: 0.5,
-                        fontFeatures: const [FontFeature.tabularFigures()])),
-                Text(' /km', style: GoogleFonts.rajdhani(
-                    color: AppColors.gold.withValues(alpha: 0.65),
-                    fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
-                if (_objetivoGlobal != null) ...[
-                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  Text('${(_progresoGlobal * 100).toInt()}%',
-                      style: TextStyle(color: _globalConquistado ? _kVerde : Colors.white,
-                          fontWeight: FontWeight.w300, fontSize: 15)),
-                ] else if (_rutaGuiada != null) ...[
-                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  Text('${(_session.porcentajeRuta * 100).toInt()}%',
-                      style: TextStyle(color: _session.rutaCompletada ? _kVerde : Colors.white,
-                          fontWeight: FontWeight.w300, fontSize: 15)),
-                ] else if (_modoSolitario) ...[
-                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  Text(
-                    _barrioActual != null
-                        ? '${(_barrioActual!.porcentajeCubierto * 100).toInt()}%'
-                        : 'SOLO',
-                    style: const TextStyle(color: Color(0xFF30D158),
-                        fontWeight: FontWeight.w500, fontSize: 11, letterSpacing: 0.8)),
-                ] else if (!_modoRuta) ...[
-                  Container(width: 1, height: 14, color: Colors.white.withValues(alpha: 0.15)),
-                  Text('${_territoriosVisitadosEnSesion.length}',
-                      style: const TextStyle(color: _kWaterLight,
-                          fontWeight: FontWeight.w300, fontSize: 15)),
-                ],
-                Icon(CupertinoIcons.chevron_down, color: Colors.white.withValues(alpha: 0.35), size: 14),
-              ],
-            ),
-          ),
-        ),
-      );
 
   Widget _hudStat(String label, String valor, Color color) =>
       Column(mainAxisSize: MainAxisSize.min, children: [
@@ -160,30 +94,6 @@ extension _LiveSessionControls on _LiveActivityScreenState {
               : '--:--:--';
           return _hudStat('TIEMPO', str, _session.isPaused ? _p.goldDim : _kWaterLight);
         },
-      );
-
-  Widget _buildTimerGrande() => IgnorePointer(
-        child: CustomTimer(
-          controller: _timerController,
-          builder: (_, remaining) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.58),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-            ),
-            child: Text(
-              '${remaining.hours.toString().padLeft(2,'0')}:${remaining.minutes.toString().padLeft(2,'0')}:${remaining.seconds.toString().padLeft(2,'0')}',
-              style: GoogleFonts.rajdhani(
-                fontSize: 44,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 4,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-        ),
       );
 
   Widget _buildChips() {
