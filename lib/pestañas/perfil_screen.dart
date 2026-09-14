@@ -33,7 +33,6 @@ import '../services/zona_service.dart';
 import 'importar_carrera_screen.dart';
 import '../services/subscription_service.dart';
 import '../services/stats_service.dart';
-import '../services/route_service.dart';
 import 'coin_shop_screen.dart';
 import '../widgets/perfil/perfil_theme.dart';
 import '../widgets/perfil/perfil_posts_tab.dart';
@@ -172,14 +171,6 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   // â”€â”€ Estado premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _isPremium = false;
-
-  // â”€â”€ Rutas libres â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  int    _rutasTotal      = 0;
-  double _rutasKmTotal    = 0.0;
-  int    _rutasSegTotal   = 0;
-  double _rutasMejorRitmo = 0.0;
-  double _rutasMayorDist  = 0.0;
-  bool   _rutasLoaded     = false;
 
   // â”€â”€ Stats premium â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<PuntoTendencia> _tendencia8Semanas = [];
@@ -361,29 +352,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     ]);
   }
 
-  Future<void> _cargarRutasStats() async {
-    if (!isOwnProfile) return;
-    final uid = viewedUserId;
-    if (uid == null) return;
-    try {
-      final stats = await RouteService.cargarRutasStats(uid);
-      if (!mounted) return;
-      setState(() {
-        if (stats != null) {
-          _rutasTotal      = stats.totalRutas;
-          _rutasKmTotal    = stats.totalKm;
-          _rutasSegTotal   = stats.totalSeg;
-          _rutasMejorRitmo = stats.mejorRitmoMinKm;
-          _rutasMayorDist  = stats.mayorDistanciaKm;
-        }
-        _rutasLoaded = true;
-      });
-    } catch (e) {
-      debugPrint('PerfilScreen._cargarRutasStats: $e');
-      if (mounted) setState(() => _rutasLoaded = true);
-    }
-  }
-
   Future<void> _cargarTodo() async {
     if (viewedUserId == null) return;
     setState(() => isLoading = true);
@@ -395,7 +363,6 @@ class _PerfilScreenState extends State<PerfilScreen>
         _cargarCarrerasRecientes(), _cargarRangoEnLiga(), _cargarRacha(),
         _cargarHistorialGuerra(), _cargarHistorialCompleto(),
         _cargarTitulos(), _cargarContadoresFollow(),
-        _cargarRutasStats(),
         if (!isOwnProfile) _cargarEstadoAmistad(),
         if (!isOwnProfile) _cargarEstadoFollow(),
       ]);
@@ -1525,93 +1492,6 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _buildRutasStats() {
-    if (!isOwnProfile) return const SizedBox.shrink();
-
-    String ritmoStr(double minKm) {
-      if (minKm <= 0) return '--:--';
-      final min = minKm.floor();
-      final seg = ((minKm - min) * 60).round();
-      return "$min'${seg.toString().padLeft(2, '0')}\"";
-    }
-
-    String durStr(int seg) {
-      final h = seg ~/ 3600;
-      final m = (seg % 3600) ~/ 60;
-      if (h > 0) return '${h}h ${m.toString().padLeft(2, '0')}m';
-      return '${m}m ${(seg % 60).toString().padLeft(2, '0')}s';
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _p.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF6A4A9B).withValues(alpha: 0.3)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6A4A9B).withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFF6A4A9B).withValues(alpha: 0.25)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.route_rounded, size: 11, color: Color(0xFF9B72CF)),
-                const SizedBox(width: 5),
-                Text('RUTAS LIBRES',
-                    style: _rajdhani(9, FontWeight.w700, const Color(0xFF9B72CF))
-                        .copyWith(letterSpacing: 1)),
-              ]),
-            ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-          child: !_rutasLoaded
-              ? Row(children: [
-                  const SizedBox(
-                    width: 14, height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: Color(0xFF9B72CF)),
-                  ),
-                  const SizedBox(width: 10),
-                  Text('Cargando rutas...', style: _rajdhani(11, FontWeight.w400, _p.dim)),
-                ])
-              : _rutasTotal == 0
-                  ? const SizedBox.shrink()
-                  : Wrap(
-                      spacing: 12,
-                      runSpacing: 10,
-                      children: [
-                        _statChip(Icons.route_rounded,        '$_rutasTotal',                          'rutas'),
-                        _statChip(Icons.straighten_rounded,   '${_rutasKmTotal.toStringAsFixed(1)} km', 'total'),
-                        _statChip(Icons.timer_outlined,       durStr(_rutasSegTotal),                  'tiempo'),
-                        _statChip(Icons.speed_rounded,        ritmoStr(_rutasMejorRitmo),              'mejor ritmo'),
-                        _statChip(Icons.trending_up_rounded,  '${_rutasMayorDist.toStringAsFixed(2)} km', 'más larga'),
-                      ],
-                    ),
-        ),
-      ]),
-    );
-  }
-
-  Widget _statChip(IconData icon, String value, String label) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: const Color(0xFF9B72CF)),
-        const SizedBox(width: 4),
-        Text(value, style: _rajdhani(13, FontWeight.w700, _p.text)),
-      ]),
-      Text(label, style: _rajdhani(9, FontWeight.w400, _p.dim).copyWith(letterSpacing: 0.5)),
-    ],
-  );
-
   Widget _buildTabStats() {
     return FadeTransition(
       opacity: _fadeZona2,
@@ -1634,7 +1514,6 @@ class _PerfilScreenState extends State<PerfilScreen>
             ...[_buildPredictorWidget(), const SizedBox(height: 16)],
           PalmaresPanel(titulos: _todosLosTitulos, titulosActivos: _titulosActivos),
           const SizedBox(height: 16),
-          _buildRutasStats(), const SizedBox(height: 16),
 
           // â”€â”€ Panel de estadísticas avanzadas (Premium) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_isPremium)
