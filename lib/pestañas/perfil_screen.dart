@@ -163,8 +163,12 @@ class _PerfilScreenState extends State<PerfilScreen>
   DateTime? _ultimoReto;
   static const _kCooldownReto = Duration(seconds: 60);
 
-  // ── Tabs deslizables (Stats/Historial/Posts/Duelos)
-  final PageController _tabPageController = PageController();
+  // ── Tabs deslizables (Stats/Historial/Posts/Duelos) ────────────────────────
+  // TabController (no PageController) porque es lo que espera NestedScrollView
+  // para coordinar el scroll compartido con la cabecera — con un PageView a
+  // pelo, dos páginas adyacentes podrían acabar enganchadas al mismo
+  // PrimaryScrollController a la vez durante el propio gesto de deslizar.
+  late final TabController _tabController;
   final Set<int> _tabsVisitados = {0};
 
   // â”€â”€ Clan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -205,6 +209,14 @@ class _PerfilScreenState extends State<PerfilScreen>
     _slideZona2  = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(CurvedAnimation(parent: _entradaAnim, curve: const Interval(0.25, 0.85, curve: Curves.easeOutCubic)));
     _pulse       = CurvedAnimation(parent: _loopAnim, curve: Curves.easeInOut);
     _scan        = CurvedAnimation(parent: _scanAnim, curve: Curves.linear);
+    _tabController = TabController(length: 4, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() {
+        _tabPrincipal = _tabController.index;
+        _tabsVisitados.add(_tabPrincipal);
+      });
+    });
     _cargarTodo();
     _escucharConteoDesafios();
   }
@@ -229,7 +241,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     _entradaAnim.dispose();
     _loopAnim.dispose();
     _scanAnim.dispose();
-    _tabPageController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -1316,34 +1328,55 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+  // Alto fijo de la franja de tab bar dentro del SliverPersistentHeader
+  // (28 de separación + la pastilla de tabs + 16 de separación).
+  static const double _kTabBarStripHeight = 80;
+
   Widget _buildContent() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
-      SlideTransition(
-        position: _slideZona2,
-        child: FadeTransition(
-          opacity: _fadeZona2,
-          child: Column(children: [
-            const SizedBox(height: 28),
-            _buildTabBar(),
-            const SizedBox(height: 16),
+    // NestedScrollView: la identidad (avatar/stats/badges) vive en la
+    // cabecera de arriba y se desplaza fuera de la pantalla al hacer scroll
+    // dentro de cualquier tab — como antes de que los tabs fuesen
+    // deslizables — mientras la propia tab bar queda fija (pinned) para
+    // poder seguir cambiando de tab aunque hayas bajado del todo.
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverOverlapAbsorber(
+          handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+          sliver: SliverMainAxisGroup(slivers: [
+            SliverToBoxAdapter(
+              child: FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _TabBarHeaderDelegate(
+                height: _kTabBarStripHeight,
+                child: Container(
+                  color: _p.bg,
+                  child: SlideTransition(
+                    position: _slideZona2,
+                    child: FadeTransition(
+                      opacity: _fadeZona2,
+                      child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                        const SizedBox(height: 28),
+                        _buildTabBar(),
+                        const SizedBox(height: 16),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ]),
         ),
-      ),
+      ],
       // El contenido de cada tab se desliza como el resto de la app
       // (Home/Correr/Mapa/Social/Perfil) — cada página se desplaza sola,
-      // la cabecera de arriba queda fija.
-      Expanded(
-        child: PageView(
-          controller: _tabPageController,
-          onPageChanged: (i) => setState(() {
-            _tabPrincipal = i;
-            _tabsVisitados.add(i);
-          }),
-          children: List.generate(4, _paginaTab),
-        ),
+      // y a la vez cada una participa en el scroll compartido de arriba.
+      body: TabBarView(
+        controller: _tabController,
+        children: List.generate(4, _paginaTab),
       ),
-    ]);
+    );
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1383,7 +1416,7 @@ class _PerfilScreenState extends State<PerfilScreen>
                       _tabPrincipal = i;
                       _tabsVisitados.add(i);
                     });
-                    _tabPageController.animateToPage(i,
+                    _tabController.animateTo(i,
                         duration: const Duration(milliseconds: 280),
                         curve: Curves.easeOut);
                   },
@@ -1429,31 +1462,48 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+  // Envuelve el contenido de una página en un CustomScrollView que absorbe
+  // el "overlap" del NestedScrollView exterior — es lo que permite que cada
+  // tab se desplace de forma independiente y a la vez arrastre la cabecera
+  // de identidad fuera de pantalla al hacer scroll.
+  Widget _sliverPage(Widget child) {
+    return Builder(builder: (context) {
+      return CustomScrollView(
+        slivers: [
+          SliverOverlapInjector(
+            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+          ),
+          SliverToBoxAdapter(child: child),
+        ],
+      );
+    });
+  }
+
   Widget _paginaTab(int index) {
     // Tabs 0-2 (stats, historial, posts) bloqueadas en perfil privado para no seguidores
     if (_esPerfilPrivado && !isOwnProfile && !_esSiguiendo && index < 3) {
-      return SingleChildScrollView(child: _buildPerfilPrivadoLock());
+      return _sliverPage(_buildPerfilPrivadoLock());
     }
     switch (index) {
       case 0:
         if (_isPremium && !_statsPremiumCargadas && !_loadingStatsPremium) {
           Future.microtask(_cargarStatsPremium);
         }
-        return SingleChildScrollView(child: _buildTabStats());
+        return _sliverPage(_buildTabStats());
       case 1:
-        return SingleChildScrollView(child: _buildTabHistorial());
+        return _sliverPage(_buildTabHistorial());
       case 2:
-        if (!_tabsVisitados.contains(2)) return const _TabPerezosaCargando();
-        return SingleChildScrollView(
-          child: PerfilPostsTab(viewedUserId: viewedUserId, isOwnProfile: isOwnProfile, colorTerritorio: _colorTerritorio),
+        if (!_tabsVisitados.contains(2)) return _sliverPage(const _TabPerezosaCargando());
+        return _sliverPage(
+          PerfilPostsTab(viewedUserId: viewedUserId, isOwnProfile: isOwnProfile, colorTerritorio: _colorTerritorio),
         );
       case 3:
-        if (!_tabsVisitados.contains(3)) return const _TabPerezosaCargando();
-        if (viewedUserId == null) return const SizedBox.shrink();
-        return SingleChildScrollView(
-          child: PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3),
+        if (!_tabsVisitados.contains(3)) return _sliverPage(const _TabPerezosaCargando());
+        if (viewedUserId == null) return _sliverPage(const SizedBox.shrink());
+        return _sliverPage(
+          PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3),
         );
-      default: return const SizedBox.shrink();
+      default: return _sliverPage(const SizedBox.shrink());
     }
   }
 
@@ -3540,6 +3590,27 @@ class _TabPerezosaCargando extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Delegate de altura fija para la tab bar pinneada dentro del
+/// NestedScrollView del perfil — se queda fija arriba mientras la
+/// identidad (avatar/stats/badges) se desplaza fuera de pantalla.
+class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+  final double height;
+  const _TabBarHeaderDelegate({required this.child, required this.height});
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => child;
+
+  @override
+  bool shouldRebuild(covariant _TabBarHeaderDelegate oldDelegate) =>
+      oldDelegate.child != child || oldDelegate.height != height;
 }
 
 /// Widget que anima un número desde 0 hasta [value].
