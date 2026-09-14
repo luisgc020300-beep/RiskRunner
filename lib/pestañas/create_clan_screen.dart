@@ -12,12 +12,38 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/clan_service.dart';
 import '../core/app_error.dart';
 
-const _kSurface  = Color(0xFFFFFFFF);
-const _kLine     = Color(0xFFC6C6C8);
-const _kLine2    = Color(0xFFD1D1D6);
-const _kDim      = Color(0xFFAEAEB2);
-const _kSubtext  = Color(0xFF8E8E93);
-const _kWhite    = Color(0xFF1C1C1E);
+// Paleta adaptativa — misma que clan_screen.dart, para que ambas pantallas
+// del clan luzcan coherentes en modo claro y oscuro.
+class _CP {
+  final Color bg, surface, surface2, sep, line2, dim, subtext, white;
+  const _CP._({
+    required this.bg, required this.surface, required this.surface2,
+    required this.sep, required this.line2,
+    required this.dim, required this.subtext, required this.white,
+  });
+  static const light = _CP._(
+    bg:       Color(0xFFE8E8ED),
+    surface:  Color(0xFFFFFFFF),
+    surface2: Color(0xFFE5E5EA),
+    sep:      Color(0xFFC6C6C8),
+    line2:    Color(0xFFD1D1D6),
+    dim:      Color(0xFFAEAEB2),
+    subtext:  Color(0xFF8E8E93),
+    white:    Color(0xFF1C1C1E),
+  );
+  static const dark = _CP._(
+    bg:       Color(0xFF090807),
+    surface:  Color(0xFF1C1C1E),
+    surface2: Color(0xFF2C2C2E),
+    sep:      Color(0xFF38383A),
+    line2:    Color(0xFF2C2C2E),
+    dim:      Color(0xFF636366),
+    subtext:  Color(0xFF8E8E93),
+    white:    Color(0xFFEEEEEE),
+  );
+  static _CP of(BuildContext ctx) =>
+      Theme.of(ctx).brightness == Brightness.dark ? dark : light;
+}
 
 TextStyle _raj(double size, FontWeight w, Color c, {double sp = 0}) =>
     GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: sp);
@@ -145,22 +171,24 @@ class _CreateClanScreenState extends State<CreateClanScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cp = _CP.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0D0D),
+        backgroundColor: cp.bg,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 16),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: cp.white, size: 16),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           _esEdicion ? 'EDITAR CUARTEL' : 'FUNDAR CLAN',
-          style: _raj(13, FontWeight.w900, Colors.white, sp: 3),
+          style: _raj(13, FontWeight.w900, cp.white, sp: 3),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: _kLine),
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(height: 0.5, color: cp.sep),
         ),
       ),
       body: FadeTransition(
@@ -208,7 +236,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
               const SizedBox(height: 4),
               Text(
                 'El tag es único e inmutable una vez creado',
-                style: _raj(10, FontWeight.w500, _kSubtext),
+                style: _raj(10, FontWeight.w500, cp.subtext),
               ),
               const SizedBox(height: 16),
             ],
@@ -235,12 +263,13 @@ class _CreateClanScreenState extends State<CreateClanScreen>
 
   // ── Preview ───────────────────────────────────────────────
   Widget _buildPreview() {
+    final cp = _CP.of(context);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: _kSurface,
+          color: cp.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _color.withValues(alpha: 0.3), width: 1.5),
           boxShadow: [
@@ -277,13 +306,13 @@ class _CreateClanScreenState extends State<CreateClanScreen>
             const SizedBox(height: 6),
             Text(
               _nombreCtrl.text.isEmpty ? 'Nombre del clan' : _nombreCtrl.text,
-              style: _raj(18, FontWeight.w900, _kWhite, sp: 0.5),
+              style: _raj(18, FontWeight.w900, cp.white, sp: 0.5),
             ),
             if (_descripcionCtrl.text.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 _descripcionCtrl.text,
-                style: _raj(11, FontWeight.w400, _kSubtext),
+                style: _raj(11, FontWeight.w400, cp.subtext),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -296,6 +325,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
 
   // ── Emoji picker ──────────────────────────────────────────
   Widget _buildEmojiPicker() {
+    final cp = _CP.of(context);
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -307,10 +337,10 @@ class _CreateClanScreenState extends State<CreateClanScreen>
             duration: const Duration(milliseconds: 180),
             width: 46, height: 46,
             decoration: BoxDecoration(
-              color: sel ? _color.withValues(alpha: 0.15) : _kSurface,
+              color: sel ? _color.withValues(alpha: 0.15) : cp.surface,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: sel ? _color : _kLine2,
+                color: sel ? _color : cp.line2,
                 width: sel ? 2 : 1,
               ),
             ),
@@ -361,6 +391,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
     int maxLines  = 1,
     bool uppercase = false,
   }) {
+    final cp = _CP.of(context);
     return TextField(
       controller:    controller,
       maxLength:     maxLength,
@@ -372,21 +403,21 @@ class _CreateClanScreenState extends State<CreateClanScreen>
       inputFormatters: uppercase
           ? [UpperCaseTextFormatter()]
           : [],
-      style: _raj(15, FontWeight.w600, _kWhite),
+      style: _raj(15, FontWeight.w600, cp.white),
       decoration: InputDecoration(
         hintText:      hint,
-        hintStyle:     _raj(15, FontWeight.w400, _kDim),
-        counterStyle:  _raj(9, FontWeight.w500, _kSubtext),
+        hintStyle:     _raj(15, FontWeight.w400, cp.dim),
+        counterStyle:  _raj(9, FontWeight.w500, cp.subtext),
         filled:        true,
-        fillColor:     _kSurface,
+        fillColor:     cp.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _kLine2),
+          borderSide: BorderSide(color: cp.line2),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: _kLine2),
+          borderSide: BorderSide(color: cp.line2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -399,7 +430,7 @@ class _CreateClanScreenState extends State<CreateClanScreen>
   Widget _buildLabel(String text) => Row(children: [
     Container(width: 3, height: 12, color: _color,
         margin: const EdgeInsets.only(right: 8)),
-    Text(text, style: _raj(9, FontWeight.w800, _kSubtext, sp: 2.5)),
+    Text(text, style: _raj(9, FontWeight.w800, _CP.of(context).subtext, sp: 2.5)),
   ]);
 
   // ── Botón guardar ─────────────────────────────────────────

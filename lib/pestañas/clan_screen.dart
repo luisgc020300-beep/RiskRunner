@@ -189,91 +189,104 @@ class _ClanScreenState extends State<ClanScreen>
     final esLider   = yo?.rol == ClanRol.lider;
     final esCapitan = yo?.rol == ClanRol.capitan || esLider;
     final clanColor = clan.colorObj;
+    final cp        = _CP.of(context);
 
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          backgroundColor: const Color(0xFF0D0D0D),
-          expandedHeight: 180,
-          pinned: true,
-          elevation: 0,
-          // ── Back si viene de perfil ──────────────────────
-          leading: Navigator.canPop(context)
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-                  onPressed: () => Navigator.pop(context),
-                )
-              : const SizedBox(),
-          flexibleSpace: FlexibleSpaceBar(
-            background: _buildHeroClan(clan, clanColor, esLider),
-          ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(0.5),
-            child: Container(height: 0.5, color: _CP.of(context).sep),
-          ),
-          actions: [
-            if (esLider)
-              IconButton(
-                icon: Icon(Icons.edit_outlined, color: _CP.of(context).text, size: 18),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => CreateClanScreen(clanExistente: clan))),
-              ),
-          ],
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: cp.bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: cp.text, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        title: Text('MI CLAN', style: _raj(13, FontWeight.w800, cp.subtext, sp: 2)),
+        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(0.5),
+          child: Container(height: 0.5, color: cp.sep),
         ),
-
-        SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _GuerraActivaBanner(clanId: clan.clanId, clanColor: clanColor),
-            const SizedBox(height: 20),
-            _buildStatsRow(clan, clanColor),
+        actions: [
+          if (esLider)
+            IconButton(
+              icon: Icon(Icons.edit_outlined, color: cp.text, size: 18),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => CreateClanScreen(clanExistente: clan))),
+            ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _buildHeroClan(clan, clanColor),
+          const SizedBox(height: 16),
+          _GuerraActivaBanner(clanId: clan.clanId, clanColor: clanColor),
+          const SizedBox(height: 20),
+          _buildStatsRow(clan, clanColor),
+          const SizedBox(height: 24),
+          if (esCapitan) ...[
+            _buildLabel('Operaciones'),
+            _buildAccionesGrid(clan, clanColor, esLider),
             const SizedBox(height: 24),
-            if (esCapitan) ...[
-              _buildLabel('Operaciones'),
-              _buildAccionesGrid(clan, clanColor, esLider),
-              const SizedBox(height: 24),
-            ],
-            _buildLabel('Miembros  ${clan.miembros.length}/${clan.maxMiembros}'),
-            _MiembrosLista(clan: clan, yo: yo, esLider: esLider, esCapitan: esCapitan),
-            const SizedBox(height: 24),
-            _buildLabel('Historial de guerras'),
-            _HistorialGuerras(clanId: clan.clanId),
-            const SizedBox(height: 24),
-            _buildBotonAbandonar(clan),
-            const SizedBox(height: 40),
-          ]),
-        )),
-      ],
+          ],
+          _buildLabel('Miembros  ${clan.miembros.length}/${clan.maxMiembros}'),
+          _MiembrosLista(clan: clan, yo: yo, esLider: esLider, esCapitan: esCapitan),
+          const SizedBox(height: 24),
+          _buildLabel('Historial de guerras'),
+          _HistorialGuerras(clanId: clan.clanId),
+          const SizedBox(height: 24),
+          _buildBotonAbandonar(clan),
+          const SizedBox(height: 40),
+        ]),
+      ),
     );
   }
 
-  Widget _buildHeroClan(ClanData clan, Color clanColor, bool esLider) {
-    return ColoredBox(
-      color: _CP.of(context).bg,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Row(children: [
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(
-                color: clanColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Center(child: Text(clan.emoji, style: const TextStyle(fontSize: 34))),
-            ),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('[${clan.tag}]', style: _dm(12, FontWeight.w600, clanColor)),
-              const SizedBox(height: 2),
-              Text(clan.nombre, style: _dm(20, FontWeight.w700, _CP.of(context).white)),
-              if (clan.descripcion.isNotEmpty)
-                Text(clan.descripcion, style: _dm(12, FontWeight.w400, _CP.of(context).subtext),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-            ])),
-          ]),
-        ),
+  Widget _buildHeroClan(ClanData clan, Color clanColor) {
+    final cp = _CP.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cp.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: clanColor.withValues(alpha: 0.30)),
+        boxShadow: [
+          BoxShadow(color: clanColor.withValues(alpha: 0.08), blurRadius: 20),
+        ],
       ),
+      child: Row(children: [
+        Container(
+          width: 64, height: 64,
+          decoration: BoxDecoration(
+            color: clanColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: clanColor.withValues(alpha: 0.4)),
+          ),
+          child: Center(child: Text(clan.emoji, style: const TextStyle(fontSize: 30))),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: clanColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: clanColor.withValues(alpha: 0.4)),
+            ),
+            child: Text('[${clan.tag}]', style: _raj(10, FontWeight.w900, clanColor, sp: 0.8)),
+          ),
+          const SizedBox(height: 6),
+          Text(clan.nombre, style: _dm(18, FontWeight.w700, cp.white)),
+          if (clan.descripcion.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(clan.descripcion, style: _dm(12, FontWeight.w400, cp.subtext),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ])),
+      ]),
     );
   }
 
@@ -389,6 +402,7 @@ class _StatChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: _CP.of(context).surface,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _CP.of(context).line2),
       ),
       child: Column(children: [
         Text(value, style: _raj(20, FontWeight.w900, color)),
@@ -415,6 +429,7 @@ class _AccionBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: _CP.of(context).surface,
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(children: [
           Icon(icon, color: color, size: 22),
@@ -437,7 +452,11 @@ class _MiembrosLista extends StatelessWidget {
     final sorted = [...clan.miembros]
       ..sort((a, b) => b.puntosAportados.compareTo(a.puntosAportados));
     return Container(
-      decoration: BoxDecoration(color: _CP.of(context).surface, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: _CP.of(context).surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _CP.of(context).line2),
+      ),
       clipBehavior: Clip.hardEdge,
       child: Column(
         children: sorted.asMap().entries.map((e) =>
@@ -625,6 +644,7 @@ class _GuerraActivaBanner extends StatelessWidget {
             decoration: BoxDecoration(
               color: _CP.of(context).surface,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kAccent.withValues(alpha: 0.25)),
             ),
             child: Row(children: [
               const Icon(Icons.bolt_rounded, color: _kAccent, size: 22),
@@ -664,13 +684,21 @@ class _HistorialGuerras extends StatelessWidget {
         if (lista.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: _CP.of(context).surface, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: _CP.of(context).surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _CP.of(context).line2),
+            ),
             child: Center(child: Text('No hay guerras registradas',
                 style: _dm(13, FontWeight.w400, _CP.of(context).subtext))),
           );
         }
         return Container(
-          decoration: BoxDecoration(color: _CP.of(context).surface, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: _CP.of(context).surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _CP.of(context).line2),
+          ),
           clipBehavior: Clip.hardEdge,
           child: Column(children: lista.asMap().entries.map((entry) {
             final w         = entry.value;
@@ -724,6 +752,7 @@ class _InvitacionesBanner extends StatelessWidget {
             decoration: BoxDecoration(
               color: _kBlue.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kBlue.withValues(alpha: 0.3)),
             ),
             child: Row(children: [
               const Icon(Icons.mail_outline_rounded, color: _kBlue, size: 20),
@@ -755,7 +784,11 @@ class _TopClanesWidget extends StatelessWidget {
           ]),
           const SizedBox(height: 10),
           Container(
-            decoration: BoxDecoration(color: _CP.of(context).surface, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: _CP.of(context).surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _CP.of(context).line2),
+            ),
             clipBehavior: Clip.hardEdge,
             child: Column(children: clanes.asMap().entries.map((e) {
               final c = e.value;
@@ -951,6 +984,7 @@ class _BotonAccion extends StatelessWidget {
       decoration: BoxDecoration(
         color: _CP.of(context).surface,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _CP.of(context).line2),
       ),
       child: Row(children: [
         Container(
