@@ -1386,22 +1386,6 @@ class _PerfilScreenState extends State<PerfilScreen>
       controller: _scrollCtrl,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
-        if (!isOwnProfile)
-          FadeTransition(
-            opacity: _fadeZona2,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Column(children: [
-                Row(children: [
-                  Expanded(child: _buildFollowButton()),
-                  const SizedBox(width: 8),
-                  Expanded(child: _buildBotonRetar()),
-                ]),
-                const SizedBox(height: 8),
-                _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat),
-              ]),
-            ),
-          ),
         SlideTransition(
           position: _slideZona2,
           child: FadeTransition(
@@ -2267,88 +2251,114 @@ class _PerfilScreenState extends State<PerfilScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [gradTop, _p.bg],
-          stops: const [0.0, 0.72],
+          stops: const [0.0, 0.55],
         ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Espacio appbar + status bar
-          SizedBox(height: topPad + 44 + 8),
+          SizedBox(height: topPad + 44 + 16),
 
-          // ── Avatar ──────────────────────────────────────────────────────
-          _buildAvatar(),
-          const SizedBox(height: 18),
-
-          // ── Nombre ──────────────────────────────────────────────────────
-          GestureDetector(
-            onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(
-                nickname.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 24, fontWeight: FontWeight.w800,
-                  color: _p.title, letterSpacing: 3.0, height: 1,
-                ),
-              ),
-              if (isOwnProfile) ...[
-                const SizedBox(width: 8),
-                Icon(Icons.edit_outlined, color: _p.dim, size: 12),
-              ],
-            ]),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Rango + Nivel + Monedas ──────────────────────────────────────
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _headerBadge(_nivelTitulo(nivel), filled: true),
-            const SizedBox(width: 6),
-            _headerBadge('NIV. $nivel'),
-            const SizedBox(width: 6),
-            _coinsBadge(),
-            if (_isPremium) ...[const SizedBox(width: 6), _buildPremiumBadge()],
-          ]),
-
-          if (_titulosActivos.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ReyBannerActivo(titulosActivos: _titulosActivos),
-          ],
-          const SizedBox(height: 10),
-
-          // ── Clan ────────────────────────────────────────────────────────
-          _buildClanChip(),
-          if (isOwnProfile && email.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub)),
-          ],
-          const SizedBox(height: 28),
-
-          // ── Stats strip ─────────────────────────────────────────────────
+          // ── Fila estilo Instagram: avatar a la izquierda + stats a la derecha
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(children: [
-              _statCol(_seguidores.toString(), 'SEGUIDORES',
-                  onTap: viewedUserId == null ? null : () =>
-                      mostrarSeguidores(context, viewedUserId!, myUserId, _colorTerritorio)),
-              Container(width: 1, height: 32, color: _p.border),
-              _statCol(_siguiendo.toString(), 'SIGUIENDO',
-                  onTap: viewedUserId == null ? null : () =>
-                      mostrarSiguiendo(context, viewedUserId!, myUserId, _colorTerritorio)),
-              Container(width: 1, height: 32, color: _p.border),
-              _statCol(_territoriosConquistados.toString(), 'TERRITORIOS',
-                  onTap: viewedUserId == null ? null : () =>
-                      mostrarTerritorios(context, viewedUserId!, _colorTerritorio)),
-            ]),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildAvatar(size: 84),
+                const SizedBox(width: 22),
+                Expanded(
+                  child: Row(children: [
+                    _statCol(_territoriosConquistados.toString(), 'TERRITORIOS',
+                        onTap: viewedUserId == null ? null : () =>
+                            mostrarTerritorios(context, viewedUserId!, _colorTerritorio)),
+                    _statCol(_seguidores.toString(), 'SEGUIDORES',
+                        onTap: viewedUserId == null ? null : () =>
+                            mostrarSeguidores(context, viewedUserId!, myUserId, _colorTerritorio)),
+                    _statCol(_siguiendo.toString(), 'SIGUIENDO',
+                        onTap: viewedUserId == null ? null : () =>
+                            mostrarSiguiendo(context, viewedUserId!, myUserId, _colorTerritorio)),
+                  ]),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // ── Nombre + badges + clan, bloque alineado a la izquierda ────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: isOwnProfile ? _mostrarDialogoEditarNickname : null,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Flexible(
+                      child: Text(
+                        nickname.toUpperCase(),
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 19, fontWeight: FontWeight.w800,
+                          color: _p.title, letterSpacing: 1.0, height: 1,
+                        ),
+                      ),
+                    ),
+                    if (isOwnProfile) ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.edit_outlined, color: _p.dim, size: 12),
+                    ],
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  _headerBadge(_nivelTitulo(nivel), filled: true),
+                  _headerBadge('NIV. $nivel'),
+                  _coinsBadge(),
+                  if (_isPremium) _buildPremiumBadge(),
+                ]),
+                if (_titulosActivos.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  ReyBannerActivo(titulosActivos: _titulosActivos),
+                ],
+                const SizedBox(height: 10),
+                _buildClanChip(),
+                if (isOwnProfile && email.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(email, style: _rajdhani(10, FontWeight.w400, _p.sub)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Botones de acción ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: isOwnProfile
+                ? Row(children: [
+                    Expanded(child: _socialBtn('Editar perfil', Icons.edit_outlined, _p.dim, _mostrarDialogoEditarNickname, outlined: true)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _socialBtn('Personalizar', Icons.palette_outlined, _p.dim, _abrirCustomizador, outlined: true)),
+                  ])
+                : Row(children: [
+                    Expanded(flex: 3, child: _buildFollowButton()),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 3, child: _socialBtn('Mensaje', Icons.chat_bubble_outline_rounded, Colors.white, _abrirChat, outlined: true)),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 2, child: _buildBotonRetar()),
+                  ]),
+          ),
+
+          const SizedBox(height: 20),
           Container(height: 1, color: _p.border.withValues(alpha: 0.50)),
         ],
       ),
     );
   }
 
-  Widget _buildAvatar() {
-    const double size = 100;
+  Widget _buildAvatar({double size = 100}) {
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
