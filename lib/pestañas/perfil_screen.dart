@@ -163,9 +163,9 @@ class _PerfilScreenState extends State<PerfilScreen>
   DateTime? _ultimoReto;
   static const _kCooldownReto = Duration(seconds: 60);
 
-  // ── Header colapsable
-  final ScrollController _scrollCtrl = ScrollController();
-  bool _showNickInAppBar = false;
+  // ── Tabs deslizables (Stats/Historial/Posts/Duelos)
+  final PageController _tabPageController = PageController();
+  final Set<int> _tabsVisitados = {0};
 
   // â”€â”€ Clan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _clanNombre;
@@ -213,12 +213,6 @@ class _PerfilScreenState extends State<PerfilScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized && isOwnProfile) _recargarDatosDinamicos();
-    _scrollCtrl.addListener(() {
-      final shouldShow = _scrollCtrl.offset > 160;
-      if (shouldShow != _showNickInAppBar) {
-        setState(() => _showNickInAppBar = shouldShow);
-      }
-    });
     _initialized = true;
   }
 
@@ -235,7 +229,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     _entradaAnim.dispose();
     _loopAnim.dispose();
     _scanAnim.dispose();
-    _scrollCtrl.dispose();
+    _tabPageController.dispose();
     super.dispose();
   }
 
@@ -1298,30 +1292,15 @@ class _PerfilScreenState extends State<PerfilScreen>
   AppBar _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       toolbarHeight: 44,
-      flexibleSpace: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-        color: _showNickInAppBar ? bgColor : Colors.transparent,
-      ),
       leading: !isOwnProfile
           ? IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
               onPressed: () => Navigator.pop(context))
           : null,
-      title: AnimatedOpacity(
-        opacity: _showNickInAppBar ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        child: Text(
-          nickname,
-          style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w600, color: iconColor),
-        ),
-      ),
       centerTitle: true,
       actions: isOwnProfile ? [
         IconButton(
@@ -1353,24 +1332,33 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildContent() {
-    return SingleChildScrollView(
-      controller: _scrollCtrl,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
-        SlideTransition(
-          position: _slideZona2,
-          child: FadeTransition(
-            opacity: _fadeZona2,
-            child: Column(children: [
-              const SizedBox(height: 28),
-              _buildTabBar(),
-              const SizedBox(height: 24),
-              _buildTabContent(),
-            ]),
-          ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      FadeTransition(opacity: _fadeZona1, child: _buildZonaIdentidad()),
+      SlideTransition(
+        position: _slideZona2,
+        child: FadeTransition(
+          opacity: _fadeZona2,
+          child: Column(children: [
+            const SizedBox(height: 28),
+            _buildTabBar(),
+            const SizedBox(height: 16),
+          ]),
         ),
-      ]),
-    );
+      ),
+      // El contenido de cada tab se desliza como el resto de la app
+      // (Home/Correr/Mapa/Social/Perfil) — cada página se desplaza sola,
+      // la cabecera de arriba queda fija.
+      Expanded(
+        child: PageView(
+          controller: _tabPageController,
+          onPageChanged: (i) => setState(() {
+            _tabPrincipal = i;
+            _tabsVisitados.add(i);
+          }),
+          children: List.generate(4, _paginaTab),
+        ),
+      ),
+    ]);
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -1406,7 +1394,13 @@ class _PerfilScreenState extends State<PerfilScreen>
                 child: GestureDetector(
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    setState(() => _tabPrincipal = i);
+                    setState(() {
+                      _tabPrincipal = i;
+                      _tabsVisitados.add(i);
+                    });
+                    _tabPageController.animateToPage(i,
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOut);
                   },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -1450,22 +1444,30 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
-  Widget _buildTabContent() {
+  Widget _paginaTab(int index) {
     // Tabs 0-2 (stats, historial, posts) bloqueadas en perfil privado para no seguidores
-    if (_esPerfilPrivado && !isOwnProfile && !_esSiguiendo && _tabPrincipal < 3) {
-      return _buildPerfilPrivadoLock();
+    if (_esPerfilPrivado && !isOwnProfile && !_esSiguiendo && index < 3) {
+      return SingleChildScrollView(child: _buildPerfilPrivadoLock());
     }
-    switch (_tabPrincipal) {
+    switch (index) {
       case 0:
         if (_isPremium && !_statsPremiumCargadas && !_loadingStatsPremium) {
           Future.microtask(_cargarStatsPremium);
         }
-        return _buildTabStats();
-      case 1: return _buildTabHistorial();
-      case 2: return PerfilPostsTab(viewedUserId: viewedUserId, isOwnProfile: isOwnProfile, colorTerritorio: _colorTerritorio);
+        return SingleChildScrollView(child: _buildTabStats());
+      case 1:
+        return SingleChildScrollView(child: _buildTabHistorial());
+      case 2:
+        if (!_tabsVisitados.contains(2)) return const _TabPerezosaCargando();
+        return SingleChildScrollView(
+          child: PerfilPostsTab(viewedUserId: viewedUserId, isOwnProfile: isOwnProfile, colorTerritorio: _colorTerritorio),
+        );
       case 3:
+        if (!_tabsVisitados.contains(3)) return const _TabPerezosaCargando();
         if (viewedUserId == null) return const SizedBox.shrink();
-        return PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3);
+        return SingleChildScrollView(
+          child: PerfilDuelosTab(uid: viewedUserId!, isOwnProfile: isOwnProfile, fadeAnim: _fadeZona3),
+        );
       default: return const SizedBox.shrink();
     }
   }
@@ -2221,9 +2223,9 @@ class _PerfilScreenState extends State<PerfilScreen>
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: isOwnProfile
                 ? Row(children: [
-                    Expanded(child: _socialBtn('Editar perfil', Icons.edit_outlined, _p.dim, _mostrarDialogoEditarNickname, outlined: true)),
+                    _perfilActionBtn('Editar perfil', Icons.edit_outlined, _mostrarDialogoEditarNickname),
                     const SizedBox(width: 8),
-                    Expanded(child: _socialBtn('Personalizar', Icons.palette_outlined, _p.dim, _abrirCustomizador, outlined: true)),
+                    _perfilActionBtn('Personalizar', Icons.palette_outlined, _abrirCustomizador),
                   ])
                 : Row(children: [
                     Expanded(flex: 3, child: _buildFollowButton()),
@@ -3510,6 +3512,35 @@ class _PerfilScreenState extends State<PerfilScreen>
     );
   }
 
+  // Botón compacto (ajustado al contenido, no ocupa todo el ancho) para
+  // acciones secundarias del propio perfil — estilo Instagram, con colores
+  // adaptativos para que se distinga del fondo tanto en claro como oscuro.
+  Widget _perfilActionBtn(String label, IconData icon, VoidCallback onTap) {
+    return Semantics(
+      label: label,
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: _p.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _p.border2),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, color: _p.text, size: 13),
+            const SizedBox(width: 6),
+            Text(label, style: _rajdhani(12, FontWeight.w600, _p.text, spacing: 0.2)),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _glowBar(double val, {double height = 3, Color? color}) {
     return Stack(children: [
       Container(height: height, decoration: BoxDecoration(color: _p.border2, borderRadius: BorderRadius.circular(2))),
@@ -3531,6 +3562,25 @@ class _PerfilScreenState extends State<PerfilScreen>
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  WIDGETS AUXILIARES
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+/// Placeholder mostrado en Posts/Duelos hasta la primera visita — evita
+/// suscribirse a sus streams de Firestore mientras el usuario no entra ahí.
+class _TabPerezosaCargando extends StatelessWidget {
+  const _TabPerezosaCargando();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Center(
+        child: SizedBox(
+          width: 20, height: 20,
+          child: CircularProgressIndicator(
+              strokeWidth: 1.5, color: _PP.of(context).dim),
+        ),
+      ),
+    );
+  }
+}
 
 /// Widget que anima un número desde 0 hasta [value].
 /// Se reinicia cada vez que [value] cambia.
