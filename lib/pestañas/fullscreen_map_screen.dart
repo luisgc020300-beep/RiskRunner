@@ -1347,17 +1347,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         ListenableBuilder(
           listenable: Listenable.merge([_state, _sheetCtrl]),
           builder: (_, __) {
-            // Con la hoja desplegada casi del todo, el FAB taparía su contenido
-            // — se oculta en vez de quedarse encima.
+            // Con la hoja desplegada casi del todo, o con una tarjeta de
+            // territorio abierta, el FAB taparía contenido — se oculta en
+            // vez de quedarse encima (antes se reposicionaba con un offset
+            // fijo que no siempre bastaba para no solapar la tarjeta).
             final sheetExtent = _sheetCtrl.isAttached ? _sheetCtrl.size : 0.13;
-            if (sheetExtent > 0.20) return const SizedBox.shrink();
-            final screenH = MediaQuery.of(context).size.height;
             final hasCard = _state.modoGlobal
                 ? _state.territorioGlobalSeleccionado != null
                 : _state.territorioSeleccionado != null;
+            if (sheetExtent > 0.20 || hasCard) return const SizedBox.shrink();
+            final screenH = MediaQuery.of(context).size.height;
             return Positioned(
               right: 16,
-              bottom: screenH * 0.14 + (hasCard ? 160 : 12),
+              bottom: screenH * 0.14 + 12,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

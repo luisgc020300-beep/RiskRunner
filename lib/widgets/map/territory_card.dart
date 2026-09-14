@@ -159,115 +159,149 @@ class TerritoryCard extends StatelessWidget {
               ]),
             ),
 
-            // ── Stats row ─────────────────────────────────────────────
+            // ── Estado + puntos ───────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
               child: Row(children: [
-                _tcCardStat(estadoIcon, estadoLabel, cEstado),
-                _tcVDiv(borderColor),
-                _tcCardStat(
-                    Icons.flag_rounded, '${t.puntos.length} PTS', textColor),
-                _tcVDiv(borderColor),
-                t.esMio
-                    ? _tcCardStat(
-                        Icons.shield_rounded, 'DEFENDER', kMapGold)
-                    : GestureDetector(
-                        onTap: () => onAtacar?.call(),
-                        child: _tcCardStat(
-                            Icons.flag_rounded, 'ATACAR', kMapRed),
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: cEstado.withValues(alpha: 0.12),
+                    border: Border.all(color: cEstado.withValues(alpha: 0.4)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(estadoIcon, size: 12, color: cEstado),
+                    const SizedBox(width: 5),
+                    Text(estadoLabel,
+                        style: mapRaj(10, FontWeight.w800, cEstado, spacing: 0.8)),
+                  ]),
+                ),
+                const Spacer(),
+                const Icon(Icons.flag_rounded, size: 13, color: kMapSub),
+                const SizedBox(width: 4),
+                Text('${t.puntos.length} PTS',
+                    style: mapRaj(11, FontWeight.w700, textColor)),
               ]),
             ),
 
-            // ── Barra de vida ──────────────────────────────────────────
+            // ── Barra de vida (protagonista) ────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: cEstado,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                              color: cEstado.withValues(alpha: 0.6),
-                              blurRadius: 4)
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(
+                  color: cEstado.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: cEstado.withValues(alpha: 0.18)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text('SALUD DEL TERRITORIO',
+                          style: mapRaj(9, FontWeight.w800, kMapSub, spacing: 1.0)),
+                      const Spacer(),
+                      Text('${t.hpActual}',
+                          style: mapRaj(22, FontWeight.w900, cEstado, height: 1.0)),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 2, bottom: 2),
+                        child: Text('/$kHpMax HP',
+                            style: mapRaj(11, FontWeight.w700, cEstado)),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Stack(children: [
+                        Container(height: 8, color: borderColor),
+                        FractionallySizedBox(
+                          widthFactor: hpFraction.clamp(0.0, 1.0),
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: cEstado,
+                              boxShadow: [
+                                BoxShadow(
+                                    color: cEstado.withValues(alpha: 0.5),
+                                    blurRadius: 6)
+                              ],
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    if (!t.esMio) ...[
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        const Icon(Icons.schedule_rounded,
+                            color: kMapSub, size: 11),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
+                          style: mapRaj(9, FontWeight.w600, kMapSub),
+                        ),
+                        if (t.esConquistableSinPasar) ...[
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: kMapRed.withValues(alpha: 0.12),
+                              border: Border.all(
+                                  color: kMapRed.withValues(alpha: 0.5)),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text('CONQUISTABLE',
+                                style: mapRaj(8, FontWeight.w900, kMapRed)),
+                          ),
                         ],
-                      ),
-                      margin: const EdgeInsets.only(right: 6),
-                    ),
-                    Text(
-                      t.estadoHp == EstadoHp.saludable
-                          ? 'Territorio saludable'
-                          : t.estadoHp == EstadoHp.danado
-                              ? 'Territorio debilitado'
-                              : 'En estado crítico',
-                      style: mapRaj(9, FontWeight.w700, cEstado,
-                          spacing: 0.5),
-                    ),
-                    const Spacer(),
-                    Text('${t.hpActual}/$kHpMax HP',
-                        style: mapRaj(9, FontWeight.w700, cEstado,
-                            spacing: 0.5)),
-                  ]),
-                  const SizedBox(height: 5),
-                  Stack(children: [
-                    Container(
-                      height: 4,
+                      ]),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Acción: defender / atacar ────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: t.esMio
+                  ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: borderColor,
-                        borderRadius: BorderRadius.circular(2),
+                        color: kMapGold.withValues(alpha: 0.08),
+                        border: Border.all(color: kMapGold.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    ),
-                    FractionallySizedBox(
-                      widthFactor: hpFraction.clamp(0.0, 1.0),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        const Icon(Icons.shield_rounded, size: 15, color: kMapGold),
+                        const SizedBox(width: 7),
+                        Text('BAJO TU CONTROL',
+                            style: mapRaj(11, FontWeight.w800, kMapGold, spacing: 1)),
+                      ]),
+                    )
+                  : GestureDetector(
+                      onTap: () => onAtacar?.call(),
                       child: Container(
-                        height: 4,
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: cEstado,
-                          borderRadius: BorderRadius.circular(2),
+                          color: kMapRed,
+                          borderRadius: BorderRadius.circular(8),
                           boxShadow: [
-                            BoxShadow(
-                                color: cEstado.withValues(alpha: 0.5),
-                                blurRadius: 6)
+                            BoxShadow(color: kMapRed.withValues(alpha: 0.35), blurRadius: 12),
                           ],
                         ),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          const Icon(Icons.flag_rounded, size: 15, color: Colors.white),
+                          const SizedBox(width: 7),
+                          Text('ATACAR TERRITORIO',
+                              style: mapRaj(12, FontWeight.w900, Colors.white, spacing: 1)),
+                        ]),
                       ),
                     ),
-                  ]),
-                  if (!t.esMio) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      const Icon(Icons.schedule_rounded,
-                          color: kMapSub, size: 11),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Sin visitar: ${t.diasSinVisitar} día${t.diasSinVisitar == 1 ? '' : 's'}',
-                        style: mapRaj(9, FontWeight.w600, kMapSub),
-                      ),
-                      if (t.esConquistableSinPasar) ...[
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: kMapRed.withValues(alpha: 0.12),
-                            border: Border.all(
-                                color: kMapRed.withValues(alpha: 0.5)),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: Text('CONQUISTABLE',
-                              style: mapRaj(8, FontWeight.w900, kMapRed)),
-                        ),
-                      ],
-                    ]),
-                  ],
-                ],
-              ),
             ),
 
             // ── Stats extra: dominio + velocidad + rey ──────────────────
