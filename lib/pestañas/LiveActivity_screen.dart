@@ -4209,10 +4209,21 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         },
         onMapCreated: _onMapCreated,
         onStyleLoadedListener: _onStyleLoaded,
+        onMapLoadedListener: _onMapaCargadoParaEdificios,
         onCameraChangeListener: _onCameraChanged,
         onTapListener: _onMapTap,
       ),
     );
+  }
+
+  // El estilo puede dispararse "cargado" antes de que la fuente 'composite'
+  // (edificios) sea consultable — de ahí los reintentos con delay en
+  // _cargarBuildings3DConRetry(). onMapLoaded es una señal más fuerte (todo
+  // lo necesario para el viewport actual, tiles incluidos, ya está listo),
+  // así que se aprovecha como disparador adicional determinista en vez de
+  // depender solo de adivinar tiempos de espera.
+  void _onMapaCargadoParaEdificios(mapbox.MapLoadedEventData _) {
+    if (!_buildings3dCreated) _addBuildings3D();
   }
 
   Widget _buildWebMap() {
