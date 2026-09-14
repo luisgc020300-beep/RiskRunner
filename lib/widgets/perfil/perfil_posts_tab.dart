@@ -29,7 +29,7 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
   bool _mostrandoGuardados = false;
 
   static const _tileUrl =
-      'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
+      'https://api.mapbox.com/styles/v1/mapbox/light-v11'
       '/tiles/256/{z}/{x}/{y}?access_token=${Env.mapboxPublicToken}';
 
   // ── Borrar un post ──────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
             Container(
               height: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
+                color: const Color(0xFFE5E5EA),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: p.border2),
               ),
@@ -147,7 +147,7 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
                 borderRadius: BorderRadius.circular(12),
                 child: FlutterMap(
                   options: MapOptions(
-                    backgroundColor: const Color(0xFF1A1A1A),
+                    backgroundColor: const Color(0xFFE5E5EA),
                     initialCameraFit: CameraFit.bounds(
                       bounds: LatLngBounds.fromPoints(route),
                       padding: const EdgeInsets.all(32),
@@ -332,13 +332,13 @@ class _PerfilPostsTabState extends State<PerfilPostsTab> {
     return GestureDetector(
       onTap: () => _mostrarDetallePost(context, postId, data),
       child: Container(
-        color: const Color(0xFF141414),
+        color: const Color(0xFFE5E5EA),
         child: Stack(fit: StackFit.expand, children: [
           // Fondo: mapa con tiles reales si hay ruta
           if (route.length > 1)
             FlutterMap(
               options: MapOptions(
-                backgroundColor: const Color(0xFF141414),
+                backgroundColor: const Color(0xFFE5E5EA),
                 initialCameraFit: CameraFit.bounds(
                   bounds: LatLngBounds.fromPoints(route),
                   padding: const EdgeInsets.all(12),
@@ -505,7 +505,7 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
   PerfilPalette get _p => PerfilPalette.of(context);
 
   static const _tileUrl =
-      'https://api.mapbox.com/styles/v1/mapbox/dark-v11'
+      'https://api.mapbox.com/styles/v1/mapbox/light-v11'
       '/tiles/256/{z}/{x}/{y}?access_token=${Env.mapboxPublicToken}';
 
   List<LatLng> _parseRoute(dynamic rawRoute) {
@@ -586,7 +586,7 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
             Container(
               height: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A),
+                color: const Color(0xFFE5E5EA),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: p.border2),
               ),
@@ -594,7 +594,7 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
                 borderRadius: BorderRadius.circular(12),
                 child: FlutterMap(
                   options: MapOptions(
-                    backgroundColor: const Color(0xFF1A1A1A),
+                    backgroundColor: const Color(0xFFE5E5EA),
                     initialCameraFit: CameraFit.bounds(
                       bounds: LatLngBounds.fromPoints(route),
                       padding: const EdgeInsets.all(32),
@@ -700,12 +700,12 @@ class _PerfilSavedTabState extends State<PerfilSavedTab> {
             return GestureDetector(
               onTap: () => _mostrarDetalle(context, doc.id, data),
               child: Container(
-                color: const Color(0xFF141414),
+                color: const Color(0xFFE5E5EA),
                 child: Stack(fit: StackFit.expand, children: [
                   if (route.length > 1)
                     FlutterMap(
                       options: MapOptions(
-                        backgroundColor: const Color(0xFF141414),
+                        backgroundColor: const Color(0xFFE5E5EA),
                         initialCameraFit: CameraFit.bounds(
                           bounds: LatLngBounds.fromPoints(route),
                           padding: const EdgeInsets.all(12),
