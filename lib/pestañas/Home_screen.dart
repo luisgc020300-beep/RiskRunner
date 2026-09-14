@@ -140,7 +140,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   String? get userId => FirebaseAuth.instance.currentUser?.uid;
 
   // Paleta dinámica — se actualiza al inicio de cada build()
@@ -1304,6 +1307,7 @@ class _HomeScreenState extends State<HomeScreen>
   // =============================================================================
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     _T = _TColors.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,

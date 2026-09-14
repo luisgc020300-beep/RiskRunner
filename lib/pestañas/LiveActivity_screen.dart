@@ -157,14 +157,26 @@ class LiveActivityScreen extends StatefulWidget {
   final Function(double distancia, Duration tiempo, List<LatLng> ruta)? onFinish;
   // Ruta guardada de otro jugador que el usuario quiere correr guiado
   final RouteData? rutaGuiada;
-  const LiveActivityScreen({super.key, this.onFinish, this.rutaGuiada});
+  // Notifica cuando hay una sesión activa (corriendo, sin pausa) — lo usa
+  // AppShell para bloquear el deslizamiento entre pestañas y ocultar la
+  // navbar mientras se está corriendo, evitando salir sin querer.
+  final ValueChanged<bool>? onSessionActiveChanged;
+  const LiveActivityScreen({
+    super.key,
+    this.onFinish,
+    this.rutaGuiada,
+    this.onSessionActiveChanged,
+  });
 
   @override
   State<LiveActivityScreen> createState() => _LiveActivityScreenState();
 }
 
 class _LiveActivityScreenState extends State<LiveActivityScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+
+  @override
+  bool get wantKeepAlive => true;
 
   _LP get _p => _LP.of(context);
 
@@ -200,6 +212,13 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   TerritoryData? _territorioActualBajoPie;
   List<LatLng> routePoints           = [];
   late final RunSessionNotifier _session = RunSessionNotifier();
+  bool? _ultimaSesionActivaNotificada;
+  void _notificarSesionActiva() {
+    final activa = _session.isTracking && !_session.isPaused;
+    if (activa == _ultimaSesionActivaNotificada) return;
+    _ultimaSesionActivaNotificada = activa;
+    widget.onSessionActiveChanged?.call(activa);
+  }
   Timer? _timerSesion;
   double _bearing                    = 0.0;
   // Bearing re-lock: user rotated the map manually; GPS heading resumes after _kRelockMs
@@ -401,6 +420,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   void initState() {
     super.initState();
     _modoNoche = _esHoraNoche();
+    _session.addListener(_notificarSesionActiva);
 
     StatsService.mapboxToken = Env.mapboxPublicToken;
 
@@ -576,6 +596,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   @override
   void dispose() {
+    _session.removeListener(_notificarSesionActiva);
     _timerSesion?.cancel();
     _puckAnimTimer?.cancel();
     _timerController.dispose();
@@ -4031,6 +4052,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // ==========================================================================
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final bool mostrarGlobo = !_session.isTracking && !_mostrandoCuentaAtras;
     return Scaffold(
       // Fondo azul universo — especialmente visible en modo oscuro

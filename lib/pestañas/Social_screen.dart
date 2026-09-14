@@ -28,7 +28,11 @@ class SocialScreen extends StatefulWidget {
   @override State<SocialScreen> createState() => _SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMixin {
+class _SocialScreenState extends State<SocialScreen>
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final String currentUserId = FirebaseAuth.instance.currentUser!.uid;
   final TextEditingController _searchController = TextEditingController();
   late TabController _tabController;
@@ -276,7 +280,9 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
 
   // ══════════════════════════════ BUILD ════════════════════════════════════════
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Scaffold(
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     body: Column(children: [
       _buildHeader(),
@@ -293,6 +299,7 @@ class _SocialScreenState extends State<SocialScreen> with TickerProviderStateMix
     ]),
     bottomNavigationBar: AppShell.isActive(context) ? null : const CustomBottomNavbar(currentIndex: 3),
   );
+  }
 
   // ══════════════════════════════ HEADER ════════════════════════════════════════
   Widget _buildHeader() {

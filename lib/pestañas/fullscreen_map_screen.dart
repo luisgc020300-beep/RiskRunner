@@ -119,7 +119,10 @@ class FullscreenMapScreen extends StatefulWidget {
 }
 
 class _FullscreenMapScreenState extends State<FullscreenMapScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+
+  @override
+  bool get wantKeepAlive => true;
 
   // flutter_map MapController eliminado — todos los mapas usan Mapbox
   final DraggableScrollableController _sheetCtrl     = DraggableScrollableController();
@@ -1276,6 +1279,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   // ==========================================================================
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(children: [

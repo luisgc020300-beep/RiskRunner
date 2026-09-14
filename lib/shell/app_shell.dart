@@ -1,21 +1,30 @@
 // lib/shell/app_shell.dart
 //
-// AppShell — Scaffold persistente con IndexedStack para las 4 pestañas
-// principales. Un solo Scaffold = una sola navbar = cero parpadeo.
+// AppShell — Scaffold persistente con PageView deslizable para las 5
+// pestañas principales (Home, Correr, Mapa, Social, Perfil). Un solo
+// Scaffold = una sola navbar = cero parpadeo, y ahora también se puede
+// cambiar de pestaña deslizando la pantalla, no solo tocando la navbar.
 //
-// Mapeo navbar ↔ stack:
-//   navIndex 0 (Home)        → stackIndex 0
-//   navIndex 1 (Correr)      → muestra diálogo, sin cambio de stack
-//   navIndex 2 (Mapa)        → stackIndex 1
-//   navIndex 3 (Social)      → stackIndex 2
-//   navIndex 4 (Perfil)      → stackIndex 3
+// Mapeo navbar ↔ página del PageView (es 1:1, no hace falta traducir índices):
+//   navIndex 0 → Home
+//   navIndex 1 → Correr   (se activa perezosamente: no se monta la sesión
+//                          GPS/mapa hasta la primera vez que se visita)
+//   navIndex 2 → Mapa
+//   navIndex 3 → Social
+//   navIndex 4 → Perfil
+//
+// Mientras hay una carrera activa (corriendo, sin pausa) el deslizamiento
+// se bloquea y la navbar se oculta, igual que pasaba antes cuando Correr
+// era una ruta empujada aparte — así no se puede salir sin querer.
 
 import 'package:flutter/material.dart';
 
 import '../pestañas/Home_screen.dart';
+import '../pestañas/LiveActivity_screen.dart';
 import '../pestañas/fullscreen_map_screen.dart';
 import '../pestañas/Social_screen.dart';
 import '../pestañas/perfil_screen.dart';
+import '../theme/app_colors.dart';
 import '../widgets/custom_navbar.dart';
 
 class AppShell extends StatefulWidget {
@@ -26,7 +35,7 @@ class AppShell extends StatefulWidget {
   static _AppShellState? _stateOf(BuildContext context) =>
       context.findAncestorStateOfType<_AppShellState>();
 
-  /// true cuando el widget está dentro del árbol del shell (en IndexedStack).
+  /// true cuando el widget está dentro del árbol del shell (en el PageView).
   /// false cuando está en una ruta empujada encima del shell.
   static bool isActive(BuildContext context) => _stateOf(context) != null;
 
@@ -40,46 +49,112 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   late int _navIndex;
+  late final PageController _pageController;
 
-  static int _toStackIndex(int navIndex) =>
-      navIndex <= 0 ? 0 : navIndex - 1; // 0→0, 2→1, 3→2, 4→3
+  // Correr se activa perezosamente: hasta la primera visita se muestra un
+  // placeholder ligero en vez de montar LiveActivityScreen (GPS, mapa 3D,
+  // animaciones en bucle), para no gastar batería si el usuario nunca
+  // entra a esa pestaña.
+  bool _correrActivado = false;
+
+  // true = hay una carrera en curso sin pausar. Bloquea el swipe y oculta
+  // la navbar para no poder salir sin querer de la pantalla de carrera.
+  bool _correrSesionActiva = false;
 
   @override
   void initState() {
     super.initState();
     _navIndex = widget.initialNavIndex;
+    _pageController = PageController(initialPage: _navIndex);
+    if (_navIndex == 1) _correrActivado = true;
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   void _selectTab(int navIndex) {
-    if (navIndex == 1) {
-      Navigator.pushNamedAndRemoveUntil(
-          context, '/correr', ModalRoute.withName('/home'));
-      return;
-    }
     // Si hay pantallas apiladas encima del shell, volver al root primero
     final nav = Navigator.of(context);
     if (nav.canPop()) {
       nav.popUntil((route) => route.isFirst);
     }
     if (navIndex == _navIndex) return;
-    setState(() => _navIndex = navIndex);
+    setState(() {
+      if (navIndex == 1) _correrActivado = true;
+    });
+    _pageController.animateToPage(
+      navIndex,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _onPageChanged(int i) {
+    setState(() {
+      _navIndex = i;
+      if (i == 1) _correrActivado = true;
+    });
+  }
+
+  void _onCorrerSesionActivaChanged(bool activa) {
+    if (activa == _correrSesionActiva) return;
+    setState(() => _correrSesionActiva = activa);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _toStackIndex(_navIndex),
-        children: const [
-          HomeScreen(),
-          FullscreenMapScreen(), // parámetros opcionales → defaults del constructor
-          SocialScreen(),
-          PerfilScreen(),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        physics: _correrSesionActiva
+            ? const NeverScrollableScrollPhysics()
+            : const PageScrollPhysics(),
+        children: [
+          TickerMode(enabled: _navIndex == 0, child: const HomeScreen()),
+          TickerMode(
+            enabled: _navIndex == 1,
+            child: _correrActivado
+                ? LiveActivityScreen(
+                    onSessionActiveChanged: _onCorrerSesionActivaChanged)
+                : const _CorrerTabPlaceholder(),
+          ),
+          TickerMode(
+              enabled: _navIndex == 2, child: const FullscreenMapScreen()),
+          TickerMode(enabled: _navIndex == 3, child: const SocialScreen()),
+          TickerMode(enabled: _navIndex == 4, child: const PerfilScreen()),
         ],
       ),
-      bottomNavigationBar: CustomBottomNavbar(
-        currentIndex: _navIndex,
-        onTabSelected: _selectTab,
+      bottomNavigationBar: _correrSesionActiva
+          ? null
+          : CustomBottomNavbar(
+              currentIndex: _navIndex,
+              onTabSelected: _selectTab,
+            ),
+    );
+  }
+}
+
+/// Placeholder ligero mostrado en el hueco de Correr hasta la primera
+/// visita — evita montar la sesión GPS/mapa mientras el usuario navega
+/// por las demás pestañas.
+class _CorrerTabPlaceholder extends StatelessWidget {
+  const _CorrerTabPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: AppColors.bg,
+      child: Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+              strokeWidth: 1.5, color: Colors.white24),
+        ),
       ),
     );
   }
