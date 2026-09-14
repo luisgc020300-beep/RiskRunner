@@ -171,6 +171,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static const double _kLocateZoom  = 15.0;
 
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
+  // Vista de entrada del Modo Global: el globo completo con curvatura
+  // visible, no un mapa plano acercado. Mismo valor que LiveActivity.
+  static const double _kGlobalZoomCompleto = 1.8;
 
   // Mapa siempre en estilo claro
   final bool _mapaOscuro = false;
@@ -262,7 +265,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     if (activo && !_tickerModeAnterior && _state.modoGlobal) {
       _globalZoomLocal = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _moverCamara(_kGlobalCenter, 2.5);
+        if (mounted) _moverCamara(_kGlobalCenter, _kGlobalZoomCompleto);
       });
     }
     _tickerModeAnterior = activo;
@@ -751,7 +754,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut);
         }
-        _moverCamara(_kGlobalCenter, 2.5);
+        _moverCamara(_kGlobalCenter, _kGlobalZoomCompleto);
       });
     } else {
       _toggleCtrl.reverse();
@@ -2904,7 +2907,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           center: mapbox.Point(
               coordinates: mapbox.Position(
                   _kGlobalCenter.longitude, _kGlobalCenter.latitude)),
-          zoom: 2.5,
+          zoom: _kGlobalZoomCompleto,
         ),
         mapbox.MapAnimationOptions(duration: 400),
       );
@@ -3079,7 +3082,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         styleUri: styleUri,
         cameraOptions: mapbox.CameraOptions(
           center: mapbox.Point(coordinates: mapbox.Position(0, 20)),
-          zoom: 2.5,
+          zoom: _kGlobalZoomCompleto,
         ),
         gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
           Factory<EagerGestureRecognizer>(() => EagerGestureRecognizer()),
@@ -3148,7 +3151,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       if (_state.modoGlobal) {
         if (_globalZoomLocal) {
           setState(() => _globalZoomLocal = false);
-          _moverCamara(_kGlobalCenter, 2.5);
+          _moverCamara(_kGlobalCenter, _kGlobalZoomCompleto);
           return;
         }
         setState(() => _globalZoomLocal = true);
