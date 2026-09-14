@@ -176,7 +176,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   static const LatLng _kGlobalCenter = LatLng(20.0, 0.0);
   // Vista de entrada del Modo Global: el globo completo con curvatura
   // visible, no un mapa plano acercado. Mismo valor que LiveActivity.
-  static const double _kGlobalZoomCompleto = 1.8;
+  static const double _kGlobalZoomCompleto = 1.0;
 
   // Mapa siempre en estilo claro
   final bool _mapaOscuro = false;
@@ -2074,6 +2074,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _mapboxCiudadMap = map;
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await _permitirPanoramaSinLimite(map);
     await map.gestures.updateSettings(mapbox.GesturesSettings(
       rotateEnabled: false,
       pitchEnabled: false,
@@ -2156,6 +2157,25 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           '$prefix-buildings', 'fill-extrusion-ambient-occlusion-radius', 3.0);
     } catch (e) {
       debugPrint('_setupTerrain buildings: $e');
+    }
+  }
+
+  // Por defecto Mapbox restringe la latitud de la cámara a ~85° (el límite
+  // clásico de Web Mercator), aunque se esté en proyección globe — así que
+  // arrastrar el mapa hacia arriba/abajo se frena antes de llegar a los
+  // polos. infiniteBounds:true lo levanta y permite recorrer el globo
+  // completo en cualquier dirección.
+  Future<void> _permitirPanoramaSinLimite(mapbox.MapboxMap map) async {
+    try {
+      await map.setBounds(mapbox.CameraBoundsOptions(
+        bounds: mapbox.CoordinateBounds(
+          southwest: mapbox.Point(coordinates: mapbox.Position(-180, -90)),
+          northeast: mapbox.Point(coordinates: mapbox.Position(180, 90)),
+          infiniteBounds: true,
+        ),
+      ));
+    } catch (e) {
+      debugPrint('_permitirPanoramaSinLimite: $e');
     }
   }
 
@@ -2421,6 +2441,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _mapboxRutasMap = map;
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await _permitirPanoramaSinLimite(map);
     await map.gestures.updateSettings(mapbox.GesturesSettings(
       rotateEnabled: false,
       pitchEnabled: false,
@@ -2540,6 +2561,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _mapboxSolMap = map;
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await _permitirPanoramaSinLimite(map);
     await map.gestures.updateSettings(mapbox.GesturesSettings(
       rotateEnabled: false,
       pitchEnabled: false,
@@ -2890,6 +2912,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _mapboxGlobalMap = map;
     await map.style.setProjection(
         mapbox.StyleProjection(name: mapbox.StyleProjectionName.globe));
+    await _permitirPanoramaSinLimite(map);
     await map.gestures.updateSettings(mapbox.GesturesSettings(
       rotateEnabled: true,
       pitchEnabled: false,
