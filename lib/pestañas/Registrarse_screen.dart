@@ -194,6 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             .doc(credential.user!.uid)
             .set({
           'nickname':         nick,
+          'nickname_lower':   nick.toLowerCase(),
           'email':            email,
           'victorias':        0,
           'nivel':            1,

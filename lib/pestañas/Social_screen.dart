@@ -131,8 +131,8 @@ class _SocialScreenState extends State<SocialScreen>
     }
     try {
       final snap = await FirebaseFirestore.instance.collection('players')
-          .where('nickname', isGreaterThanOrEqualTo: q)
-          .where('nickname', isLessThan: '$q')
+          .where('nickname_lower', isGreaterThanOrEqualTo: q.toLowerCase())
+          .where('nickname_lower', isLessThan: '${q.toLowerCase()}')
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;
       final futures = snap.docs.where(_esVisible).map(_procesarResultado).toList();
@@ -159,8 +159,8 @@ class _SocialScreenState extends State<SocialScreen>
     setState(() => _cargandoMas = true);
     try {
       final snap = await FirebaseFirestore.instance.collection('players')
-          .where('nickname', isGreaterThanOrEqualTo: q)
-          .where('nickname', isLessThan: '$q')
+          .where('nickname_lower', isGreaterThanOrEqualTo: q.toLowerCase())
+          .where('nickname_lower', isLessThan: '${q.toLowerCase()}')
           .startAfterDocument(_ultimoDocBusqueda!)
           .limit(_kBusquedaLimit).get();
       if (!mounted || _searchQuery != q) return;

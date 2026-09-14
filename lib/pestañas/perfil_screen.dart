@@ -434,6 +434,13 @@ class _PerfilScreenState extends State<PerfilScreen>
       _clanRol         = data['clanRol'] as String?;
       _esPerfilPrivado = (data['perfilPrivado'] as bool?) ?? false;
     });
+    // Autocorrección para cuentas creadas antes de nickname_lower —
+    // sin este campo el usuario no aparece en las búsquedas de Social.
+    if (isOwnProfile && data['nickname_lower'] == null && nickname.isNotEmpty) {
+      FirebaseFirestore.instance.collection('players').doc(myUserId)
+          .update({'nickname_lower': nickname.toLowerCase()})
+          .catchError((e) => debugPrint('Backfill nickname_lower: $e'));
+    }
   }
 
   Future<void> _abrirCustomizador() async {
@@ -1100,7 +1107,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     if (nn.length < 3) { _mostrarSnackbar('Mínimo 3 caracteres', error: true); return; }
     setState(() => isSaving = true);
     try {
-      await FirebaseFirestore.instance.collection('players').doc(myUserId).update({'nickname': nn});
+      await FirebaseFirestore.instance.collection('players').doc(myUserId)
+          .update({'nickname': nn, 'nickname_lower': nn.toLowerCase()});
       if (mounted) { setState(() { nickname = nn; isSaving = false; }); _mostrarSnackbar('Nickname actualizado'); }
     } catch (_) { if (mounted) { setState(() => isSaving = false); _mostrarSnackbar('Error al guardar', error: true); } }
   }
