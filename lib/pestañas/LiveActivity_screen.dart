@@ -116,7 +116,7 @@ const double _kPitchPausado = 65.0;
 const double _kZoomCorrer   = 18.5;
 const double _kZoomPausado  = 15.5;
 const double _kZoomGlobo   = 5;
-const double _kZoomGloboCompleto = 1.8; // vista de entrada: el globo completo, no la ubicación
+const double _kZoomGloboCompleto = 1.0; // vista de entrada: el globo completo, no la ubicación
 
 const String _kEstiloPersonalizado = 'mapbox://styles/mapbox/outdoors-v12';
 

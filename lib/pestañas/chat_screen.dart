@@ -455,12 +455,23 @@ class _ChatScreenState extends State<ChatScreen> {
               final hora = ts != null
                   ? '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}'
                   : '';
+              String? storyPreview;
+              if (m['type'] == 'story_reply') {
+                final caption = (m['storyCaption'] as String?)?.trim();
+                final base = esMio ? 'Respondiste a su historia' : 'Respondió a tu historia';
+                storyPreview = m['storyTipo'] == 'run_stats'
+                    ? '$base de carrera'
+                    : (caption != null && caption.isNotEmpty)
+                        ? '$base: "$caption"'
+                        : base;
+              }
               return _Bubble(
                 texto: m['text'] ?? '',
                 esMio: esMio,
                 hora: hora,
                 isFirst: msg.isFirst,
                 isLast: msg.isLast,
+                storyPreview: storyPreview,
               );
             },
           );
@@ -591,6 +602,7 @@ class _DateSeparator extends StatelessWidget {
 class _Bubble extends StatelessWidget {
   final String texto, hora;
   final bool esMio, isFirst, isLast;
+  final String? storyPreview;
 
   const _Bubble({
     required this.texto,
@@ -598,6 +610,7 @@ class _Bubble extends StatelessWidget {
     required this.hora,
     required this.isFirst,
     required this.isLast,
+    this.storyPreview,
   });
 
   BorderRadius _radius() {
@@ -649,11 +662,32 @@ class _Bubble extends StatelessWidget {
                     ? [const BoxShadow(color: kSocAccentGlow, blurRadius: 8, offset: Offset(0, 2))]
                     : null,
               ),
-              child: Text(texto,
-                  style: TextStyle(
-                      color: esMio ? Colors.white : p.text1,
-                      fontSize: 14,
-                      height: 1.4)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (storyPreview != null) ...[
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.camera_alt_outlined,
+                          size: 12,
+                          color: (esMio ? Colors.white : p.text1).withValues(alpha: 0.65)),
+                      const SizedBox(width: 5),
+                      Flexible(child: Text(storyPreview!,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: (esMio ? Colors.white : p.text1).withValues(alpha: 0.65),
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic))),
+                    ]),
+                    const SizedBox(height: 4),
+                  ],
+                  Text(texto,
+                      style: TextStyle(
+                          color: esMio ? Colors.white : p.text1,
+                          fontSize: 14,
+                          height: 1.4)),
+                ],
+              ),
             ),
             // Hora solo en el último mensaje del grupo
             if (isLast && hora.isNotEmpty)

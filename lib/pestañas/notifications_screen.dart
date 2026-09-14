@@ -13,6 +13,7 @@ import '../services/desafios_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_button.dart';
+import 'chat_screen.dart';
 
 // Alias locales para no reescribir cada referencia en el cuerpo del archivo
 const _kBg      = AppColors.bg;
@@ -211,6 +212,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'post_like':
       case 'post_comment':
         await _abrirDetallePost(item.postId);
+        break;
+
+      // ── Respuesta a una historia ───────────────────────────────────────────
+      case 'story_reply':
+        if (item.fromUserId != null && userId != null) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
+            currentUserId:   userId!,
+            friendId:        item.fromUserId!,
+            friendNickname:  item.fromNickname ?? 'Runner',
+          )));
+        }
         break;
     }
   }
@@ -517,6 +529,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (t == 'desafio_perdido')                          return Icons.sports_mma_rounded;
     if (t == 'post_like')                                return Icons.favorite_rounded;
     if (t == 'post_comment')                             return Icons.chat_bubble_rounded;
+    if (t == 'story_reply')                              return Icons.reply_rounded;
     return Icons.notifications_rounded;
   }
 
@@ -536,6 +549,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'desafio_perdido':         return 'DESAFÍO PERDIDO';
       case 'post_like':               return 'ME GUSTA';
       case 'post_comment':            return 'COMENTARIO';
+      case 'story_reply':             return 'RESPUESTA A TU HISTORIA';
       default:                        return 'NOTIFICACIÓN';
     }
   }

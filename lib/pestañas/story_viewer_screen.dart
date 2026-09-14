@@ -135,18 +135,134 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   bool _paused = false;
 
+  // ── Responder a la historia ──────────────────────────────────────────────
+  final TextEditingController _replyCtrl  = TextEditingController();
+  final FocusNode             _replyFocus = FocusNode();
+  bool _enviandoRespuesta = false;
+
   @override
   void initState() {
     super.initState();
     _groupIdx    = widget.initialGroupIndex;
     _progressCtrl = AnimationController(vsync: this);
+    _replyFocus.addListener(_onReplyFocusChanged);
     _loadStory();
   }
 
   @override
   void dispose() {
     _progressCtrl.dispose();
+    _replyCtrl.dispose();
+    _replyFocus.dispose();
     super.dispose();
+  }
+
+  void _onReplyFocusChanged() {
+    if (_replyFocus.hasFocus) {
+      _paused = true;
+      _progressCtrl.stop();
+      setState(() {});
+    } else {
+      _paused = false;
+      _progressCtrl.forward().then((_) {
+        if (mounted && !_paused) _nextStory();
+      });
+      setState(() {});
+    }
+  }
+
+  bool get _esMiPropiaHistoria =>
+      _story.userId == FirebaseAuth.instance.currentUser?.uid;
+
+  Future<void> _enviarRespuesta() async {
+    final texto = _replyCtrl.text.trim();
+    if (texto.isEmpty || _enviandoRespuesta) return;
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final storyOwnerId = _story.userId;
+    if (myUid == null || storyOwnerId == myUid) return;
+
+    setState(() => _enviandoRespuesta = true);
+    try {
+      final db = FirebaseFirestore.instance;
+      final sorted = [myUid, storyOwnerId]..sort();
+      final chatId = sorted.join('_');
+      final chatRef = db.collection('chats').doc(chatId);
+
+      final chatSnap = await chatRef.get();
+      final String tipo;
+      final String initiatorId;
+      if (chatSnap.exists) {
+        final d = chatSnap.data() as Map<String, dynamic>;
+        tipo = d['tipo'] as String? ?? 'normal';
+        initiatorId = d['initiatorId'] as String? ?? myUid;
+      } else {
+        final results = await Future.wait([
+          db.collection('follows')
+              .where('followerId', isEqualTo: myUid)
+              .where('followingId', isEqualTo: storyOwnerId)
+              .limit(1).get(),
+          db.collection('follows')
+              .where('followerId', isEqualTo: storyOwnerId)
+              .where('followingId', isEqualTo: myUid)
+              .limit(1).get(),
+        ]);
+        final esMutual = results[0].docs.isNotEmpty && results[1].docs.isNotEmpty;
+        tipo = esMutual ? 'normal' : 'solicitud';
+        initiatorId = myUid;
+      }
+
+      final now = FieldValue.serverTimestamp();
+      await chatRef.collection('messages').add({
+        'senderId':     myUid,
+        'text':         texto,
+        'timestamp':    now,
+        'type':         'story_reply',
+        'storyId':      _story.id,
+        'storyCaption': _story.caption,
+        'storyTipo':    _story.tipo,
+      });
+      await chatRef.set({
+        'participants':     [myUid, storyOwnerId],
+        'lastMessage':      texto,
+        'lastMessageTime':  now,
+        'lastSenderId':     myUid,
+        'tipo':             tipo,
+        'initiatorId':      initiatorId,
+        'unread_$myUid':        0,
+        'unread_$storyOwnerId': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+
+      final myDoc  = await db.collection('players').doc(myUid).get();
+      final myNick = myDoc.data()?['nickname'] as String? ?? 'Runner';
+      await db.collection('notifications').add({
+        'toUserId':     storyOwnerId,
+        'type':         'story_reply',
+        'fromUserId':   myUid,
+        'fromNickname': myNick,
+        'message':      '$myNick respondió a tu historia: "$texto"',
+        'read':         false,
+        'timestamp':    now,
+      });
+
+      if (!mounted) return;
+      _replyCtrl.clear();
+      _replyFocus.unfocus();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Respuesta enviada'),
+        duration: Duration(seconds: 2),
+        backgroundColor: Colors.black87,
+      ));
+    } catch (e) {
+      debugPrint('Error enviando respuesta a historia: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo enviar la respuesta. Inténtalo de nuevo.'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _enviandoRespuesta = false);
+    }
   }
 
   UserStoriesGroup get _group        => widget.groups[_groupIdx];
@@ -219,7 +335,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
+      resizeToAvoidBottomInset: true,
+      body: Column(children: [
+        Expanded(
+          child: GestureDetector(
         onTapDown: (d) {
           final x = d.globalPosition.dx;
           final w = MediaQuery.of(context).size.width;
@@ -303,14 +422,72 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ),
 
             // Pausa overlay
-            if (_paused)
+            if (_paused && !_replyFocus.hasFocus)
               const Center(
                 child: Icon(Icons.pause_circle_filled,
                     color: Colors.white54, size: 64),
               ),
           ],
         ),
-      ),
+          ),
+        ),
+        if (!_esMiPropiaHistoria) _buildBarraRespuesta(),
+      ]),
+    );
+  }
+
+  Widget _buildBarraRespuesta() {
+    final tieneTexto = _replyCtrl.text.trim().isNotEmpty;
+    return Container(
+      color: Colors.black,
+      padding: EdgeInsets.fromLTRB(
+          14, 10, 14, MediaQuery.of(context).padding.bottom + 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Expanded(
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40, maxHeight: 110),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+            ),
+            child: TextField(
+              controller: _replyCtrl,
+              focusNode: _replyFocus,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              maxLines: 4,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              cursorColor: Colors.white,
+              decoration: InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: 'Enviar mensaje...',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 14),
+              ),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _enviarRespuesta(),
+            ),
+          ),
+        ),
+        if (tieneTexto) ...[
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: _enviandoRespuesta ? null : _enviarRespuesta,
+            child: Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: _group.color),
+              child: _enviandoRespuesta
+                  ? const Padding(
+                      padding: EdgeInsets.all(11),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ]),
     );
   }
 

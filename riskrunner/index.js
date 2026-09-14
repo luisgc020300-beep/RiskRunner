@@ -1961,6 +1961,7 @@ const _FCM_TITLES = {
   global_territory_lost:       'Territorio Global perdido',
   titulo_rey:                  '¡Eres el Rey!',
   amistad_aceptada:            'Solicitud aceptada',
+  story_reply:                 'Respuesta a tu historia',
 };
 
 // Categorías de Ajustes > Notificaciones — deben reflejar exactamente las
@@ -1971,6 +1972,7 @@ const _CATEGORIA_POR_TIPO = {
   post_comment:                'social',
   post_like:                   'social',
   amistad_aceptada:            'social',
+  story_reply:                 'social',
   desafio_recibido:            'desafios',
   desafio_aceptado:            'desafios',
   desafio_ganado:              'desafios',
