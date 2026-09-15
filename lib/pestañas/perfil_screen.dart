@@ -171,6 +171,12 @@ class _PerfilScreenState extends State<PerfilScreen>
   late final TabController _tabController;
   final Set<int> _tabsVisitados = {0};
 
+  // ── Nick en la appbar al hacer scroll (el NestedScrollView es quien
+  // controla ahora el scroll exterior, así que este controller se le pasa
+  // a él en vez de a un SingleChildScrollView propio) ────────────────────
+  final ScrollController _outerScrollCtrl = ScrollController();
+  bool _showNickInAppBar = false;
+
   // â”€â”€ Clan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _clanNombre;
   String? _clanTag;
@@ -217,6 +223,12 @@ class _PerfilScreenState extends State<PerfilScreen>
         _tabsVisitados.add(_tabPrincipal);
       });
     });
+    _outerScrollCtrl.addListener(() {
+      final shouldShow = _outerScrollCtrl.offset > 160;
+      if (shouldShow != _showNickInAppBar) {
+        setState(() => _showNickInAppBar = shouldShow);
+      }
+    });
     _cargarTodo();
     _escucharConteoDesafios();
   }
@@ -242,6 +254,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     _loopAnim.dispose();
     _scanAnim.dispose();
     _tabController.dispose();
+    _outerScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -1289,15 +1302,30 @@ class _PerfilScreenState extends State<PerfilScreen>
   AppBar _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white70 : const Color(0xFF3C3C43);
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
       toolbarHeight: 44,
+      flexibleSpace: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        color: _showNickInAppBar ? bgColor : Colors.transparent,
+      ),
       leading: !isOwnProfile
           ? IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded, color: iconColor, size: 18),
               onPressed: () => Navigator.pop(context))
           : null,
+      title: AnimatedOpacity(
+        opacity: _showNickInAppBar ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          nickname,
+          style: GoogleFonts.inter(
+            fontSize: 16, fontWeight: FontWeight.w600, color: iconColor),
+        ),
+      ),
       centerTitle: true,
       actions: isOwnProfile ? [
         IconButton(
@@ -1339,6 +1367,7 @@ class _PerfilScreenState extends State<PerfilScreen>
     // deslizables — mientras la propia tab bar queda fija (pinned) para
     // poder seguir cambiando de tab aunque hayas bajado del todo.
     return NestedScrollView(
+      controller: _outerScrollCtrl,
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
         SliverOverlapAbsorber(
           handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
