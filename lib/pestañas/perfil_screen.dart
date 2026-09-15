@@ -1545,8 +1545,6 @@ class _PerfilScreenState extends State<PerfilScreen>
           if (_prDistancia > 0 || _prPaceMinKm > 0 || _prVelocidadMax > 0)
             ...[_buildPRsCard(), const SizedBox(height: 16)],
           _buildHitosPanel(), const SizedBox(height: 16),
-          if (isOwnProfile)
-            ...[_buildPlanEntrenamiento(), const SizedBox(height: 16)],
           if (_diasActividad.isNotEmpty)
             ...[_buildHeatmapActividad(), const SizedBox(height: 16)],
           if (_historialCompleto.isNotEmpty)
@@ -1555,6 +1553,8 @@ class _PerfilScreenState extends State<PerfilScreen>
             ...[_buildPredictorWidget(), const SizedBox(height: 16)],
           PalmaresPanel(titulos: _todosLosTitulos, titulosActivos: _titulosActivos),
           const SizedBox(height: 16),
+          if (isOwnProfile)
+            ...[_buildPlanEntrenamiento(), const SizedBox(height: 16)],
 
           // â”€â”€ Panel de estadísticas avanzadas (Premium) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_isPremium)
