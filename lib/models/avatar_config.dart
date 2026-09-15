@@ -20,20 +20,21 @@ class AvatarConfig {
 
   // ── Opciones disponibles ───────────────────────────────────────────
 
-  // Peinados: asset path + nombre + si es premium + coste
+  // Peinados: nombre + si es premium + coste — el avatar es 100% vectorial
+  // (AvatarPainter), no usa imágenes de asset.
   static const List<Map<String, dynamic>> hairOptions = [
-    {'asset': 'assets/avatars/hair/hair_1.png', 'name': 'Corto',     'premium': false, 'cost': 0},
-    {'asset': 'assets/avatars/hair/hair_2.png', 'name': 'Bandana',   'premium': false, 'cost': 0},
-    {'asset': 'assets/avatars/hair/hair_3.png', 'name': 'Gorra',     'premium': false, 'cost': 0},
-    {'asset': 'assets/avatars/hair/hair_4.png', 'name': 'Afro',      'premium': true,  'cost': 200},
-    {'asset': 'assets/avatars/hair/hair_5.png', 'name': 'Mohicano',  'premium': true,  'cost': 300},
+    {'name': 'Corto',     'premium': false, 'cost': 0},
+    {'name': 'Bandana',   'premium': false, 'cost': 0},
+    {'name': 'Gorra',     'premium': false, 'cost': 0},
+    {'name': 'Afro',      'premium': true,  'cost': 200},
+    {'name': 'Mohicano',  'premium': true,  'cost': 300},
   ];
 
   // Ojos
   static const List<Map<String, dynamic>> eyesOptions = [
-    {'asset': 'assets/avatars/eyes/eyes_1.png', 'name': 'Normal',    'premium': false, 'cost': 0},
-    {'asset': 'assets/avatars/eyes/eyes_2.png', 'name': 'Intenso',   'premium': false, 'cost': 0},
-    {'asset': 'assets/avatars/eyes/eyes_3.png', 'name': 'Gafas sol', 'premium': true,  'cost': 150},
+    {'name': 'Normal',    'premium': false, 'cost': 0},
+    {'name': 'Intenso',   'premium': false, 'cost': 0},
+    {'name': 'Gafas sol', 'premium': true,  'cost': 150},
   ];
 
   // Colores gratis de ropa

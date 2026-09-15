@@ -378,12 +378,11 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             _animarCambio();
           },
           child: _buildGridItem(
-            asset: opt['asset'] as String,
+            previewConfig: _config.copyWith(hairIndex: i),
             name: opt['name'] as String,
             selected: sel,
             bloqueado: bloqueado,
             esPremium: esPremium,
-            fallbackIcon: Icons.face_rounded,
           ),
         );
       },
@@ -418,12 +417,11 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             _animarCambio();
           },
           child: _buildGridItem(
-            asset: opt['asset'] as String,
+            previewConfig: _config.copyWith(eyesIndex: i),
             name: opt['name'] as String,
             selected: sel,
             bloqueado: bloqueado,
             esPremium: esPremium,
-            fallbackIcon: Icons.remove_red_eye_rounded,
           ),
         );
       },
@@ -432,12 +430,11 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
 
   // ── Widget de item en grid ─────────────────────────────────────────────────
   Widget _buildGridItem({
-    required String asset,
+    required AvatarConfig previewConfig,
     required String name,
     required bool selected,
     required bool bloqueado,
     required bool esPremium,
-    required IconData fallbackIcon,
   }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -455,12 +452,7 @@ class _AvatarCustomizerScreenState extends State<AvatarCustomizerScreen>
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 20),
             child: Opacity(
               opacity: bloqueado ? 0.25 : 1.0,
-              child: Image.asset(
-                asset,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) =>
-                    Icon(fallbackIcon, color: _p.dim, size: 36),
-              ),
+              child: AvatarWidget(config: previewConfig, size: 58),
             ),
           ),
         ),
