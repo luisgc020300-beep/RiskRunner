@@ -1240,6 +1240,102 @@ exports.atacarTerritorio = onCall(
 );
 
 // =============================================================================
+// CREAR TERRITORIO — valida área/cierre/velocidad en servidor
+// =============================================================================
+// Antes esto era una escritura directa del cliente a Firestore, protegida
+// solo por "userId == request.auth.uid" en las reglas — sin comprobar área,
+// cierre del lazo ni plausibilidad de velocidad. Cualquiera con las
+// credenciales publicas del SDK podia crear un territorio en cualquier
+// sitio sin haber corrido un metro. Ahora replica el mismo patron que ya
+// usa atacarTerritorio: el cliente solo propone, el servidor decide.
+const K_AREA_MINIMA_SOLITARIO_M2   = 2000;
+const K_AREA_MINIMA_COMPETITIVO_M2 = 10000;
+const K_DISTANCIA_MAXIMA_CIERRE_M  = 40;
+const K_VELOCIDAD_MAX_CREACION_KMH = 25; // mismo orden de magnitud que atacarTerritorio
+const K_HP_MAX_CREACION            = 100;
+
+exports.crearTerritorio = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { modo, ruta, colorTerritorio, velocidadMediaKmh } = request.data;
+
+    if (modo !== 'solitario' && modo !== 'competitivo') {
+      throw new HttpsError('invalid-argument', 'Modo inválido.');
+    }
+    if (!Array.isArray(ruta) || ruta.length < 3) {
+      throw new HttpsError('invalid-argument', 'Ruta insuficiente.');
+    }
+    if (!ruta.every(p => p && typeof p.lat === 'number' && isFinite(p.lat) && typeof p.lng === 'number' && isFinite(p.lng))) {
+      throw new HttpsError('invalid-argument', 'Ruta con coordenadas inválidas.');
+    }
+    if (typeof colorTerritorio !== 'number' || !isFinite(colorTerritorio)) {
+      throw new HttpsError('invalid-argument', 'Color inválido.');
+    }
+
+    // Cierre real del lazo — igual que exige el cliente (kDistanciaMaximaCierreM
+    // en territory_service.dart), pero validado aquí para que no se pueda saltar.
+    const inicio  = ruta[0];
+    const fin     = ruta[ruta.length - 1];
+    const cierreM = _haversineMetros(inicio.lat, inicio.lng, fin.lat, fin.lng);
+    if (cierreM > K_DISTANCIA_MAXIMA_CIERRE_M) {
+      return { ok: false, motivo: 'no_cerrado', cierreM };
+    }
+
+    const poligono  = ruta.map(p => ({ x: p.lng, y: p.lat }));
+    const areaM2    = _calcularAreaM2(poligono);
+    const areaMinima = modo === 'solitario' ? K_AREA_MINIMA_SOLITARIO_M2 : K_AREA_MINIMA_COMPETITIVO_M2;
+    if (areaM2 < areaMinima) {
+      return { ok: false, motivo: 'area_insuficiente', areaM2 };
+    }
+
+    // Velocidad y nickname/color: nunca de confianza del cliente. La
+    // velocidad se capa como tope de seguridad; nickname y color se leen
+    // del propio documento del jugador para que nadie pueda suplantar a
+    // otro en el mapa.
+    const velocidadValidada = Math.min(
+      Math.max(typeof velocidadMediaKmh === 'number' && isFinite(velocidadMediaKmh) ? velocidadMediaKmh : 5.0, 0.1),
+      K_VELOCIDAD_MAX_CREACION_KMH,
+    );
+    const jugadorSnap = await db.collection('players').doc(uid).get();
+    const jugadorData = jugadorSnap.exists ? jugadorSnap.data() : {};
+    const nickname    = jugadorData.nickname || 'Runner';
+
+    const latC = ruta.reduce((s, p) => s + p.lat, 0) / ruta.length;
+    const lngC = ruta.reduce((s, p) => s + p.lng, 0) / ruta.length;
+    const puntosList = ruta.map(p => ({ lat: p.lat, lng: p.lng }));
+
+    const ref = await db.collection('territories').add({
+      userId: uid,
+      nickname,
+      puntos: puntosList,
+      centro: { lat: latC, lng: lngC },
+      color: colorTerritorio,
+      ultima_visita: FieldValue.serverTimestamp(),
+      fecha_creacion: FieldValue.serverTimestamp(),
+      fecha_desde_dueno: FieldValue.serverTimestamp(),
+      modo,
+      area_m2: areaM2,
+      hp: K_HP_MAX_CREACION,
+      hpMax: K_HP_MAX_CREACION,
+      velocidadConquistaKmh: velocidadValidada,
+      ultimaActualizacionHp: FieldValue.serverTimestamp(),
+      rey_id: null,
+      rey_nickname: null,
+      rey_desde: null,
+      nombre_territorio: null,
+      centroLat: latC,
+      centroLng: lngC,
+    });
+
+    return { ok: true, territorioId: ref.id, areaM2 };
+  }
+);
+
+// =============================================================================
 // 13. ACTUALIZAR HP DE TODOS LOS TERRITORIOS — cada 6 horas
 // =============================================================================
 exports.actualizarHpTodosLosTerritorios = onSchedule(

@@ -41,12 +41,17 @@ service cloud.firestore {
 
     // ── territories ──────────────────────────────────────────────────────────
     // Lectura pública entre autenticados (mapa compartido).
-    // El cliente crea territorios propios y actualiza solo campos seguros.
+    // La creación pasa exclusivamente por la Cloud Function 'crearTerritorio',
+    // que revalida área/cierre/velocidad con el Admin SDK (ver riskrunner/index.js).
+    // Antes se permitía escribir directo desde el cliente comprobando solo
+    // userId == auth.uid, sin validar área ni cierre del lazo — cualquiera con
+    // las credenciales públicas del SDK podía crear un territorio en cualquier
+    // sitio sin haber corrido. El cliente ya no debe escribir aquí directamente.
     // Campos críticos (escudo, userId, puntos, nombre) solo via Cloud Functions.
     // Las Cloud Functions (admin SDK) ignoran estas reglas — tienen acceso total.
     match /territories/{docId} {
       allow read:   if isAuth();
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow create: if false;
       allow update: if isAuth()
         && resource.data.userId == request.auth.uid
         && onlyFields(['hp', 'ultimaActualizacionHp', 'ultima_visita',

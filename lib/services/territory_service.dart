@@ -611,137 +611,106 @@ class TerritoryService {
   }
 }
 
-  // ── Crear territorio solitario ────────────────────────────────────────────
+  // ── Crear territorio (solitario o competitivo) ────────────────────────────
+  // La creación pasa por la Cloud Function 'crearTerritorio', que revalida
+  // área/cierre/velocidad en servidor con el Admin SDK — igual que ya hace
+  // atacarTerritorio para los ataques. Antes se escribía el documento
+  // directamente desde el cliente y la regla de Firestore solo comprobaba
+  // que el userId fuera el propio, así que cualquiera con las credenciales
+  // públicas del SDK podía crear un territorio en cualquier sitio sin haber
+  // corrido. Los checks de aquí abajo (cierre/área) se mantienen como
+  // rechazo rápido en cliente — el servidor sigue siendo quien decide de
+  // verdad.
+  static Future<String?> _crearTerritorio({
+    required String modo,
+    required List<LatLng> ruta,
+    required Color colorTerritorio,
+    required String nickname,
+    required double velocidadMediaKmh,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || ruta.length < 3) return null;
+
+    final cierreM = distanciaCierreM(ruta);
+    if (cierreM > kDistanciaMaximaCierreM) {
+      debugPrint('Territorio no cerrado ($modo): ${cierreM.toStringAsFixed(0)} m entre inicio y fin');
+      return null;
+    }
+
+    final areaM2 = calcularAreaM2(ruta);
+    final areaMinima = modo == 'solitario' ? kAreaMinimaM2 : kAreaMinimaCompetitivoM2;
+    if (areaM2 < areaMinima) {
+      debugPrint('Área insuficiente ($modo): ${areaM2.toStringAsFixed(0)} m²');
+      return null;
+    }
+
+    AppError.log('crear:$modo area=${areaM2.toStringAsFixed(0)}m² cierre=${cierreM.toStringAsFixed(0)}m vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
+    AppError.setKey('last_action', 'crear_territorio_$modo');
+
+    const noReintentar = {'permission-denied', 'invalid-argument', 'unauthenticated', 'failed-precondition'};
+    for (int intento = 1; intento <= 2; intento++) {
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('crearTerritorio');
+
+        final result = await callable.call<Map<String, dynamic>>({
+          'modo': modo,
+          'ruta': ruta.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList(),
+          'colorTerritorio': colorTerritorio.toARGB32(),
+          'velocidadMediaKmh': velocidadMediaKmh,
+        });
+
+        final data = Map<String, dynamic>.from(result.data as Map);
+        if (data['ok'] != true) {
+          debugPrint('crearTerritorio rechazado por servidor ($modo): ${data['motivo']}');
+          return null;
+        }
+
+        invalidarCache();
+        AppError.log('crear:$modo ok id=${data['territorioId']}');
+        return data['territorioId'] as String?;
+      } on FirebaseFunctionsException catch (e) {
+        if (noReintentar.contains(e.code)) {
+          AppError.record(e, StackTrace.current, reason: 'crear_${modo}_${e.code}');
+          debugPrint('❌ crearTerritorio [${e.code}]: ${e.message}');
+          return null;
+        }
+        AppError.record(e, StackTrace.current, reason: 'crear_${modo}_reintento_$intento');
+        debugPrint('⚠️ crearTerritorio intento $intento [${e.code}], reintentando...');
+      } catch (e, st) {
+        AppError.record(e, st, reason: 'crear_${modo}_inesperado');
+        debugPrint('❌ Error inesperado en crearTerritorio: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
   static Future<String?> crearTerritorioSolitario({
     required List<LatLng> ruta,
     required Color colorTerritorio,
     required String nickname,
     double velocidadMediaKmh = 5.0,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || ruta.length < 3) return null;
+  }) => _crearTerritorio(
+        modo: 'solitario',
+        ruta: ruta,
+        colorTerritorio: colorTerritorio,
+        nickname: nickname,
+        velocidadMediaKmh: velocidadMediaKmh,
+      );
 
-    final cierreM = distanciaCierreM(ruta);
-    if (cierreM > kDistanciaMaximaCierreM) {
-      debugPrint('Territorio no cerrado (solitario): ${cierreM.toStringAsFixed(0)} m entre inicio y fin');
-      return null;
-    }
-
-    final areaM2 = calcularAreaM2(ruta);
-    if (areaM2 < kAreaMinimaM2) {
-      debugPrint('Área insuficiente: ${areaM2.toStringAsFixed(0)} m²');
-      return null;
-    }
-
-    AppError.log('crear:solitario area=${areaM2.toStringAsFixed(0)}m² cierre=${cierreM.toStringAsFixed(0)}m vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
-    AppError.setKey('last_action', 'crear_territorio_solitario');
-
-    try {
-      final puntosList = ruta
-          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-          .toList();
-      final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
-      final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
-
-      final ref = await _db.collection('territories').add({
-        'userId':                  user.uid,
-        'nickname':                nickname,
-        'puntos':                  puntosList,
-        'centro':                  {'lat': latC, 'lng': lngC},
-        'color':                   colorTerritorio.toARGB32(),
-        'ultima_visita':           FieldValue.serverTimestamp(),
-        'fecha_creacion':          FieldValue.serverTimestamp(),
-        'fecha_desde_dueno':       FieldValue.serverTimestamp(),
-        'modo':                    'solitario',
-        'area_m2':                 areaM2,
-        // HP
-        'hp':                      kHpMax,
-        'hpMax':                   kHpMax,
-        'velocidadConquistaKmh':   velocidadMediaKmh,
-        'ultimaActualizacionHp':   FieldValue.serverTimestamp(),
-        // Rey
-        'rey_id':                  null,
-        'rey_nickname':            null,
-        'rey_desde':               null,
-        'nombre_territorio':       null,
-        'centroLat':               latC,
-        'centroLng':               lngC,
-      });
-
-      invalidarCache();
-      AppError.log('crear:solitario ok id=${ref.id}');
-      return ref.id;
-    } catch (e, st) {
-      AppError.record(e, st, reason: 'crear_territorio_solitario');
-      debugPrint('❌ Error creando territorio: $e');
-      return null;
-    }
-  }
-
-  // ── Crear territorio competitivo ─────────────────────────────────────────
   static Future<String?> crearTerritorioCompetitivo({
     required List<LatLng> ruta,
     required Color colorTerritorio,
     required String nickname,
     double velocidadMediaKmh = 5.0,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || ruta.length < 3) return null;
-
-    final cierreM = distanciaCierreM(ruta);
-    if (cierreM > kDistanciaMaximaCierreM) {
-      debugPrint('Territorio no cerrado (competitivo): ${cierreM.toStringAsFixed(0)} m entre inicio y fin');
-      return null;
-    }
-
-    final areaM2 = calcularAreaM2(ruta);
-    if (areaM2 < kAreaMinimaCompetitivoM2) {
-      debugPrint('Área insuficiente (competitivo): ${areaM2.toStringAsFixed(0)} m²');
-      return null;
-    }
-
-    AppError.log('crear:competitivo area=${areaM2.toStringAsFixed(0)}m² cierre=${cierreM.toStringAsFixed(0)}m vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
-    AppError.setKey('last_action', 'crear_territorio_competitivo');
-
-    try {
-      final puntosList = ruta
-          .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-          .toList();
-      final latC = ruta.map((p) => p.latitude).reduce((a, b) => a + b) / ruta.length;
-      final lngC = ruta.map((p) => p.longitude).reduce((a, b) => a + b) / ruta.length;
-
-      final ref = await _db.collection('territories').add({
-        'userId':                  user.uid,
-        'nickname':                nickname,
-        'puntos':                  puntosList,
-        'centro':                  {'lat': latC, 'lng': lngC},
-        'color':                   colorTerritorio.toARGB32(),
-        'ultima_visita':           FieldValue.serverTimestamp(),
-        'fecha_creacion':          FieldValue.serverTimestamp(),
-        'fecha_desde_dueno':       FieldValue.serverTimestamp(),
-        'modo':                    'competitivo',
-        'area_m2':                 areaM2,
-        'hp':                      kHpMax,
-        'hpMax':                   kHpMax,
-        'velocidadConquistaKmh':   velocidadMediaKmh,
-        'ultimaActualizacionHp':   FieldValue.serverTimestamp(),
-        'rey_id':                  null,
-        'rey_nickname':            null,
-        'rey_desde':               null,
-        'nombre_territorio':       null,
-        'centroLat':               latC,
-        'centroLng':               lngC,
-      });
-
-      invalidarCache();
-      AppError.log('crear:competitivo ok id=${ref.id}');
-      return ref.id;
-    } catch (e, st) {
-      AppError.record(e, st, reason: 'crear_territorio_competitivo');
-      debugPrint('❌ Error creando territorio competitivo: $e');
-      return null;
-    }
-  }
+  }) => _crearTerritorio(
+        modo: 'competitivo',
+        ruta: ruta,
+        colorTerritorio: colorTerritorio,
+        nickname: nickname,
+        velocidadMediaKmh: velocidadMediaKmh,
+      );
 
   // ── Cargar todos los territorios (globales por posición GPS) ─────────────
   //
