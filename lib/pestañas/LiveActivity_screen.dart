@@ -2246,8 +2246,10 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     if (!mounted || !_session.isTracking || _session.isPaused || _modoRuta || _mapboxMap == null || !_styleLoaded) return;
     if (routePoints.length < 3) return;
 
-    final area   = TerritoryService.calcularAreaM2(routePoints);
-    final valida = area >= kAreaMinimaM2;
+    final area       = TerritoryService.calcularAreaM2(routePoints);
+    final cierreM    = TerritoryService.distanciaCierreM(routePoints);
+    final areaMinima = _modoSolitario ? kAreaMinimaM2 : kAreaMinimaCompetitivoM2;
+    final valida     = area >= areaMinima && cierreM <= kDistanciaMaximaCierreM;
     _modeCtrl.setZonaValida(valida);
 
     final coords  = routePoints.map((p) => [p.longitude, p.latitude]).toList();
@@ -3594,8 +3596,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Área insuficiente para crear territorio.\n'
-                    '¡Explora más calles y rodea una zona más amplia!',
+                    'Territorio no válido.\n'
+                    'Cierra el circuito volviendo cerca del punto de inicio '
+                    'o rodea una zona más amplia.',
                     style: GoogleFonts.inter(color: _kGoldLight,
                         fontSize: 13, fontWeight: FontWeight.w600),
                   ),

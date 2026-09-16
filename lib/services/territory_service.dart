@@ -24,6 +24,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:math' as math;
 import 'league_service.dart';
 import 'package:RiskRunner/core/app_error.dart';
@@ -37,6 +38,14 @@ const String kGhostUserId = 'ghost_system';
 const int kDiasParaDeterioroVisual       = 5;
 const int kDiasParaDeterioroFuncional    = 10;
 const double kAreaMinimaM2               = 2000.0;
+/// Modo competitivo exige un territorio más "acorde" (una manzana real),
+/// ya que aquí sí compite por relevancia frente a otros jugadores.
+const double kAreaMinimaCompetitivoM2    = 10000.0;
+/// Distancia máxima entre el punto de inicio y el de fin de la ruta para
+/// considerar que el jugador cerró el lazo de verdad. Sin esto, la fórmula
+/// de área (shoelace) cierra cualquier trazado con una línea recta
+/// imaginaria, lo que "autocompleta" territorios en rutas casi rectas.
+const double kDistanciaMaximaCierreM     = 40.0;
 const double kMultiplicadorMonedasSolitario   = 0.65;
 const double kMultiplicadorMonedasCompetitivo = 1.00;
 const int kDiasParaSerRey                = 14;
@@ -413,6 +422,19 @@ class TerritoryService {
     return (area / 2).abs();
   }
 
+  /// Distancia en metros entre el primer y el último punto de la ruta.
+  /// Se usa para exigir que el jugador haya cerrado realmente el lazo
+  /// (en vez de dejar que la fórmula de área lo cierre con una línea recta).
+  static double distanciaCierreM(List<LatLng> ruta) {
+    if (ruta.length < 2) return 0;
+    final inicio = ruta.first;
+    final fin    = ruta.last;
+    return Geolocator.distanceBetween(
+      inicio.latitude, inicio.longitude,
+      fin.latitude,    fin.longitude,
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // ATACAR TERRITORIO — llama a la Cloud Function
   // ══════════════════════════════════════════════════════════════════════════
@@ -545,13 +567,19 @@ class TerritoryService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || ruta.length < 3) return null;
 
+    final cierreM = distanciaCierreM(ruta);
+    if (cierreM > kDistanciaMaximaCierreM) {
+      debugPrint('Territorio no cerrado (solitario): ${cierreM.toStringAsFixed(0)} m entre inicio y fin');
+      return null;
+    }
+
     final areaM2 = calcularAreaM2(ruta);
     if (areaM2 < kAreaMinimaM2) {
       debugPrint('Área insuficiente: ${areaM2.toStringAsFixed(0)} m²');
       return null;
     }
 
-    AppError.log('crear:solitario area=${areaM2.toStringAsFixed(0)}m² vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
+    AppError.log('crear:solitario area=${areaM2.toStringAsFixed(0)}m² cierre=${cierreM.toStringAsFixed(0)}m vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
     AppError.setKey('last_action', 'crear_territorio_solitario');
 
     try {
@@ -606,13 +634,19 @@ class TerritoryService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || ruta.length < 3) return null;
 
+    final cierreM = distanciaCierreM(ruta);
+    if (cierreM > kDistanciaMaximaCierreM) {
+      debugPrint('Territorio no cerrado (competitivo): ${cierreM.toStringAsFixed(0)} m entre inicio y fin');
+      return null;
+    }
+
     final areaM2 = calcularAreaM2(ruta);
-    if (areaM2 < kAreaMinimaM2) {
+    if (areaM2 < kAreaMinimaCompetitivoM2) {
       debugPrint('Área insuficiente (competitivo): ${areaM2.toStringAsFixed(0)} m²');
       return null;
     }
 
-    AppError.log('crear:competitivo area=${areaM2.toStringAsFixed(0)}m² vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
+    AppError.log('crear:competitivo area=${areaM2.toStringAsFixed(0)}m² cierre=${cierreM.toStringAsFixed(0)}m vel=${velocidadMediaKmh.toStringAsFixed(1)}km/h');
     AppError.setKey('last_action', 'crear_territorio_competitivo');
 
     try {

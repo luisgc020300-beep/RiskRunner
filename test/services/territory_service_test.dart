@@ -86,4 +86,43 @@ void main() {
       expect(TerritoryService.calcularAreaM2(pts), greaterThan(0));
     });
   });
+
+  // ── distanciaCierreM ────────────────────────────────────────────────────────
+  group('distanciaCierreM', () {
+    test('devuelve 0 con menos de 2 puntos', () {
+      expect(TerritoryService.distanciaCierreM([]), 0);
+      expect(TerritoryService.distanciaCierreM([const LatLng(40, -3)]), 0);
+    });
+
+    test('devuelve 0 cuando el punto inicial y final coinciden', () {
+      const pts = [
+        LatLng(40.000, -3.000),
+        LatLng(40.001, -3.000),
+        LatLng(40.000, -3.000),
+      ];
+      expect(TerritoryService.distanciaCierreM(pts), closeTo(0, 0.01));
+    });
+
+    test('circuito bien cerrado (~7 m de separación) queda por debajo del máximo', () {
+      const pts = [
+        LatLng(40.00000, -3.00000),
+        LatLng(40.00100, -3.00000),
+        LatLng(40.00100, -3.00100),
+        LatLng(40.00005, -3.00005), // ~7 m de (40.00000, -3.00000)
+      ];
+      final cierre = TerritoryService.distanciaCierreM(pts);
+      expect(cierre, lessThan(kDistanciaMaximaCierreM));
+    });
+
+    test('línea recta sin cerrar supera el máximo de cierre', () {
+      const pts = [
+        LatLng(40.00000, -3.00000),
+        LatLng(40.00100, -3.00000),
+        LatLng(40.00200, -3.00000),
+        LatLng(40.00300, -3.00000), // ~333 m del punto inicial
+      ];
+      final cierre = TerritoryService.distanciaCierreM(pts);
+      expect(cierre, greaterThan(kDistanciaMaximaCierreM));
+    });
+  });
 }
