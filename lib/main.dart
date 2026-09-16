@@ -346,10 +346,12 @@ class _SplashLoadingState extends State<_SplashLoading>
 
   @override
   Widget build(BuildContext context) {
-    const bg     = Color(0xFFE8E8ED);
-    const dark   = Color(0xFF1C1C1E);
-    const red    = AppColors.red;
-    const dimmed = Color(0xFF8E8E93);
+    final esOscuro = Theme.of(context).brightness == Brightness.dark;
+    final bg       = esOscuro ? const Color(0xFF090807) : const Color(0xFFE8E8ED);
+    final dark     = esOscuro ? const Color(0xFFEEEEEE) : const Color(0xFF1C1C1E);
+    const red      = AppColors.red;
+    const dimmed   = Color(0xFF8E8E93);
+    final trackBg  = esOscuro ? const Color(0xFF2C2C2E) : const Color(0xFFD1D1D6);
 
     return Scaffold(
       backgroundColor: bg,
@@ -447,9 +449,9 @@ class _SplashLoadingState extends State<_SplashLoading>
                     const SizedBox(height: 10),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
-                      child: const LinearProgressIndicator(
-                        backgroundColor: Color(0xFFD1D1D6),
-                        valueColor: AlwaysStoppedAnimation<Color>(red),
+                      child: LinearProgressIndicator(
+                        backgroundColor: trackBg,
+                        valueColor: const AlwaysStoppedAnimation<Color>(red),
                         minHeight: 2,
                       ),
                     ),
