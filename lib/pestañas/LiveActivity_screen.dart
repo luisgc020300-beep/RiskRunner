@@ -1339,13 +1339,37 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   // falla en silencio esa vez y solo se recuperaba al recargar el estilo
   // (p.ej. cambiando de modo claro/oscuro). Reintentos más largos y
   // numerosos cubren también conexiones lentas en el primer arranque.
-  static const List<int> _kBuildingsRetryDelaysMs = [200, 600, 1500, 3000, 5000];
+  static const List<int> _kBuildingsRetryDelaysMs =
+      [200, 600, 1500, 3000, 5000, 5000, 5000, 5000];
 
   Future<void> _cargarBuildings3DConRetry() async {
     for (final delay in _kBuildingsRetryDelaysMs) {
       if (_buildings3dCreated) return;
       await Future.delayed(Duration(milliseconds: delay));
       if (!mounted) return;
+      await _addBuildings3D();
+    }
+  }
+
+  // Si el estilo tardó en tener lista la fuente 'composite' (mapa en frío,
+  // red lenta) los reintentos de _cargarBuildings3DConRetry pueden agotarse
+  // antes de que el jugador pulse "Correr". Hasta ahora eso solo se recuperaba
+  // cambiando de modo claro/oscuro (recarga el estilo entero y todo se vuelve
+  // a dibujar). Al llegar a la vista de calle repetimos esa misma puesta a
+  // punto visual (atmósfera, agua, terreno y edificios) sin depender de que
+  // el jugador tenga que tocar nada.
+  Future<void> _refrescarVisualesAlCorrer() async {
+    if (_mapboxMap == null || !mounted) return;
+    await Future.wait([_configurarAtmosfera(), _mejorarAgua()]);
+    if (!mounted) return;
+    if (!_buildings3dCreated) {
+      await _cargarBuildings3DConRetry();
+    } else {
+      // Ya se habían añadido en el arranque en frío del globo, pero puede
+      // que sus tiles de detalle no se hubieran renderizado aún para esta
+      // ubicación — forzar a recrear la capa hace que Mapbox las pida de
+      // nuevo para el encuadre actual de calle.
+      _buildings3dCreated = false;
       await _addBuildings3D();
     }
   }
@@ -1506,6 +1530,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   Future<void> _addBuildings3D() async {
     if (_mapboxMap == null || _buildings3dCreated) return;
     try {
+      // Comprobación determinista en vez de confiar solo en el temporizado
+      // de los reintentos: si 'composite' (fuente de edificios/calles del
+      // estilo base) aún no está registrada, no tiene sentido seguir —
+      // _cargarBuildings3DConRetry volverá a llamar en la siguiente pasada.
+      final compositeListo =
+          await _mapboxMap!.style.styleSourceExists('composite');
+      if (!compositeListo) return;
+
       try {
         await _mapboxMap!.style.addSource(mapbox.RasterDemSource(
           id: 'mapbox-dem',
@@ -3264,7 +3296,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         duracion: 4000, forzar: true,
       );
     }
-
+    _refrescarVisualesAlCorrer();
 
     _trackingEventsSub = _tracking.events.listen(_onTrackingEvent);
     _tracking.start();
