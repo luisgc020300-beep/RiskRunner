@@ -12,6 +12,7 @@ import '../widgets/custom_navbar.dart';
 import '../shell/app_shell.dart';
 import '../services/league_service.dart';
 import '../services/ranking_service.dart';
+import '../services/last_seen_service.dart';
 import '../screens/rutas_explorador_screen.dart';
 import 'perfil_screen.dart';
 import 'chat_screen.dart';
@@ -868,14 +869,7 @@ class _SocialScreenState extends State<SocialScreen>
   Widget _buildFriendCard(Map<String, dynamic> data, String fid) {
     final colorInt = (data['territorio_color'] as num?)?.toInt();
     final Color territorioColor = colorInt != null ? Color(colorInt) : _p.line2;
-    final lastActive = data['ultima_fecha_actividad'] as dynamic;
-    bool activo = false;
-    if (lastActive != null) {
-      try {
-        final dt = (lastActive as dynamic).toDate() as DateTime;
-        activo = DateTime.now().difference(dt).inDays <= 1;
-      } catch (_) {}
-    }
+    final activo = LastSeenService.estaEnLinea(data['ultima_conexion'] as Timestamp?);
     return SocialFriendCard(
       nickname: data['nickname'] ?? '?', nivel: (data['nivel'] as num? ?? 1).toInt(),
       monedas: (data['monedas'] as num? ?? 0).toInt(), fotoBase64: data['foto_base64'] as String?,

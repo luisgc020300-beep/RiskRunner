@@ -4,6 +4,7 @@ import '../core/app_error.dart';
 
 import '../widgets/social/social_theme.dart';
 import '../widgets/social/social_shared.dart';
+import '../services/last_seen_service.dart';
 import 'perfil_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -345,14 +346,24 @@ class _ChatScreenState extends State<ChatScreen> {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.friendNickname,
                 style: TextStyle(color: _p.text1, fontWeight: FontWeight.w700, fontSize: 14)),
-            Row(children: [
-              Container(width: 6, height: 6,
-                  decoration: const BoxDecoration(color: kSocGreenFg, shape: BoxShape.circle)),
-              const SizedBox(width: 5),
-              const Text('EN LÍNEA',
-                  style: TextStyle(
-                      color: kSocGreenFg, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
-            ]),
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('players').doc(widget.friendId).snapshots(),
+              builder: (ctx, snap) {
+                final data = snap.data?.data() as Map<String, dynamic>?;
+                final enLinea = LastSeenService.estaEnLinea(
+                    data?['ultima_conexion'] as Timestamp?);
+                if (!enLinea) return const SizedBox.shrink();
+                return Row(children: [
+                  Container(width: 6, height: 6,
+                      decoration: const BoxDecoration(color: kSocGreenFg, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  const Text('EN LÍNEA',
+                      style: TextStyle(
+                          color: kSocGreenFg, fontSize: 8, letterSpacing: 2, fontWeight: FontWeight.w600)),
+                ]);
+              },
+            ),
           ]),
         ]),
       ),

@@ -17,6 +17,8 @@
 // se bloquea y la navbar se oculta, igual que pasaba antes cuando Correr
 // era una ruta empujada aparte — así no se puede salir sin querer.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../pestañas/Home_screen.dart';
@@ -24,6 +26,7 @@ import '../pestañas/LiveActivity_screen.dart';
 import '../pestañas/fullscreen_map_screen.dart';
 import '../pestañas/Social_screen.dart';
 import '../pestañas/perfil_screen.dart';
+import '../services/last_seen_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_navbar.dart';
 
@@ -47,7 +50,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late int _navIndex;
   late final PageController _pageController;
 
@@ -61,16 +64,32 @@ class _AppShellState extends State<AppShell> {
   // la navbar para no poder salir sin querer de la pantalla de carrera.
   bool _correrSesionActiva = false;
 
+  // Latido de "última vez visto en la app" — independiente de la pestaña en
+  // la que esté el usuario. Social lo usa para saber quién está realmente
+  // en línea (ver LastSeenService).
+  Timer? _latidoTimer;
+
   @override
   void initState() {
     super.initState();
     _navIndex = widget.initialNavIndex;
     _pageController = PageController(initialPage: _navIndex);
     if (_navIndex == 1) _correrActivado = true;
+    WidgetsBinding.instance.addObserver(this);
+    LastSeenService.latido();
+    _latidoTimer = Timer.periodic(
+        const Duration(seconds: 90), (_) => LastSeenService.latido());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) LastSeenService.latido();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _latidoTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
