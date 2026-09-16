@@ -397,8 +397,8 @@ class _AmigoTileState extends State<_AmigoTile> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [Color(0xFF1A3060), _kAccent]),
+                gradient: LinearGradient(
+                    colors: [_kAccent.withValues(alpha: 0.82), _kAccent]),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [BoxShadow(
                     color: _kAccent.withValues(alpha: 0.25), blurRadius: 8)],
