@@ -283,7 +283,13 @@ extension _LiveSessionControls on _LiveActivityScreenState {
               child: !_session.isTracking ? _buildSelectorModo() : _buildBotonesControl(),
             ),
           ),
-          if (!_session.isTracking) const CustomBottomNavbar(currentIndex: 1),
+          // Cuando esta pantalla vive dentro de AppShell (pestaña Correr), la
+          // navbar real ya la pone el propio Scaffold del shell — dibujar otra
+          // aquí la duplicaría. Solo hace falta esta copia si la pantalla se
+          // empujó como ruta independiente (p.ej. ruta guiada desde el
+          // explorador, o el deep-link de main.dart), donde no hay shell.
+          if (!_session.isTracking && !AppShell.isActive(context))
+            const CustomBottomNavbar(currentIndex: 1),
         ],
       );
 

@@ -50,6 +50,7 @@ import '../controllers/territory_notifier.dart';
 import '../theme/app_colors.dart';
 import '../services/run_session_notifier.dart';
 import '../services/tracking_service.dart';
+import '../shell/app_shell.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
