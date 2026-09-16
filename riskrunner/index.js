@@ -1336,6 +1336,164 @@ exports.crearTerritorio = onCall(
 );
 
 // =============================================================================
+// CREAR TERRITORIOS FANTASMA — relleno de mapas vacíos, con rutas realistas
+// =============================================================================
+// Antes esto era un batch.set() directo desde el cliente con
+// userId: 'ghost_system', lo que ya no encaja con ninguna regla de
+// creación razonable (ni la anterior, "userId == auth.uid", ni la actual,
+// "if false") — llevaba tiempo fallando en silencio. Ahora vive aquí, con
+// el Admin SDK, y además genera formas que imitan una ruta de correr real
+// (manzanas con giros de ~90°, densificada con ruido de GPS) en vez de un
+// polígono geométrico perfecto.
+function _generarRutaHumanaFantasma(lat, lng, escala) {
+  const cosLat = Math.max(Math.abs(Math.cos(lat * Math.PI / 180)), 0.01);
+  const dLatPorM = (m) => m / 111320;
+  const dLngPorM = (m) => m / (111320 * cosLat);
+
+  const numTramos = 5 + Math.floor(Math.random() * 5); // 5..9 manzanas
+  const sentido    = Math.random() < 0.5 ? 1 : -1;      // giro horario/antihorario
+  let heading = Math.random() * 2 * Math.PI;
+  let x = 0, y = 0;
+  const esquinas = [[0, 0]];
+
+  for (let i = 0; i < numTramos; i++) {
+    const longitudTramo = (60 + Math.random() * 190) * escala;
+    x += longitudTramo * Math.cos(heading);
+    y += longitudTramo * Math.sin(heading);
+    esquinas.push([x, y]);
+    const giroBase = Math.random() < 0.15 ? Math.PI / 4 : Math.PI / 2;
+    heading += sentido * (giroBase + (Math.random() - 0.5) * 0.35);
+  }
+
+  // Cierre del lazo con un error pequeño y realista (no perfecto).
+  const errorCierreM = 3 + Math.random() * 12;
+  const anguloError  = Math.random() * 2 * Math.PI;
+  esquinas.push([
+    errorCierreM * Math.cos(anguloError),
+    errorCierreM * Math.sin(anguloError),
+  ]);
+
+  // Densificar cada tramo recto con puntos intermedios + ruido de GPS.
+  const puntosMetros = [];
+  for (let i = 0; i < esquinas.length - 1; i++) {
+    const a = esquinas[i], b = esquinas[i + 1];
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const pasos = Math.max(1, Math.round(dist / 15)); // ~1 punto cada 15 m
+    for (let s = 0; s < pasos; s++) {
+      const t  = s / pasos;
+      const px = a[0] + dx * t;
+      const py = a[1] + dy * t;
+      const perpAngle = Math.atan2(dy, dx) + Math.PI / 2;
+      const ruido = (Math.random() - 0.5) * 3.0;
+      puntosMetros.push([
+        px + ruido * Math.cos(perpAngle),
+        py + ruido * Math.sin(perpAngle),
+      ]);
+    }
+  }
+
+  return puntosMetros.map(p => ({
+    lat: lat + dLatPorM(p[1]),
+    lng: lng + dLngPorM(p[0]),
+  }));
+}
+
+exports.crearTerritoriosFantasma = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const { centro, max } = request.data;
+    if (!centro || typeof centro.lat !== 'number' || !isFinite(centro.lat) ||
+        typeof centro.lng !== 'number' || !isFinite(centro.lng)) {
+      throw new HttpsError('invalid-argument', 'Centro inválido.');
+    }
+    const maxFantasmas = Math.min(Math.max(typeof max === 'number' ? Math.floor(max) : 15, 1), 30);
+
+    const ESPACIO_GRADOS = 0.0022; // ~245 m entre centros de rejilla
+    const MARGEN_GRADOS  = 0.0016; // si hay algo a <178 m, no crear
+    const K_AREA_MINIMA  = 2000;
+    const BOT_COLORES = [
+      0xFF4A7FBB, 0xFF4EAA6A, 0xFFBB5A4A, 0xFF7A4EBB, 0xFF4EBBAA,
+      0xFFBB9A4E, 0xFF4E5EAA, 0xFF9A4EBB, 0xFF6EBB4E, 0xFFBB724E,
+    ];
+    const BOT_NICKS = [
+      'PhantomRunner', 'GhostRaider', 'ShadowWalker', 'NightPatrol',
+      'UrbanClaimer',  'ZoneMaster',  'StreetKing',   'MapHunter',
+      'DarkStrider',   'SilentRider', 'NightOwl',     'AreaKeeper',
+      'RoutePhantom',  'ZoneBuster',  'PathFinder',   'CityGhost',
+    ];
+
+    // Qué hay ya cerca lo decide el propio servidor consultando Firestore,
+    // no una lista que mande el cliente.
+    const RAD_BUSQUEDA = 0.03; // ~3.3 km, cubre de sobra la rejilla 15x15
+    const cercanosSnap = await db.collection('territories')
+      .where('centroLat', '>', centro.lat - RAD_BUSQUEDA)
+      .where('centroLat', '<', centro.lat + RAD_BUSQUEDA)
+      .get();
+    const existentes = cercanosSnap.docs
+      .map(d => d.data())
+      .filter(d => Math.abs((d.centroLng || 0) - centro.lng) < RAD_BUSQUEDA);
+
+    const batch = db.batch();
+    let creados = 0;
+
+    for (let row = -7; row <= 7 && creados < maxFantasmas; row++) {
+      for (let col = -7; col <= 7 && creados < maxFantasmas; col++) {
+        const lat = centro.lat + row * ESPACIO_GRADOS * Math.sqrt(3) / 2;
+        const lng = centro.lng + col * ESPACIO_GRADOS + (row % 2) * ESPACIO_GRADOS / 2;
+
+        const ocupado = existentes.some(t =>
+          Math.abs((t.centroLat || 0) - lat) < MARGEN_GRADOS &&
+          Math.abs((t.centroLng || 0) - lng) < MARGEN_GRADOS);
+        if (ocupado) continue;
+
+        const escala = 0.55 + Math.random() * 0.85;
+        const puntos = _generarRutaHumanaFantasma(lat, lng, escala);
+        const poligono = puntos.map(p => ({ x: p.lng, y: p.lat }));
+        const areaM2 = _calcularAreaM2(poligono);
+        if (areaM2 < K_AREA_MINIMA) continue;
+
+        const colorVal = BOT_COLORES[Math.floor(Math.random() * BOT_COLORES.length)];
+        const nick     = BOT_NICKS[Math.floor(Math.random() * BOT_NICKS.length)];
+        const latC = puntos.reduce((s, p) => s + p.lat, 0) / puntos.length;
+        const lngC = puntos.reduce((s, p) => s + p.lng, 0) / puntos.length;
+
+        batch.set(db.collection('territories').doc(), {
+          userId: 'ghost_system',
+          nickname: nick,
+          puntos: puntos.map(p => ({ lat: p.lat, lng: p.lng })),
+          centro: { lat: latC, lng: lngC },
+          centroLat: latC,
+          centroLng: lngC,
+          color: colorVal,
+          ultima_visita: FieldValue.serverTimestamp(),
+          fecha_creacion: FieldValue.serverTimestamp(),
+          fecha_desde_dueno: FieldValue.serverTimestamp(),
+          modo: 'competitivo',
+          esFantasma: true,
+          area_m2: areaM2,
+          hp: 100,
+          hpMax: 100,
+          velocidadConquistaKmh: 5.0,
+          ultimaActualizacionHp: FieldValue.serverTimestamp(),
+          rey_id: null,
+          rey_nickname: null,
+          rey_desde: null,
+          nombre_territorio: null,
+        });
+        creados++;
+      }
+    }
+
+    if (creados > 0) await batch.commit();
+    return { ok: true, creados };
+  }
+);
+
+// =============================================================================
 // 13. ACTUALIZAR HP DE TODOS LOS TERRITORIOS — cada 6 horas
 // =============================================================================
 exports.actualizarHpTodosLosTerritorios = onSchedule(

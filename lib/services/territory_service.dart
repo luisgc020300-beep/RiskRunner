@@ -1313,92 +1313,31 @@ class TerritoryService {
   // ══════════════════════════════════════════════════════════════════════════
   // CREAR territorios fantasma en Firestore donde no hay nadie
   // ══════════════════════════════════════════════════════════════════════════
+  // Antes esto era un batch.set() directo desde el cliente con
+  // userId: kGhostUserId — algo que ya no coincide con la regla de
+  // Firestore (ni con la anterior, que exigía userId == auth.uid). Ahora
+  // pasa por la Cloud Function 'crearTerritoriosFantasma' (Admin SDK), que
+  // además decide por sí misma qué huecos rellenar en vez de fiarse de la
+  // lista que mande el cliente.
   static Future<void> crearTerritoriosFantasmaEnZona({
     required LatLng centro,
-    required List<TerritoryData> todosExistentes, // reales + fantasmas ya cargados
+    List<TerritoryData> todosExistentes = const [], // ya no se usa — el servidor consulta por su cuenta
     int max = 15,
   }) async {
-    final now = DateTime.now();
-    final rng = math.Random(
-      (centro.latitude  * 90).round() ^
-      (centro.longitude * 90).round() ^
-      ((now.month * 31 + now.day) * 31337),
-    );
-
-    const List<int> botColoresVal = [
-      0xFF4A7FBB, 0xFF4EAA6A, 0xFFBB5A4A, 0xFF7A4EBB, 0xFF4EBBAA,
-      0xFFBB9A4E, 0xFF4E5EAA, 0xFF9A4EBB, 0xFF6EBB4E, 0xFFBB724E,
-    ];
-    const List<String> botNicks = [
-      'PhantomRunner', 'GhostRaider', 'ShadowWalker', 'NightPatrol',
-      'UrbanClaimer',  'ZoneMaster',  'StreetKing',   'MapHunter',
-      'DarkStrider',   'SilentRider', 'NightOwl',     'AreaKeeper',
-      'RoutePhantom',  'ZoneBuster',  'PathFinder',   'CityGhost',
-    ];
-
-    const double espacio    = 0.0022; // ~245 m entre centros
-    const double radioBase  = 0.00055; // ~61 m → ~9 000 m² de media
-    const double margen     = 0.0016; // si hay algo a <178 m, no crear
-
-    final batch = _db.batch();
-    int created = 0;
-    for (int row = -7; row <= 7 && created < max; row++) {
-      for (int col = -7; col <= 7 && created < max; col++) {
-        final lat = centro.latitude  + row * espacio * math.sqrt(3) / 2;
-        final lng = centro.longitude + col * espacio + (row % 2) * espacio / 2;
-
-        final ocupado = todosExistentes.any((t) =>
-          (t.centro.latitude  - lat).abs() < margen &&
-          (t.centro.longitude - lng).abs() < margen);
-        if (ocupado) continue;
-
-        final r      = radioBase * (0.55 + rng.nextDouble() * 0.85);
-        final puntos = _generarPoligonoFantasma(lat, lng, r, rng);
-        final colorVal = botColoresVal[rng.nextInt(botColoresVal.length)];
-        final nick     = botNicks[rng.nextInt(botNicks.length)];
-        final areaM2   = calcularAreaM2(puntos);
-        if (areaM2 < kAreaMinimaM2) continue;
-
-        final puntosList = puntos
-            .map((p) => {'lat': p.latitude, 'lng': p.longitude})
-            .toList();
-
-        batch.set(_db.collection('territories').doc(), {
-            'userId':                kGhostUserId,
-            'nickname':              nick,
-            'puntos':                puntosList,
-            'centro':                {'lat': lat, 'lng': lng},
-            'centroLat':             lat,
-            'centroLng':             lng,
-            'color':                 colorVal,
-            'ultima_visita':         FieldValue.serverTimestamp(),
-            'fecha_creacion':        FieldValue.serverTimestamp(),
-            'fecha_desde_dueno':     FieldValue.serverTimestamp(),
-            'modo':                  'competitivo',
-            'esFantasma':            true,
-            'area_m2':               areaM2,
-            'hp':                    kHpMax,
-            'hpMax':                 kHpMax,
-            'velocidadConquistaKmh': 5.0,
-            'ultimaActualizacionHp': FieldValue.serverTimestamp(),
-            'rey_id':                null,
-            'rey_nickname':          null,
-            'rey_desde':             null,
-            'nombre_territorio':     null,
-          });
-          created++;
-      }
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('crearTerritoriosFantasma');
+      final result = await callable.call<Map<String, dynamic>>({
+        'centro': {'lat': centro.latitude, 'lng': centro.longitude},
+        'max': max,
+      });
+      final data = Map<String, dynamic>.from(result.data as Map);
+      final creados = (data['creados'] as num?)?.toInt() ?? 0;
+      if (creados > 0) invalidarCache();
+      debugPrint('👻 Creados $creados fantasmas (servidor)');
+    } catch (e) {
+      debugPrint('Error creando fantasmas: $e');
     }
-
-    if (created > 0) {
-      try {
-        await batch.commit();
-        invalidarCache();
-      } catch (e) {
-        debugPrint('Error creando fantasmas (batch): $e');
-      }
-    }
-    debugPrint('👻 Creados $created fantasmas en Firestore (batch)');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1440,7 +1379,6 @@ class TerritoryService {
 
     // Espaciado en la rejilla hexagonal
     const double espacio    = 0.0022; // ~245 m entre centros
-    const double radioBase  = 0.00055; // ~61 m circumradius → ~9 000 m² de media
     const double margenReal = 0.0016; // si hay un real a <178 m, no ponemos fantasma
 
     final List<TerritoryData> resultado = [];
@@ -1457,9 +1395,9 @@ class TerritoryService {
           (t.centro.longitude - lng).abs() < margenReal);
         if (ocupado) continue;
 
-        // Radio variable → formas con tamaño orgánico
-        final r      = radioBase * (0.55 + rng.nextDouble() * 0.85);
-        final puntos = _generarPoligonoFantasma(lat, lng, r, rng);
+        // Escala variable → lazos de tamaño orgánico, no todos iguales
+        final escala = 0.55 + rng.nextDouble() * 0.85;
+        final puntos = _generarRutaHumanaFantasma(lat, lng, escala, rng);
 
         resultado.add(TerritoryData(
           docId:                 'ghost_${row}_$col',
@@ -1481,20 +1419,66 @@ class TerritoryService {
     return resultado;
   }
 
-  /// Polígono irregular de 7 vértices centrado en (lat, lng) con radio r grados.
-  static List<LatLng> _generarPoligonoFantasma(
-      double lat, double lng, double r, math.Random rng) {
-    const lados   = 7;
-    final cosLat  = math.cos(lat * math.pi / 180);
-    final offset  = rng.nextDouble() * 2 * math.pi; // rotación aleatoria
-    return List.generate(lados, (i) {
-      final angle  = offset + (i / lados) * 2 * math.pi;
-      final jitter = 0.55 + rng.nextDouble() * 0.9;
-      return LatLng(
-        lat + r * jitter * math.sin(angle),
-        lng + r * jitter * math.cos(angle) / (cosLat > 0.01 ? cosLat : 1),
-      );
-    });
+  /// Genera una ruta cerrada centrada en (lat, lng) que imita el trazado GPS
+  /// de un runner real recorriendo manzanas urbanas — segmentos rectos con
+  /// giros de ~90° (como calles), densificados con puntos intermedios y un
+  /// pequeño ruido de GPS, en vez de un polígono geométrico perfecto. El
+  /// cierre del lazo queda con un pequeño error realista (unos metros), no
+  /// exacto. [escala] multiplica la longitud de cada tramo (1.0 ≈ manzanas
+  /// de 60-250 m).
+  static List<LatLng> _generarRutaHumanaFantasma(
+      double lat, double lng, double escala, math.Random rng) {
+    final cosLat = math.cos(lat * math.pi / 180).abs().clamp(0.01, 1.0);
+    double dLatPorM(double m) => m / 111320.0;
+    double dLngPorM(double m) => m / (111320.0 * cosLat);
+
+    final numTramos = 5 + rng.nextInt(5); // 5..9 manzanas
+    final sentido    = rng.nextBool() ? 1.0 : -1.0; // giro horario/antihorario
+    double heading   = rng.nextDouble() * 2 * math.pi;
+    double x = 0, y = 0; // metros, origen en (lat, lng)
+
+    final esquinas = <List<double>>[[0, 0]];
+    for (int i = 0; i < numTramos; i++) {
+      final longitudTramo = (60 + rng.nextDouble() * 190) * escala;
+      x += longitudTramo * math.cos(heading);
+      y += longitudTramo * math.sin(heading);
+      esquinas.add([x, y]);
+      // Giro tipo manzana: ~90°, con jitter; a veces 45° para variar.
+      final giroBase = rng.nextDouble() < 0.15 ? math.pi / 4 : math.pi / 2;
+      heading += sentido * (giroBase + (rng.nextDouble() - 0.5) * 0.35);
+    }
+
+    // Cierre del lazo con un error pequeño y realista (no perfecto).
+    final errorCierreM = 3 + rng.nextDouble() * 12;
+    final anguloError  = rng.nextDouble() * 2 * math.pi;
+    esquinas.add([
+      errorCierreM * math.cos(anguloError),
+      errorCierreM * math.sin(anguloError),
+    ]);
+
+    // Densificar cada tramo recto con puntos intermedios + ruido GPS.
+    final puntosMetros = <List<double>>[];
+    for (int i = 0; i < esquinas.length - 1; i++) {
+      final a = esquinas[i], b = esquinas[i + 1];
+      final dx = b[0] - a[0], dy = b[1] - a[1];
+      final dist = math.sqrt(dx * dx + dy * dy);
+      final pasos = math.max(1, (dist / 15).round()); // ~1 punto cada 15 m
+      for (int s = 0; s < pasos; s++) {
+        final t  = s / pasos;
+        final px = a[0] + dx * t;
+        final py = a[1] + dy * t;
+        final perpAngle = math.atan2(dy, dx) + math.pi / 2;
+        final ruido = (rng.nextDouble() - 0.5) * 3.0;
+        puntosMetros.add([
+          px + ruido * math.cos(perpAngle),
+          py + ruido * math.sin(perpAngle),
+        ]);
+      }
+    }
+
+    return puntosMetros
+        .map((p) => LatLng(lat + dLatPorM(p[1]), lng + dLngPorM(p[0])))
+        .toList();
   }
 
   // ── Territorios globales ───────────────────────────────────────────────────
