@@ -386,6 +386,60 @@ class TerritoryService {
     }
   }
 
+  // ── Listener de "mis territorios" — sin filtro geográfico ────────────────────
+  // A diferencia de _reiniciarRealtimeListener (acotado a un radio alrededor de
+  // la cámara del mapa, pensado para saber qué hay "cerca de aquí"), este stream
+  // sigue siempre al jugador: no se reinicia al mover el mapa ni desaparece si
+  // arrastras la vista lejos de tus territorios.
+  static StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _misTerritoriosListener;
+  static int _misTerritoriosRefCount = 0;
+  static final StreamController<List<TerritoryData>> _misTerritoriosCtrl =
+      StreamController<List<TerritoryData>>.broadcast();
+
+  /// Emite siempre TODOS los territorios del jugador actual (cualquier modo),
+  /// sin importar dónde esté centrado el mapa. Usar [_filtrarPorModo] sobre el
+  /// resultado para quedarte solo con solitario o competitivo.
+  static Stream<List<TerritoryData>> get misTerritoriosStream => _misTerritoriosCtrl.stream;
+
+  static void startMisTerritoriosListener() {
+    _misTerritoriosRefCount++;
+    if (_misTerritoriosListener != null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    _misTerritoriosListener = _db
+        .collection('territories')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snap) async {
+          if (!_playerDataCache.containsKey(user.uid)) {
+            try {
+              final playerDoc = await _db.collection('players').doc(user.uid).get();
+              if (playerDoc.exists) {
+                _playerDataCache[user.uid] = playerDoc.data()!;
+                _playerCacheTs[user.uid]   = DateTime.now();
+              }
+            } catch (e) {
+              debugPrint('misTerritoriosStream: error cargando datos del jugador: $e');
+            }
+          }
+          final mias = _parsearDocs(snap.docs, user.uid, _playerDataCache);
+          if (!_misTerritoriosCtrl.isClosed) _misTerritoriosCtrl.add(mias);
+        }, onError: (e) {
+          debugPrint('misTerritoriosStream error: $e');
+        });
+  }
+
+  /// Decrementa el conteo de referencias. Cancela el listener al llegar a 0.
+  static void stopMisTerritoriosListener() {
+    _misTerritoriosRefCount = math.max(0, _misTerritoriosRefCount - 1);
+    if (_misTerritoriosRefCount == 0) {
+      _misTerritoriosListener?.cancel();
+      _misTerritoriosListener = null;
+    }
+  }
+
   static void invalidarCache() {
     _cachedTerritorios = null;
     _cacheTimestamp    = null;

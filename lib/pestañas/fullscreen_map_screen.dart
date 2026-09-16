@@ -424,6 +424,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     _competitiveStreamSub?.cancel();
     _solitarioStreamSub?.cancel();
     TerritoryService.stopRealtimeListener();
+    TerritoryService.stopMisTerritoriosListener();
     _cameraDebounce?.cancel();
     _solCamDebounce?.cancel();
     _sheetCtrl.removeListener(_onSheetChanged);
@@ -472,12 +473,19 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         _state.setTerritorios(list);
       });
     });
-    _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
+    // misTerritoriosStream no depende de dónde esté centrado el mapa: sigue
+    // siempre al jugador. Se usa tanto para solitario (privado, sin rivales)
+    // como para el contador "mis zonas" en competitivo, que no debe vaciarse
+    // al arrastrar la vista lejos de donde están tus territorios reales.
+    _solitarioStreamSub = TerritoryService.misTerritoriosStream.listen((mias) {
       if (!mounted) return;
+      final solitario = mias.where((t) => t.modo == 'solitario').toList();
       // Siempre actualizar caché para que el retorno a solitario sea inmediato
-      GameStateService.instance.setSolitarioTerritories(list);
+      GameStateService.instance.setSolitarioTerritories(solitario);
+      _state.setMisZonasCompetitivo(
+          mias.where((t) => t.modo == null || t.modo == 'competitivo').length);
       if (!_state.modoSolitario) return;
-      _state.setTerritorios(list);
+      _state.setTerritorios(solitario);
     });
   }
 
@@ -489,6 +497,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     await colorFuture;
     // Arrancar listener en tiempo real y suscribirse a los streams
     TerritoryService.startRealtimeListener(centro: _state.centro);
+    TerritoryService.startMisTerritoriosListener();
     _suscribirStreamTerritorios();
     // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
     _escucharJugadores();
@@ -1488,8 +1497,11 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                   '${_state.territoriosGlobales.length} TERRITORIOS'
                                 : _state.modoRutas
                                 ? '${_misRutas.length} ${_misRutas.length == 1 ? 'RUTA' : 'RUTAS'}'
+                                : _state.modoSolitario
+                                ? '${_state.jugadoresEnVivo.length} EN VIVO · '
+                                  '${_state.territorios.length} MIS ZONAS'
                                 : '${_state.jugadoresEnVivo.length} EN VIVO · '
-                                  '${_state.territorios.length} ZONAS',
+                                  '${_state.misZonasCompetitivo} MIS ZONAS',
                             style: _raj(8, FontWeight.w700, _kSub,
                                 spacing: 1.5),
                           ),

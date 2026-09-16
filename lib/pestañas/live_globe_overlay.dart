@@ -117,7 +117,7 @@ extension _LiveGlobeOverlay on _LiveActivityScreenState {
                               ),
                             ]
                           : [
-                              _globoStat('${_territorios.where((t) => t.esMio).length}', 'MIS ZONAS', _kGold),
+                              _globoStat('${_misZonasCompetitivo.length}', 'MIS ZONAS', _kGold),
                               _globoStat('${_jugadoresActivos.length}', 'ACTIVOS', _kWaterLight),
                               _globoStat('${_territorios.length}', 'TOTAL', _kGoldLight),
                               _globoStat('${_territoriosNotificadosEnSesion.length}', 'EN GUERRA', _p.terracotta),
@@ -130,8 +130,8 @@ extension _LiveGlobeOverlay on _LiveActivityScreenState {
   }
 
   Widget _buildChipsGlobo() {
-    final miasCount    = _territorios.where((t) => t.esMio).length;
-    final amenazaCount = _territorios.where((t) => t.esMio && t.estadoHp == EstadoHp.critico).length;
+    final miasCount    = _misZonasCompetitivo.length;
+    final amenazaCount = _misZonasCompetitivo.where((t) => t.estadoHp == EstadoHp.critico).length;
 
     String situLabel;
     Color  situColor;
@@ -270,7 +270,7 @@ extension _LiveGlobeOverlay on _LiveActivityScreenState {
       ]);
 
   Widget _buildMisTerritoriasGlobo() {
-    final mias = _territorios.where((t) => t.esMio).toList()
+    final mias = List<TerritoryData>.from(_misZonasCompetitivo)
       ..sort((a, b) => a.hpActual.compareTo(b.hpActual));
     final shown = mias.take(5).toList();
     return ConstrainedBox(

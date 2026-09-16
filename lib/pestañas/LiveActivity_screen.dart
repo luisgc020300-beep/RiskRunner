@@ -209,6 +209,9 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ── GPS
   List<TerritoryData> _territoriosRivalesCercanos = [];
+  /// Mis territorios competitivos, sin filtro geográfico (a diferencia de
+  /// _territorios, que solo trae lo que hay cerca de donde apunte el globo).
+  List<TerritoryData> _misZonasCompetitivo = [];
   TerritoryData? _territorioActualBajoPie;
   List<LatLng> routePoints           = [];
   late final RunSessionNotifier _session = RunSessionNotifier();
@@ -608,6 +611,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     _solitarioStreamSub?.cancel();
     _streamReconectarTimer?.cancel();
     TerritoryService.stopRealtimeListener();
+    TerritoryService.stopMisTerritoriosListener();
     _globalTerritoryStream?.cancel();
     _timerPublicarPosicion?.cancel();
     _timerCheckRuta?.cancel();
@@ -829,6 +833,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       }
       // Arrancar listener en tiempo real en cuanto tenemos posición
       if (centro != null) TerritoryService.startRealtimeListener(centro: centro);
+      TerritoryService.startMisTerritoriosListener();
 
       if (!_modoRuta) {
         final modo = _modoSolitario ? 'solitario' : 'competitivo';
@@ -2469,12 +2474,19 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       if (mounted) _modeCtrl.setMapaDesactualizado(true);
       _programarReconexion();
     });
-    _solitarioStreamSub = TerritoryService.solitarioStream.listen((list) {
+    // misTerritoriosStream no depende de dónde apunte el globo: sigue siempre
+    // al jugador. Se usa para solitario (privado, sin rivales) y para saber
+    // cuántas zonas competitivas tienes en total sin importar hacia dónde
+    // hayas girado el globo.
+    _solitarioStreamSub = TerritoryService.misTerritoriosStream.listen((mias) {
       if (!mounted) return;
       _modeCtrl.setMapaDesactualizado(false);
-      GameStateService.instance.setSolitarioTerritories(list);
+      final solitario = mias.where((t) => t.modo == 'solitario').toList();
+      GameStateService.instance.setSolitarioTerritories(solitario);
+      setState(() => _misZonasCompetitivo =
+          mias.where((t) => t.modo == null || t.modo == 'competitivo').toList());
       if (!_territoriosCargados || !_modoSolitario) return;
-      setState(() => _territorios = list);
+      setState(() => _territorios = solitario);
       _dibujandoDebounce?.cancel();
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();

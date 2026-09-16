@@ -28,6 +28,10 @@ class _MapState extends ChangeNotifier {
   bool loadingGlobal                          = false;
   GlobalTerritory? territorioGlobalSeleccionado;
   int territoriosMios                         = 0;
+  /// Total de territorios competitivos del jugador, sin filtro geográfico
+  /// (a diferencia de [territorios], que solo trae lo que hay cerca de
+  /// [centro] y por tanto se vacía si arrastras el mapa lejos).
+  int misZonasCompetitivo                     = 0;
   static const int maxTerritoriosPorJugador   = 5;
   Color colorJugador                          = const Color(0xFFCC2222);
 
@@ -233,6 +237,11 @@ class _MapState extends ChangeNotifier {
     territorios = lista;
     loadingTerritorios = false;
     errorMessage = null;
+    notifyListeners();
+  }
+
+  void setMisZonasCompetitivo(int n) {
+    misZonasCompetitivo = n;
     notifyListeners();
   }
 
