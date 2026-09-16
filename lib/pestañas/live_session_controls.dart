@@ -521,52 +521,107 @@ extension _LiveSessionControls on _LiveActivityScreenState {
   }
 
   Widget _buildBotonesControl() => Row(children: [
-        GestureDetector(
+        _PressableScale(
           onTap: togglePause,
           child: Container(
             width: 62, height: 62,
             decoration: BoxDecoration(
-              color: _p.parchMid, shape: BoxShape.circle,
-              border: Border.all(color: _p.goldDim.withValues(alpha: 0.55), width: 1.5),
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.35),
+                radius: 1.1,
+                colors: [
+                  Color.lerp(_p.parchMid, Colors.white, 0.14)!,
+                  _p.parchMid,
+                ],
+              ),
+              border: Border.all(color: _p.goldDim.withValues(alpha: 0.6), width: 1.5),
               boxShadow: [
-                BoxShadow(color: _kGold.withValues(alpha: 0.12), blurRadius: 12),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 5),
+                BoxShadow(color: _kGold.withValues(alpha: 0.16),
+                    blurRadius: 16, spreadRadius: 1),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.40),
+                    blurRadius: 6, offset: const Offset(0, 3)),
               ],
             ),
             child: Center(
                 child: Icon(
                   _session.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                  color: _p.ink, size: 28)),
+                  color: _p.ink, size: 30)),
           ),
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: GestureDetector(
+          child: _PressableScale(
             onTap: stopTracking,
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 19),
+              padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
-                color: const Color(0xFF2C2C2E),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  colors: [
+                    Color.lerp(const Color(0xFF2C2C2E), Colors.white, 0.07)!,
+                    const Color(0xFF2C2C2E),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.10), width: 1),
+                border: Border.all(color: _p.goldDim.withValues(alpha: 0.35), width: 1),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.30),
-                      blurRadius: 8, offset: const Offset(0, 2)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 10, offset: const Offset(0, 3)),
                 ],
               ),
               child: Center(
-                child: Text(
-                  _modoSolitario ? 'Finalizar'
-                      : _objetivoGlobal != null
-                          ? (_globalConquistado ? 'Misión cumplida' : 'Retirada')
-                          : 'Retirada',
-                  style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600,
-                      color: Colors.white, letterSpacing: 0.3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.flag_rounded,
+                        color: Colors.white.withValues(alpha: 0.85), size: 17),
+                    const SizedBox(width: 8),
+                    Text(
+                      _modoSolitario ? 'Finalizar'
+                          : _objetivoGlobal != null
+                              ? (_globalConquistado ? 'Misión cumplida' : 'Retirada')
+                              : 'Retirada',
+                      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600,
+                          color: Colors.white, letterSpacing: 0.3),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ),
       ]);
+}
+
+/// Botón con un pequeño "hundido" táctil al pulsar — mismo contenido y
+/// colores, solo añade la respuesta de presión que faltaba.
+class _PressableScale extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  const _PressableScale({required this.child, required this.onTap});
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
 }
 

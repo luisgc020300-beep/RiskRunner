@@ -1277,6 +1277,12 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       rotateDecelerationEnabled: true,
       quickZoomEnabled: false,
     ));
+    // Solo se permite recolorear el icono de atribución (ocultarlo del todo
+    // es API restringida por los términos de Mapbox). Se deja en su posición
+    // por defecto, debajo de los botones de control, con un tono apagado a
+    // juego con el HUD en vez del azul por defecto.
+    await map.attribution.updateSettings(
+        mapbox.AttributionSettings(iconColor: Colors.white54.toARGB32()));
     _annotationManager =
         await map.annotations.createPointAnnotationManager();
     _buildAvatarPuckFrames();
