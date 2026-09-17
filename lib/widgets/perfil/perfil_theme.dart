@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:RiskRunner/theme/app_colors.dart';
 
-const kPerfilAccent  = Color(0xFFCC2222);
-const kPerfilGold    = Color(0xFFD4A84C);
-const kPerfilMorado  = Color(0xFF6A4A9B);
+const kPerfilAccent  = AppColors.red;
+const kPerfilGold    = AppColors.gold;
 
 class PerfilPalette {
   final Color bg, surface, surface2;
