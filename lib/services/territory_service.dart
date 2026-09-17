@@ -241,7 +241,10 @@ double get opacidadBorde {
 // TERRITORY SERVICE
 // ══════════════════════════════════════════════════════════════════════════════
 class TerritoryService {
-  static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  @visibleForTesting
+  static void setDb(FirebaseFirestore db) => _db = db;
 
   // ── Caché TTL 2 min ───────────────────────────────────────────────────────
   static List<TerritoryData>? _cachedTerritorios;

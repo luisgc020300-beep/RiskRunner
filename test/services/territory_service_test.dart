@@ -125,4 +125,54 @@ void main() {
       expect(cierre, greaterThan(kDistanciaMaximaCierreM));
     });
   });
+
+  // ── geocellDe ────────────────────────────────────────────────────────────────
+  group('geocellDe', () {
+    test('dos puntos en la misma celda dan la misma geocelda', () {
+      expect(TerritoryService.geocellDe(0.10, 0.10),
+          TerritoryService.geocellDe(0.12, 0.12));
+    });
+
+    test('cruzar el borde de una celda cambia la geocelda', () {
+      // kGeocellSizeDeg = 0.05 → el borde está en 0.05, 0.10, ...
+      final antes    = TerritoryService.geocellDe(0.049, 0.0);
+      final despues  = TerritoryService.geocellDe(0.051, 0.0);
+      expect(antes, isNot(equals(despues)));
+    });
+
+    test('coordenadas negativas (hemisferio sur/oeste) no rompen el cálculo', () {
+      // floor(-0.01/0.05) = floor(-0.2) = -1, no 0
+      expect(TerritoryService.geocellDe(-0.01, -0.01), '-1_-1');
+    });
+
+    test('el origen (0,0) cae en la celda 0_0', () {
+      expect(TerritoryService.geocellDe(0.0, 0.0), '0_0');
+    });
+  });
+
+  // ── geocellsParaRadio ──────────────────────────────────────────────────────────
+  group('geocellsParaRadio', () {
+    test('radio 0 devuelve solo la celda del propio punto', () {
+      final celdas = TerritoryService.geocellsParaRadio(0.1, 0.1, 0);
+      expect(celdas, [TerritoryService.geocellDe(0.1, 0.1)]);
+    });
+
+    test('radio igual al tamaño de celda cubre las 8 celdas vecinas (3x3)', () {
+      final celdas = TerritoryService.geocellsParaRadio(0.1, 0.1, kGeocellSizeDeg);
+      expect(celdas.length, 9);
+      expect(celdas.toSet().length, 9); // sin duplicados
+      expect(celdas, contains(TerritoryService.geocellDe(0.1, 0.1)));
+    });
+
+    test('un radio muy grande se recorta a 2 celdas de margen (5x5), no más', () {
+      final celdas = TerritoryService.geocellsParaRadio(0.1, 0.1, 5.0);
+      expect(celdas.length, 25);
+    });
+
+    test('el punto de búsqueda siempre está entre las celdas devueltas', () {
+      const lat = 40.4167, lng = -3.70325;
+      final celdas = TerritoryService.geocellsParaRadio(lat, lng, 0.05);
+      expect(celdas, contains(TerritoryService.geocellDe(lat, lng)));
+    });
+  });
 }
