@@ -284,6 +284,11 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
   StreamSubscription? _jugadoresStream;
   StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
   StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
+
+  // Último resultado de cada stream competitivo — se fusionan para que "mis"
+  // territorios nunca dependan de tener geocell asignado ni de estar dentro
+  // del radio de búsqueda actual (ver _territoriosCompetitivoFusionados).
+  List<TerritoryData> _nearbyCompetitivo = [];
   final Map<String, Map<String, dynamic>> _jugadoresActivos = {};
   bool  get _mapaDesactualizado => _modeCtrl.mapaDesactualizado;
   Timer? _streamReconectarTimer;
@@ -835,6 +840,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       // Arrancar listener en tiempo real en cuanto tenemos posición
       if (centro != null) TerritoryService.startRealtimeListener(centro: centro);
       TerritoryService.startMisTerritoriosListener();
+      TerritoryService.repararMisGeoceldasSiHaceFalta();
 
       if (!_modoRuta) {
         final modo = _modoSolitario ? 'solitario' : 'competitivo';
@@ -2497,13 +2503,26 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
 
   // ==========================================================================
   // ── Streams de territorios en tiempo real ─────────────────────────────────
+  // Fusiona lo que hay cerca (según geocell, incluye rivales/fantasmas) con
+  // mis propios territorios competitivos (según userId, siempre fiable) sin
+  // duplicar por docId. Así "lo mío" nunca depende de tener geocell asignado
+  // ni de estar dentro del radio de búsqueda actual.
+  List<TerritoryData> _territoriosCompetitivoFusionados() {
+    final misIds = _misZonasCompetitivo.map((t) => t.docId).toSet();
+    return [
+      ..._nearbyCompetitivo.where((t) => !misIds.contains(t.docId)),
+      ..._misZonasCompetitivo,
+    ];
+  }
+
   void _suscribirStreamTerritorios() {
     _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
       if (!mounted) return;
       _modeCtrl.setMapaDesactualizado(false);
       GameStateService.instance.setCompetitiveTerritories(list);
+      _nearbyCompetitivo = list;
       if (!_territoriosCargados || _modoSolitario || _modoRuta) return;
-      setState(() => _territorios = list);
+      setState(() => _territorios = _territoriosCompetitivoFusionados());
       _dibujandoDebounce?.cancel();
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();
@@ -2524,8 +2543,14 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       GameStateService.instance.setSolitarioTerritories(solitario);
       setState(() => _misZonasCompetitivo =
           mias.where((t) => t.modo == null || t.modo == 'competitivo').toList());
-      if (!_territoriosCargados || !_modoSolitario) return;
-      setState(() => _territorios = solitario);
+      if (!_territoriosCargados) return;
+      if (_modoSolitario) {
+        setState(() => _territorios = solitario);
+      } else if (!_modoRuta) {
+        setState(() => _territorios = _territoriosCompetitivoFusionados());
+      } else {
+        return;
+      }
       _dibujandoDebounce?.cancel();
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();

@@ -720,6 +720,31 @@ class TerritoryService {
     return null;
   }
 
+  // ── Autoreparación de geocell propio ─────────────────────────────────────
+  // Migración de esta sesión: territorios creados antes de que existiera el
+  // campo 'geocell' quedaban invisibles para las consultas geográficas (ver
+  // riskrunner/index.js, repararMisGeoceldas). Se llama una vez por sesión al
+  // entrar al mapa — es idempotente y barata (solo mira los propios docs), y
+  // si falla no pasa nada grave: el backfill del cron de 6h la cubre igual.
+  static bool _geoceldasReparadas = false;
+
+  static Future<void> repararMisGeoceldasSiHaceFalta() async {
+    if (_geoceldasReparadas) return;
+    _geoceldasReparadas = true;
+    try {
+      final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('repararMisGeoceldas')
+          .call<Map<String, dynamic>>();
+      final reparados = (result.data as Map)['reparados'];
+      if (reparados is num && reparados > 0) {
+        debugPrint('🛠️ repararMisGeoceldas: $reparados territorios reparados');
+        invalidarCache();
+      }
+    } catch (e) {
+      debugPrint('repararMisGeoceldasSiHaceFalta: $e');
+    }
+  }
+
   static Future<String?> crearTerritorioSolitario({
     required List<LatLng> ruta,
     required Color colorTerritorio,
@@ -831,8 +856,10 @@ class TerritoryService {
 
     final docsEnRango = territoriosSnap.docs;
 
-    // Recoger UIDs únicos (excluyendo bot ghost que no tienen player doc)
-    final Set<String> ownerIds = {};
+    // Recoger UIDs únicos (excluyendo bot ghost que no tienen player doc).
+    // El propio uid siempre se incluye: aunque sus territorios no aparezcan
+    // en el radio (ver más abajo), su color de perfil hace falta igual.
+    final Set<String> ownerIds = {user.uid};
     for (final doc in docsEnRango) {
       final uid = doc.data()['userId'] as String?;
       if (uid != null && uid != kGhostUserId) ownerIds.add(uid);
@@ -860,6 +887,26 @@ class TerritoryService {
     }
 
     final resultado = _parsearDocs(docsEnRango, user.uid, playerDataMap);
+
+    // Mis propios territorios nunca deben faltar, aunque les falte 'geocell'
+    // (documentos de antes de esta migración) o queden fuera del radio de
+    // búsqueda — se piden aparte con una consulta directa por userId, que
+    // siempre los encuentra, y se añaden si no vinieron ya en el resultado.
+    final idsEnRango = resultado.map((t) => t.docId).toSet();
+    try {
+      final propiosSnap = await _db
+          .collection('territories')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+      final propiosFaltantes = _parsearDocs(
+        propiosSnap.docs.where((d) => !idsEnRango.contains(d.id)).toList(),
+        user.uid,
+        playerDataMap,
+      );
+      resultado.addAll(propiosFaltantes);
+    } catch (e) {
+      debugPrint('cargarTodosLosTerritorios: error añadiendo propios: $e');
+    }
 
     _cachedTerritorios = resultado;
     _cacheTimestamp    = DateTime.now();

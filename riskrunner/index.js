@@ -1495,6 +1495,53 @@ exports.crearTerritoriosFantasma = onCall(
 );
 
 // =============================================================================
+// 12b. REPARAR MIS GEOCELDAS — autoreparación inmediata, solo del propio uid
+// =============================================================================
+// El backfill de 'geocell' de más abajo corre cada 6 horas y afecta a todos
+// los territorios. Esta función la llama el cliente al arrancar el mapa para
+// no hacer esperar al jugador ese ciclo — y por seguridad solo toca
+// documentos donde userId == el propio uid del que llama, nunca los de otro.
+exports.repararMisGeoceldas = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const snap = await db.collection('territories')
+      .where('userId', '==', uid)
+      .get();
+
+    const batch = db.batch();
+    let reparados = 0;
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      if (data.geocell !== undefined) continue;
+
+      let centroLat = data.centroLat;
+      let centroLng = data.centroLng;
+      if (typeof centroLat !== 'number' || typeof centroLng !== 'number') {
+        const pts = Array.isArray(data.puntos) ? data.puntos : [];
+        if (pts.length === 0) continue;
+        centroLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+        centroLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
+      }
+
+      batch.update(doc.ref, {
+        centroLat,
+        centroLng,
+        geocell: _geocellDe(centroLat, centroLng),
+      });
+      reparados++;
+    }
+
+    if (reparados > 0) await batch.commit();
+    return { ok: true, reparados };
+  }
+);
+
+// =============================================================================
 // 13. ACTUALIZAR HP DE TODOS LOS TERRITORIOS — cada 6 horas
 // =============================================================================
 exports.actualizarHpTodosLosTerritorios = onSchedule(
@@ -1516,10 +1563,25 @@ exports.actualizarHpTodosLosTerritorios = onSchedule(
 
       // Backfill de 'geocell' para documentos creados antes de que existiera
       // ese campo — sin esto, las consultas geográficas (whereIn geocell)
-      // nunca los encuentran aunque tengan centroLat/centroLng válidos.
-      if (data.geocell === undefined &&
-          typeof data.centroLat === 'number' && typeof data.centroLng === 'number') {
-        update.geocell = _geocellDe(data.centroLat, data.centroLng);
+      // nunca los encuentran. Los territorios muy antiguos tampoco tenían
+      // centroLat/centroLng, así que se recalculan aquí a partir de 'puntos'
+      // (que todo territorio tiene desde siempre) en vez de exigir que ya
+      // existan — si no, esos territorios nunca se reparaban.
+      if (data.geocell === undefined) {
+        let centroLat = data.centroLat;
+        let centroLng = data.centroLng;
+        if (typeof centroLat !== 'number' || typeof centroLng !== 'number') {
+          const pts = Array.isArray(data.puntos) ? data.puntos : [];
+          if (pts.length > 0) {
+            centroLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
+            centroLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
+            update.centroLat = centroLat;
+            update.centroLng = centroLng;
+          }
+        }
+        if (typeof centroLat === 'number' && typeof centroLng === 'number') {
+          update.geocell = _geocellDe(centroLat, centroLng);
+        }
       }
 
       const hpActual = _hpActual(data);

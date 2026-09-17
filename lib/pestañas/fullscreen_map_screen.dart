@@ -142,6 +142,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
   StreamSubscription<List<TerritoryData>>? _competitiveStreamSub;
   StreamSubscription<List<TerritoryData>>? _solitarioStreamSub;
 
+  // Último resultado de cada stream competitivo — se fusionan en
+  // _territoriosCompetitivoFusionados() para que "mis" territorios nunca
+  // dependan de estar dentro del radio geográfico del listener cercano.
+  List<TerritoryData> _nearbyCompetitivo = [];
+  List<TerritoryData> _misCompetitivo    = [];
+
   // Últimos datos de cada query — se mezclan en _mergeDesafio()
   Map<String, dynamic>? _desafioComoRetador;
   Map<String, dynamic>? _desafioComoRetado;
@@ -459,10 +465,23 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     ));
   }
 
+  // Fusiona lo que hay cerca (según geocell, incluye rivales/fantasmas) con
+  // mis propios territorios competitivos (según userId, siempre fiable) sin
+  // duplicar por docId. Así "lo mío" nunca depende de tener geocell asignado
+  // ni de estar dentro del radio de búsqueda actual.
+  List<TerritoryData> _territoriosCompetitivoFusionados() {
+    final misIds = _misCompetitivo.map((t) => t.docId).toSet();
+    return [
+      ..._nearbyCompetitivo.where((t) => !misIds.contains(t.docId)),
+      ..._misCompetitivo,
+    ];
+  }
+
   void _suscribirStreamTerritorios() {
     _competitiveStreamSub = TerritoryService.competitiveStream.listen((list) {
       if (!mounted) return;
       GameStateService.instance.setCompetitiveTerritories(list);
+      _nearbyCompetitivo = list;
       if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
       // Debounce: evita redraws múltiples cuando Firestore emite ráfagas
       // (p.ej. creación de territorios fantasma uno a uno)
@@ -470,7 +489,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       _streamTerritoriDebounce = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
         if (_state.modoSolitario || _state.modoRutas || _state.modoGlobal) return;
-        _state.setTerritorios(list);
+        _state.setTerritorios(_territoriosCompetitivoFusionados());
       });
     });
     // misTerritoriosStream no depende de dónde esté centrado el mapa: sigue
@@ -482,10 +501,15 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       final solitario = mias.where((t) => t.modo == 'solitario').toList();
       // Siempre actualizar caché para que el retorno a solitario sea inmediato
       GameStateService.instance.setSolitarioTerritories(solitario);
-      _state.setMisZonasCompetitivo(
-          mias.where((t) => t.modo == null || t.modo == 'competitivo').length);
-      if (!_state.modoSolitario) return;
-      _state.setTerritorios(solitario);
+      _misCompetitivo =
+          mias.where((t) => t.modo == null || t.modo == 'competitivo').toList();
+      _state.setMisZonasCompetitivo(_misCompetitivo.length);
+      if (_state.modoSolitario) {
+        _state.setTerritorios(solitario);
+        return;
+      }
+      if (_state.modoRutas || _state.modoGlobal) return;
+      _state.setTerritorios(_territoriosCompetitivoFusionados());
     });
   }
 
@@ -498,6 +522,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     // Arrancar listener en tiempo real y suscribirse a los streams
     TerritoryService.startRealtimeListener(centro: _state.centro);
     TerritoryService.startMisTerritoriosListener();
+    TerritoryService.repararMisGeoceldasSiHaceFalta();
     _suscribirStreamTerritorios();
     // Listeners arrancan en cuanto tenemos el centro — no esperan a los territorios
     _escucharJugadores();
