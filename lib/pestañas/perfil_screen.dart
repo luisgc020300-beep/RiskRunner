@@ -25,6 +25,7 @@ import 'package:RiskRunner/models/notif_item.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' hide Path;
 import '../services/league_service.dart';
+import '../services/territory_service.dart';
 import '../models/avatar_config.dart';
 import '../widgets/avatar_widget.dart';
 import 'avatar_customizer_screen.dart';
@@ -709,8 +710,8 @@ class _PerfilScreenState extends State<PerfilScreen>
     final baseQuery = (center.latitude != 40.4168 || center.longitude != -3.7038)
         ? FirebaseFirestore.instance
             .collection('territories')
-            .where('centroLat', isGreaterThan: center.latitude - kRad)
-            .where('centroLat', isLessThan:    center.latitude + kRad)
+            .where('geocell', whereIn:
+                TerritoryService.geocellsParaRadio(center.latitude, center.longitude, kRad))
             .limit(200)
         : FirebaseFirestore.instance
             .collection('territories')

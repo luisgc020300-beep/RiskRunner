@@ -1184,6 +1184,7 @@ exports.atacarTerritorio = onCall(
             puntos: puntosRestantesCasoB.map(p => ({ lat: p.y, lng: p.x })),
             centro: { lat: centroRestanteCasoB.y, lng: centroRestanteCasoB.x },
             centroLat: centroRestanteCasoB.y, centroLng: centroRestanteCasoB.x,
+            geocell: _geocellDe(centroRestanteCasoB.y, centroRestanteCasoB.x),
             hp: hpTx, hpMax: 100, ultimaActualizacionHp: FieldValue.serverTimestamp(),
           });
         } else {
@@ -1194,6 +1195,7 @@ exports.atacarTerritorio = onCall(
           puntos: interseccion.map(p => ({ lat: p.y, lng: p.x })),
           centro: { lat: centroInterseccionCasoB.y, lng: centroInterseccionCasoB.x },
           centroLat: centroInterseccionCasoB.y, centroLng: centroInterseccionCasoB.x,
+          geocell: _geocellDe(centroInterseccionCasoB.y, centroInterseccionCasoB.x),
           hp: 100, hpMax: 100, velocidadConquistaKmh: velocidadMediaAtacanteKmh,
           ultimaActualizacionHp: FieldValue.serverTimestamp(),
           ultima_visita: FieldValue.serverTimestamp(),
@@ -1329,6 +1331,7 @@ exports.crearTerritorio = onCall(
       nombre_territorio: null,
       centroLat: latC,
       centroLng: lngC,
+      geocell: _geocellDe(latC, lngC),
     });
 
     return { ok: true, territorioId: ref.id, areaM2 };
@@ -1430,12 +1433,9 @@ exports.crearTerritoriosFantasma = onCall(
     // no una lista que mande el cliente.
     const RAD_BUSQUEDA = 0.03; // ~3.3 km, cubre de sobra la rejilla 15x15
     const cercanosSnap = await db.collection('territories')
-      .where('centroLat', '>', centro.lat - RAD_BUSQUEDA)
-      .where('centroLat', '<', centro.lat + RAD_BUSQUEDA)
+      .where('geocell', 'in', _geocellsParaRadio(centro.lat, centro.lng, RAD_BUSQUEDA))
       .get();
-    const existentes = cercanosSnap.docs
-      .map(d => d.data())
-      .filter(d => Math.abs((d.centroLng || 0) - centro.lng) < RAD_BUSQUEDA);
+    const existentes = cercanosSnap.docs.map(d => d.data());
 
     const batch = db.batch();
     let creados = 0;
@@ -1468,6 +1468,7 @@ exports.crearTerritoriosFantasma = onCall(
           centro: { lat: latC, lng: lngC },
           centroLat: latC,
           centroLng: lngC,
+          geocell: _geocellDe(latC, lngC),
           color: colorVal,
           ultima_visita: FieldValue.serverTimestamp(),
           fecha_creacion: FieldValue.serverTimestamp(),
@@ -1510,31 +1511,43 @@ exports.actualizarHpTodosLosTerritorios = onSchedule(
     let   contador = 0;
 
     for (const doc of snap.docs) {
-      const data     = doc.data();
+      const data   = doc.data();
+      const update = {};
+
+      // Backfill de 'geocell' para documentos creados antes de que existiera
+      // ese campo — sin esto, las consultas geográficas (whereIn geocell)
+      // nunca los encuentran aunque tengan centroLat/centroLng válidos.
+      if (data.geocell === undefined &&
+          typeof data.centroLat === 'number' && typeof data.centroLng === 'number') {
+        update.geocell = _geocellDe(data.centroLat, data.centroLng);
+      }
+
       const hpActual = _hpActual(data);
-      if (hpActual <= 0) continue;
+      if (hpActual > 0) {
+        const ultimaActualizacion = data.ultimaActualizacionHp
+          ? data.ultimaActualizacionHp.toDate()
+          : (data.ultima_visita ? data.ultima_visita.toDate() : ahora);
 
-      const ultimaActualizacion = data.ultimaActualizacionHp
-        ? data.ultimaActualizacionHp.toDate()
-        : (data.ultima_visita ? data.ultima_visita.toDate() : ahora);
+        const horasTranscurridas = (ahora - ultimaActualizacion) / (1000 * 60 * 60);
+        const decayPorHora       = (100 / 7) / 24;
+        const nuevoHp            = Math.max(
+          Math.round(hpActual - decayPorHora * horasTranscurridas), 0
+        );
 
-      const horasTranscurridas = (ahora - ultimaActualizacion) / (1000 * 60 * 60);
-      const decayPorHora       = (100 / 7) / 24;
-      const nuevoHp            = Math.max(
-        Math.round(hpActual - decayPorHora * horasTranscurridas), 0
-      );
+        if (nuevoHp !== hpActual) {
+          update.hp = nuevoHp;
+          update.ultimaActualizacionHp = FieldValue.serverTimestamp();
+        }
+      }
 
-      if (nuevoHp !== hpActual) {
-        batch.update(doc.ref, {
-          hp:                    nuevoHp,
-          ultimaActualizacionHp: FieldValue.serverTimestamp(),
-        });
+      if (Object.keys(update).length > 0) {
+        batch.update(doc.ref, update);
         contador++;
       }
     }
 
     await batch.commit();
-    console.log(`[actualizarHpTodosLosTerritorios] HP actualizado en ${contador} territorios.`);
+    console.log(`[actualizarHpTodosLosTerritorios] ${contador} territorios actualizados (HP y/o geocell).`);
   }
 );
 
@@ -2111,6 +2124,32 @@ function _haversineMetros(lat1, lng1, lat2, lng2) {
     Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Rejilla geográfica para indexar territorios por posición — ver la misma
+// lógica y el mismo tamaño de celda en territory_service.dart (geocellDe).
+// Cualquier escritura que fije centroLat/centroLng en 'territories' debe
+// fijar 'geocell' a la vez, o esa consulta geográfica deja de encontrarlo.
+const K_GEOCELL_SIZE_DEG = 0.05;
+function _geocellDe(lat, lng) {
+  const latIdx = Math.floor(lat / K_GEOCELL_SIZE_DEG);
+  const lngIdx = Math.floor(lng / K_GEOCELL_SIZE_DEG);
+  return `${latIdx}_${lngIdx}`;
+}
+
+// Celdas que cubren un radio (en grados) alrededor de (lat,lng), para pedir
+// solo esas con un 'whereIn' (Firestore permite hasta 30 valores).
+function _geocellsParaRadio(lat, lng, radioGrados) {
+  const n = Math.min(Math.max(Math.ceil(radioGrados / K_GEOCELL_SIZE_DEG), 0), 2);
+  const latIdx = Math.floor(lat / K_GEOCELL_SIZE_DEG);
+  const lngIdx = Math.floor(lng / K_GEOCELL_SIZE_DEG);
+  const celdas = [];
+  for (let di = -n; di <= n; di++) {
+    for (let dj = -n; dj <= n; dj++) {
+      celdas.push(`${latIdx + di}_${lngIdx + dj}`);
+    }
+  }
+  return celdas;
 }
 
 function _calcularAreaInterseccion(subject, clip) {

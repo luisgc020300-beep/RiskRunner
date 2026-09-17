@@ -75,12 +75,11 @@ class _MapDataService {
   Future<List<_UserGroup>> cargarGruposCercanos(
       LatLng centro, String myUid,
       {String modo = 'competitivo'}) async {
-    final latMin = centro.latitude - _kRadGrados;
-    final latMax = centro.latitude + _kRadGrados;
+    final geocells = TerritoryService.geocellsParaRadio(
+        centro.latitude, centro.longitude, _kRadGrados);
     final snap = await _db
         .collection('territories')
-        .where('centroLat', isGreaterThan: latMin)
-        .where('centroLat', isLessThan: latMax)
+        .where('geocell', whereIn: geocells)
         .get();
 
     final Map<String, List<_TerDet>> tersPorOwner = {};

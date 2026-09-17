@@ -46,6 +46,13 @@ const double kAreaMinimaCompetitivoM2    = 10000.0;
 /// de área (shoelace) cierra cualquier trazado con una línea recta
 /// imaginaria, lo que "autocompleta" territorios en rutas casi rectas.
 const double kDistanciaMaximaCierreM     = 40.0;
+
+/// Lado de cada celda de la rejilla geográfica usada para indexar
+/// territorios por posición (ver [geocellDe]/[geocellsParaRadio]).
+/// 0.05° ≈ 5,5 km, el mismo orden de magnitud que los radios de búsqueda
+/// ya usados en la app — así una búsqueda típica cubre pocas celdas.
+const double kGeocellSizeDeg = 0.05;
+
 const double kMultiplicadorMonedasSolitario   = 0.65;
 const double kMultiplicadorMonedasCompetitivo = 1.00;
 const int kDiasParaSerRey                = 14;
@@ -287,22 +294,18 @@ class TerritoryService {
     if (user == null) return;
 
     const double kRad = 0.09;
+    final geocells = geocellsParaRadio(centro.latitude, centro.longitude, kRad);
 
     _realtimeListener = _db
         .collection('territories')
-        .where('centroLat', isGreaterThan: centro.latitude - kRad)
-        .where('centroLat', isLessThan:    centro.latitude + kRad)
+        .where('geocell', whereIn: geocells)
         .limit(500)
         .snapshots()
         .listen((snap) async {
           _reconnectAttempts = 0; // stream vivo — resetear contador
           final myUid = user.uid;
 
-          final docs = snap.docs.where((doc) {
-            final cLng = (doc.data()['centroLng'] as num?)?.toDouble();
-            if (cLng == null) return true;
-            return (cLng - centro.longitude).abs() <= kRad;
-          }).toList();
+          final docs = snap.docs;
 
           // Fetch datos de jugadores ausentes o con caché expirada (>30 min)
           final now = DateTime.now();
@@ -487,6 +490,34 @@ class TerritoryService {
       inicio.latitude, inicio.longitude,
       fin.latitude,    fin.longitude,
     );
+  }
+
+  // ── Geoceldas ────────────────────────────────────────────────────────────
+  // Firestore no soporta un rango real en dos campos a la vez, así que las
+  // consultas geográficas hacían "rango en latitud + descartar por longitud
+  // en el cliente" — eso trae de vuelta (y factura) documentos de cualquier
+  // punto del planeta que caiga en esa franja de latitud, no solo los
+  // cercanos. geocellDe() indexa cada territorio en una rejilla de
+  // ~5,5 km de lado; geocellsParaRadio() calcula qué celdas cubren el área
+  // de búsqueda para poder pedir solo esas con un 'whereIn' (máx. 30
+  // valores en Firestore, por eso el radio cubierto se recorta a 2 celdas).
+  static String geocellDe(double lat, double lng) {
+    final latIdx = (lat / kGeocellSizeDeg).floor();
+    final lngIdx = (lng / kGeocellSizeDeg).floor();
+    return '${latIdx}_$lngIdx';
+  }
+
+  static List<String> geocellsParaRadio(double lat, double lng, double radioGrados) {
+    final n = ((radioGrados / kGeocellSizeDeg).ceil()).clamp(0, 2);
+    final latIdx = (lat / kGeocellSizeDeg).floor();
+    final lngIdx = (lng / kGeocellSizeDeg).floor();
+    final celdas = <String>[];
+    for (int di = -n; di <= n; di++) {
+      for (int dj = -n; dj <= n; dj++) {
+        celdas.add('${latIdx + di}_${lngIdx + dj}');
+      }
+    }
+    return celdas;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -786,22 +817,16 @@ class TerritoryService {
     // ── Con posición: query geográfica para competitivo ───────────────────
     const double kRadGrados = 0.05; // ~5.5 km — radio de carrera realista
     const int    kLimit     = 300;  // cap de seguridad
+    final geocells = geocellsParaRadio(centro.latitude, centro.longitude, kRadGrados);
 
     final territoriosSnap = await _db
         .collection('territories')
-        .where('centroLat', isGreaterThan: centro.latitude  - kRadGrados)
-        .where('centroLat', isLessThan:    centro.latitude  + kRadGrados)
+        .where('geocell', whereIn: geocells)
         .limit(kLimit)
         .get()
         .timeout(const Duration(seconds: 10));
 
-    // Filtrar por longitud (Firestore no soporta rango en dos campos)
-    final docsEnRango = territoriosSnap.docs.where((doc) {
-      final data   = doc.data();
-      final cLng   = (data['centroLng'] as num?)?.toDouble();
-      if (cLng == null) return true; // sin centroLng: incluir y calcular abajo
-      return (cLng - centro.longitude).abs() <= kRadGrados;
-    }).toList();
+    final docsEnRango = territoriosSnap.docs;
 
     // Recoger UIDs únicos (excluyendo bot ghost que no tienen player doc)
     final Set<String> ownerIds = {};
@@ -1254,11 +1279,11 @@ class TerritoryService {
   }) async {
     const kRad = 0.045; // ~5 km
     try {
+      final geocells = geocellsParaRadio(centro.latitude, centro.longitude, kRad);
       final snap = await _db
           .collection('territories')
           .where('userId', isEqualTo: kGhostUserId)
-          .where('centroLat', isGreaterThan: centro.latitude  - kRad)
-          .where('centroLat', isLessThan:    centro.latitude  + kRad)
+          .where('geocell', whereIn: geocells)
           .get();
 
       final resultado = <TerritoryData>[];
