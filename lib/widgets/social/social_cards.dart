@@ -419,13 +419,13 @@ class SocialChatCard extends StatelessWidget {
 // ── Player Card ───────────────────────────────────────────────────────────────
 class SocialPlayerCard extends StatefulWidget {
   final String userId, nickname, relacion, currentUserId;
-  final int nivel, monedas, rango, puntosLiga;
+  final int nivel, monedas, puntosLiga;
   final String? fotoBase64;
   final Color accent;
   final VoidCallback onAgregar, onVerPerfil;
   const SocialPlayerCard({super.key,
     required this.userId, required this.nickname, required this.nivel,
-    required this.monedas, required this.rango, required this.relacion,
+    required this.monedas, required this.relacion,
     this.fotoBase64, required this.puntosLiga, required this.accent,
     required this.onAgregar, required this.onVerPerfil,
     required this.currentUserId,
@@ -512,7 +512,7 @@ class _SocialPlayerCardState extends State<SocialPlayerCard> {
             SocialPill(label: ligaInfo.name, color: ligaInfo.color, leading: Icon(ligaInfo.icon, color: ligaInfo.color, size: 9)),
           ]),
           const SizedBox(height: 4),
-          Text('${widget.monedas}   ·  Rango #${widget.rango}', style: TextStyle(color: p.subtext, fontSize: 10)),
+          Text('${widget.monedas} monedas', style: TextStyle(color: p.subtext, fontSize: 10)),
         ])),
         const SizedBox(width: 8),
         SocialPress(

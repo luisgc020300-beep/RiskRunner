@@ -181,17 +181,17 @@ class _SocialScreenState extends State<SocialScreen>
     }
   }
 
+  // Antes también calculaba un "rango" global por monedas con un count()
+  // sobre TODA la colección de jugadores, por cada resultado de búsqueda —
+  // un coste que crece con el número total de usuarios en vez de diluirse.
+  // Se quita: era un dato cosmético (badge "Rango #X") que no justificaba
+  // ese coste a escala.
   Future<Map<String, dynamic>?> _procesarResultado(QueryDocumentSnapshot doc) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
-      final int monedas = (data['monedas'] as num? ?? 0).toInt();
       final db = FirebaseFirestore.instance;
 
       final results = await Future.wait([
-        db.collection('players')
-            .where('monedas', isGreaterThan: monedas)
-            .count()
-            .get(),
         db.collection('friendships')
             .where('senderId', isEqualTo: currentUserId)
             .where('receiverId', isEqualTo: doc.id)
@@ -204,19 +204,17 @@ class _SocialScreenState extends State<SocialScreen>
             .get(),
       ]);
 
-      final rankSnap = results[0] as AggregateQuerySnapshot;
-      final sentSnap = results[1] as QuerySnapshot;
-      final recvSnap = results[2] as QuerySnapshot;
+      final sentSnap = results[0];
+      final recvSnap = results[1];
 
-      final int rango = ((rankSnap.count as num?)?.toInt() ?? 0) + 1;
       String relacion = 'ninguna';
       if (sentSnap.docs.isNotEmpty) {
-        relacion = (sentSnap.docs.first.data() as Map<String, dynamic>)['status'] ?? 'ninguna';
+        relacion = sentSnap.docs.first.data()['status'] ?? 'ninguna';
       } else if (recvSnap.docs.isNotEmpty) {
-        relacion = (recvSnap.docs.first.data() as Map<String, dynamic>)['status'] ?? 'ninguna';
+        relacion = recvSnap.docs.first.data()['status'] ?? 'ninguna';
       }
 
-      return {...data, 'id': doc.id, 'rango': rango, 'relacion': relacion};
+      return {...data, 'id': doc.id, 'relacion': relacion};
     } catch (e) {
       debugPrint('Error procesarResultado: $e');
       return null;
@@ -478,7 +476,7 @@ class _SocialScreenState extends State<SocialScreen>
         return SocialStagger(index: i, child: SocialPlayerCard(
           userId: u['id'], nickname: u['nickname'] ?? '?',
           nivel: (u['nivel'] as num? ?? 1).toInt(), monedas: (u['monedas'] as num? ?? 0).toInt(),
-          rango: (u['rango'] as num? ?? 0).toInt(), relacion: rel, fotoBase64: u['foto_base64'] as String?,
+          relacion: rel, fotoBase64: u['foto_base64'] as String?,
           puntosLiga: (u['puntos_liga'] as num? ?? 0).toInt(), accent: _accent,
           currentUserId: currentUserId,
           onAgregar: () => _enviarSolicitud(u['id']),
