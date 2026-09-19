@@ -981,7 +981,17 @@ class TerritoryService {
       final data      = doc.data();
       final uid       = data['userId'] as String? ?? '';
       final rawPuntos = data['puntos'] as List<dynamic>?;
-      if (rawPuntos == null || rawPuntos.isEmpty) continue;
+      // Menos de 3 puntos no es un polígono válido — Mapbox rechaza el
+      // GeoJSON entero (todas las features van en un mismo FeatureCollection
+      // por pantalla), así que un solo territorio corrupto deja el mapa sin
+      // dibujar nada, ni siquiera los demás territorios válidos.
+      if (rawPuntos == null || rawPuntos.length < 3) {
+        if (rawPuntos != null) {
+          debugPrint('_parsearDocs: territorio ${doc.id} descartado, '
+              'solo ${rawPuntos.length} puntos');
+        }
+        continue;
+      }
 
       final List<LatLng> puntos = rawPuntos.map((p) {
         final m = p as Map<String, dynamic>;

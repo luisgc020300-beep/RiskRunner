@@ -2294,8 +2294,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
         textAnchor: mapbox.TextAnchor.CENTER,
       ));
 
-    } catch (_) {
-      // swallow
+    } catch (e, st) {
+      debugPrint('_dibujarTerritoriosCiudad: $e');
+      FirebaseCrashlytics.instance.recordError(e, st, reason: 'dibujar_territorios_ciudad');
     } finally {
       _ciudadLayersCreating = false;
     }

@@ -124,6 +124,126 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // Diagnóstico temporal — lista TODOS mis territorios competitivos sin
+  // límite geográfico (a diferencia de "Territorios en zona" del mapa, que
+  // solo muestra los cercanos a la cámara), con borrado directo por fila.
+  // Pensado para limpiar territorios de pruebas antiguas (sin 'modo' o con
+  // pocos vértices, a diferencia de una carrera real).
+  Future<void> _listarMisTerritorios(Color surface, Color textPri, Color textSec) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cargando tus territorios...')));
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('territories')
+          .where('userId', isEqualTo: uid)
+          .get();
+      var propios = snap.docs.where((d) {
+        final modo = d.data()['modo'] as String?;
+        return modo == null || modo == 'competitivo';
+      }).toList()
+        ..sort((a, b) {
+          final va = (a.data()['puntos'] as List?)?.length ?? 0;
+          final vb = (b.data()['puntos'] as List?)?.length ?? 0;
+          return va.compareTo(vb);
+        });
+
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Text('Mis territorios (${propios.length})',
+                style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w600, color: textPri)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: propios.isEmpty
+                  ? Text('No queda ninguno.', style: GoogleFonts.inter(color: textSec))
+                  : ListView.separated(
+                shrinkWrap: true,
+                itemCount: propios.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: textSec.withValues(alpha: 0.2)),
+                itemBuilder: (_, i) {
+                  final doc      = propios[i];
+                  final d        = doc.data();
+                  final vertices = (d['puntos'] as List?)?.length ?? 0;
+                  final areaM2   = (d['area_m2'] as num?)?.toDouble();
+                  final modo     = d['modo'] as String? ?? '(sin modo)';
+                  final nombre   = d['nombre_territorio'] as String? ?? '(sin nombre)';
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('$nombre — ${doc.id}',
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: textPri)),
+                          Text(
+                              '$vertices vértices'
+                              '${areaM2 != null ? ' · ${areaM2.toStringAsFixed(0)} m²' : ''}'
+                              ' · $modo',
+                              style: GoogleFonts.inter(fontSize: 11, color: textSec)),
+                        ]),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: ctx,
+                            builder: (c2) => AlertDialog(
+                              backgroundColor: surface,
+                              title: Text('¿Borrar este territorio?',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: textPri)),
+                              content: Text('$nombre — $vertices vértices. No se puede deshacer.',
+                                  style: GoogleFonts.inter(color: textSec)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(c2, false),
+                                  child: Text('Cancelar', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(c2, true),
+                                  child: Text('Borrar',
+                                      style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok != true) return;
+                          try {
+                            await doc.reference.delete();
+                            propios = List.from(propios)..removeAt(i);
+                            setDialogState(() {});
+                          } catch (e) {
+                            debugPrint('_listarMisTerritorios delete: $e');
+                          }
+                        },
+                      ),
+                    ]),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cerrar', style: GoogleFonts.inter(fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('_listarMisTerritorios: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
   Future<void> _inicializarLiga(Color surface) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -893,6 +1013,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ]),
           ],
+
+          // ── HERRAMIENTAS (siempre visible — solo toca tus propios datos) ──
+          const SizedBox(height: 24),
+          _SectionHeader(text: 'HERRAMIENTAS', color: textSec),
+          _SettingsGroup(surface: surface, border: border, children: [
+            _NavTile(
+              icon: Icons.list_alt_rounded,
+              iconColor: Colors.tealAccent,
+              title: 'Listar mis territorios (diagnóstico)',
+              textPri: textPri,
+              textSec: textSec,
+              showChevron: false,
+              onTap: () => _listarMisTerritorios(surface, textPri, textSec),
+            ),
+          ]),
 
           const SizedBox(height: 24),
 

@@ -1437,11 +1437,21 @@ exports.crearTerritoriosFantasma = onCall(
       .get();
     const existentes = cercanosSnap.docs.map(d => d.data());
 
+    // Tope de fantasmas por zona — sin esto, cada vez que el jugador abre el
+    // mapa en un punto ligeramente distinto se recentra la rejilla y sigue
+    // sumando fantasmas nuevos indefinidamente, sin bajar nunca.
+    const LIMITE_FANTASMAS_ZONA = 40;
+    const fantasmasExistentes = existentes.filter(t => t.userId === 'ghost_system').length;
+    if (fantasmasExistentes >= LIMITE_FANTASMAS_ZONA) {
+      return { ok: true, creados: 0, motivo: 'limite_alcanzado' };
+    }
+    const maxPermitidos = Math.min(maxFantasmas, LIMITE_FANTASMAS_ZONA - fantasmasExistentes);
+
     const batch = db.batch();
     let creados = 0;
 
-    for (let row = -7; row <= 7 && creados < maxFantasmas; row++) {
-      for (let col = -7; col <= 7 && creados < maxFantasmas; col++) {
+    for (let row = -7; row <= 7 && creados < maxPermitidos; row++) {
+      for (let col = -7; col <= 7 && creados < maxPermitidos; col++) {
         const lat = centro.lat + row * ESPACIO_GRADOS * Math.sqrt(3) / 2;
         const lng = centro.lng + col * ESPACIO_GRADOS + (row % 2) * ESPACIO_GRADOS / 2;
 
