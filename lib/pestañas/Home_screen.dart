@@ -1401,9 +1401,13 @@ class _HomeScreenState extends State<HomeScreen>
         padding: const EdgeInsets.only(left: 16),
         child: Center(child: _buildMonedasPill()),
       ),
-      title: Text(
-        'RISKRUNNER',
-        style: _raj(15, FontWeight.w900, titleColor, spacing: 2),
+      title: AnimatedOpacity(
+        opacity: _headerCollapsed ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Text(
+          'RISKRUNNER',
+          style: _raj(15, FontWeight.w900, titleColor, spacing: 2),
+        ),
       ),
       actions: [
         GestureDetector(

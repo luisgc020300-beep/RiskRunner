@@ -104,11 +104,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     setState(() {
       if (navIndex == 1) _correrActivado = true;
     });
-    _pageController.animateToPage(
-      navIndex,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOut,
-    );
+    // jumpToPage en vez de animateToPage: con animateToPage, saltar del Home
+    // al Perfil desliza físicamente por Correr/Mapa/Social de por medio,
+    // mostrándolas un instante — con la barra de navegación se espera un
+    // cambio directo, no un deslizamiento por las pantallas intermedias.
+    _pageController.jumpToPage(navIndex);
   }
 
   void _onPageChanged(int i) {
