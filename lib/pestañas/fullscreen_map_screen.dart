@@ -496,7 +496,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     // siempre al jugador. Se usa tanto para solitario (privado, sin rivales)
     // como para el contador "mis zonas" en competitivo, que no debe vaciarse
     // al arrastrar la vista lejos de donde están tus territorios reales.
-    _solitarioStreamSub = TerritoryService.misTerritoriosStream.listen((mias) {
+    void procesarMisTerritorios(List<TerritoryData> mias) {
       if (!mounted) return;
       final solitario = mias.where((t) => t.modo == 'solitario').toList();
       // Siempre actualizar caché para que el retorno a solitario sea inmediato
@@ -510,7 +510,16 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
       if (_state.modoRutas || _state.modoGlobal) return;
       _state.setTerritorios(_territoriosCompetitivoFusionados());
-    });
+    }
+    // El listener puede llevar tiempo vivo desde otra pantalla (conteo de
+    // referencias) y ya haber emitido su primer valor antes de que esta
+    // pantalla se suscriba — un stream broadcast no lo repite, así que se
+    // consume el último valor cacheado de inmediato en vez de esperar a que
+    // Firestore vuelva a cambiar algo.
+    final cache = TerritoryService.misTerritoriosCache;
+    if (cache != null) procesarMisTerritorios(cache);
+    _solitarioStreamSub =
+        TerritoryService.misTerritoriosStream.listen(procesarMisTerritorios);
   }
 
   Future<void> _initData() async {

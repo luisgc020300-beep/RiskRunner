@@ -1441,7 +1441,25 @@ exports.crearTerritoriosFantasma = onCall(
     // mapa en un punto ligeramente distinto se recentra la rejilla y sigue
     // sumando fantasmas nuevos indefinidamente, sin bajar nunca.
     const LIMITE_FANTASMAS_ZONA = 40;
-    const fantasmasExistentes = existentes.filter(t => t.userId === 'ghost_system').length;
+    const fantasmasDocs = cercanosSnap.docs.filter(d => d.data().userId === 'ghost_system');
+
+    // Si ya hay de sobra (zonas creadas antes de que existiera este límite),
+    // se recortan los más antiguos hasta dejar el tope — no basta con frenar
+    // la creación de nuevos, hay que bajar los que ya se acumularon.
+    if (fantasmasDocs.length > LIMITE_FANTASMAS_ZONA) {
+      fantasmasDocs.sort((a, b) => {
+        const ta = a.data().fecha_creacion?.toMillis?.() ?? 0;
+        const tb = b.data().fecha_creacion?.toMillis?.() ?? 0;
+        return ta - tb; // más antiguos primero
+      });
+      const sobrantes = fantasmasDocs.slice(0, fantasmasDocs.length - LIMITE_FANTASMAS_ZONA);
+      const delBatch = db.batch();
+      for (const doc of sobrantes) delBatch.delete(doc.ref);
+      await delBatch.commit();
+      return { ok: true, creados: 0, eliminados: sobrantes.length, motivo: 'recortado_al_limite' };
+    }
+
+    const fantasmasExistentes = fantasmasDocs.length;
     if (fantasmasExistentes >= LIMITE_FANTASMAS_ZONA) {
       return { ok: true, creados: 0, motivo: 'limite_alcanzado' };
     }

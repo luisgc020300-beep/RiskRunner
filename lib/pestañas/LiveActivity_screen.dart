@@ -2536,7 +2536,7 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     // al jugador. Se usa para solitario (privado, sin rivales) y para saber
     // cuántas zonas competitivas tienes en total sin importar hacia dónde
     // hayas girado el globo.
-    _solitarioStreamSub = TerritoryService.misTerritoriosStream.listen((mias) {
+    void procesarMisTerritorios(List<TerritoryData> mias) {
       if (!mounted) return;
       _modeCtrl.setMapaDesactualizado(false);
       final solitario = mias.where((t) => t.modo == 'solitario').toList();
@@ -2555,7 +2555,16 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
       _dibujandoDebounce = Timer(const Duration(milliseconds: 300), () {
         if (mounted) _dibujarTerritoriosEnMapa();
       });
-    }, onError: (e) {
+    }
+    // El listener puede llevar tiempo vivo desde otra pantalla (conteo de
+    // referencias) y ya haber emitido su primer valor antes de que esta
+    // pantalla se suscriba — un stream broadcast no lo repite, así que se
+    // consume el último valor cacheado de inmediato en vez de esperar a que
+    // Firestore vuelva a cambiar algo.
+    final misTerritoriosCache = TerritoryService.misTerritoriosCache;
+    if (misTerritoriosCache != null) procesarMisTerritorios(misTerritoriosCache);
+    _solitarioStreamSub = TerritoryService.misTerritoriosStream
+        .listen(procesarMisTerritorios, onError: (e) {
       debugPrint('Stream solitario caído: $e');
       if (mounted) _modeCtrl.setMapaDesactualizado(true);
       _programarReconexion();

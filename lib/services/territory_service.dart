@@ -402,6 +402,16 @@ class TerritoryService {
   static final StreamController<List<TerritoryData>> _misTerritoriosCtrl =
       StreamController<List<TerritoryData>>.broadcast();
 
+  // Un StreamController.broadcast() no reproduce el último valor a quien se
+  // suscribe tarde: si una pantalla arranca el listener (Firestore ya emitió
+  // su primer snapshot) y OTRA pantalla se suscribe después — por ejemplo al
+  // volver de LiveActivity a FullscreenMap, con el listener ya vivo por el
+  // conteo de referencias — se queda sin dato hasta el siguiente cambio real
+  // en Firestore, que puede no llegar en un buen rato. Por eso se cachea el
+  // último valor aquí y cada nuevo suscriptor lo consume antes de escuchar.
+  static List<TerritoryData>? _ultimasMisTerritorios;
+  static List<TerritoryData>? get misTerritoriosCache => _ultimasMisTerritorios;
+
   /// Emite siempre TODOS los territorios del jugador actual (cualquier modo),
   /// sin importar dónde esté centrado el mapa. Usar [_filtrarPorModo] sobre el
   /// resultado para quedarte solo con solitario o competitivo.
@@ -431,6 +441,7 @@ class TerritoryService {
             }
           }
           final mias = _parsearDocs(snap.docs, user.uid, _playerDataCache);
+          _ultimasMisTerritorios = mias;
           if (!_misTerritoriosCtrl.isClosed) _misTerritoriosCtrl.add(mias);
         }, onError: (e) {
           debugPrint('misTerritoriosStream error: $e');
