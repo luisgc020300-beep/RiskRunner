@@ -1331,13 +1331,6 @@ class _HomeScreenState extends State<HomeScreen>
                   curve: Curves.easeOutCubic,
                   child: _headerCollapsed
                       ? const SizedBox.shrink()
-                      : FadeTransition(opacity: _fadeA, child: _buildLargeTitle()),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: _headerCollapsed
-                      ? const SizedBox.shrink()
                       : FadeTransition(opacity: _fadeA, child: _buildStoriesHeader()),
                 ),
                 FadeTransition(opacity: _fadeA, child: _buildTabBar()),
@@ -1403,13 +1396,14 @@ class _HomeScreenState extends State<HomeScreen>
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       centerTitle: true,
-      title: AnimatedOpacity(
-        opacity: _headerCollapsed ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        child: Text(
-          'RISKRUNNER',
-          style: _raj(15, FontWeight.w900, titleColor, spacing: 2),
-        ),
+      leadingWidth: 88,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: Center(child: _buildMonedasPill()),
+      ),
+      title: Text(
+        'RISKRUNNER',
+        style: _raj(15, FontWeight.w900, titleColor, spacing: 2),
       ),
       actions: [
         GestureDetector(
@@ -1439,31 +1433,23 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildLargeTitle() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: () => CoinShopScreen.mostrar(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: _T.gold.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _T.gold.withValues(alpha: 0.30)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.monetization_on_rounded, color: _T.gold, size: 14),
-                const SizedBox(width: 5),
-                Text('$monedas', style: TextStyle(
-                  color: _T.gold, fontSize: 14, fontWeight: FontWeight.w800,
-                  height: 1)),
-              ]),
-            ),
-          ),
-        ],
+  Widget _buildMonedasPill() {
+    return GestureDetector(
+      onTap: () => CoinShopScreen.mostrar(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: _T.gold.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _T.gold.withValues(alpha: 0.30)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.monetization_on_rounded, color: _T.gold, size: 13),
+          const SizedBox(width: 4),
+          Text('$monedas', style: TextStyle(
+            color: _T.gold, fontSize: 13, fontWeight: FontWeight.w800,
+            height: 1)),
+        ]),
       ),
     );
   }
