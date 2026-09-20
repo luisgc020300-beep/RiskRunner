@@ -2770,6 +2770,12 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
     }
   }
 
+  // Solitario, a diferencia de Competitivo, no tiene rivales que descubrir
+  // por zona — "mis territorios" son los mismos estés donde estés, y ya
+  // llegan siempre actualizados vía misTerritoriosStream (sin depender de la
+  // cámara). Por eso aquí solo se recargan los barrios cercanos al moverse
+  // (eso sí depende de dónde esté el mapa) — igual que Rutas, que carga tus
+  // rutas una vez y no vuelve a preguntar al servidor por moverte el mapa.
   void _onSolCameraIdle(mapbox.MapContentGestureContext _) {
     _solCamDebounce?.cancel();
     _solCamDebounce = Timer(const Duration(milliseconds: 700), () async {
@@ -2790,11 +2796,9 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
       }
       _solLastCenter = newCenter;
       _state.setCentro(newCenter);
-      TerritoryService.invalidarCache();
-      TerritoryService.startRealtimeListener(centro: newCenter);
 
       // Si el nuevo centro está >8 km del centro original de los barrios,
-      // invalidar para que se recarguen los barrios de la nueva zona.
+      // recargar los barrios de la nueva zona (esto sí es geográfico de verdad).
       if (_barriosCentro != null) {
         final distBarrios = Geolocator.distanceBetween(
           _barriosCentro!.latitude, _barriosCentro!.longitude,
@@ -2808,15 +2812,6 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
           });
         }
       }
-
-      final lista = await TerritoryService.cargarTodosLosTerritorios(
-          centro: newCenter, modo: 'solitario');
-      if (!mounted || !_state.modoSolitario) return;
-      _state.setTerritorios(lista);
-      GameStateService.instance.setSolitarioTerritories(lista);
-      _recalcularPorcentajesBarrios();
-      _dibujarTerritoriosSolitario();
-      // Recargar barrios si fueron invalidados
       if (!_barriosCargados && !_cargandoBarrios) {
         await _cargarBarriosSolitario(newCenter);
         _recalcularPorcentajesBarrios();
