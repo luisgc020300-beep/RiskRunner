@@ -5,6 +5,16 @@ part of 'LiveActivity_screen.dart';
 
 extension _LiveSelectorModo on _LiveActivityScreenState {
 
+  Widget _statColumnObjetivo(String label, String value, Color valueColor) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: GoogleFonts.rajdhani(
+          color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+      const SizedBox(height: 2),
+      Text(value, style: GoogleFonts.rajdhani(
+          color: valueColor, fontSize: 14, fontWeight: FontWeight.w700)),
+    ]);
+  }
+
   Widget _buildSelectorModo() {
     // ── Selección de territorio global en el globo ──────────────────────────
     if (_seleccionandoGlobal) {
@@ -35,68 +45,75 @@ extension _LiveSelectorModo on _LiveActivityScreenState {
           )
         else ...[
           SizedBox(
-            height: 160,
+            height: 230,
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: _terrGlobales.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
                 final t = _terrGlobales[i];
                 final isMine = t.ownerUid != null && t.ownerUid == uid;
                 final isPrev = _terrPreviseleccionado?.id == t.id;
+                final tier = t.kmRequired >= 10 ? 'III' : t.kmRequired >= 7 ? 'II' : 'I';
                 return GestureDetector(
                   onTap: () => _flyToTerritorioGlobal(t),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
                     decoration: BoxDecoration(
                       color: isPrev
-                          ? t.displayColor.withValues(alpha: 0.15)
-                          : t.displayColor.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: t.displayColor.withValues(alpha: isPrev ? 0.50 : 0.25),
-                        width: isPrev ? 1.5 : 1.0,
+                          ? t.displayColor.withValues(alpha: 0.10)
+                          : Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border(
+                        left: BorderSide(
+                            color: t.displayColor.withValues(alpha: isPrev ? 1.0 : 0.5),
+                            width: isPrev ? 4 : 3),
+                        top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                        right: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+                        bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
                       ),
                       boxShadow: isPrev
-                          ? [BoxShadow(color: t.displayColor.withValues(alpha: 0.15), blurRadius: 8)]
+                          ? [BoxShadow(color: t.displayColor.withValues(alpha: 0.25), blurRadius: 10)]
                           : null,
                     ),
-                    child: Row(children: [
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(
-                          color: t.displayColor.withValues(alpha: isPrev ? 0.15 : 0.07),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: t.displayColor.withValues(alpha: isPrev ? 0.45 : 0.22)),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            t.kmRequired >= 10
-                                ? Icons.stars_rounded
-                                : t.kmRequired >= 7
-                                    ? Icons.shield_rounded
-                                    : Icons.flag_rounded,
-                            color: t.displayColor.withValues(alpha: 0.75),
-                            size: 16,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Text('OBJETIVO · TIER $tier', style: GoogleFonts.rajdhani(
+                            color: t.displayColor.withValues(alpha: 0.85),
+                            fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                        const Spacer(),
+                        if (isPrev)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: t.displayColor.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(3)),
+                            child: Text('SELECC.', style: GoogleFonts.rajdhani(
+                                color: t.displayColor, fontSize: 10,
+                                fontWeight: FontWeight.w800, letterSpacing: 0.8)),
                           ),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(t.epicName.toUpperCase(), style: GoogleFonts.rajdhani(
+                          color: isPrev ? Colors.white : Colors.white70,
+                          fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+                      if (t.ownerNickname != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(isMine ? 'TUYO' : t.ownerNickname!.toUpperCase(),
+                              style: GoogleFonts.rajdhani(
+                                  color: Colors.white38, fontSize: 11,
+                                  fontWeight: FontWeight.w600, letterSpacing: 0.6)),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(t.epicName, style: GoogleFonts.inter(
-                            color: isPrev ? Colors.white : Colors.white60,
-                            fontSize: 11, fontWeight: FontWeight.w700)),
-                        if (t.ownerNickname != null)
-                          Text(isMine ? 'Tuyo' : t.ownerNickname!,
-                              style: GoogleFonts.inter(color: Colors.white38, fontSize: 9)),
-                      ])),
-                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text('${t.kmRequired.toStringAsFixed(1)} km',
-                            style: GoogleFonts.inter(
-                                color: t.displayColor.withValues(alpha: 0.70), fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text('+${t.rewardActual}',
-                            style: GoogleFonts.inter(color: _kGold.withValues(alpha: 0.70), fontSize: 9, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        Expanded(child: _statColumnObjetivo(
+                            'DISTANCIA', '${t.kmRequired.toStringAsFixed(1)} KM', Colors.white70)),
+                        Expanded(child: _statColumnObjetivo(
+                            'RECOMPENSA', '+${t.rewardActual}', _kGold)),
                       ]),
                     ]),
                   ),
