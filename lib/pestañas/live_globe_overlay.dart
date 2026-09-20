@@ -65,7 +65,7 @@ extension _LiveGlobeOverlay on _LiveActivityScreenState {
       // Stats en la parte inferior — ocultos mientras se selecciona territorio
       if (!_seleccionandoGlobal)
       Positioned(
-        bottom: 265, left: 0, right: 0,
+        bottom: 195, left: 0, right: 0,
         child: IgnorePointer(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -82,26 +82,35 @@ extension _LiveGlobeOverlay on _LiveActivityScreenState {
                       _globoStat(_globalConquistado ? 'OK' : '···', 'ESTADO',
                           _globalConquistado ? _kVerde : _p.terracotta),
                     ]
-                  : _modoSolitario && _barriosCercanos.isNotEmpty
-                      ? [
-                          _globoStat(
-                            '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}',
-                            'COMPLETAS', const Color(0xFF30D158),
-                          ),
-                          _globoStat(
-                            '${_barriosCercanos.length}',
-                            'ZONAS', _kGoldLight,
-                          ),
-                          _globoStat(
-                            '${_territorios.where((t) => t.esMio).length}',
-                            'MIS TERR.', _kGold,
-                          ),
-                          _globoStat(
-                            _barriosCercanos.isEmpty ? '0%'
-                              : '${(_barriosCercanos.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / _barriosCercanos.length * 100).toInt()}%',
-                            'MEDIA', _kWaterLight,
-                          ),
-                        ]
+                  : _modoSolitario
+                      ? (_barriosCercanos.isNotEmpty
+                          ? [
+                              _globoStat(
+                                '${_barriosCercanos.where((b) => b.porcentajeCubierto >= 1.0).length}',
+                                'COMPLETAS', const Color(0xFF30D158),
+                              ),
+                              _globoStat(
+                                '${_barriosCercanos.length}',
+                                'ZONAS', _kGoldLight,
+                              ),
+                              _globoStat(
+                                '${_territorios.where((t) => t.esMio).length}',
+                                'MIS TERR.', _kGold,
+                              ),
+                              _globoStat(
+                                '${(_barriosCercanos.map((b) => b.porcentajeCubierto).reduce((a, b) => a + b) / _barriosCercanos.length * 100).toInt()}%',
+                                'MEDIA', _kWaterLight,
+                              ),
+                            ]
+                          // Sin barrios cargados todavía — nunca debe caer en
+                          // las etiquetas de modo competitivo (MIS ZONAS/
+                          // ACTIVOS/TOTAL), aunque el hueco quede más vacío.
+                          : [
+                              _globoStat(
+                                '${_territorios.where((t) => t.esMio).length}',
+                                'MIS TERR.', _kGold,
+                              ),
+                            ])
                       : _modoRuta
                           ? [
                               _globoStat('${_rutasPreview.length}', 'MIS RUTAS', _kGold),

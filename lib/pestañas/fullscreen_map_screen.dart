@@ -1532,8 +1532,7 @@ class _FullscreenMapScreenState extends State<FullscreenMapScreen>
                                 : _state.modoRutas
                                 ? '${_misRutas.length} ${_misRutas.length == 1 ? 'RUTA' : 'RUTAS'}'
                                 : _state.modoSolitario
-                                ? '${_state.jugadoresEnVivo.length} EN VIVO · '
-                                  '${_state.territorios.length} MIS ZONAS'
+                                ? '${_state.territorios.length} MIS ZONAS'
                                 : '${_state.jugadoresEnVivo.length} EN VIVO · '
                                   '${_state.misZonasCompetitivo} MIS ZONAS',
                             style: _raj(8, FontWeight.w700, _kSub,
