@@ -49,7 +49,6 @@ class _SocialScreenState extends State<SocialScreen>
   bool _hayMasResultados = false;
   bool _cargandoMas = false;
   int _solicitudesPendientes = 0;
-  int _mensajesNoLeidos = 0;
   final Map<String, Map<String, dynamic>> _perfilesCache = {};
   bool _navegandoAChat = false;
   int _misPuntosLiga = 0;
@@ -57,7 +56,6 @@ class _SocialScreenState extends State<SocialScreen>
   String _rankingModo = 'competitivo';
   String? _ligaSeleccionada;
   StreamSubscription? _solicitudesStream;
-  StreamSubscription? _mensajesStream;
   final Set<String> _solicitudesEnviadas = {};
   final Set<String> _bloqueados = {};
 
@@ -73,7 +71,6 @@ class _SocialScreenState extends State<SocialScreen>
     _tabController.addListener(_onTabChange);
     _cargarDatosPropios();
     _escucharSolicitudes();
-    _escucharMensajesNoLeidos();
     _searchController.addListener(_onSearchChanged);
   }
 
@@ -228,16 +225,6 @@ class _SocialScreenState extends State<SocialScreen>
           onError: (e) => debugPrint('Stream solicitudes: $e'));
   }
 
-  void _escucharMensajesNoLeidos() {
-    _mensajesStream = FirebaseFirestore.instance.collection('chats')
-        .where('participants', arrayContains: currentUserId).snapshots()
-        .listen((snap) {
-          int total = 0;
-          for (final d in snap.docs) { final data = d.data(); total += (data['unread_$currentUserId'] as num? ?? 0).toInt(); }
-          if (mounted) setState(() => _mensajesNoLeidos = total);
-        }, onError: (e) => debugPrint('Stream mensajes: $e'));
-  }
-
   @override
   void dispose() {
     _debounce?.cancel();
@@ -246,7 +233,6 @@ class _SocialScreenState extends State<SocialScreen>
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _solicitudesStream?.cancel();
-    _mensajesStream?.cancel();
     super.dispose();
   }
 
@@ -287,7 +273,10 @@ class _SocialScreenState extends State<SocialScreen>
       _buildHeader(),
       Expanded(child: _searchQuery.isNotEmpty ? _buildSearchResults() : TabBarView(
         controller: _tabController,
-        physics: const PageScrollPhysics(),
+        // Sin swipe -- solo Ligas y Amigos tienen botón en la barra; Chat y
+        // Club quedan aparcados (código intacto, solo inalcanzables por
+        // gesto o botón hasta que se reactiven).
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _buildRankingTab(),
           _buildFriendsList(),
@@ -378,15 +367,18 @@ class _SocialScreenState extends State<SocialScreen>
         ])));
   }
 
+  // Chat (idx 2) y Club (idx 4) se aparcan de la barra hasta que haya uso
+  // real diario -- el código y sus rutas siguen intactos (TabController
+  // sigue en length: 5), solo se ocultan los botones para no sobrecargar
+  // Social con un chat completo + clanes antes del primer usuario real.
+  // Solicitudes (idx 3) deja de ser pestaña propia y se avisa desde un
+  // banner dentro de Amigos (ver _buildSolicitudesBanner).
   Widget _buildTabBar() {
     return AnimatedBuilder(
       animation: _tabController,
       builder: (_, __) => Row(children: [
-        _iosTab(0, Icons.emoji_events_outlined,       'LIGAS',       kSocAccent),
-        _iosTab(1, Icons.people_outline,              'AMIGOS',      kSocAccent),
-        _iosTab(2, Icons.chat_bubble_outline_rounded, 'CHAT',        kSocAccent, badge: _mensajesNoLeidos),
-        _iosTab(3, Icons.person_add_outlined,         'SOLICITUDES', kSocAccent, badge: _solicitudesPendientes),
-        _iosTab(4, Icons.groups_outlined,             'CLUB',        kSocAccent),
+        _iosTab(0, Icons.emoji_events_outlined, 'LIGAS',  kSocAccent),
+        _iosTab(1, Icons.people_outline,        'AMIGOS', kSocAccent, badge: _solicitudesPendientes),
       ]),
     );
   }
@@ -827,16 +819,16 @@ class _SocialScreenState extends State<SocialScreen>
 
             final amigos = [...sentSnap.data!.docs, ...recvSnap.data!.docs];
 
+            final Widget contenido;
             if (amigos.isEmpty) {
-              return SocialEmptyState(
+              contenido = SocialEmptyState(
               icon: Icons.group_outlined,
               titulo: 'Sin aliados aún',
               subtitulo: 'Busca exploradores y forma\ntu equipo cartográfico',
               accionLabel: 'Buscar exploradores',
               onAccion: () => _searchController.clear());
-            }
-
-            return RefreshIndicator(
+            } else {
+              contenido = RefreshIndicator(
               key: _rkAliados, color: kSocAccent, backgroundColor: _p.surface2,
               onRefresh: () async { _perfilesCache.clear(); setState(() {}); },
               child: ListView.builder(
@@ -860,8 +852,44 @@ class _SocialScreenState extends State<SocialScreen>
                       return SocialStagger(index: i, child: _buildFriendCard(data, fid));
                     });
                 }));
+            }
+
+            return Column(children: [
+              if (_solicitudesPendientes > 0) _buildSolicitudesBanner(),
+              Expanded(child: contenido),
+            ]);
           });
       });
+  }
+
+  // Solicitudes ya no es pestaña propia (se aparcó junto a Chat/Club) -- este
+  // banner es el único punto de entrada, solo visible si hay algo pendiente.
+  Widget _buildSolicitudesBanner() {
+    return GestureDetector(
+      onTap: () => _tabController.animateTo(3),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: kSocAccent.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kSocAccent.withValues(alpha: 0.25)),
+        ),
+        child: Row(children: [
+          Icon(Icons.person_add_outlined, color: kSocAccent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _solicitudesPendientes == 1
+                  ? '1 solicitud de amistad pendiente'
+                  : '$_solicitudesPendientes solicitudes de amistad pendientes',
+              style: TextStyle(color: _p.text1, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: _p.subtext, size: 18),
+        ]),
+      ),
+    );
   }
 
   Widget _buildFriendCard(Map<String, dynamic> data, String fid) {
@@ -977,7 +1005,30 @@ class _SocialScreenState extends State<SocialScreen>
   }
 
   // ════════════════════════ SOLICITUDES TAB ══════════════════════════════════════
+  // Ya no tiene botón propio en la barra (se llega aquí desde el banner en
+  // Amigos) -- una cabecera con vuelta atrás explícita evita que parezca una
+  // pestaña "perdida" sin ninguna de las dos píldoras marcada como activa.
   Widget _buildRequestsList() {
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        child: Row(children: [
+          GestureDetector(
+            onTap: () => _tabController.animateTo(1),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: kSocAccent),
+              const SizedBox(width: 6),
+              Text('AMIGOS', style: TextStyle(
+                  color: kSocAccent, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
+            ]),
+          ),
+        ]),
+      ),
+      Expanded(child: _buildRequestsListContent()),
+    ]);
+  }
+
+  Widget _buildRequestsListContent() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('friendships')
           .where('receiverId', isEqualTo: currentUserId).where('status', isEqualTo: 'pending').snapshots(),
