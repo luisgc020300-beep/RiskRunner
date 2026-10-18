@@ -424,6 +424,15 @@ extension _LiveTerritoryUi on _LiveActivityScreenState {
         puntosLiga:    recompensa.puntosLiga,
         nombre:        nombreElegido,
       );
+      if (routeId != null) {
+        // El servidor recalcula las monedas a partir de esta misma ruta
+        // (distancia/ritmo) y de los campos server-side del jugador
+        // (premium, boost) -- nunca del valor ya estimado arriba.
+        RouteService.acreditarRecompensaRuta(routeId).catchError((e) {
+          debugPrint('Error acreditarRecompensaRuta: $e');
+          return 0;
+        });
+      }
     } catch (e, st) {
       FirebaseCrashlytics.instance.recordError(e, st, reason: 'guardar_ruta');
       if (mounted) {

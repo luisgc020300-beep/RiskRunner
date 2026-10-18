@@ -4,6 +4,7 @@
 // y descubrimiento social (populares, nuevas, amigos, guardadas).
 //
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
@@ -125,6 +126,7 @@ class RouteData {
 // =============================================================================
 class RouteService {
   static final _db = FirebaseFirestore.instance;
+  static final _functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   // ── Calcular recompensa ───────────────────────────────────────────────────
   static ({int monedas, int puntosLiga}) calcularRecompensa({
@@ -191,7 +193,6 @@ class RouteService {
         });
 
         tx.set(playerRef, {
-          'monedas':                     FieldValue.increment(monedas),
           'rutasStats.totalRutas':       FieldValue.increment(1),
           'rutasStats.totalKm':          FieldValue.increment(distanciaKm),
           'rutasStats.totalSeg':         FieldValue.increment(tiempoSeg),
@@ -206,6 +207,23 @@ class RouteService {
       debugPrint('❌ RouteService.guardarRuta FALLÓ: $e\n$st');
       rethrow;
     }
+  }
+
+  // ── RECOMPENSA DE RUTA — Cloud Function transaccional ────────────────────
+  //
+  //  Antes guardarRuta() escribía 'monedas' directamente en la misma
+  //  transacción que creaba la ruta, con un total calculado en el cliente
+  //  (calcularRecompensa). El servidor ahora recalcula desde
+  //  routes/{routeId}.distanciaKm/ritmoMinKm (fuente autoritativa) y desde
+  //  los campos server-side del jugador (premium, boost) -- nunca del
+  //  valor que pasara el cliente. Llamar después de que guardarRuta()
+  //  devuelva el routeId.
+  //
+  //  Devuelve las monedas realmente acreditadas.
+  static Future<int> acreditarRecompensaRuta(String routeId) async {
+    final callable = _functions.httpsCallable('acreditarRecompensaRuta');
+    final result = await callable.call({'routeId': routeId});
+    return (result.data['monedas'] as num).toInt();
   }
 
   // ── Asignar nombre a una ruta ya guardada ────────────────────────────────

@@ -2130,6 +2130,157 @@ exports.acreditarRecompensaCarrera = onCall(
 );
 
 // =============================================================================
+// ACREDITAR RECOMPENSA DE RUTA — monedas por "Ruta Libre", transaccional
+// =============================================================================
+// Mismo problema que acreditarRecompensaCarrera pero en un flujo paralelo:
+// route_service.dart calculaba 'monedas' en el cliente (RouteService.
+// calcularRecompensa) y los escribía directo en players/{uid} dentro de la
+// misma transacción que guardaba la ruta. El documento routes/{routeId} ya
+// se crea con distanciaKm/ritmoMinKm -- se usa como fuente autoritativa en
+// vez de confiar un total ya calculado que llegue suelto en esta llamada.
+// Misma limitación que la recompensa de carrera: no valida que distanciaKm
+// sea físicamente plausible (eso es P1.3), solo que la escritura pase por
+// aquí y no se reuse la misma ruta dos veces.
+const _MONEDAS_POR_KM_RUTA      = 8;
+const _BONUS_RITMO_RAPIDO_RUTA  = 1.20; // +20% si ritmo < 5:00/km
+const _RITMO_RAPIDO_UMBRAL_RUTA = 5.0;
+
+exports.acreditarRecompensaRuta = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { routeId } = request.data;
+    if (!routeId || typeof routeId !== 'string') {
+      throw new HttpsError('invalid-argument', 'routeId inválido.');
+    }
+
+    const routeRef  = db.collection('routes').doc(routeId);
+    const playerRef = db.collection('players').doc(uid);
+
+    const { monedas } = await db.runTransaction(async (tx) => {
+      const [routeSnap, playerSnap] = await Promise.all([tx.get(routeRef), tx.get(playerRef)]);
+      if (!routeSnap.exists)  throw new HttpsError('not-found', 'Ruta no encontrada.');
+      if (!playerSnap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
+
+      const route = routeSnap.data();
+      if (route.userId !== uid) {
+        throw new HttpsError('permission-denied', 'Esta ruta no te pertenece.');
+      }
+      if (route.monedas_acreditadas === true) {
+        throw new HttpsError('failed-precondition', 'Esta ruta ya acreditó monedas.');
+      }
+
+      const distanciaKm = typeof route.distanciaKm === 'number' ? route.distanciaKm : 0;
+      if (!(distanciaKm > 0) || distanciaKm > 100) {
+        throw new HttpsError('failed-precondition', 'Distancia de la ruta inválida.');
+      }
+      const ritmoMinKm = typeof route.ritmoMinKm === 'number' ? route.ritmoMinKm : 0;
+
+      const playerData  = playerSnap.data();
+      const esPremium   = playerData.is_premium === true;
+      const boostExpira = playerData.boost_xp_expira?.toMillis?.() ?? 0;
+      const boostActivo = playerData.boost_xp_activo === true && boostExpira > Date.now();
+
+      const bonusRitmo    = ritmoMinKm > 0 && ritmoMinKm < _RITMO_RAPIDO_UMBRAL_RUTA
+        ? _BONUS_RITMO_RAPIDO_RUTA : 1.0;
+      const multiplicador = (boostActivo ? 2 : 1) * (esPremium ? 2 : 1);
+      const monedas       = Math.round(distanciaKm * _MONEDAS_POR_KM_RUTA * bonusRitmo * multiplicador);
+
+      tx.update(routeRef, { monedas_acreditadas: true, monedasGanadas: monedas });
+      if (monedas > 0) {
+        tx.update(playerRef, { monedas: FieldValue.increment(monedas) });
+      }
+      return { monedas };
+    });
+
+    return { ok: true, monedas };
+  }
+);
+
+// =============================================================================
+// ACREDITAR COMPRA DE MONEDAS — transaccional, catálogo fijo + anti-replay
+// =============================================================================
+// AVISO IMPORTANTE -- esto NO verifica que la compra sea real. Verificarlo
+// de verdad requiere llamar a la REST API de RevenueCat o un webhook server-
+// to-server con el secreto de RevenueCat, y ese secreto no existe todavía en
+// este repositorio (ver P0.9 del plan de seguridad -- bloqueado por falta de
+// credenciales). Lo que SÍ cierra esta función, frente a la escritura
+// directa de antes:
+//   1. La cantidad de monedas ya no la decide el cliente -- solo puede ser
+//      una de las 3 del catálogo fijo (antes: cualquier entero).
+//   2. Un mismo transactionId de RevenueCat solo puede acreditarse una vez
+//      (antes: se podía llamar la escritura directa tantas veces como se
+//      quisiera, sin ningún control de repetición).
+// Lo que NO cierra: nada impide que alguien llame a esta función con un
+// transactionId inventado (una cadena cualquiera) y se acredite 150/500/1500
+// monedas una vez por cada cadena nueva que se invente. Sigue siendo un
+// hueco real hasta que exista verificación server-to-server -- se dejó
+// preparada la arquitectura (la función, la colección coin_purchases como
+// registro de deduplicación) para que, cuando haya credenciales de
+// RevenueCat, solo haga falta añadir la llamada de verificación dentro de
+// la transacción, no rehacer esto desde cero.
+const _PACKS_MONEDAS = {
+  coins_patrol:    150,
+  coins_commander: 500,
+  coins_legend:    1500,
+};
+
+exports.acreditarCompraMonedas = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { pack, transactionId } = request.data;
+
+    if (typeof pack !== 'string' || !(pack in _PACKS_MONEDAS)) {
+      throw new HttpsError('invalid-argument', 'pack inválido.');
+    }
+    if (!transactionId || typeof transactionId !== 'string') {
+      throw new HttpsError('invalid-argument', 'transactionId inválido.');
+    }
+    const cantidad = _PACKS_MONEDAS[pack];
+
+    // El transactionId de RevenueCat es el ID del documento -- la propia
+    // creación falla atómicamente si ya existe, sin necesidad de una
+    // lectura previa fuera de la transacción.
+    const purchaseRef = db.collection('coin_purchases').doc(transactionId);
+    const playerRef   = db.collection('players').doc(uid);
+
+    await db.runTransaction(async (tx) => {
+      const [existing, playerSnap] = await Promise.all([tx.get(purchaseRef), tx.get(playerRef)]);
+      if (existing.exists) {
+        throw new HttpsError('failed-precondition', 'Esta compra ya fue acreditada.');
+      }
+      if (!playerSnap.exists) {
+        throw new HttpsError('not-found', 'Jugador no encontrado.');
+      }
+      tx.set(purchaseRef, {
+        userId: uid,
+        pack,
+        cantidad,
+        transactionId,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+      tx.update(playerRef, { monedas: FieldValue.increment(cantidad) });
+      tx.set(db.collection('notifications').doc(), {
+        toUserId: uid,
+        type: 'coins_purchased',
+        message: `¡Recibiste ${cantidad} monedas de "${pack}"!`,
+        read: false,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { ok: true, monedas: cantidad };
+  }
+);
+
+// =============================================================================
 // CANCELAR / RECHAZAR DESAFÍO — reembolso transaccional de la apuesta
 // =============================================================================
 // Antes el cliente escribía 'monedas' directamente en players/{retadorId}

@@ -17,7 +17,28 @@ service cloud.firestore {
     // Solo el propio usuario puede escribir su documento.
     match /players/{uid} {
       allow read:   if isAuth();
-      allow create: if isOwner(uid);
+      // 'allow create' no validaba ningún campo -- el alta (Logging.dart,
+      // Registrarse_screen.dart) escribe 'monedas: 100, nivel: 1, xp: 0,
+      // liga: bronce, puntos_liga: 0' por convención del cliente, pero
+      // nada impedía crear la cuenta ya con los valores que uno quisiera.
+      // Se exige que el alta tenga exactamente esos valores por defecto y
+      // que no incluya ninguno de los campos premium/progreso que solo
+      // deberían tocar las Cloud Functions.
+      allow create: if isOwner(uid)
+        && request.resource.data.monedas     == 100
+        && request.resource.data.nivel       == 1
+        && request.resource.data.victorias   == 0
+        && request.resource.data.xp          == 0
+        && request.resource.data.puntos_liga == 0
+        && request.resource.data.liga        == 'bronce'
+        && !('is_premium' in request.resource.data)
+        && !('subscription_plan' in request.resource.data)
+        && !('subscription_expires' in request.resource.data)
+        && !('boost_xp_activo' in request.resource.data)
+        && !('boost_xp_expira' in request.resource.data)
+        && !('global_territories_count' in request.resource.data)
+        && !('racha_actual' in request.resource.data)
+        && !('ultima_fecha_actividad' in request.resource.data);
       // 'monedas' nunca puede bajar desde el cliente — todo descuento
       // (aceptar/enviar desafío, atacar, escudo...) pasa por Cloud Functions
       // transaccionales, que usan el Admin SDK y no están sujetas a esta regla.
@@ -38,6 +59,18 @@ service cloud.firestore {
       // seguridad). Esto deja a CUALQUIERA en estado gratuito hasta que haya
       // una Cloud Function que sincronice un pago verificado — hoy no
       // existe, así que premium queda inactivo para todos hasta construirla.
+      // 'premium_welcome_reward' + 'monedas' en la misma escritura
+      // (subscription_service.dart _darRecompensaBienvenida) era un vector
+      // de monedas gratis independiente de si se puede falsificar el SDK de
+      // RevenueCat o no: con el cliente público se podía llamar
+      // directamente sin pasar nunca por una compra. 'escudo_activo'/
+      // 'escudo_expira' aquí son el escudo A NIVEL DE JUGADOR de esa misma
+      // recompensa (no el de territorio, que ya estaba protegido y solo lo
+      // escribe la Cloud Function activarEscudo) — hoy nadie lo lee, se
+      // bloquea igualmente por si se usa en el futuro. Los 7
+      // 'premium_*_limite'/'premium_*' de _activarFeaturesPremium no los
+      // lee nada en el cliente (comprobado) — se bloquean por higiene, no
+      // por riesgo real.
       allow update: if isOwner(uid) && (
         !('monedas' in resource.data) ||
         !('monedas' in request.resource.data) ||
@@ -51,6 +84,16 @@ service cloud.firestore {
         && fieldLocked('xp')
         && fieldLocked('global_territories_count')
         && fieldLocked('is_premium')
+        && fieldLocked('premium_welcome_reward')
+        && fieldLocked('escudo_activo')
+        && fieldLocked('escudo_expira')
+        && fieldLocked('premium_radio_radar')
+        && fieldLocked('premium_historial_limite')
+        && fieldLocked('premium_rutas_limite')
+        && fieldLocked('premium_estilos_mapa')
+        && fieldLocked('premium_stats_avanzadas')
+        && fieldLocked('premium_retos_extra')
+        && fieldLocked('premium_animacion_conquista')
         && fieldLocked('subscription_plan')
         && fieldLocked('subscription_expires')
         && fieldLocked('premium_updated_at')
@@ -96,11 +139,17 @@ service cloud.firestore {
     // Cualquier autenticado puede leer (el filtro de privacidad se aplica en cliente).
     // Solo el dueño crea/borra/renombra. Cualquier autenticado puede incrementar
     // runs_count/saves_count (correr o guardar una ruta ajena).
+    // 'monedas_acreditadas' y 'monedasGanadas' quedan bloqueados para el dueño:
+    // los escribe la Cloud Function acreditarRecompensaRuta -- si el dueño
+    // pudiera resetear 'monedas_acreditadas' a false, podría reclamar la
+    // misma ruta varias veces.
     match /routes/{routeId} {
       allow read:   if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       allow update: if isAuth() && (
-        resource.data.userId == request.auth.uid ||
+        (resource.data.userId == request.auth.uid
+          && fieldLocked('monedas_acreditadas')
+          && fieldLocked('monedasGanadas')) ||
         onlyFields(['runs_count', 'saves_count'])
       );
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
@@ -320,10 +369,14 @@ service cloud.firestore {
     }
 
     // ── coin_purchases ────────────────────────────────────────────────────────
+    // Solo la Cloud Function acreditarCompraMonedas escribe aquí -- el ID del
+    // documento es el transactionId de RevenueCat, usado como guarda
+    // anti-repetición (una compra no puede acreditarse dos veces). Antes el
+    // cliente podía crear estos registros directamente, lo que hacía
+    // inútil cualquier deduplicación por ID.
     match /coin_purchases/{id} {
       allow read:   if isAuth() && resource.data.userId == request.auth.uid;
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if false;
+      allow write:  if false;
     }
 
     // ── soporte_mensajes ─────────────────────────────────────────────────────

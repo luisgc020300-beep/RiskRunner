@@ -1,6 +1,7 @@
 // lib/services/zona_service.dart
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:latlong2/latlong.dart';
 
 // ═══════════════════════════════════════════════════════════
@@ -248,89 +249,22 @@ class ZonaService {
 
   /// Cierra la temporada activa, otorga títulos y recompensas.
   /// Devuelve cuántos títulos se otorgaron.
+  ///
+  /// Antes esto se calculaba y escribía entero en el cliente (dominio de
+  /// zona, título, monedas) -- pero 'titulos_rey' tiene `allow write: if
+  /// false` en firestore.rules de forma incondicional, así que esa
+  /// escritura por batch nunca podía tener éxito para NADIE, ni siquiera un
+  /// admin real: Firestore rechaza el batch entero si una sola escritura
+  /// viola las reglas. El botón de "Cerrar temporada" en Ajustes llevaba
+  /// roto todo este tiempo. La Cloud Function 'cerrarTemporada' (Admin SDK,
+  /// ignora las reglas, ya exige el custom claim admin) hace exactamente
+  /// el mismo cálculo -- es la pieza que faltaba conectar, no hace falta
+  /// una nueva.
   static Future<int> cerrarTemporada(String temporadaId) async {
-    final temporadaDoc =
-        await _db.collection('temporadas').doc(temporadaId).get();
-    if (!temporadaDoc.exists) throw Exception('Temporada no encontrada');
-    final temporada = TemporadaInfo.fromFirestore(temporadaDoc);
-    if (!temporada.activa) throw Exception('La temporada ya está cerrada');
-
-    final zonas = await getTodasLasZonas();
-    int titulosOtorgados = 0;
-    final batch = _db.batch();
-
-    for (final zona in zonas) {
-      final dominio = await calcularDominioZonaCompleto(zona);
-      if (dominio.isEmpty) continue;
-
-      final ganadorId =
-          dominio.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-      final areaDominada = dominio[ganadorId]!;
-
-      // Mínimo 100m² para recibir el título
-      if (areaDominada < 100) continue;
-
-      final playerDoc =
-          await _db.collection('players').doc(ganadorId).get();
-      if (!playerDoc.exists) continue;
-      final playerData = playerDoc.data()!;
-      final nick = playerData['nickname'] as String? ?? 'Runner';
-      final monedas = temporada.monedasBase;
-
-      // Crear título histórico
-      final tituloRef = _db.collection('titulos_rey').doc();
-      batch.set(tituloRef, {
-        'userId': ganadorId,
-        'userNick': nick,
-        'zonaId': zona.id,
-        'zonaNombre': zona.nombre,
-        'zonaNombreCorto': zona.nombreCorto,
-        'temporada': temporada.numero,
-        'areaM2': areaDominada,
-        'monedasRecompensa': monedas,
-        'coronaDesbloqueada': true,
-        'fechaOtorgado': FieldValue.serverTimestamp(),
-      });
-
-      // Actualizar zona con el nuevo rey
-      batch.update(_db.collection('zonas').doc(zona.id), {
-        'rey_actual_id': ganadorId,
-        'rey_actual_nick': nick,
-        'temporada_actual': temporada.numero,
-      });
-
-      // Entregar monedas
-      batch.update(_db.collection('players').doc(ganadorId), {
-        'monedas': FieldValue.increment(monedas),
-        'avatar_config.coronaDesbloqueada': true,
-      });
-
-      // Notificación al ganador
-      final notifRef = _db.collection('notifications').doc();
-      batch.set(notifRef, {
-        'toUserId': ganadorId,
-        'type': 'titulo_rey',
-        'zonaId': zona.id,
-        'zonaNombre': zona.nombreCorto ?? zona.nombre,
-        'temporada': temporada.numero,
-        'monedasRecompensa': monedas,
-        'message':
-            '👑 ¡Eres el Rey de ${zona.nombreCorto ?? zona.nombre} en la T${temporada.numero}! +$monedas 🪙',
-        'read': false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      titulosOtorgados++;
-    }
-
-    // Cerrar temporada
-    batch.update(_db.collection('temporadas').doc(temporadaId), {
-      'activa': false,
-      'fecha_cierre': FieldValue.serverTimestamp(),
-    });
-
-    await batch.commit();
-    return titulosOtorgados;
+    final functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = functions.httpsCallable('cerrarTemporada');
+    final result = await callable.call({'temporadaId': temporadaId});
+    return (result.data['titulosOtorgados'] as num).toInt();
   }
 
   /// Crea una nueva temporada activa

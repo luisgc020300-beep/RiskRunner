@@ -13,6 +13,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -190,10 +191,15 @@ class _CoinShopScreenState extends State<CoinShopScreen>
       try {
         final product = _rcProducts[pack.rcId]!;
         final result  = await rc.Purchases.purchase(rc.PurchaseParams.storeProduct(product));
-        final ok = result.customerInfo.nonSubscriptionTransactions
-            .any((t) => t.productIdentifier == pack.rcId);
-        if (ok) {
-          await _darMonedas(pack.monedas, pack.titulo);
+        final transaccion = result.customerInfo.nonSubscriptionTransactions
+            .where((t) => t.productIdentifier == pack.rcId)
+            .fold<rc.StoreTransaction?>(null, (latest, t) =>
+                latest == null || t.purchaseDate.compareTo(latest.purchaseDate) > 0 ? t : latest);
+        if (transaccion != null) {
+          // El servidor decide cuántas monedas da este pack (catálogo fijo)
+          // y usa transactionId como guarda anti-repetición -- nunca se
+          // confía ya en 'pack.monedas' del cliente para la cantidad.
+          await _acreditarCompra(pack.rcId, transaccion.transactionIdentifier);
           try {
             FirebaseAnalytics.instance.logEvent(
               name: 'compra_monedas',
@@ -241,27 +247,15 @@ class _CoinShopScreenState extends State<CoinShopScreen>
     }
   }
 
-  Future<void> _darMonedas(int cantidad, String motivo) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    final db = FirebaseFirestore.instance;
-    await Future.wait([
-      db.collection('players').doc(uid)
-          .update({'monedas': FieldValue.increment(cantidad)}),
-      db.collection('notifications').add({
-        'toUserId':  uid,
-        'type':      'coins_purchased',
-        'message':   ' ¡Recibiste $cantidad monedas de "$motivo"!',
-        'read':      false,
-        'timestamp': FieldValue.serverTimestamp(),
-      }),
-      db.collection('coin_purchases').add({
-        'userId':    uid,
-        'cantidad':  cantidad,
-        'motivo':    motivo,
-        'timestamp': FieldValue.serverTimestamp(),
-      }),
-    ]);
+  // Cloud Function transaccional: el servidor decide la cantidad (catálogo
+  // fijo por 'pack', nunca un entero suelto del cliente) y usa
+  // transactionId de RevenueCat como guarda para que la misma compra no se
+  // pueda acreditar dos veces. Ver el aviso en riskrunner/index.js sobre lo
+  // que esto NO verifica todavía (que la compra sea real).
+  Future<void> _acreditarCompra(String pack, String transactionId) async {
+    final functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = functions.httpsCallable('acreditarCompraMonedas');
+    await callable.call({'pack': pack, 'transactionId': transactionId});
   }
 
   @override
