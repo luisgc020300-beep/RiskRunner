@@ -41,7 +41,11 @@ describe('acreditarCompraMonedas – validaciones', () => {
   });
 
   test('jugador no existe → not-found', async () => {
-    await expect(call('u1', { pack: 'coins_patrol', transactionId: 'val-noplayer' }))
+    // uid propio, no 'u1' -- otros tests de este archivo sí siembran
+    // 'players/u1', y si clearEmulatorData() no ha terminado de propagar
+    // su borrado antes de que arranque este test, vería ese jugador como
+    // existente.
+    await expect(call('nouser-val', { pack: 'coins_patrol', transactionId: 'val-noplayer' }))
       .rejects.toMatchObject({ code: 'not-found' });
   });
 });

@@ -1840,6 +1840,120 @@ exports.coronarRey = onCall(
   }
 );
 
+// =============================================================================
+// DECLARAR GUERRA DE CLAN — transaccional
+// =============================================================================
+// Antes el cliente comprobaba el rol (líder/capitán) y la ausencia de una
+// guerra activa ya existente, pero escribía el documento de la guerra
+// directamente -- firestore.rules solo exigía que 'creatorUid' coincidiera
+// con el propio uid, sin revalidar el rol ni la duplicidad. Cualquier
+// miembro normal (no solo líder/capitán) podía declarar guerra saltándose
+// el chequeo del cliente, y nada impedía crear varias guerras activas
+// simultáneas entre los mismos dos clanes.
+//
+// Puntuar y finalizar la guerra (puntoClanEnGuerra/_finalizarGuerra en el
+// cliente) no se migra en este incremento porque, tras revisar el código,
+// NINGÚN sitio de la app llama a puntoClanEnGuerra -- no hay ninguna acción
+// de juego que otorgue puntos hoy, así que no hay ningún flujo legítimo que
+// cerrar sin inventar una mecánica nueva (el plan pide explícitamente no
+// hacerlo). En su lugar, firestore.rules bloquea 'clan_wars.update' por
+// completo: como no hay ningún escritor legítimo, cerrarlo no rompe nada y
+// elimina el hueco (antes cualquier miembro de cualquiera de los dos
+// clanes podía escribir puntuacion/estado/ganadorId directamente). Si se
+// diseña un sistema de puntuación real en el futuro, esa Cloud Function
+// sería la única que necesitaría tocar esta regla.
+const TIPOS_GUERRA_VALIDOS = ['conquista', 'asedio', 'resistencia'];
+
+exports.declararGuerra = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { miClanId, rivalClanId, tipo, duracionHoras } = request.data;
+
+    if (!miClanId || typeof miClanId !== 'string') {
+      throw new HttpsError('invalid-argument', 'miClanId inválido.');
+    }
+    if (!rivalClanId || typeof rivalClanId !== 'string' || rivalClanId === miClanId) {
+      throw new HttpsError('invalid-argument', 'rivalClanId inválido.');
+    }
+    if (!TIPOS_GUERRA_VALIDOS.includes(tipo)) {
+      throw new HttpsError('invalid-argument', 'tipo inválido.');
+    }
+    if (typeof duracionHoras !== 'number' || duracionHoras < 24 || duracionHoras > 168) {
+      throw new HttpsError('invalid-argument', 'duracionHoras debe estar entre 24 y 168.');
+    }
+
+    const [miClanSnap, rivalClanSnap] = await Promise.all([
+      db.collection('clans').doc(miClanId).get(),
+      db.collection('clans').doc(rivalClanId).get(),
+    ]);
+    if (!miClanSnap.exists)    throw new HttpsError('not-found', 'Tu clan no existe.');
+    if (!rivalClanSnap.exists) throw new HttpsError('not-found', 'El clan rival no existe.');
+
+    const miClan    = miClanSnap.data();
+    const rivalClan = rivalClanSnap.data();
+
+    const miMiembro = (miClan.miembros || []).find((m) => m.uid === uid);
+    if (!miMiembro || miMiembro.rol === 'miembro') {
+      throw new HttpsError('permission-denied', 'Solo líderes y capitanes pueden declarar guerra.');
+    }
+
+    const existing = await db.collection('clan_wars').where('estado', '==', 'activa').get();
+    const yaHayGuerra = existing.docs.some((doc) => {
+      const d = doc.data();
+      const a = d.clanA && d.clanA.id;
+      const b = d.clanB && d.clanB.id;
+      return (a === miClanId && b === rivalClanId) || (a === rivalClanId && b === miClanId);
+    });
+    if (yaHayGuerra) {
+      throw new HttpsError('failed-precondition', 'Ya hay una guerra activa entre estos clanes.');
+    }
+
+    const ahora = new Date();
+    const fin   = new Date(ahora.getTime() + duracionHoras * 3600 * 1000);
+    const ref   = db.collection('clan_wars').doc();
+
+    await ref.set({
+      warId: ref.id,
+      clanA: {
+        id: miClanId, nombre: miClan.nombre, tag: miClan.tag,
+        color: miClan.color, emoji: miClan.emoji,
+      },
+      clanB: {
+        id: rivalClanId, nombre: rivalClan.nombre, tag: rivalClan.tag,
+        color: rivalClan.color, emoji: rivalClan.emoji,
+      },
+      estado:     'activa',
+      inicio:     Timestamp.fromDate(ahora),
+      fin:        Timestamp.fromDate(fin),
+      tipo,
+      puntuacion: { clanA: 0, clanB: 0 },
+      ganadorId:  null,
+      creatorUid: uid,
+      createdAt:  FieldValue.serverTimestamp(),
+    });
+
+    const notifBatch = db.batch();
+    for (const m of (rivalClan.miembros || [])) {
+      notifBatch.set(db.collection('notifications').doc(), {
+        toUserId:   m.uid,
+        type:       'clan_war_declared',
+        fromUserId: uid,
+        message:    `[${miClan.tag}] ${miClan.nombre} os ha declarado la guerra!`,
+        warId:      ref.id,
+        read:       false,
+        timestamp:  FieldValue.serverTimestamp(),
+      });
+    }
+    await notifBatch.commit();
+
+    return { ok: true, warId: ref.id };
+  }
+);
+
 const MOTIVOS_PUNTOS_LIGA = ['carrera_competitiva', 'ruta_guardada'];
 const MAX_DELTA_ABS_LIGA  = 500; // techo de seguridad; ningún motivo real debería acercarse
 

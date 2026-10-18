@@ -6,6 +6,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -543,6 +544,12 @@ class ClanService {
   }
 
   // ── Declarar guerra ───────────────────────────────────────
+  // Cloud Function transaccional: antes el cliente comprobaba el rol
+  // (líder/capitán) y la ausencia de guerra activa duplicada, pero
+  // escribía el documento directamente -- firestore.rules solo exigía que
+  // 'creatorUid' coincidiera con el propio uid, sin revalidar ni el rol ni
+  // la duplicidad. Cualquier miembro normal podía declarar guerra
+  // saltándose el chequeo del cliente.
   static Future<String?> declararGuerra({
     required ClanData miClan,
     required ClanData rivalClan,
@@ -550,61 +557,15 @@ class ClanService {
     required Duration duracion,
   }) async {
     if (myUid == null) return null;
-    final yo = miClan.miembro(myUid!);
-    if (yo == null || yo.rol == ClanRol.miembro) {
-      throw Exception('Solo líderes y capitanes pueden declarar guerra');
-    }
-
-    final existing = await _db.collection('clan_wars')
-        .where('estado', isEqualTo: 'activa')
-        .get();
-    for (final doc in existing.docs) {
-      final d = doc.data();
-      final a = (d['clanA'] as Map)['id'];
-      final b = (d['clanB'] as Map)['id'];
-      if ((a == miClan.clanId && b == rivalClan.clanId) ||
-          (a == rivalClan.clanId && b == miClan.clanId)) {
-        throw Exception('Ya hay una guerra activa entre estos clanes');
-      }
-    }
-
-    final now = DateTime.now();
-    final fin = now.add(duracion);
-    final ref = _db.collection('clan_wars').doc();
-
-    await ref.set({
-      'warId': ref.id,
-      'clanA': {
-        'id': miClan.clanId, 'nombre': miClan.nombre,
-        'tag': miClan.tag, 'color': miClan.color, 'emoji': miClan.emoji,
-      },
-      'clanB': {
-        'id': rivalClan.clanId, 'nombre': rivalClan.nombre,
-        'tag': rivalClan.tag, 'color': rivalClan.color, 'emoji': rivalClan.emoji,
-      },
-      'estado':     'activa',
-      'inicio':     Timestamp.fromDate(now),
-      'fin':        Timestamp.fromDate(fin),
-      'tipo':       tipo,
-      'puntuacion': {'clanA': 0, 'clanB': 0},
-      'ganadorId':  null,
-      'creatorUid': myUid,
-      'createdAt':  FieldValue.serverTimestamp(),
+    final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('declararGuerra')
+        .call({
+      'miClanId':      miClan.clanId,
+      'rivalClanId':   rivalClan.clanId,
+      'tipo':          tipo,
+      'duracionHoras': duracion.inHours,
     });
-
-    for (final m in rivalClan.miembros) {
-      await _db.collection('notifications').add({
-        'toUserId':   m.uid,
-        'type':       'clan_war_declared',
-        'fromUserId': myUid,
-        'message':    '⚔️ [${miClan.tag}] ${miClan.nombre} os ha declarado la guerra!',
-        'warId':      ref.id,
-        'read':       false,
-        'timestamp':  FieldValue.serverTimestamp(),
-      });
-    }
-
-    return ref.id;
+    return result.data['warId'] as String?;
   }
 
   // ── Sumar punto en guerra ─────────────────────────────────

@@ -3,6 +3,7 @@
 //  CLAN SCREEN — Pantalla principal del clan del usuario
 // ═══════════════════════════════════════════════════════════
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -849,6 +850,8 @@ class _DeclararGuerraSheetState extends State<_DeclararGuerraSheet> {
         tipo: _tipo, duracion: Duration(hours: _durHoras),
       );
       if (mounted) Navigator.pop(context);
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) AppError.show(context, e.message ?? 'No se ha podido declarar la guerra.');
     } catch (e) {
       if (mounted) AppError.show(context, e.toString().replaceAll('Exception: ', ''));
     } finally {

@@ -274,17 +274,18 @@ service cloud.firestore {
     }
 
     // ── clan_wars ─────────────────────────────────────────────────────────────
+    // La creación pasa exclusivamente por la Cloud Function 'declararGuerra'
+    // (revalida rol líder/capitán y ausencia de guerra activa duplicada con
+    // el Admin SDK). Antes 'create' solo exigía que 'creatorUid' coincidiera
+    // con el propio uid, sin comprobar el rol -- cualquier miembro normal
+    // podía declarar guerra. 'update' permitía a cualquier participante
+    // escribir puntuacion/estado/ganadorId directamente -- se bloquea del
+    // todo porque hoy no existe ningún flujo legítimo que escriba aquí
+    // (ninguna acción de juego llama a lo que antes sumaba puntos).
     match /clan_wars/{warId} {
       allow read:   if isAuth();
-      // Create: quien declara la guerra debe ser miembro de clanA (campo leaderId)
-      allow create: if isAuth() && request.resource.data.get('creatorUid', '') == request.auth.uid;
-      // Update: solo campos de puntuación/estado, y solo si eres participante registrado
-      allow update: if isAuth()
-        && onlyFields(['puntuacion', 'estado', 'ganadorId'])
-        && (
-          resource.data.clanA.id == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.clanId ||
-          resource.data.clanB.id == get(/databases/$(database)/documents/players/$(request.auth.uid)).data.clanId
-        );
+      allow create: if false;
+      allow update: if false;
       allow delete: if false;
     }
 
