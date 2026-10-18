@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -75,6 +76,7 @@ class ActivityEntry {
 // ── Servicio ──────────────────────────────────────────────────────────────────
 class ActivityService {
   static FirebaseFirestore _db = FirebaseFirestore.instance;
+  static final _functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   @visibleForTesting
   static void setDb(FirebaseFirestore db) => _db = db;
@@ -247,6 +249,23 @@ class ActivityService {
     } catch (e) {
       debugPrint('ActivityService.acreditarMonedas error: $e');
     }
+  }
+
+  // ── RECOMPENSA DE CARRERA — Cloud Function transaccional ────────────────────
+  //
+  //  Antes esta pantalla calculaba las monedas en el propio cliente
+  //  (distancia × multiplicador de boost/premium/modo) y las escribía
+  //  directamente con acreditarMonedas(). El servidor ahora recalcula todo
+  //  a partir del log de actividad ya guardado (fuente autoritativa de la
+  //  distancia) y de los campos server-side del jugador (premium, boost) --
+  //  nunca de lo que diga el cliente en esta llamada. Requiere que el log
+  //  ya exista (llamar después de registrarSesion, no antes).
+  //
+  //  Devuelve las monedas acreditadas (puede ser 0 en modo ruta).
+  static Future<int> acreditarRecompensaCarrera(String logId) async {
+    final callable = _functions.httpsCallable('acreditarRecompensaCarrera');
+    final result = await callable.call({'logId': logId});
+    return (result.data['monedas'] as num).toInt();
   }
 
   // Envía una notificación in-app al jugador

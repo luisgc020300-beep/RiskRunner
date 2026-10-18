@@ -3535,16 +3535,6 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && distanciaFinal > 0) {
-        if (!_modoRuta) {
-          final monedasBase    = (distanciaFinal * 10).round();
-          final bool esPremium = SubscriptionService.currentStatus.isPremium;
-          final int multiplicador = (_boostXpActivo ? 2 : 1) * (esPremium ? 2 : 1);
-          final double factorModo = multiplicadorMonedas(_modoSolitario);
-          final int monedasFinales =
-              (monedasBase * multiplicador * factorModo).round();
-          await ActivityService.acreditarMonedas(user.uid, monedasFinales);
-        }
-
         final now = DateTime.now();
         logId = await ActivityService.registrarSesion({
           'userId':          user.uid,
@@ -3593,6 +3583,15 @@ class _LiveActivityScreenState extends State<LiveActivityScreen>
         ActivityService.programarNotificacionesPostCarrera(user.uid, distanciaFinal);
 
         if (logId != null) {
+          if (!_modoRuta) {
+            // El servidor recalcula las monedas a partir de este mismo log
+            // (distancia) y de los campos server-side del jugador (premium,
+            // boost) -- nunca de un valor que calculemos aquí.
+            ActivityService.acreditarRecompensaCarrera(logId).catchError((e) {
+              debugPrint('Error acreditarRecompensaCarrera: $e');
+              return 0;
+            });
+          }
           if (_objetivoGlobal != null && _globalKmAlcanzados) {
             await _conquistarTerritorioGlobal(logId);
           }

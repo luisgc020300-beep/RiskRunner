@@ -2046,6 +2046,90 @@ exports.aceptarDesafio = onCall(
 );
 
 // =============================================================================
+// ACREDITAR RECOMPENSA DE CARRERA — monedas por distancia, transaccional
+// =============================================================================
+// Antes el cliente calculaba 'monedasFinales' él mismo (distancia × multi-
+// plicador de boost/premium/modo, todo en Dart) y escribía 'monedas'
+// directamente en su propio players/{uid} -- firestore.rules solo impide que
+// 'monedas' baje, nada impedía inflar la distancia o los multiplicadores.
+// Mismo patrón anti-replay que conquistarTerritorioGlobal: el log de
+// actividad (activity_logs/{logId}, creado por el cliente al terminar la
+// carrera) es la fuente autoritativa de la distancia -- no se vuelve a
+// confiar un valor que el cliente pase suelto en esta llamada. 'is_premium'
+// y 'boost_xp_activo' se leen del propio players/{uid} en vez de que el
+// cliente diga "soy premium" -- ver el bloqueo de esos campos en
+// firestore.rules (antes cualquiera podía escribírselos directamente).
+//
+// La verificación real de que la distancia del log es físicamente posible
+// (ritmo, trazado GPS) sigue sin existir -- eso es P1.3 del plan de
+// seguridad, no de este incremento. Esto cierra la escritura directa y el
+// reuso del mismo log, no la falsificación del propio log.
+const _MONEDAS_POR_KM          = 10;
+const _FACTOR_MONEDAS_SOLITARIO    = 0.65;
+const _FACTOR_MONEDAS_COMPETITIVO  = 1.00;
+
+exports.acreditarRecompensaCarrera = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { logId } = request.data;
+    if (!logId || typeof logId !== 'string') {
+      throw new HttpsError('invalid-argument', 'logId inválido.');
+    }
+
+    const logRef    = db.collection('activity_logs').doc(logId);
+    const playerRef = db.collection('players').doc(uid);
+
+    const { monedas } = await db.runTransaction(async (tx) => {
+      const [logSnap, playerSnap] = await Promise.all([tx.get(logRef), tx.get(playerRef)]);
+      if (!logSnap.exists)    throw new HttpsError('not-found', 'Log de actividad no encontrado.');
+      if (!playerSnap.exists) throw new HttpsError('not-found', 'Jugador no encontrado.');
+
+      const log = logSnap.data();
+      if (log.userId !== uid) {
+        throw new HttpsError('permission-denied', 'Este log no te pertenece.');
+      }
+      const logTimestamp = log.timestamp?.toMillis() ?? 0;
+      if (Date.now() - logTimestamp > 2 * 60 * 60 * 1000) {
+        throw new HttpsError('failed-precondition', 'El log ha expirado (>2h).');
+      }
+      if (log.monedas_acreditadas === true) {
+        throw new HttpsError('failed-precondition', 'Este log ya acreditó monedas.');
+      }
+
+      const distanciaKm = typeof log.distancia === 'number' ? log.distancia : 0;
+      if (!(distanciaKm > 0) || distanciaKm > 100) {
+        throw new HttpsError('failed-precondition', 'Distancia del log inválida.');
+      }
+
+      const playerData  = playerSnap.data();
+      const esPremium   = playerData.is_premium === true;
+      const boostExpira = playerData.boost_xp_expira?.toMillis?.() ?? 0;
+      const boostActivo = playerData.boost_xp_activo === true && boostExpira > Date.now();
+
+      const factorModo = log.modo === 'ruta'
+        ? 0
+        : (log.modo === 'solitario' ? _FACTOR_MONEDAS_SOLITARIO : _FACTOR_MONEDAS_COMPETITIVO);
+
+      const monedasBase    = Math.round(distanciaKm * _MONEDAS_POR_KM);
+      const multiplicador  = (boostActivo ? 2 : 1) * (esPremium ? 2 : 1);
+      const monedas        = Math.round(monedasBase * multiplicador * factorModo);
+
+      tx.update(logRef, { monedas_acreditadas: true });
+      if (monedas > 0) {
+        tx.update(playerRef, { monedas: FieldValue.increment(monedas) });
+      }
+      return { monedas };
+    });
+
+    return { ok: true, monedas };
+  }
+);
+
+// =============================================================================
 // CANCELAR / RECHAZAR DESAFÍO — reembolso transaccional de la apuesta
 // =============================================================================
 // Antes el cliente escribía 'monedas' directamente en players/{retadorId}

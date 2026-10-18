@@ -26,6 +26,18 @@ service cloud.firestore {
       // Functions (sumarPuntosLigaJugador, actualizarRachaDiaria y las
       // funciones de territorio/guerra global). 'nivel' y 'victorias' también
       // se bloquean: hoy no tienen ninguna escritura legítima del cliente.
+      // 'xp' y 'global_territories_count' solo deberían moverlos las Cloud
+      // Functions (conquista/liga) — no tenían ningún escritor legítimo en
+      // el cliente, pero tampoco estaban bloqueados: cualquiera podía
+      // escribirlos directo con el SDK público sin pasar por la app.
+      // 'is_premium'/'subscription_plan'/'subscription_expires'/
+      // 'premium_updated_at' y 'boost_xp_activo'/'boost_xp_expira' se
+      // bloquean por el mismo motivo que 'monedas': el cliente se los
+      // escribía él mismo sin ninguna verificación de pago real (RevenueCat
+      // sigue sin confirmación server-to-server — ver P0.9 del plan de
+      // seguridad). Esto deja a CUALQUIERA en estado gratuito hasta que haya
+      // una Cloud Function que sincronice un pago verificado — hoy no
+      // existe, así que premium queda inactivo para todos hasta construirla.
       allow update: if isOwner(uid) && (
         !('monedas' in resource.data) ||
         !('monedas' in request.resource.data) ||
@@ -35,7 +47,15 @@ service cloud.firestore {
         && fieldLocked('racha_actual')
         && fieldLocked('ultima_fecha_actividad')
         && fieldLocked('nivel')
-        && fieldLocked('victorias');
+        && fieldLocked('victorias')
+        && fieldLocked('xp')
+        && fieldLocked('global_territories_count')
+        && fieldLocked('is_premium')
+        && fieldLocked('subscription_plan')
+        && fieldLocked('subscription_expires')
+        && fieldLocked('premium_updated_at')
+        && fieldLocked('boost_xp_activo')
+        && fieldLocked('boost_xp_expira');
       allow delete: if false;
     }
 
