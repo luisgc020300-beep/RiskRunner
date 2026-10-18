@@ -5,6 +5,7 @@ jest.mock('firebase-functions/v2/firestore', () => ({
 }));
 jest.mock('firebase-functions/v2/https', () => ({
   onCall: (optsOrFn, fn) => (typeof optsOrFn === 'function' ? optsOrFn : fn),
+  onRequest: () => null,
   HttpsError: class HttpsError extends Error {
     constructor(code, msg) { super(msg); this.code = code; }
   },

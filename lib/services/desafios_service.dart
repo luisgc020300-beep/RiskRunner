@@ -225,6 +225,22 @@ class DesafiosService {
     return result.data['desafioId'] as String;
   }
 
+  // ── CANCELAR / RECHAZAR DESAFÍO — Cloud Function transaccional ──────────────
+  //
+  //  Antes el cliente escribía 'monedas' directamente en players/{retadorId}
+  //  para reembolsar la apuesta. Funcionaba por accidente cuando el propio
+  //  retador se cancelaba a sí mismo, pero fallaba con permission-denied en
+  //  el caso más común -- el retado rechazando, o cualquiera de los dos
+  //  cortando una contrapropuesta -- porque ahí quien pulsa el botón no es
+  //  el dueño del documento players/ que hay que acreditar. Ahora el
+  //  reembolso lo hace el servidor con el Admin SDK.
+  //
+  static Future<String> cancelarDesafio({required String desafioId}) async {
+    final callable = _functions.httpsCallable('cancelarDesafio');
+    final result = await callable.call({'desafioId': desafioId});
+    return result.data['estado'] as String;
+  }
+
   // ── VERIFICAR EXPIRADOS — ya no hace nada en el cliente ─────────────────────
   //
   //  El scheduler del servidor (resolverDesafiosExpirados) se ejecuta

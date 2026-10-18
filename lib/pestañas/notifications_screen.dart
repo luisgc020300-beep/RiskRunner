@@ -907,20 +907,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final String? id = desafioId ?? await _buscarDesafioPendiente();
       if (id == null) return;
 
-      final doc = await FirebaseFirestore.instance
-          .collection('desafios').doc(id).get();
-      if (doc.exists) {
-        final apuesta = (doc.data()?['apuesta'] as num?)?.toInt() ?? 0;
-        final retadorId = doc.data()?['retadorId'] as String?;
-        if (retadorId != null && apuesta > 0) {
-          await FirebaseFirestore.instance
-              .collection('players').doc(retadorId)
-              .update({'monedas': FieldValue.increment(apuesta)});
-        }
-        await FirebaseFirestore.instance
-            .collection('desafios').doc(id)
-            .update({'estado': 'rechazado'});
-      }
+      // Cloud Function transaccional: antes esto escribía 'monedas'
+      // directamente en players/{retadorId}, que las reglas de Firestore
+      // rechazan porque quien rechaza no es el dueño de ese documento.
+      await DesafiosService.cancelarDesafio(desafioId: id);
       await FirebaseFirestore.instance
           .collection('notifications').doc(item.id)
           .update({'read': true});
@@ -936,20 +926,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final String? id = desafioId ?? await _buscarDesafioPendiente();
       if (id == null) return;
 
-      final doc = await FirebaseFirestore.instance
-          .collection('desafios').doc(id).get();
-      if (doc.exists) {
-        final apuesta   = (doc.data()?['apuesta'] as num?)?.toInt() ?? 0;
-        final retadorId = doc.data()?['retadorId'] as String?;
-        if (retadorId != null && apuesta > 0) {
-          await FirebaseFirestore.instance
-              .collection('players').doc(retadorId)
-              .update({'monedas': FieldValue.increment(apuesta)});
-        }
-        await FirebaseFirestore.instance
-            .collection('desafios').doc(id)
-            .update({'estado': 'cancelado'});
-      }
+      await DesafiosService.cancelarDesafio(desafioId: id);
       await FirebaseFirestore.instance
           .collection('notifications').doc(item.id)
           .update({'read': true});

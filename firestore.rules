@@ -106,12 +106,21 @@ service cloud.firestore {
       );
       // La creación (enviar desafío) y la activación (aceptar desafío) implican
       // cobrar la apuesta — solo las Cloud Functions transaccionales
-      // (Admin SDK, no sujetas a estas reglas) pueden hacerlo.
+      // (Admin SDK, no sujetas a estas reglas) pueden hacerlo. Cancelar y
+      // rechazar también implican mover monedas (reembolso) — solo la
+      // Cloud Function 'cancelarDesafio' puede hacerlo; antes el cliente
+      // podía poner estado='cancelado'/'rechazado' aquí directamente y
+      // reembolsarse aparte escribiendo 'monedas' en players/, sin pasar
+      // por ninguna validación de servidor. 'contrapropuesta' sigue
+      // permitida directamente: no mueve dinero, solo propone términos.
       allow create: if false;
       allow update: if isAuth() && (
         resource.data.retadorId == request.auth.uid ||
         resource.data.retadoId  == request.auth.uid
-      ) && request.resource.data.estado != 'activo';
+      )
+        && request.resource.data.estado != 'activo'
+        && request.resource.data.estado != 'cancelado'
+        && request.resource.data.estado != 'rechazado';
       allow delete: if false;
     }
 

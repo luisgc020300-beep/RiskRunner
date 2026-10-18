@@ -2046,6 +2046,69 @@ exports.aceptarDesafio = onCall(
 );
 
 // =============================================================================
+// CANCELAR / RECHAZAR DESAFÍO — reembolso transaccional de la apuesta
+// =============================================================================
+// Antes el cliente escribía 'monedas' directamente en players/{retadorId}
+// para reembolsar la apuesta -- funcionaba por accidente cuando el propio
+// retador se cancelaba a sí mismo (retadorId == auth.uid, isOwner() lo
+// permitía), pero fallaba con permission-denied en el caso más común: el
+// retado rechazando, o cualquiera de los dos cancelando una contrapropuesta,
+// porque ahí el que pulsa el botón no es el dueño del documento players/
+// que hay que acreditar. Ahora el reembolso lo hace el servidor con el
+// Admin SDK, sin depender de quién sea el dueño del documento.
+exports.cancelarDesafio = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { desafioId } = request.data;
+    if (!desafioId || typeof desafioId !== 'string') {
+      throw new HttpsError('invalid-argument', 'desafioId inválido.');
+    }
+
+    const desafioRef = db.collection('desafios').doc(desafioId);
+
+    const { nuevoEstado } = await db.runTransaction(async (tx) => {
+      const desafioSnap = await tx.get(desafioRef);
+      if (!desafioSnap.exists) {
+        throw new HttpsError('not-found', 'Desafío no encontrado.');
+      }
+      const data = desafioSnap.data();
+      if (data.estado !== 'pendiente' && data.estado !== 'contrapropuesta') {
+        throw new HttpsError('failed-precondition', 'Este desafío ya no se puede cancelar.');
+      }
+      if (uid !== data.retadorId && uid !== data.retadoId) {
+        throw new HttpsError('permission-denied', 'Este desafío no es tuyo.');
+      }
+
+      // Mismo criterio que ya usaba el cliente: pendiente -> 'rechazado' si
+      // lo cierra quien NO lo envió (retado rechazando la propuesta inicial),
+      // 'cancelado' en cualquier otro caso (el propio retador se retracta, o
+      // cualquiera de los dos corta una contrapropuesta en curso).
+      const nuevoEstado =
+        data.estado === 'pendiente' && uid === data.retadoId ? 'rechazado' : 'cancelado';
+
+      // El importe adeudado es siempre el original salvo que haya una
+      // contrapropuesta en curso con su propio importe -- mismo criterio que
+      // aceptarDesafio.
+      const apuesta = data.estado === 'contrapropuesta'
+        ? (data.propuestaApuesta ?? data.apuesta)
+        : data.apuesta;
+
+      const retadorRef = db.collection('players').doc(data.retadorId);
+      tx.update(retadorRef, { monedas: FieldValue.increment(apuesta) });
+      tx.update(desafioRef, { estado: nuevoEstado });
+
+      return { nuevoEstado };
+    });
+
+    return { ok: true, estado: nuevoEstado };
+  }
+);
+
+// =============================================================================
 // HELPERS PRIVADOS
 // =============================================================================
 

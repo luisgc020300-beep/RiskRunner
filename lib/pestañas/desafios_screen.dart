@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/app_error.dart';
 import '../services/desafios_service.dart';
 import '../services/game_state_service.dart';
@@ -518,15 +517,10 @@ class _CardPendiente extends StatelessWidget {
   Future<void> _cancelar(BuildContext context) async {
     HapticFeedback.lightImpact();
     try {
-      await FirebaseFirestore.instance
-          .collection('players').doc(uid)
-          .update({'monedas': FieldValue.increment(info.apuesta)});
-      await FirebaseFirestore.instance
-          .collection('desafios').doc(info.id)
-          .update({'estado': 'cancelado'});
+      await DesafiosService.cancelarDesafio(desafioId: info.id);
       if (context.mounted) AppError.showInfo(context, 'Desafío cancelado — monedas devueltas');
-    } catch (e) {
-      debugPrint('Error cancelando: $e');
+    } catch (e, st) {
+      if (context.mounted) AppError.show(context, 'No se ha podido cancelar el desafío.', error: e, stack: st);
     }
   }
 }

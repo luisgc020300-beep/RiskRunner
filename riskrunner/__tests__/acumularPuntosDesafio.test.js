@@ -5,6 +5,7 @@ jest.mock('firebase-functions/v2/firestore', () => ({
 }));
 jest.mock('firebase-functions/v2/https', () => ({
   onCall: (optsOrFn, fn) => (typeof optsOrFn === 'function' ? optsOrFn : fn),
+  onRequest: () => null,
   HttpsError: class HttpsError extends Error {
     constructor(code, msg) { super(msg); this.code = code; }
   },
@@ -101,16 +102,21 @@ describe('acumularPuntosDesafio – acumulación real', () => {
   });
 
   test('cooldown por desafío previene doble acumulación', async () => {
-    await seed('players', 'u1', { ultimaLlamadaAcumular: ts(-60_000) });
-    await seed('desafios', 'des3', {
-      retadorId: 'u1', retadoId: 'u2',
+    // uid/doc propios y distintos de 'u1'/'des1'/'des2' (usados por los tests
+    // anteriores de este mismo describe) -- así la consulta
+    // where('retadorId','==',uid) de este test no puede devolver ningún
+    // desafío de un test anterior si clearEmulatorData() todavía no hubiera
+    // terminado de propagar su borrado al emulador.
+    await seed('players', 'uCooldown', { ultimaLlamadaAcumular: ts(-60_000) });
+    await seed('desafios', 'desCooldown', {
+      retadorId: 'uCooldown', retadoId: 'uCooldownRival',
       estado: 'activo',
       fin: ts(3_600_000),
       puntosRetador: 0,
       ultimaAcumRetador: ts(-30_000), // cooldown por desafío activo (< 1 min)
     });
 
-    const result = await call('u1', { distanciaKm: 5, territoriosConquistados: 2 });
+    const result = await call('uCooldown', { distanciaKm: 5, territoriosConquistados: 2 });
     expect(result.desafiosActualizados).toBe(0);
   });
 });
