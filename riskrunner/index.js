@@ -1613,15 +1613,17 @@ exports.actualizarHpTodosLosTerritorios = onSchedule(
       }
 
       const hpActual = _hpActual(data);
-      if (hpActual > 0) {
+      if (hpActual > 1) {
         const ultimaActualizacion = data.ultimaActualizacionHp
           ? data.ultimaActualizacionHp.toDate()
           : (data.ultima_visita ? data.ultima_visita.toDate() : ahora);
 
         const horasTranscurridas = (ahora - ultimaActualizacion) / (1000 * 60 * 60);
         const decayPorHora       = (100 / 7) / 24;
+        // Suelo en 1, no 0 -- "los territorios nunca mueren" (mismo criterio
+        // que _hpActual más abajo). Puro decaimiento por tiempo, sin ataque.
         const nuevoHp            = Math.max(
-          Math.round(hpActual - decayPorHora * horasTranscurridas), 0
+          Math.round(hpActual - decayPorHora * horasTranscurridas), 1
         );
 
         if (nuevoHp !== hpActual) {
@@ -1701,6 +1703,140 @@ exports.activarEscudo = onCall(
       horas,
       precio,
     };
+  }
+);
+
+// =============================================================================
+// REFORZAR TERRITORIO — sube el HP del propio territorio, transaccional
+// =============================================================================
+// Antes el cliente leía el HP, calculaba a dónde debía subir (1-29→30,
+// 30-69→100, 70-100→100) y escribía 'hp'/'ultimaActualizacionHp'/
+// 'ultima_visita' directamente -- firestore.rules solo comprobaba
+// resource.data.userId == auth.uid, así que el dueño podía poner 'hp' a
+// cualquier valor, en cualquier momento, sin límite.
+//
+// LIMITACIÓN CONOCIDA, documentada explícitamente en vez de fingir que no
+// existe: esta función no comprueba la posición GPS real del jugador. El
+// cliente dispara esto cuando su posición en vivo cae dentro del polígono
+// de su propio territorio durante una sesión de carrera -- pero esa
+// posición es 100% la que reporta el teléfono, sin ningún registro
+// server-side en el momento en que ocurre (el activity_log de la carrera
+// se crea al terminar, no durante). No hay información server-side
+// disponible hoy para validar la posición en tiempo real -- en vez de
+// inventar una validación falsa, esto se limita a lo que SÍ puede
+// garantizar: nadie puede poner el HP a un valor arbitrario, y hay un
+// cooldown para que no se pueda machacar sin límite. La verificación real
+// de posición en tiempo real queda fuera de este incremento.
+const _REFORZAR_COOLDOWN_MS = 60 * 1000;
+
+exports.reforzarTerritorio = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { docId } = request.data;
+    if (!docId || typeof docId !== 'string') {
+      throw new HttpsError('invalid-argument', 'docId inválido.');
+    }
+
+    const terRef = db.collection('territories').doc(docId);
+
+    const { hp } = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(terRef);
+      if (!snap.exists) throw new HttpsError('not-found', 'Territorio no encontrado.');
+      const data = snap.data();
+      if (data.userId !== uid) {
+        throw new HttpsError('permission-denied', 'Este territorio no es tuyo.');
+      }
+
+      const ultimaActualizacion = data.ultimaActualizacionHp?.toMillis?.() ?? 0;
+      if (Date.now() - ultimaActualizacion < _REFORZAR_COOLDOWN_MS) {
+        throw new HttpsError('resource-exhausted', 'Espera un poco antes de reforzar de nuevo.');
+      }
+
+      const hpAntes = _hpActual(data);
+      // Leve (1-29) → Medio (30) · Medio (30-69) → Fuerte (100) · Fuerte → 100
+      const hp = hpAntes < 30 ? 30 : 100;
+
+      tx.update(terRef, {
+        hp,
+        ultimaActualizacionHp: FieldValue.serverTimestamp(),
+        ultima_visita:         FieldValue.serverTimestamp(),
+      });
+      return { hp };
+    });
+
+    return { ok: true, hp };
+  }
+);
+
+// =============================================================================
+// CORONAR REY DE TERRITORIO — transaccional
+// =============================================================================
+// Antes el cliente comprobaba 'fecha_desde_dueno' (ese campo sí es
+// server-side, solo lo escriben las Cloud Functions de conquista) pero
+// luego escribía 'rey_id'/'rey_nickname'/'rey_desde' directamente -- nada
+// en firestore.rules revalidaba los 14 días de dominio. Cualquiera podía
+// coronarse rey de un territorio el mismo día que lo conquistaba, sin
+// esperar nada, con solo saltarse la lógica del cliente y escribir
+// Firestore directamente.
+const K_DIAS_PARA_SER_REY = 14;
+
+exports.coronarRey = onCall(
+  { region: 'europe-west1' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Debes estar autenticado.');
+    }
+    const uid = request.auth.uid;
+    const { docId } = request.data;
+    if (!docId || typeof docId !== 'string') {
+      throw new HttpsError('invalid-argument', 'docId inválido.');
+    }
+
+    const terRef = db.collection('territories').doc(docId);
+
+    const { diasControlado } = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(terRef);
+      if (!snap.exists) throw new HttpsError('not-found', 'Territorio no encontrado.');
+      const data = snap.data();
+      if (data.userId !== uid) {
+        throw new HttpsError('permission-denied', 'Este territorio no es tuyo.');
+      }
+      if (data.rey_id) {
+        throw new HttpsError('failed-precondition', 'Este territorio ya tiene rey.');
+      }
+      const fechaDesdeDueno = data.fecha_desde_dueno;
+      if (!fechaDesdeDueno) {
+        throw new HttpsError('failed-precondition', 'No hay fecha de dominio registrada.');
+      }
+      const diasControlado = (Date.now() - fechaDesdeDueno.toMillis()) / (1000 * 60 * 60 * 24);
+      if (diasControlado < K_DIAS_PARA_SER_REY) {
+        throw new HttpsError(
+          'failed-precondition',
+          `Necesitas ${K_DIAS_PARA_SER_REY} días controlando este territorio. Llevas ${diasControlado.toFixed(1)}.`
+        );
+      }
+
+      tx.update(terRef, {
+        rey_id:       uid,
+        rey_nickname: data.nickname || 'Runner',
+        rey_desde:    FieldValue.serverTimestamp(),
+      });
+      return { diasControlado };
+    });
+
+    await db.collection('notifications').add({
+      toUserId:  uid,
+      type:      'territory_king',
+      message:   `¡Has sido coronado Rey de uno de tus territorios! Llevas ${Math.floor(diasControlado)} días dominando esta zona.`,
+      read:      false,
+      timestamp: FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true };
   }
 );
 
@@ -2351,18 +2487,25 @@ function _hpActual(terData) {
   const HP_MAX         = 100;
   const HP_DECAY_DIA   = 100 / 7;
 
+  // Suelo en 1, nunca 0 -- decisión de producto ("los territorios nunca
+  // mueren", CLAUDE.md). Esto es solo el decaimiento por TIEMPO sin
+  // visitar; el 0 que dispara la conquista total en atacarTerritorio
+  // (más abajo, Math.max(hpActual - danio, 0)) es un mecanismo distinto e
+  // intencional -- perder toda la vida de un golpe sí debe poder pasar.
+  // Antes esta función sí podía devolver 0 por pura inactividad, dejando el
+  // territorio "muerto" (hp=0) sin ningún evento que lo reconquistara.
   if (terData.hp === undefined || terData.hp === null) {
     const ultimaVisita = terData.ultima_visita
       ? terData.ultima_visita.toDate() : new Date();
     const dias = (new Date() - ultimaVisita) / (1000 * 60 * 60 * 24);
-    return Math.max(Math.round(HP_MAX - dias * HP_DECAY_DIA), 0);
+    return Math.max(Math.round(HP_MAX - dias * HP_DECAY_DIA), 1);
   }
 
   const ultimaActualizacion = terData.ultimaActualizacionHp
     ? terData.ultimaActualizacionHp.toDate() : new Date();
   const horasTranscurridas  = (new Date() - ultimaActualizacion) / (1000 * 60 * 60);
   const decayPorHora        = HP_DECAY_DIA / 24;
-  return Math.max(Math.round(terData.hp - decayPorHora * horasTranscurridas), 0);
+  return Math.max(Math.round(terData.hp - decayPorHora * horasTranscurridas), 1);
 }
 
 function _sutherlandHodgman(subjectPoly, clipPoly) {

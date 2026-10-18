@@ -110,15 +110,18 @@ service cloud.firestore {
     // userId == auth.uid, sin validar área ni cierre del lazo — cualquiera con
     // las credenciales públicas del SDK podía crear un territorio en cualquier
     // sitio sin haber corrido. El cliente ya no debe escribir aquí directamente.
-    // Campos críticos (escudo, userId, puntos, nombre) solo via Cloud Functions.
+    // 'hp'/'ultimaActualizacionHp'/'ultima_visita' (reforzarTerritorio) y
+    // 'rey_id'/'rey_nickname'/'rey_desde' (coronarRey) eran el único resto
+    // de escritura directa que quedaba -- el dueño podía curarse el HP a
+    // cualquier valor o coronarse rey sin esperar los 14 días de dominio,
+    // porque esta regla solo comprobaba el userId, no los valores. Ahora
+    // ambas Cloud Functions son el único camino: no queda ningún campo
+    // legítimamente escribible por el cliente en este documento.
     // Las Cloud Functions (admin SDK) ignoran estas reglas — tienen acceso total.
     match /territories/{docId} {
       allow read:   if isAuth();
       allow create: if false;
-      allow update: if isAuth()
-        && resource.data.userId == request.auth.uid
-        && onlyFields(['hp', 'ultimaActualizacionHp', 'ultima_visita',
-                       'rey_id', 'rey_nickname', 'rey_desde']);
+      allow update: if false;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
 
       // Historial de conquistas — solo lectura, escritura exclusiva de Cloud Functions

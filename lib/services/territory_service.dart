@@ -615,41 +615,31 @@ class TerritoryService {
   // ══════════════════════════════════════════════════════════════════════════
   // REFORZAR TERRITORIO PROPIO — sube HP a 100 al visitarlo
   // ══════════════════════════════════════════════════════════════════════════
+ // Cloud Function transaccional: antes esto leía el HP y escribía
+ // 'hp'/'ultimaActualizacionHp'/'ultima_visita' directamente -- el dueño
+ // podía ponerle a su territorio el HP que quisiera, cuando quisiera.
+ // Ahora el servidor recalcula el HP real y aplica su propio cooldown.
  static Future<void> reforzarTerritorio(String docId) async {
   AppError.log('refuerzo:inicio id=$docId');
   AppError.setKey('last_action', 'reforzar_territorio');
   AppError.setKey('last_territory_id', docId);
   try {
-    // Primero leemos el HP actual para decidir a dónde sube
-    final doc = await _db.collection('territories').doc(docId).get();
-    if (!doc.exists) return;
-    final data = doc.data()!;
+    final result = await FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('reforzarTerritorio')
+        .call({'docId': docId});
+    final nuevoHp = (result.data['hp'] as num).toInt();
 
-    // Calculamos HP actual con decay
-    final tsHp = data['ultimaActualizacionHp'] as Timestamp?;
-    final tsVisita = data['ultima_visita'] as Timestamp?;
-    final referencia = tsHp?.toDate() ?? tsVisita?.toDate() ?? DateTime.now();
-    final horasTranscurridas = DateTime.now().difference(referencia).inMinutes / 60.0;
-    const decayPorHora = kHpDecayPorDia / 24.0;
-    final hpGuardado = (data['hp'] as num?)?.toInt() ?? kHpMax;
-    final hpActual = (hpGuardado - decayPorHora * horasTranscurridas)
-        .round()
-        .clamp(1, kHpMax);
-
-    // Leve (1-29) → sube a Medio (30)
-    // Medio (30-69) → sube a Fuerte (100)
-    // Fuerte (70-100) → sube a 100
-    final int nuevoHp = hpActual < 30 ? 30 : 100;
-
-    await _db.collection('territories').doc(docId).update({
-      'hp':                    nuevoHp,
-      'ultimaActualizacionHp': FieldValue.serverTimestamp(),
-      'ultima_visita':         FieldValue.serverTimestamp(),
-    });
     invalidarCache();
-    AppError.log('refuerzo:ok id=$docId hp=$hpActual->$nuevoHp');
-    debugPrint('🛡️ Territorio $docId reforzado: $hpActual → $nuevoHp HP');
+    AppError.log('refuerzo:ok id=$docId hp=$nuevoHp');
+    debugPrint('🛡️ Territorio $docId reforzado a $nuevoHp HP');
     await _comprobarYCoronarRey(docId);
+  } on FirebaseFunctionsException catch (e) {
+    // resource-exhausted (cooldown) no es un error real -- es esperable si
+    // el jugador pasa varias veces por el mismo territorio seguido.
+    if (e.code != 'resource-exhausted') {
+      AppError.record(e, null, reason: 'reforzar_territorio');
+    }
+    debugPrint('reforzarTerritorio: ${e.code} ${e.message}');
   } catch (e, st) {
     AppError.record(e, st, reason: 'reforzar_territorio');
     debugPrint('Error reforzando territorio: $e');
@@ -1058,7 +1048,10 @@ class TerritoryService {
         hpGuardado = (data['hp'] as num).toInt();
       } else if (ultimaVisita != null) {
         final dias = DateTime.now().difference(ultimaVisita).inDays;
-        hpGuardado = (kHpMax - kHpDecayPorDia * dias).round().clamp(0, kHpMax);
+        // Suelo en 1, no 0 -- "los territorios nunca mueren" (mismo criterio
+        // que el servidor; antes el cliente podía mostrar 0 mientras el
+        // servidor nunca lo dejaría llegar ahí).
+        hpGuardado = (kHpMax - kHpDecayPorDia * dias).round().clamp(1, kHpMax);
       }
 
       resultado.add(TerritoryData(
@@ -1093,6 +1086,14 @@ class TerritoryService {
     await reforzarTerritorio(docId);
   }
 
+  // Cloud Function transaccional: antes el cliente comprobaba los 14 días
+  // de dominio (fecha_desde_dueno sí es server-side, pero la escritura de
+  // rey_id/rey_nickname/rey_desde era directa) -- nada revalidaba esos 14
+  // días en servidor, así que cualquiera podía coronarse rey el mismo día
+  // que conquistaba, saltándose la comprobación del cliente. El pre-chequeo
+  // local de abajo (reyExistente, fechaDesdeDueno) se mantiene solo para no
+  // malgastar una llamada de red cuando es obvio que todavía no toca --
+  // quien decide de verdad es el servidor.
   static Future<void> _comprobarYCoronarRey(String docId) async {
     try {
       final doc = await _db.collection('territories').doc(docId).get();
@@ -1102,32 +1103,19 @@ class TerritoryService {
       final reyExistente = data['rey_id'] as String?;
       if (reyExistente != null && reyExistente.isNotEmpty) return;
 
-      final userId   = data['userId'] as String?;
-      final nickname = data['nickname'] as String? ?? '';
-      if (userId == null) return;
-
       final fechaDesdeDueno = data['fecha_desde_dueno'] as Timestamp?;
       if (fechaDesdeDueno == null) return;
 
       final diasControlado =
           DateTime.now().difference(fechaDesdeDueno.toDate()).inDays;
+      if (diasControlado < kDiasParaSerRey) return;
 
-      if (diasControlado >= kDiasParaSerRey) {
-        await _db.collection('territories').doc(docId).update({
-          'rey_id':       userId,
-          'rey_nickname': nickname,
-          'rey_desde':    FieldValue.serverTimestamp(),
-        });
-
-        await _db.collection('notifications').add({
-          'toUserId':  userId,
-          'type':      'territory_king',
-          'message':   '👑 ¡Has sido coronado Rey de uno de tus territorios! '
-                       'Llevas $diasControlado días dominando esta zona.',
-          'read':      false,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-      }
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('coronarRey')
+          .call({'docId': docId});
+      invalidarCache();
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('coronarRey: ${e.code} ${e.message}');
     } catch (e) {
       debugPrint('Error comprobando Rey: $e');
     }
